@@ -25,6 +25,11 @@ TEST(Thorchain, AmountFormattingCoversProtocolMaximumAndFailsClosed) {
   char too_small[8];
   EXPECT_FALSE(thorchain_formatAmount(UINT64_MAX, max_asset, too_small,
                                       sizeof(too_small)));
+  EXPECT_FALSE(thorchain_formatAmount(1, "", rendered, sizeof(rendered)));
+  EXPECT_FALSE(
+      thorchain_formatAmount(1, "ETH.ETH\n", rendered, sizeof(rendered)));
+  EXPECT_FALSE(
+      thorchain_formatAmount(1, "ETH.\"ETH", rendered, sizeof(rendered)));
 }
 
 TEST(Thorchain, MemoWithEmbeddedNulIsNotParsed) {
@@ -261,4 +266,37 @@ TEST(Thorchain, ZeroOrOmittedMessagesFailInitialization) {
   msg.msg_count = 1;
   EXPECT_FALSE(thorchain_signTxInit(&node, &msg));
   EXPECT_FALSE(thorchain_signingIsInited());
+
+  msg.has_msg_count = true;
+  strcpy(msg.chain_id, "");
+  EXPECT_FALSE(thorchain_signTxInit(&node, &msg));
+  strcpy(msg.chain_id, "thor\nchain");
+  EXPECT_FALSE(thorchain_signTxInit(&node, &msg));
+}
+
+TEST(Thorchain, DepositAssetAndSignerFailClosed) {
+  HDNode node = {};
+  node.curve = &secp256k1_info;
+  ThorchainSignTx msg = {};
+  msg.has_chain_id = true;
+  strcpy(msg.chain_id, "thorchain");
+  msg.has_msg_count = true;
+  msg.msg_count = 1;
+  ASSERT_TRUE(thorchain_signTxInit(&node, &msg));
+
+  ThorchainMsgDeposit deposit = {};
+  deposit.has_asset = true;
+  strcpy(deposit.asset, "ETH.\"ETH");
+  deposit.has_signer = true;
+  strcpy(deposit.signer, "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n");
+  EXPECT_FALSE(thorchain_signTxUpdateMsgDeposit(&deposit));
+
+  strcpy(deposit.asset, "ETH.ETH");
+  strcpy(deposit.signer, "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v");
+  EXPECT_FALSE(thorchain_signTxUpdateMsgDeposit(&deposit));
+
+  strcpy(deposit.signer, "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n");
+  EXPECT_TRUE(thorchain_signTxUpdateMsgDeposit(&deposit));
+  EXPECT_TRUE(thorchain_signingIsFinished());
+  thorchain_signAbort();
 }

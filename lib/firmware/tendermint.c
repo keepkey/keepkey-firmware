@@ -6,6 +6,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 static int convert_bits(uint8_t* out, size_t* outlen, int outbits,
                         const uint8_t* in, size_t inlen, int inbits, int pad) {
@@ -62,6 +63,26 @@ bool tendermint_getAddress(const HDNode* node, const char* prefix,
   convert_bits(fiveBitExpanded, &len, 5, hash160Buf, 20, 8, 1);
   return bech32_encode(address, prefix, fiveBitExpanded, len,
                        BECH32_ENCODING_BECH32) == 1;
+}
+
+bool tendermint_validateSafeText(const char* value) {
+  if (!value || value[0] == '\0') return false;
+
+  for (const unsigned char* p = (const unsigned char*)value; *p; ++p) {
+    if (*p < 0x21 || *p > 0x7e || *p == '"' || *p == '\\') return false;
+  }
+  return true;
+}
+
+bool tendermint_validateBech32Address(const char* address,
+                                      const char* expected_prefix) {
+  if (!address || !expected_prefix || expected_prefix[0] == '\0') return false;
+
+  char hrp[84] = {0};
+  uint8_t decoded[65] = {0};
+  size_t decoded_len = 0;
+  return bech32_decode(hrp, decoded, &decoded_len, address) == 1 &&
+         strcmp(hrp, expected_prefix) == 0;
 }
 
 void tendermint_sha256UpdateEscaped(SHA256_CTX* ctx, const char* s,

@@ -71,17 +71,22 @@ void fsm_msgTendermintGetAddress(const TendermintGetAddress* msg) {
 
 void fsm_msgTendermintSignTx(const TendermintSignTx* msg) {
   CHECK_INITIALIZED
-  CHECK_PIN
 
   if (!msg->has_account_number || !msg->has_chain_id || !msg->has_fee_amount ||
       !msg->has_gas || !msg->has_sequence || !msg->has_chain_name ||
-      !msg->has_denom || !msg->has_message_type_prefix) {
+      !msg->has_denom || !msg->has_message_type_prefix || !msg->has_msg_count ||
+      msg->msg_count == 0 || !tendermint_validateSafeText(msg->chain_id) ||
+      !tendermint_validateSafeText(msg->chain_name) ||
+      !tendermint_validateSafeText(msg->denom) ||
+      !tendermint_validateSafeText(msg->message_type_prefix)) {
     tendermint_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    "Missing Fields On Message");
+                    "Missing or Invalid Fields On Message");
     layoutHome();
     return;
   }
+
+  CHECK_PIN
 
   HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);

@@ -77,16 +77,18 @@ void fsm_msgCosmosGetAddress(const CosmosGetAddress* msg) {
 
 void fsm_msgCosmosSignTx(const CosmosSignTx* msg) {
   CHECK_INITIALIZED
-  CHECK_PIN
 
   if (!msg->has_account_number || !msg->has_chain_id || !msg->has_fee_amount ||
-      !msg->has_gas || !msg->has_sequence) {
+      !msg->has_gas || !msg->has_sequence || !msg->has_msg_count ||
+      msg->msg_count == 0 || !tendermint_validateSafeText(msg->chain_id)) {
     tendermint_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    "Missing Fields On Message");
+                    "Missing or Invalid Fields On Message");
     layoutHome();
     return;
   }
+
+  CHECK_PIN
 
   HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);

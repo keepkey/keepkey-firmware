@@ -43,7 +43,7 @@ const ThorchainSignTx* thorchain_getThorchainSignTx(void) { return &msg; }
 
 bool thorchain_formatAmount(uint64_t amount, const char* asset, char* out,
                             size_t out_len) {
-  if (!asset || !out || out_len == 0) return false;
+  if (!tendermint_validateSafeText(asset) || !out || out_len == 0) return false;
 
   char suffix[THORCHAIN_ASSET_SUFFIX_LEN + 2];
   const int suffix_len = snprintf(suffix, sizeof(suffix), " %s", asset);
@@ -54,7 +54,8 @@ bool thorchain_formatAmount(uint64_t amount, const char* asset, char* out,
 
 bool thorchain_signTxInit(const HDNode* _node, const ThorchainSignTx* _msg) {
   thorchain_signAbort();
-  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0) {
+  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0 ||
+      !_msg->has_chain_id || !tendermint_validateSafeText(_msg->chain_id)) {
     return false;
   }
 
@@ -171,6 +172,13 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
 
 bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg) {
   if (!initialized || msgs_remaining == 0) return false;
+
+  const char* const signer_prefix = testnet ? "tthor" : "thor";
+  if (!depmsg || !depmsg->has_asset ||
+      !tendermint_validateSafeText(depmsg->asset) || !depmsg->has_signer ||
+      !tendermint_validateBech32Address(depmsg->signer, signer_prefix)) {
+    return false;
+  }
 
   char buffer[64 + 1];
 

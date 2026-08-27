@@ -45,7 +45,7 @@ const MayachainSignTx* mayachain_getMayachainSignTx(void) { return &msg; }
 
 bool mayachain_formatAmount(uint64_t amount, const char* denom, char* out,
                             size_t out_len) {
-  if (!denom || !out || out_len == 0) return false;
+  if (!tendermint_validateSafeText(denom) || !out || out_len == 0) return false;
 
   char suffix[MAYACHAIN_DENOM_SUFFIX_LEN + 2];
   const int suffix_len = snprintf(suffix, sizeof(suffix), " %s", denom);
@@ -58,7 +58,8 @@ bool mayachain_formatAmount(uint64_t amount, const char* denom, char* out,
 
 bool mayachain_signTxInit(const HDNode* _node, const MayachainSignTx* _msg) {
   mayachain_signAbort();
-  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0) {
+  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0 ||
+      !_msg->has_chain_id || !tendermint_validateSafeText(_msg->chain_id)) {
     return false;
   }
 
@@ -122,6 +123,7 @@ bool mayachain_signTxInit(const HDNode* _node, const MayachainSignTx* _msg) {
 bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
                                    const char* to_address, const char* denom) {
   if (!initialized || msgs_remaining == 0) return false;
+  if (!tendermint_validateSafeText(denom)) return false;
 
   const char mainnetp[] = "maya";
   const char testnetp[] = "smaya";
@@ -178,6 +180,13 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
 
 bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit* depmsg) {
   if (!initialized || msgs_remaining == 0) return false;
+
+  const char* const signer_prefix = testnet ? "smaya" : "maya";
+  if (!depmsg || !depmsg->has_asset ||
+      !tendermint_validateSafeText(depmsg->asset) || !depmsg->has_signer ||
+      !tendermint_validateBech32Address(depmsg->signer, signer_prefix)) {
+    return false;
+  }
 
   char buffer[64 + 1];
 

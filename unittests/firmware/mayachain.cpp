@@ -24,6 +24,11 @@ TEST(Mayachain, FormatsOnlyCacaoWithTenDecimals) {
   ASSERT_TRUE(
       mayachain_formatAmount(1, "future-denom", rendered, sizeof(rendered)));
   EXPECT_STREQ("1 future-denom", rendered);
+  EXPECT_FALSE(mayachain_formatAmount(1, "", rendered, sizeof(rendered)));
+  EXPECT_FALSE(
+      mayachain_formatAmount(1, "ETH.ETH\n", rendered, sizeof(rendered)));
+  EXPECT_FALSE(
+      mayachain_formatAmount(1, "ETH.\\ETH", rendered, sizeof(rendered)));
 }
 
 TEST(Mayachain, MemoWithMisdeclaredLengthIsRefused) {
@@ -265,4 +270,37 @@ TEST(Mayachain, ZeroOrOmittedMessagesFailInitialization) {
   msg.msg_count = 1;
   EXPECT_FALSE(mayachain_signTxInit(&node, &msg));
   EXPECT_FALSE(mayachain_signingIsInited());
+
+  msg.has_msg_count = true;
+  strcpy(msg.chain_id, "");
+  EXPECT_FALSE(mayachain_signTxInit(&node, &msg));
+  strcpy(msg.chain_id, "maya\nchain");
+  EXPECT_FALSE(mayachain_signTxInit(&node, &msg));
+}
+
+TEST(Mayachain, DepositAssetAndSignerFailClosed) {
+  HDNode node = {};
+  node.curve = &secp256k1_info;
+  MayachainSignTx msg = {};
+  msg.has_chain_id = true;
+  strcpy(msg.chain_id, "mayachain");
+  msg.has_msg_count = true;
+  msg.msg_count = 1;
+  ASSERT_TRUE(mayachain_signTxInit(&node, &msg));
+
+  MayachainMsgDeposit deposit = {};
+  deposit.has_asset = true;
+  strcpy(deposit.asset, "ETH.ETH\n");
+  deposit.has_signer = true;
+  strcpy(deposit.signer, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
+  EXPECT_FALSE(mayachain_signTxUpdateMsgDeposit(&deposit));
+
+  strcpy(deposit.asset, "ETH.ETH");
+  strcpy(deposit.signer, "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n");
+  EXPECT_FALSE(mayachain_signTxUpdateMsgDeposit(&deposit));
+
+  strcpy(deposit.signer, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
+  EXPECT_TRUE(mayachain_signTxUpdateMsgDeposit(&deposit));
+  EXPECT_TRUE(mayachain_signingIsFinished());
+  mayachain_signAbort();
 }

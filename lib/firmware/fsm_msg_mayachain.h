@@ -83,7 +83,7 @@ void fsm_msgMayachainSignTx(const MayachainSignTx* msg) {
 
   if (!msg->has_account_number || !msg->has_chain_id || !msg->has_fee_amount ||
       !msg->has_gas || !msg->has_sequence || !msg->has_msg_count ||
-      msg->msg_count == 0) {
+      msg->msg_count == 0 || !tendermint_validateSafeText(msg->chain_id)) {
     mayachain_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "Missing or Invalid Fields On Message");
@@ -194,6 +194,17 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     }
 
   } else if (msg->has_deposit) {
+    const char* const signer_prefix =
+        sign_tx->has_testnet && sign_tx->testnet ? "smaya" : "maya";
+    if (!tendermint_validateSafeText(msg->deposit.asset) ||
+        !tendermint_validateBech32Address(msg->deposit.signer, signer_prefix)) {
+      mayachain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid MAYAChain deposit fields");
+      layoutHome();
+      return;
+    }
+
     /* Same defect as the send path above, one field narrower:
      * MayachainMsgDeposit.asset is max_size:20, so the suffix reaches 20
      * characters and 21 + 20 + 1 = 42 does not fit a 32-byte amount_str.
@@ -301,9 +312,9 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign this %s transaction on %s? "
-               "Additional network fees apply.",
-               msg->has_send ? msg->send.denom : "CACAO", sign_tx->chain_id)) {
+               "Sign %s on %s? Fee: %" PRIu32 " cacao. Gas: %" PRIu32 ".",
+               msg->has_send ? msg->send.denom : "CACAO", sign_tx->chain_id,
+               sign_tx->fee_amount, sign_tx->gas)) {
     mayachain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();

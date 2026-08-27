@@ -55,7 +55,8 @@ bool osmosis_validate_amount(bool has_value, const char* value) {
 
 bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
   osmosis_signAbort();
-  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0) {
+  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0 ||
+      !_msg->has_chain_id || !tendermint_validateSafeText(_msg->chain_id)) {
     return false;
   }
 

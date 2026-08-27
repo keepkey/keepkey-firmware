@@ -68,7 +68,19 @@ bool tendermint_signTxInit(const HDNode* _node, const void* _msg,
   }
 
   const TendermintSignTx* common = (const TendermintSignTx*)_msg;
-  if (!common->has_msg_count || common->msg_count == 0) return false;
+  if (!common->has_msg_count || common->msg_count == 0 ||
+      !common->has_chain_id || !tendermint_validateSafeText(common->chain_id) ||
+      !tendermint_validateSafeText(denom)) {
+    return false;
+  }
+  if (type == TENDERMINT_SIGNING_GENERIC &&
+      (!common->has_chain_name ||
+       !tendermint_validateSafeText(common->chain_name) || !common->has_denom ||
+       !tendermint_validateSafeText(common->denom) ||
+       !common->has_message_type_prefix ||
+       !tendermint_validateSafeText(common->message_type_prefix))) {
+    return false;
+  }
 
   msgs_remaining = common->msg_count;
   memcpy(&node, _node, sizeof(node));
@@ -123,6 +135,15 @@ static bool tendermint_canUpdate(void) {
   return initialized && msgs_remaining > 0;
 }
 
+static bool tendermint_configIsSafe(const char* chainstr, const char* denom,
+                                    const char* msgTypePrefix) {
+  return tendermint_validateSafeText(chainstr) &&
+         tendermint_validateSafeText(denom) &&
+         tendermint_validateSafeText(msgTypePrefix) &&
+         strnlen(chainstr, 15) <= 14 && strnlen(denom, 10) <= 9 &&
+         strnlen(msgTypePrefix, 25) <= 24;
+}
+
 bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
                                     const char* to_address,
                                     const char* chainstr, const char* denom,
@@ -137,8 +158,7 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
@@ -203,8 +223,7 @@ bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
@@ -269,8 +288,7 @@ bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
@@ -334,8 +352,7 @@ bool tendermint_signTxUpdateMsgRedelegate(
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
@@ -408,8 +425,7 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t* amount,
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
@@ -477,8 +493,7 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 

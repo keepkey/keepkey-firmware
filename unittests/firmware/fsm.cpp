@@ -42,25 +42,35 @@ TEST(Fsm, AbortWorkflowsClearsEveryObservableSigningSession) {
   TendermintSignTx tendermint = {};
   tendermint.has_msg_count = true;
   tendermint.msg_count = 1;
+  tendermint.has_chain_id = true;
   std::strcpy(tendermint.chain_id, "chain-1");
+  tendermint.has_chain_name = true;
+  std::strcpy(tendermint.chain_name, "Cosmos");
+  tendermint.has_denom = true;
+  std::strcpy(tendermint.denom, "uatom");
+  tendermint.has_message_type_prefix = true;
+  std::strcpy(tendermint.message_type_prefix, "cosmos-sdk");
   ASSERT_TRUE(tendermint_signTxInit(&node, &tendermint, sizeof(tendermint),
                                     "uatom", TENDERMINT_SIGNING_GENERIC));
 
   OsmosisSignTx osmosis = {};
   osmosis.has_msg_count = true;
   osmosis.msg_count = 1;
+  osmosis.has_chain_id = true;
   std::strcpy(osmosis.chain_id, "osmosis-1");
   ASSERT_TRUE(osmosis_signTxInit(&node, &osmosis));
 
   ThorchainSignTx thorchain = {};
   thorchain.has_msg_count = true;
   thorchain.msg_count = 1;
+  thorchain.has_chain_id = true;
   std::strcpy(thorchain.chain_id, "thorchain-1");
   ASSERT_TRUE(thorchain_signTxInit(&node, &thorchain));
 
   MayachainSignTx mayachain = {};
   mayachain.has_msg_count = true;
   mayachain.msg_count = 1;
+  mayachain.has_chain_id = true;
   std::strcpy(mayachain.chain_id, "mayachain-mainnet-v1");
   ASSERT_TRUE(mayachain_signTxInit(&node, &mayachain));
 

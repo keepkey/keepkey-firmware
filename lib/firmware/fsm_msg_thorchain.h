@@ -82,7 +82,7 @@ void fsm_msgThorchainSignTx(const ThorchainSignTx* msg) {
 
   if (!msg->has_account_number || !msg->has_chain_id || !msg->has_fee_amount ||
       !msg->has_gas || !msg->has_sequence || !msg->has_msg_count ||
-      msg->msg_count == 0) {
+      msg->msg_count == 0 || !tendermint_validateSafeText(msg->chain_id)) {
     thorchain_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "Missing or Invalid Fields On Message");
@@ -177,6 +177,17 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     }
 
   } else if (msg->has_deposit) {
+    const char* const signer_prefix =
+        sign_tx->has_testnet && sign_tx->testnet ? "tthor" : "thor";
+    if (!tendermint_validateSafeText(msg->deposit.asset) ||
+        !tendermint_validateBech32Address(msg->deposit.signer, signer_prefix)) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid THORChain deposit fields");
+      layoutHome();
+      return;
+    }
+
     /* ThorchainMsgDeposit.asset is max_size:20, so the suffix reaches 20
      * characters while a uint64 at 8 decimals reaches 21: 21 + 20 + 1 = 42
      * did not fit the old 32-byte amount_str. bn_format() zeroes its output
@@ -288,9 +299,8 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign this RUNE transaction on %s? "
-               "Additional network fees apply.",
-               sign_tx->chain_id)) {
+               "Sign RUNE on %s? Fee: %" PRIu32 " rune. Gas: %" PRIu32 ".",
+               sign_tx->chain_id, sign_tx->fee_amount, sign_tx->gas)) {
     thorchain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();

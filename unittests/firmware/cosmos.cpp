@@ -10,6 +10,22 @@ extern "C" {
 #include "gtest/gtest.h"
 #include <cstring>
 
+TEST(Cosmos, HostTextMustBeSafeForJsonAndDisplay) {
+  EXPECT_FALSE(tendermint_validateSafeText(nullptr));
+  EXPECT_FALSE(tendermint_validateSafeText(""));
+  EXPECT_FALSE(tendermint_validateSafeText("chain id"));
+  EXPECT_FALSE(tendermint_validateSafeText("chain\nname"));
+  EXPECT_FALSE(tendermint_validateSafeText("chain\"name"));
+  EXPECT_FALSE(tendermint_validateSafeText("chain\\name"));
+  EXPECT_TRUE(tendermint_validateSafeText("cosmoshub-4"));
+  EXPECT_TRUE(tendermint_validateSafeText("ibc/ABC.DEF_123"));
+
+  EXPECT_TRUE(tendermint_validateBech32Address(
+      "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "cosmos"));
+  EXPECT_FALSE(tendermint_validateBech32Address(
+      "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "thor"));
+}
+
 TEST(Cosmos, CosmosGetAddress) {
   HDNode node = {
       0,
@@ -111,4 +127,35 @@ TEST(Cosmos, TendermintSessionBindsProtocolAndAssetConfiguration) {
   EXPECT_FALSE(
       tendermint_signingConfigMatches("Cosmos", "uatom", "other-prefix"));
   tendermint_signAbort();
+}
+
+TEST(Cosmos, TendermintSessionRejectsUnsafeEnvelopeConfiguration) {
+  HDNode node = {};
+  node.curve = &secp256k1_info;
+  TendermintSignTx msg = {};
+  msg.has_chain_id = true;
+  strcpy(msg.chain_id, "chain-1");
+  msg.has_msg_count = true;
+  msg.msg_count = 1;
+  msg.has_chain_name = true;
+  strcpy(msg.chain_name, "Cosmos");
+  msg.has_denom = true;
+  strcpy(msg.denom, "uatom");
+  msg.has_message_type_prefix = true;
+  strcpy(msg.message_type_prefix, "cosmos-sdk");
+
+  strcpy(msg.chain_id, "");
+  EXPECT_FALSE(tendermint_signTxInit(&node, &msg, sizeof(msg), msg.denom,
+                                     TENDERMINT_SIGNING_GENERIC));
+  strcpy(msg.chain_id, "chain\n1");
+  EXPECT_FALSE(tendermint_signTxInit(&node, &msg, sizeof(msg), msg.denom,
+                                     TENDERMINT_SIGNING_GENERIC));
+  strcpy(msg.chain_id, "chain-1");
+  strcpy(msg.denom, "u\"atom");
+  EXPECT_FALSE(tendermint_signTxInit(&node, &msg, sizeof(msg), msg.denom,
+                                     TENDERMINT_SIGNING_GENERIC));
+  strcpy(msg.denom, "uatom");
+  strcpy(msg.message_type_prefix, "cosmos\\sdk");
+  EXPECT_FALSE(tendermint_signTxInit(&node, &msg, sizeof(msg), msg.denom,
+                                     TENDERMINT_SIGNING_GENERIC));
 }

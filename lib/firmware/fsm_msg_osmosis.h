@@ -128,7 +128,7 @@ void fsm_msgOsmosisSignTx(const OsmosisSignTx* msg) {
 
   if (!msg->has_account_number || !msg->has_chain_id || !msg->has_fee_amount ||
       !msg->has_gas || !msg->has_sequence || !msg->has_msg_count ||
-      msg->msg_count == 0) {
+      msg->msg_count == 0 || !tendermint_validateSafeText(msg->chain_id)) {
     osmosis_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "Missing or Invalid Fields On Message");

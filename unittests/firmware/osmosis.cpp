@@ -113,6 +113,15 @@ TEST(Osmosis, ZeroOrOmittedMessagesFailInitialization) {
   msg.msg_count = 1;
   EXPECT_FALSE(osmosis_signTxInit(&node, &msg));
   EXPECT_FALSE(osmosis_signingIsInited());
+
+  msg.has_msg_count = true;
+  strcpy(msg.chain_id, "");
+  EXPECT_FALSE(osmosis_signTxInit(&node, &msg));
+  strcpy(msg.chain_id, "osmosis\n1");
+  EXPECT_FALSE(osmosis_signTxInit(&node, &msg));
+  strcpy(msg.chain_id, "osmosis-1");
+  EXPECT_TRUE(osmosis_signTxInit(&node, &msg));
+  osmosis_signAbort();
 }
 
 TEST(Osmosis, RequiredValuesRejectEmptyAndNonDecimalAmounts) {
