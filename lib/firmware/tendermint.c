@@ -6,6 +6,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 static int convert_bits(uint8_t* out, size_t* outlen, int outbits,
                         const uint8_t* in, size_t inlen, int inbits, int pad) {
@@ -62,6 +63,47 @@ bool tendermint_getAddress(const HDNode* node, const char* prefix,
   convert_bits(fiveBitExpanded, &len, 5, hash160Buf, 20, 8, 1);
   return bech32_encode(address, prefix, fiveBitExpanded, len,
                        BECH32_ENCODING_BECH32) == 1;
+}
+
+// Allow lowercase alpha, digits, and the punctuation used in Cosmos-style
+// asset identifiers (e.g. "eth.eth", "btc/btc", cross-chain synthetic
+// prefixes). Rejects anything that needs JSON escaping (backslash, quote).
+bool tendermint_isValidDenom(const char* denom) {
+  if (!denom || !denom[0]) return false;
+  for (size_t i = 0; denom[i]; i++) {
+    char c = denom[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' ||
+          c == '/' || c == '-')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Deposit assets share the denom grammar but are conventionally uppercase
+// (e.g. ETH.USDT-0XDAC1...); allow both cases, digits, and . / - only.
+bool tendermint_isValidAsset(const char* asset) {
+  if (!asset || !asset[0]) return false;
+  for (size_t i = 0; asset[i]; i++) {
+    char c = asset[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') || c == '.' || c == '/' || c == '-')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Deposit signer is host-supplied; require a valid bech32 address with the
+// expected HRP before it is displayed or signed.
+bool tendermint_isValidSigner(const char* signer, const char* hrp) {
+  size_t decoded_len;
+  char decoded_hrp[45];
+  uint8_t decoded[BECH32_DECODED_MAX];
+  if (!signer || !bech32_decode(decoded_hrp, decoded, &decoded_len, signer)) {
+    return false;
+  }
+  return 0 == strcmp(decoded_hrp, hrp);
 }
 
 void tendermint_sha256UpdateEscaped(SHA256_CTX* ctx, const char* s,

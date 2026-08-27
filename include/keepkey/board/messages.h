@@ -102,6 +102,12 @@ typedef void (*raw_msg_handler_t)(RawMessage* msg, uint32_t frame_length);
 const pb_field_t* message_fields(MessageMapType type, MessageType msg_id,
                                  MessageMapDirection dir);
 
+/* Shared frame arena (defined in messages.c). Acquiring the arena for TX or
+ * scratch drops any partially reassembled inbound frame — see the FrameArena
+ * contract in messages.c. Single-threaded transport only. */
+TrezorFrameBuffer* frame_arena_tx(void);
+uint16_t* frame_arena_scratch2049(void);
+
 bool msg_write(MessageType msg_id, const void* msg);
 
 #if DEBUG_LINK

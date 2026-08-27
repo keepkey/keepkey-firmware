@@ -24,6 +24,7 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #define CONFIRM_SIGN_IDENTITY_TITLE 32
 #define CONFIRM_SIGN_IDENTITY_BODY 416
@@ -46,10 +47,29 @@ bool confirm_load_device(bool is_node);
 bool confirm_address(const char* desc, const char* address);
 bool confirm_xpub(const char* node_str, const char* xpub);
 bool confirm_sign_identity(const IdentityType* identity, const char* challenge);
+
+/**
+ * Render the largest screen-sized prefix of a byte string.
+ *
+ * Whitespace, backslashes, controls, and non-ASCII bytes use an unambiguous
+ * \xNN spelling. This prevents the OLED renderer from discarding leading
+ * spaces or interpreting newlines while preserving readable printable text.
+ *
+ * \returns the number of input bytes represented in out, or zero on error.
+ */
+size_t confirm_bytes_format_page(const uint8_t* data, size_t size, char* out,
+                                 size_t out_len);
+
+/** Review every byte of a length-delimited payload over one or more screens. */
+bool confirm_bytes(ButtonRequestType button_request, const char* title,
+                   const uint8_t* data, size_t size);
 bool confirm_cosmos_address(const char* desc, const char* address);
 bool confirm_osmosis_address(const char* desc, const char* address);
 bool confirm_ethereum_address(const char* desc, const char* address);
 bool confirm_nano_address(const char* desc, const char* address);
+#if ZCASH_PRIVACY
+bool confirm_zcash_address(const char* desc, const char* address);
+#endif
 bool confirm_omni(ButtonRequestType button_request, const char* title,
                   const uint8_t* data, uint32_t size);
 bool confirm_data(ButtonRequestType button_request, const char* title,

@@ -31,7 +31,17 @@
 #pragma GCC optimize("-O3")
 
 /*
- * draw_char_with_shift() - Draw image on display with left/top margins
+ * draw_char_impl() - Place one glyph, optionally without writing pixels.
+ *
+ * Whether a glyph fits is decided entirely by geometry -- canvas->width and
+ * ->height against p->x, p->y and the glyph's own extent -- and never by what
+ * is already on the canvas. So the identical control flow answers both "does
+ * this fit" and "draw this", and `measure` selects which. The pixel store is
+ * the only statement it guards; every bounds test, pointer advance and shift
+ * runs the same way in both modes.
+ *
+ * This is what lets confirm_body_fits() ask the real renderer instead of
+ * modelling it. See draw_string_walk().
  *
  * INPUT
  *     - canvas: canvas
@@ -39,11 +49,13 @@
  *     - x_shift: left margin
  *     - y_shift: top margin
  *     - img: pointer to image drawn on the screen
+ *     - measure: run the placement but write no pixels
  * OUTPUT
- *      true/false whether image was drawn
+ *      true/false whether the image was placed
  */
-bool draw_char_with_shift(Canvas* canvas, DrawableParams* p, uint16_t* x_shift,
-                          uint16_t* y_shift, const CharacterImage* img) {
+static bool draw_char_impl(Canvas* canvas, DrawableParams* p, uint16_t* x_shift,
+                           uint16_t* y_shift, const CharacterImage* img,
+                           bool measure) {
   bool ret_stat = false;
 
   uint16_t start_index = (p->y * canvas->width) + p->x;
@@ -70,7 +82,9 @@ bool draw_char_with_shift(Canvas* canvas, DrawableParams* p, uint16_t* x_shift,
           if (canvas_pixel >= canvas_end) {
             return false;  // defensive bounds check
           }
-          *canvas_pixel = (*img_pixel == 0x00) ? p->color : *canvas_pixel;
+          if (!measure) {
+            *canvas_pixel = (*img_pixel == 0x00) ? p->color : *canvas_pixel;
+          }
           canvas_pixel++;
           img_pixel++;
         }
@@ -90,9 +104,28 @@ bool draw_char_with_shift(Canvas* canvas, DrawableParams* p, uint16_t* x_shift,
     }
   }
 
-  canvas->dirty = true;
+  if (!measure) {
+    canvas->dirty = true;
+  }
 
   return (ret_stat);
+}
+
+/*
+ * draw_char_with_shift() - Draw image on display with left/top margins
+ *
+ * INPUT
+ *     - canvas: canvas
+ *     - p: pointer to Margins and text color
+ *     - x_shift: left margin
+ *     - y_shift: top margin
+ *     - img: pointer to image drawn on the screen
+ * OUTPUT
+ *      true/false whether image was drawn
+ */
+bool draw_char_with_shift(Canvas* canvas, DrawableParams* p, uint16_t* x_shift,
+                          uint16_t* y_shift, const CharacterImage* img) {
+  return draw_char_impl(canvas, p, x_shift, y_shift, img, false);
 }
 
 /*
@@ -108,14 +141,16 @@ bool draw_char_with_shift(Canvas* canvas, DrawableParams* p, uint16_t* x_shift,
  * OUTPUT
  *     none
  */
-void draw_string(Canvas* canvas, const Font* font, const char* str_write,
-                 const DrawableParams* p, uint16_t width,
-                 uint16_t line_height) {
+static bool draw_string_walk(Canvas* canvas, const Font* font,
+                             const char* str_write, const DrawableParams* p,
+                             uint16_t width, uint16_t line_height,
+                             bool measure) {
   uint16_t sepPixels =
       0;  // font char separation pixels for large font (pin font)
 
   if (!canvas) {
-    return;
+    /* Nothing was placed. If there was anything to place, it was dropped. */
+    return *str_write == '\0';
   }
 
   if (font == get_pin_font()) {
@@ -136,6 +171,15 @@ void draw_string(Canvas* canvas, const Font* font, const char* str_write,
       char_params.y += line_height;
       x_offset = 0;
       str_write++;
+      /* A newline that puts the cursor below the canvas has not been honoured
+       * -- nothing can be placed on the row it asked for. Stop here rather
+       * than walking a cursor that is off screen, so the completeness test
+       * below sees whatever is left. Without this, a body of nothing but
+       * newlines consumes every character while drawing nothing and would
+       * report as fully shown. */
+      if (char_params.y + font_height(font) > canvas->height) {
+        have_space = false;
+      }
       continue;
     }
 
@@ -167,11 +211,35 @@ void draw_string(Canvas* canvas, const Font* font, const char* str_write,
     x_offset += sepPixels;
     char_params.x = x_offset + p->x;
     have_space =
-        draw_char_with_shift(canvas, &char_params, &x_offset, NULL, img);
-    str_write++;
+        draw_char_impl(canvas, &char_params, &x_offset, NULL, img, measure);
+    /* A rejected glyph was not drawn. Leave str_write on it so the caller's
+     * completeness result cannot report that a clipped final glyph fitted. */
+    if (have_space) {
+      str_write++;
+    }
   }
 
-  canvas->dirty = true;
+  if (!measure) {
+    canvas->dirty = true;
+  }
+
+  /* The loop exits either because the string ran out or because a glyph no
+   * longer fit. Those are the same exit, so the only honest completeness
+   * signal is whether anything is left: a non-NUL here means characters were
+   * dropped without an ellipsis and without any other trace. */
+  return *str_write == '\0';
+}
+
+void draw_string(Canvas* canvas, const Font* font, const char* str_write,
+                 const DrawableParams* p, uint16_t width,
+                 uint16_t line_height) {
+  (void)draw_string_walk(canvas, font, str_write, p, width, line_height, false);
+}
+
+bool draw_string_fits(Canvas* canvas, const Font* font, const char* str_write,
+                      const DrawableParams* p, uint16_t width,
+                      uint16_t line_height) {
+  return draw_string_walk(canvas, font, str_write, p, width, line_height, true);
 }
 
 /*
@@ -287,6 +355,58 @@ void draw_box_simple(Canvas* canvas, uint8_t color, uint16_t x, uint16_t y,
  * OUTPUT
  *     true/false whether image was drawn
  */
+/*
+ * draw_bitmap_mono_rle_valid() - see draw.h. Pure walk of the RLE grammar;
+ * writes nothing. The drawing path below stops as soon as the canvas is full,
+ * so it cannot tell a well-formed stream from one whose last run straddles the
+ * image or that carries trailing packets. Host-supplied icons must be checked
+ * here, at the trust boundary, before they are shown or cached for a session.
+ */
+bool draw_bitmap_mono_rle_valid(const uint8_t* data, uint32_t length,
+                                uint16_t w, uint16_t h) {
+  if (!data || w == 0 || h == 0) {
+    return false;
+  }
+
+  const uint32_t pixels = (uint32_t)w * (uint32_t)h;
+  uint32_t emitted = 0;
+  uint32_t i = 0;
+
+  while (emitted < pixels) {
+    if (i >= length) {
+      return false; /* ran out of input mid-image */
+    }
+    const uint8_t raw = data[i];
+    if (raw == 0x80u || raw == 0u) {
+      return false; /* undecodable (int8_t counter) / not a packet */
+    }
+    i++;
+
+    uint32_t run;
+    if (raw > 127u) {
+      run = (uint32_t)(256u - raw); /* LITERAL: 1..127 distinct values */
+      if (i + run > length) {
+        return false; /* literal body truncated */
+      }
+      i += run;
+    } else {
+      run = raw; /* RUN: 1..127 copies of one value */
+      if (i >= length) {
+        return false; /* missing the run's value byte */
+      }
+      i++;
+    }
+
+    if (emitted + run > pixels) {
+      return false; /* run straddles the end of the image */
+    }
+    emitted += run;
+  }
+
+  /* Exactly filled, and nothing left over. */
+  return emitted == pixels && i == length;
+}
+
 bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
                           bool erase) {
   if (!frame || !canvas) {
@@ -299,6 +419,16 @@ bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
   /* Check that image will fit in bounds */
   if (((img->w + frame->x) > canvas->width) ||
       ((img->h + frame->y) > canvas->height)) {
+    return false;
+  }
+
+  /* Validate the whole stream up front. The loop below fills the canvas and
+   * stops, so on its own it cannot reject a final run that straddles the image
+   * or trailing packets past the last pixel — it would draw and report success.
+   * Checking first makes the return value mean "this stream is well-formed AND
+   * was drawn", which is what callers gating on host-supplied icons need.
+   * (Verified: every bundled image stream terminates exactly.) */
+  if (!draw_bitmap_mono_rle_valid(img->data, img->length, img->w, img->h)) {
     return false;
   }
 
@@ -315,12 +445,29 @@ bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
       // sequence > 0 implies the next x pixels are the same
       // sequence < 0 implies the next -x pixels are all different
       if ((sequence == 0) && (nonsequence == 0)) {
-        sequence = img->data[pixel_index];
+        /* Read the packet count. 0x80 (-128) is rejected: `nonsequence` below
+         * is int8_t, so -(-128) = 128 does not fit and wraps back to -128,
+         * breaking the `nonsequence > 0` invariant. Under NDEBUG the assert is
+         * compiled out and we would decode with a negative counter
+         * (signed-overflow UB). 0 is likewise not a valid packet: it leaves
+         * both counters at zero and breaks the same invariant. A host-supplied
+         * icon reaches here, so fail closed rather than trust the encoder. */
+        const uint8_t raw = img->data[pixel_index];
+        if (raw == 0x80u || raw == 0u) {
+          return false;
+        }
         pixel_index++;
 
-        if (sequence < 0) {
-          nonsequence = -sequence;
+        /* Explicit two's-complement read. Narrowing a uint8_t > 127 straight
+         * into an int8_t is implementation-defined, so spell the conversion
+         * out: 1..127 stay positive (RUN), 129..255 become -127..-1 (LITERAL).
+         */
+        if (raw > 127u) {
+          nonsequence = (int8_t)((int)raw - 256); /* -127..-1 */
+          nonsequence = (int8_t)(-nonsequence);   /* 1..127, fits int8_t */
           sequence = 0;
+        } else {
+          sequence = (int8_t)raw; /* 1..127 */
         }
       }
 

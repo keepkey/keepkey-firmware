@@ -21,11 +21,48 @@
 
 #include "trezor/crypto/rand.h"
 
+#ifdef EMULATOR
+#include "keepkey/emulator/emulator.h"
+#endif
+
 #ifndef EMULATOR
 #include <libopencm3/cm3/common.h>
 #include <libopencm3/stm32/memorymap.h>
 #include <libopencm3/stm32/f2/rng.h>
 #endif
+
+/* EMULATOR is a definedness switch throughout this firmware.  Reject it on an
+ * ARM target regardless of its value, so -DEMULATOR=0 cannot silently select a
+ * hosted RNG in production firmware. */
+#if defined(EMULATOR) && defined(__arm__)
+#error \
+    "EMULATOR selects the host CSPRNG; ARM firmware must use the STM32 hardware RNG"
+#endif
+
+/* trezor-crypto's crypto/rand.c contains a zero-seeded test LCG under
+ * #ifndef RAND_PLATFORM_INDEPENDENT.  Production supplies random32() here, so
+ * make removal of that provider declaration a compile failure rather than
+ * relying on today's duplicate-symbol link failure. */
+#ifndef RAND_PLATFORM_INDEPENDENT
+#error \
+    "RAND_PLATFORM_INDEPENDENT must be defined; otherwise trezor-crypto compiles its insecure test LCG"
+#endif
+
+/* Software mirror of the hardware's sticky seed/clock error.
+ *
+ * RNG_SR_SEIS latches in hardware, but only until someone clears it -- and both
+ * random32() below and reset_rng() do, as they must to keep drawing. random32()
+ * runs constantly, so by the time a self-test reads RNG_SR the evidence of a
+ * transient fault is usually gone, and rng_source_live() was documented as
+ * catching exactly that case. Record it here instead, where it cannot be
+ * cleared by the recovery path that observed it.
+ *
+ * Boot-lifetime and one-way on purpose: a noise source that failed its own
+ * continuous test once is not trusted again until the device is power-cycled.
+ */
+static volatile bool rng_seed_error_seen = false;
+
+bool rng_seed_error_latched(void) { return rng_seed_error_seen; }
 
 void reset_rng(void) {
 #ifndef EMULATOR
@@ -63,7 +100,10 @@ uint32_t random32(void) {
         new = RNG_DR;
       }
     } else if ((rng_sr_img & (RNG_SR_SECS | RNG_SR_CECS)) == 0) {
-      /* Reset RNG interrupt status bits (SECS, CECS errors no longer exist) */
+      /* Reset RNG interrupt status bits (SECS, CECS errors no longer
+       * exist). Record it FIRST: clearing the hardware latch is exactly
+       * what makes this fault invisible to a later self-test. */
+      rng_seed_error_seen = true;
       RNG_SR &= ~(RNG_SR_SEIS | RNG_SR_CEIS);
     } else {
       /* RNG is not ready.  Allow few more samples for RNG to come back alive
@@ -78,24 +118,44 @@ uint32_t random32(void) {
   last = new;
   return new;
 #else
-  return random();
+  /* Emulator cryptography uses the existing host OS CSPRNG implementation,
+   * which reads /dev/urandom and aborts on failure. */
+  uint32_t value = 0;
+  emulatorRandom(&value, sizeof(value));
+  return value;
 #endif
 }
 
+#if defined(EMULATOR) && !defined(__APPLE__)
+/* trezor-crypto declares random_buffer() as a weak symbol so platforms can
+ * supply their own. GNU/MinGW ld will NOT extract a weak definition from a
+ * static archive to satisfy a strong reference (fsm.c/reset.c/storage.c),
+ * which breaks the Linux .so and Windows .dll links. Provide a strong
+ * definition here — identical to trezor-crypto's, built on our random32().
+ * macOS ld64 resolves the weak one fine, so it's left untouched there. */
+void random_buffer(uint8_t* buf, size_t len) {
+  uint32_t r = 0;
+  for (size_t i = 0; i < len; i++) {
+    if (i % 4 == 0) r = random32();
+    buf[i] = (r >> ((i % 4) * 8)) & 0xff;
+  }
+}
+#endif
+
 // I miss C++ templates sooo bad.
-#define RANDOM_PERMUTE(BUFF, COUNT)           \
-  do {                                        \
-    for (size_t i = (COUNT)-1; i >= 1; i--) { \
-      size_t j = random_uniform(i + 1);       \
-      typeof(*(BUFF)) t = (BUFF)[j];          \
-      (BUFF)[j] = (BUFF)[i];                  \
-      (BUFF)[i] = t;                          \
-    }                                         \
+#define RANDOM_PERMUTE(BUFF, COUNT)             \
+  do {                                          \
+    for (size_t i = (COUNT) - 1; i >= 1; i--) { \
+      size_t j = random_uniform(i + 1);         \
+      typeof(*(BUFF)) t = (BUFF)[j];            \
+      (BUFF)[j] = (BUFF)[i];                    \
+      (BUFF)[i] = t;                            \
+    }                                           \
   } while (0)
 
-void random_permute_char(char *str, size_t len) { RANDOM_PERMUTE(str, len); }
+void random_permute_char(char* str, size_t len) { RANDOM_PERMUTE(str, len); }
 
-void random_permute_u16(uint16_t *buf, size_t count) {
+void random_permute_u16(uint16_t* buf, size_t count) {
   RANDOM_PERMUTE(buf, count);
 }
 

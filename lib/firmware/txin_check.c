@@ -85,6 +85,11 @@ void txin_dgst_getstrs(char* prev, char* cur, size_t len) {
 }
 
 // save last state and reset for next tx request
+void txin_dgst_reset_only(void) {
+  memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
+  sha256_Init(&txin_hash_ctx);
+  return;
+}
 void txin_dgst_save_and_reset(const char* amt_str, const char* addr_str) {
   memcpy(txin_last_digest, txin_current_digest, SHA256_DIGEST_LENGTH);
   memcpy(last_amount_str, amt_str, AMT_STR_LEN);

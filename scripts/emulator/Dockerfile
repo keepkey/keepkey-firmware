@@ -1,4 +1,4 @@
-FROM kktech/firmware:v15
+FROM kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 
 WORKDIR /kkemu
 COPY ./ /kkemu
@@ -17,4 +17,3 @@ RUN make -j
 EXPOSE 11044/udp 11045/udp
 EXPOSE 5000
 CMD ["/kkemu/scripts/emulator/run.sh"]
-

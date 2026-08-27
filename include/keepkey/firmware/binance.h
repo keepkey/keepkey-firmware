@@ -12,6 +12,10 @@ typedef struct _BinanceTransferMsg BinanceTransferMsg;
 typedef struct _BinanceTransferMsg_BinanceInputOutput BinanceInputOutput;
 typedef struct _BinanceTransferMsg_BinanceCoin BinanceCoin;
 
+#define BINANCE_MAX_DENOM_LEN 31
+
+bool binance_isValidDenom(const char* denom);
+bool binance_validateTransfer(const BinanceTransferMsg* transfer);
 bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg);
 bool binance_serializeCoin(const BinanceCoin* coin);
 bool binance_serializeInputOutput(const BinanceInputOutput* io);

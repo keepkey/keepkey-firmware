@@ -119,6 +119,13 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   // Confirm transaction basics
   // supports only 1 message ack
   CHECK_PARAM(thorchain_signingIsInited(), "Signing not in progress");
+  if (msg->has_send == msg->has_deposit) {
+    thorchain_signAbort();
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Expected exactly one THORChain message"));
+    layoutHome();
+    return;
+  }
   if (msg->has_send && msg->send.has_to_address && msg->send.has_amount) {
     // pass
   } else if (msg->has_deposit && msg->deposit.has_asset &&
@@ -141,15 +148,42 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   const ThorchainSignTx* sign_tx = thorchain_getThorchainSignTx();
 
   if (msg->has_send) {
+    const char* coin_denom =
+        (msg->send.has_denom && msg->send.denom[0]) ? msg->send.denom : "rune";
+
+    // Validate before any display so untrusted strings never reach the UI.
+    if (!thorchain_isValidDenom(coin_denom)) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid denom");
+      layoutHome();
+      return;
+    }
+
     switch (msg->send.address_type) {
       case OutputAddressType_TRANSFER:
       default: {
+        // amount_str only needs to hold the numeric part (no denom suffix).
+        // Denom is confirmed on a separate screen so no truncation is possible.
         char amount_str[32];
-        bn_format_uint64(msg->send.amount, NULL, " RUNE", 8, 0, false,
-                         amount_str, sizeof(amount_str));
+        if (!bn_format_uint64(msg->send.amount, NULL, NULL, 8, 0, false,
+                              amount_str, sizeof(amount_str))) {
+          thorchain_signAbort();
+          fsm_sendFailure(FailureType_Failure_FirmwareError,
+                          _("Failed to format amount"));
+          layoutHome();
+          return;
+        }
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {
+          thorchain_signAbort();
+          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+          layoutHome();
+          return;
+        }
+        // Confirm the asset denom on its own screen.
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Asset",
+                     "%s", coin_denom)) {
           thorchain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();
@@ -159,8 +193,8 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
         break;
       }
     }
-    if (!thorchain_signTxUpdateMsgSend(msg->send.amount,
-                                       msg->send.to_address)) {
+    if (!thorchain_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
+                                       coin_denom)) {
       thorchain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include send message in transaction");
@@ -186,11 +220,31 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
 
     if (msg->deposit.has_memo) {
       // See if we can parse the memo
-      if (!thorchain_parseConfirmMemo(msg->deposit.memo,
-                                      sizeof(msg->deposit.memo))) {
-        // Memo not recognizable, ask to confirm it
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
-                     "%s", msg->deposit.memo)) {
+      /* strnlen, not sizeof: passing the buffer capacity hands the parser
+         every trailing zero byte in the fixed array as if it were memo
+         content. The length that matters is how much of the field is
+         populated. */
+      ThorchainMemoResult memo_result = thorchain_parseConfirmMemo(
+          msg->deposit.memo,
+          strnlen(msg->deposit.memo, sizeof(msg->deposit.memo)));
+      if (memo_result == THORCHAIN_MEMO_CANCELLED) {
+        // A memo screen was refused: a refusal to sign, not a parse failure.
+        thorchain_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+      }
+      if (memo_result == THORCHAIN_MEMO_UNPARSED) {
+        /* Memo not recognizable, ask to confirm it.
+           confirm_bytes(), not confirm("%s"): "%s" stops at the first NUL, so
+           an unparsed memo carrying an embedded zero byte would be signed with
+           its tail hidden -- the same defect the parser now refuses, moved one
+           screen later. confirm_bytes takes an explicit length and escapes
+           every non-printable byte, so the NUL is visible as \x00. */
+        if (!confirm_bytes(
+                ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                (const uint8_t*)msg->deposit.memo,
+                strnlen(msg->deposit.memo, sizeof(msg->deposit.memo)))) {
           thorchain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();
@@ -214,13 +268,24 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     return;
   }
 
-  if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // See if we can parse the tx memo. This memo ignored if deposit msg has
-    // memo
-    if (!thorchain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
-      // Memo not recognizable, ask to confirm it
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                   sign_tx->memo)) {
+  if (sign_tx->has_memo) {
+    // See if we can parse the tx memo. The transaction and deposit memos are
+    // distinct signed fields, so both are reviewed when both are present.
+    /* strnlen, not sizeof -- see the deposit path above. */
+    ThorchainMemoResult memo_result = thorchain_parseConfirmMemo(
+        sign_tx->memo, strnlen(sign_tx->memo, sizeof(sign_tx->memo)));
+    if (memo_result == THORCHAIN_MEMO_CANCELLED) {
+      // A memo screen was refused: a refusal to sign, not a parse failure.
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+    if (memo_result == THORCHAIN_MEMO_UNPARSED) {
+      /* Memo not recognizable, ask to confirm it -- length-aware, see above. */
+      if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                         (const uint8_t*)sign_tx->memo,
+                         strnlen(sign_tx->memo, sizeof(sign_tx->memo)))) {
         thorchain_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();

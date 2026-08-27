@@ -54,8 +54,7 @@ void dec64_to_str(uint64_t dec64_val, char* str);
 
 bool is_valid_ascii(const uint8_t* data, uint32_t size);
 
-int base_to_precision(uint8_t* dest, const uint8_t* value,
-                      const uint8_t dest_len, const uint8_t value_len,
-                      const uint8_t precision);
+int base_to_precision(uint8_t* dest, const uint8_t* value, size_t dest_len,
+                      size_t value_len, uint8_t precision);
 
 #endif

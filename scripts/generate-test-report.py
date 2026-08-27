@@ -23,6 +23,15 @@ def main():
               file=sys.stderr)
         sys.exit(1)
 
+    # The release report is evidence, not a best-effort decoration.  The
+    # canonical Python JUnit must exist; otherwise rendering an empty catalog
+    # produces a dangerously plausible "all pending" PDF.
+    python_junit = 'test-reports/python-keepkey/junit.xml'
+    if not os.path.isfile(python_junit) or os.path.getsize(python_junit) == 0:
+        print("ERROR: required Python JUnit evidence missing: %s" % python_junit,
+              file=sys.stderr)
+        sys.exit(1)
+
     # Collect JUnit XMLs from CI artifacts
     junit_files = (
         glob.glob('test-reports/python-keepkey/junit*.xml') +
@@ -65,9 +74,9 @@ def main():
     print("Running: %s" % ' '.join(cmd))
     result = subprocess.run(cmd)
 
-    # Don't exit non-zero -- let the report be uploaded even with partial results
     if result.returncode != 0:
-        print("WARN: report generator exited %d" % result.returncode, file=sys.stderr)
+        print("ERROR: report generator exited %d" % result.returncode, file=sys.stderr)
+        sys.exit(result.returncode)
 
     if os.path.exists('test-report.pdf'):
         size = os.path.getsize('test-report.pdf')
@@ -75,6 +84,60 @@ def main():
     else:
         print("ERROR: test-report.pdf not created", file=sys.stderr)
         sys.exit(1)
+
+    # Render first so a failed candidate still has a truthful diagnostic PDF,
+    # then fail the job if any catalog entry failed or is missing.  Deliberate
+    # feature/policy skips remain valid per the report generator contract.
+    #
+    # Validate against the SAME merged evidence the PDF was rendered from.  It
+    # used to validate against the Python JUnit alone, so any catalog entry
+    # naming a native firmware unit test resolved to "missing" and the gate
+    # could never accept one -- which is half of why no native test was ever
+    # catalogued.  The canonical-Python-evidence requirement is already
+    # enforced above, before the merge, so nothing is weakened here.
+    # Second run of the screenshot audit, on purpose.
+    #
+    # python-keepkey-tests.sh already runs it inside the emulator container,
+    # immediately after capture.  That one answers "did the firmware draw?".
+    # This one answers a different question: "does the PDF being shipped have
+    # the screens it claims?"  The report is built from a DOWNLOADED artifact,
+    # and a partial upload would render a report with declared-but-absent
+    # screens that nothing else checks -- the container gate has already
+    # passed and gone.
+    #
+    # Only when the screenshots artifact actually arrived: its download is
+    # continue-on-error, and a flaked upload must not be reported as a firmware
+    # that stopped drawing.
+    if screenshot_dir:
+        audit_cmd = [
+            sys.executable,
+            REPORT_GENERATOR,
+            '--screenshot-audit=%s' % screenshot_dir,
+            '--audit-junit=%s' % (merged or python_junit),
+        ]
+        if fw_version:
+            audit_cmd.append('--fw-version=%s' % fw_version)
+        print("Auditing screens: %s" % ' '.join(audit_cmd))
+        audit = subprocess.run(audit_cmd)
+        if audit.returncode != 0:
+            print("ERROR: declared OLED screens were not captured", file=sys.stderr)
+            sys.exit(audit.returncode)
+    else:
+        print("WARN: no screenshots artifact -- screen audit not run", file=sys.stderr)
+
+    validate_cmd = [
+        sys.executable,
+        REPORT_GENERATOR,
+        '--junit=%s' % (merged or python_junit),
+        '--validate-junit',
+    ]
+    if fw_version:
+        validate_cmd.append('--fw-version=%s' % fw_version)
+    print("Validating: %s" % ' '.join(validate_cmd))
+    validation = subprocess.run(validate_cmd)
+    if validation.returncode != 0:
+        print("ERROR: report catalog validation failed", file=sys.stderr)
+        sys.exit(validation.returncode)
 
 
 if __name__ == '__main__':

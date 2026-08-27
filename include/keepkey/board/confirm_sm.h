@@ -86,6 +86,26 @@ typedef struct {
 typedef void (*layout_notification_t)(const char* str1, const char* str2,
                                       NotificationType type);
 
+/// \brief Will a confirmation body fit on the screen it is drawn on?
+///
+/// draw_string() stops drawing once a glyph no longer fits the canvas and
+/// reports nothing, so a body taller than BODY_ROWS rows is shown in part with
+/// nothing on screen to say so. Callers that measure first can say so.
+///
+/// \param body        The body text as it will be drawn (NULL reads as "").
+/// \param body_width  Wrap width: BODY_WIDTH, or BODY_WIDTH_WITH_ICON.
+/// \returns true iff the whole body will be on screen.
+bool confirm_body_fits(const char* body, uint16_t body_width);
+
+/// Same, for constant-power screens, which draw from x = 128 + LEFT_MARGIN.
+///
+/// Only KEEPKEY_DISPLAY_WIDTH - (128 + LEFT_MARGIN) px exists past that origin,
+/// so a body that fits when measured from the left margin can still be clipped
+/// here. Exposed for tests: the seed-backup pages are drawn by this layout, and
+/// a page that does not fit loses every character after the first rejected
+/// glyph -- including whole later lines.
+bool confirm_body_fits_constant_power(const char* body, uint16_t body_width);
+
 /// User confirmation.
 /// \param type            The kind of button request to send to the host.
 /// \param request_title   Title of confirm message.
@@ -130,6 +150,19 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
 bool confirm_without_button_request(const char* request_title,
                                     const char* request_body, ...)
     __attribute__((format(printf, 2, 3)));
+
+/// User confirmation, with an icon.
+///
+/// The confirming counterpart of review_with_icon(): same screen, same single
+/// ButtonRequest, but the verdict is returned instead of discarded.
+/// \param type            The kind of button request to send to the host.
+/// \param iconNum         Icon to draw, or NO_ICON.
+/// \param request_title   Title of confirm message.
+/// \param request_body    Body of confirm message.
+/// \returns true iff the device confirmed.
+bool confirm_with_icon(ButtonRequestType type, IconType iconNum,
+                       const char* request_title, const char* request_body, ...)
+    __attribute__((format(printf, 4, 5)));
 
 /// Like confirm, but always \returns true.
 /// \param request_title   Title of confirm message.

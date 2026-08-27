@@ -1,11 +1,12 @@
 void fsm_msgInitialize(Initialize* msg) {
   (void)msg;
-  recovery_cipher_abort();
+  /* Ends a setup ceremony of either kind, staged settings and all. */
+  setup_abort();
   signing_abort();
   ethereum_signing_abort();
   tendermint_signAbort();
   eos_signingAbort();
-  session_clear(false);  // do not clear PIN
+  session_clear(false);  // do not clear PIN, and clears the Zcash session
   layoutHome();
   fsm_msgGetFeatures(0);
 }
@@ -40,10 +41,34 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
   resp->has_model = true;
   strlcpy(resp->model, model(), sizeof(resp->model));
 
+  /* Taproot capability. signing.c handles SPENDTAPROOT inputs and PAYTOTAPROOT
+     outputs, and coins.def carries the BIP-86 entries, but the bit that tells a
+     host so was never set -- so hosts could not detect support and six
+     catalogued Bitcoin tests skipped with "Firmware does not report
+     supports_taproot", making a shipped feature invisible in the report.
+     Reported directly so a host does not have to infer P2TR support from a
+     firmware version -- that inference breaks whenever the feature is
+     retargeted to a different release. */
+  resp->has_supports_taproot = true;
+  resp->supports_taproot = true;
+
   /* Variant Name */
   resp->has_firmware_variant = true;
+#if BITCOIN_ONLY
+  /* Report the established KeepKeyBTC / EmulatorBTC names rather than the
+     board variant, so that existing hosts recognise a bitcoin-only image and
+     skip multi-chain-only behaviour instead of offering it features this
+     firmware does not implement. */
+#ifdef EMULATOR
+  strlcpy(resp->firmware_variant, "EmulatorBTC",
+          sizeof(resp->firmware_variant));
+#else
+  strlcpy(resp->firmware_variant, "KeepKeyBTC", sizeof(resp->firmware_variant));
+#endif
+#else
   strlcpy(resp->firmware_variant, variant_getName(),
           sizeof(resp->firmware_variant));
+#endif
 
   /* Security settings */
   resp->has_pin_protection = true;
@@ -150,9 +175,16 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
     for (size_t i = 0; i < msg->end - msg->start; i++) {
       if (msg->start + i < COINS_COUNT) {
         resp->table[i] = coins[msg->start + i];
-      } else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
+      }
+#if !BITCOIN_ONLY
+      /* Guarded, not just skipped at runtime: the bitcoin-only image defines
+         TOKENS_COUNT as 0 and links neither `tokens` nor coinFromToken(), so
+         this branch is both an unsigned `< 0` comparison that
+         -Werror=type-limits rejects and an undefined reference at link. */
+      else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
         coinFromToken(&resp->table[i], &tokens[msg->start + i - COINS_COUNT]);
       }
+#endif
     }
   }
 
@@ -198,6 +230,7 @@ void fsm_msgPing(Ping* msg) {
       "Authenticator secret seed too large",
       "passphrase incorrect for authdata",
       "Auth secret unknown error",
+      "Action cancelled",
   };
 
   typedef enum _AUTH_MSG_TYPE {
@@ -277,8 +310,7 @@ void fsm_msgPing(Ping* msg) {
         break;
 
       case WIPEADATA:
-        wipeAuthData();
-        errcode = NOERR;
+        errcode = wipeAuthData();
         resp->has_message = false;
         break;
 
@@ -325,6 +357,8 @@ void fsm_msgPing(Ping* msg) {
 }
 
 void fsm_msgChangePin(ChangePin* msg) {
+  CHECK_NOT_BITCOIN_ONLY_LOCKED
+
   bool removal = msg->has_remove && msg->remove;
   bool confirmed = false;
 
@@ -375,6 +409,8 @@ void fsm_msgChangePin(ChangePin* msg) {
 }
 
 void fsm_msgChangeWipeCode(ChangeWipeCode* msg) {
+  CHECK_NOT_BITCOIN_ONLY_LOCKED
+
   bool removal = msg->has_remove && msg->remove;
   bool confirmed = false;
 
@@ -445,6 +481,28 @@ void fsm_msgChangeWipeCode(ChangeWipeCode* msg) {
 #endif
 }
 
+/* The RNG audit budget.
+ *
+ * Telling a working hardware RNG from a stuck or grossly biased one needs a
+ * bulk sample, and a button press per 8 KiB turns the pre-PIN health check into
+ * an eight-press ceremony that users will click through without reading. So an
+ * UNINITIALIZED device serves this many bytes press-free, and then stops.
+ *
+ * The budget is denominated in BYTES, not requests, so asking for a larger
+ * chunk cannot buy more of it.
+ *
+ * It is safe only because of what an uninitialized device is: it holds no seed
+ * and no secret, so raw RNG output discloses nothing. The moment it holds one
+ * -- storage_isInitialized() -- every request confirms again, and so does every
+ * request after the budget is spent. Both halves are asserted by atlas C27.
+ */
+#define ENTROPY_AUDIT_BUDGET (64 * 1024)
+static uint32_t entropy_audit_remaining = ENTROPY_AUDIT_BUDGET;
+
+static void fsm_entropyAuditBudgetReset(void) {
+  entropy_audit_remaining = ENTROPY_AUDIT_BUDGET;
+}
+
 void fsm_msgWipeDevice(WipeDevice* msg) {
   (void)msg;
 
@@ -460,6 +518,11 @@ void fsm_msgWipeDevice(WipeDevice* msg) {
   storage_reset();
   storage_resetUuid();
   storage_commit();
+
+  /* A wipe returns the device to the state the audit budget exists for, so it
+   * returns the budget. Without this a device that had been initialized once
+   * could never be RNG-audited again without a press per chunk. */
+  fsm_entropyAuditBudgetReset();
 
   fsm_sendSuccess("Device wiped");
   layoutHome();
@@ -478,20 +541,28 @@ void fsm_msgFirmwareUpload(FirmwareUpload* msg) {
 }
 
 void fsm_msgGetEntropy(GetEntropy* msg) {
-  if (!confirm(ButtonRequestType_ButtonRequest_GetEntropy, "Generate Entropy",
-               "Do you want to generate and return entropy using the hardware "
-               "RNG?")) {
+  uint32_t len = msg->size;
+
+  if (len > ENTROPY_BUF) {
+    len = ENTROPY_BUF;
+  }
+
+  /* Spend the budget only on a device with nothing to disclose, and only for
+   * what this request actually returns. */
+  bool press_free = !storage_isInitialized() && len <= entropy_audit_remaining;
+
+  if (press_free) {
+    entropy_audit_remaining -= len;
+  } else if (!confirm(ButtonRequestType_ButtonRequest_GetEntropy,
+                      "Generate Entropy",
+                      "Do you want to generate and return entropy using the "
+                      "hardware RNG?")) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
     layoutHome();
     return;
   }
 
   RESP_INIT(Entropy);
-  uint32_t len = msg->size;
-
-  if (len > ENTROPY_BUF) {
-    len = ENTROPY_BUF;
-  }
 
   resp->entropy.size = len;
   random_buffer(resp->entropy.bytes, len);
@@ -529,9 +600,12 @@ void fsm_msgLoadDevice(LoadDevice* msg) {
 
 void fsm_msgResetDevice(ResetDevice* msg) {
   CHECK_NOT_INITIALIZED
+  CHECK_NO_CEREMONY
 
-  reset_init(msg->has_display_random && msg->display_random,
-             msg->has_strength ? msg->strength : 128,
+  // display_random remains in the wire schema for host compatibility, but is
+  // intentionally ignored: internal entropy is seed pre-image material and
+  // must never be rendered or returned by production firmware.
+  reset_init(msg->has_strength ? msg->strength : 128,
              msg->has_passphrase_protection && msg->passphrase_protection,
              msg->has_pin_protection && msg->pin_protection,
              msg->has_language ? msg->language : 0,
@@ -539,7 +613,8 @@ void fsm_msgResetDevice(ResetDevice* msg) {
              msg->has_no_backup ? msg->no_backup : false,
              msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms
                                          : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
-             msg->has_u2f_counter ? msg->u2f_counter : 0);
+             msg->has_u2f_counter ? msg->u2f_counter : 0,
+             msg->has_dice_entropy && msg->dice_entropy);
 }
 
 void fsm_msgEntropyAck(EntropyAck* msg) {
@@ -552,15 +627,19 @@ void fsm_msgEntropyAck(EntropyAck* msg) {
 
 void fsm_msgCancel(Cancel* msg) {
   (void)msg;
-  recovery_cipher_abort();
+  /* Cancellation rolls the ceremony back: one memzero, no storage touched. */
+  setup_abort();
   signing_abort();
   ethereum_signing_abort();
   tendermint_signAbort();
   eos_signingAbort();
+  zcash_signing_abort();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
 void fsm_msgApplySettings(ApplySettings* msg) {
+  CHECK_NOT_BITCOIN_ONLY_LOCKED
+
   if (msg->has_label) {
     if (!confirm(ButtonRequestType_ButtonRequest_ChangeLabel, "Change Label",
                  "Do you want to change the label to \"%s\"?", msg->label)) {
@@ -651,6 +730,8 @@ apply_settings_cancelled:
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
+  CHECK_NO_CEREMONY
+
   if (msg->has_dry_run && msg->dry_run) {
     CHECK_INITIALIZED
   } else {
@@ -681,6 +762,8 @@ void fsm_msgCharacterAck(CharacterAck* msg) {
 }
 
 void fsm_msgApplyPolicies(ApplyPolicies* msg) {
+  CHECK_NOT_BITCOIN_ONLY_LOCKED
+
   CHECK_PARAM(msg->policy_count > 0, "No policies provided");
 
   for (size_t i = 0; i < msg->policy_count; ++i) {
@@ -727,6 +810,24 @@ void fsm_msgApplyPolicies(ApplyPolicies* msg) {
                       "Policies could not be applied");
       layoutHome();
       return;
+    }
+
+    /* Disabling AdvancedMode REVOKES the runtime clear-sign signers it
+     * authorized, rather than suspending them.
+     *
+     * Every consumer in signed_metadata.c already refuses a runtime slot while
+     * the policy is off, so the difference is only visible on the way back:
+     * without this, re-enabling AdvancedMode silently re-arms a provider the
+     * user never re-loaded, on a confirmation screen that names the policy and
+     * not the signer. A user who turned the policy off to drop a provider had
+     * not dropped it.
+     *
+     * Re-loading costs one LoadClearsignSigner consent screen, which names the
+     * alias and fingerprint -- the screen that should be shown whenever trust
+     * begins. */
+    if (!msg->policy[i].enabled &&
+        strcmp(msg->policy[i].policy_name, "AdvancedMode") == 0) {
+      signed_metadata_clear_signers();
     }
   }
 

@@ -78,6 +78,15 @@ uint32_t serialize_script_multisig(const CoinType* coin,
 int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
                    TxOutputBinType* out, bool needs_confirm);
 
+bool address_to_script_pubkey(const CoinType* coin, const char* address,
+                              uint8_t* script_pubkey, size_t* script_pubkey_len,
+                              size_t script_pubkey_size);
+
+bool fill_input_script_pubkey(const CoinType* coin, const HDNode* root,
+                              const TxInputType* in, uint8_t* script_pubkey,
+                              size_t* script_pubkey_len,
+                              size_t script_pubkey_size);
+
 uint32_t tx_prevout_hash(Hasher* hasher, const TxInputType* input);
 uint32_t tx_script_hash(Hasher* hasher, uint32_t size, const uint8_t* data);
 uint32_t tx_sequence_hash(Hasher* hasher, const TxInputType* input);
