@@ -941,7 +941,16 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
-    needs: [build-and-test, python-dylib-tests, build-arm-firmware]
+    # static-analysis is listed explicitly even though it gates nothing else.
+    # Taking it out of the *build* gate was a deliberate wall-clock trade: a
+    # cppcheck finding does not mean the firmware is wrong to compile, so it
+    # should not hold up compiling. Publishing is a different question. These
+    # images are pushed to DockerHub under kktech/kkemu and consumed
+    # downstream, and before the jobs were merged publish inherited the
+    # cppcheck gate transitively through the build jobs. Dropping it here
+    # would have meant a dispatch could publish artifacts from a commit with
+    # cppcheck red. The run is manual and already slow; the gate is free.
+    needs: [build-and-test, python-dylib-tests, build-arm-firmware, static-analysis]
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.publish_emulator == 'true'
