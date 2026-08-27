@@ -228,6 +228,11 @@ bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
   if (!tendermint_validateBech32Address(delegator_address, chainstr)) {
     return false;
   }
+  /* The validator operator is interpolated into the signed document with the
+     same bare "%s" as the delegator above, so it needs the same gate. */
+  if (!tendermint_validateValidatorAddress(validator_address, chainstr)) {
+    return false;
+  }
 
   if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
@@ -296,6 +301,11 @@ bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
   if (!tendermint_validateBech32Address(delegator_address, chainstr)) {
     return false;
   }
+  /* The validator operator is interpolated into the signed document with the
+     same bare "%s" as the delegator above, so it needs the same gate. */
+  if (!tendermint_validateValidatorAddress(validator_address, chainstr)) {
+    return false;
+  }
 
   if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
@@ -361,6 +371,12 @@ bool tendermint_signTxUpdateMsgRedelegate(
      wrong-chain address, a module or operator address, or a punctuation-bearing
      HRP passed through into the signed document. */
   if (!tendermint_validateBech32Address(delegator_address, chainstr)) {
+    return false;
+  }
+  /* Both validator operators are interpolated with the same bare "%s" as the
+     delegator above; neither was checked. */
+  if (!tendermint_validateValidatorAddress(validator_src_address, chainstr) ||
+      !tendermint_validateValidatorAddress(validator_dst_address, chainstr)) {
     return false;
   }
 
@@ -437,6 +453,11 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t* amount,
      wrong-chain address, a module or operator address, or a punctuation-bearing
      HRP passed through into the signed document. */
   if (!tendermint_validateBech32Address(delegator_address, chainstr)) {
+    return false;
+  }
+  /* The validator operator is interpolated into the signed document with the
+     same bare "%s" as the delegator above, so it needs the same gate. */
+  if (!tendermint_validateValidatorAddress(validator_address, chainstr)) {
     return false;
   }
 

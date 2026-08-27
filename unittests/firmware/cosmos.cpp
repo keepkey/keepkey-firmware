@@ -48,6 +48,25 @@ TEST(Cosmos, HostTextMustBeSafeForJsonAndDisplay) {
   /* A bad checksum on an otherwise well-shaped string. */
   EXPECT_FALSE(tendermint_bech32IsWellFormed(
       "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20w"));
+
+  /* Validator operators carry the same 20-byte payload under a "<chain>valoper"
+     HRP. They are serialized with the same bare "%s" as the delegator, so they
+     get the same gate. */
+  EXPECT_TRUE(tendermint_validateValidatorAddress(
+      "cosmosvaloper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkh52tw", "cosmos"));
+  /* A plain account address is not an operator address. */
+  EXPECT_FALSE(tendermint_validateValidatorAddress(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a", "cosmos"));
+  /* Right shape, wrong network. */
+  EXPECT_FALSE(tendermint_validateValidatorAddress(
+      "cosmosvaloper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkh52tw", "osmo"));
+  /* Right prefix, wrong payload length. */
+  EXPECT_FALSE(tendermint_validateValidatorAddress(
+      "cosmosvaloper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmzjrgd",
+      "cosmos"));
+  EXPECT_FALSE(tendermint_validateValidatorAddress(nullptr, "cosmos"));
+  EXPECT_FALSE(tendermint_validateValidatorAddress(
+      "cosmosvaloper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkh52tw", ""));
 }
 
 TEST(Cosmos, CosmosGetAddress) {

@@ -45,6 +45,12 @@ bool tendermint_validateSafeText(const char* value);
 /// 20-byte account length.
 bool tendermint_bech32IsWellFormed(const char* address);
 
+/// A validator operator address: a 20-byte account payload under the
+/// "<chain_prefix>valoper" HRP. Use for every validator_address,
+/// validator_src_address and validator_dst_address before it is serialized.
+bool tendermint_validateValidatorAddress(const char* address,
+                                         const char* chain_prefix);
+
 bool tendermint_validateBech32Address(const char* address,
                                       const char* expected_prefix);
 

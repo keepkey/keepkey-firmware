@@ -149,6 +149,25 @@ bool tendermint_validateBech32Address(const char* address,
   return decoded_len == TENDERMINT_ACCOUNT_ADDRESS_GROUPS;
 }
 
+/* A validator OPERATOR address: the same 20-byte account payload as a normal
+   address, under the "<chain>valoper" prefix rather than "<chain>".
+
+   Every MsgDelegate / MsgUndelegate / MsgBeginRedelegate / MsgWithdrawReward
+   serializer interpolates these with a bare "%s" into the document it hashes,
+   exactly as it does the delegator -- but only the delegator was ever checked.
+   A wrong-network operator, a plain account address where an operator belongs,
+   or a value carrying JSON punctuation therefore reached the signed bytes. */
+bool tendermint_validateValidatorAddress(const char* address,
+                                         const char* chain_prefix) {
+  if (!address || !chain_prefix || chain_prefix[0] == '\0') return false;
+
+  char expected[BECH32_MAX_HRP_LEN + 1];
+  const int n = snprintf(expected, sizeof(expected), "%svaloper", chain_prefix);
+  if (n < 0 || (size_t)n >= sizeof(expected)) return false;
+
+  return tendermint_validateBech32Address(address, expected);
+}
+
 void tendermint_sha256UpdateEscaped(SHA256_CTX* ctx, const char* s,
                                     size_t len) {
   static const char kHexDigits[] = "0123456789abcdef";
