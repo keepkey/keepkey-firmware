@@ -18,6 +18,10 @@ services:
       retries: 20
       start_period: 10s
   python-keepkey:
+    # Named so CI can build it once (`docker compose build python-keepkey`)
+    # and then `up` without --build, which would otherwise also force a
+    # rebuild of kkemu — the expensive one.
+    image: kktech/kkemu-tests:latest
     build:
       context: '../../'
       dockerfile: 'scripts/emulator/python-keepkey.Dockerfile'
@@ -29,6 +33,9 @@ services:
       kkemu:
         condition: service_healthy
   firmware-unit:
+    # Local-dev convenience only — CI runs `make xunit` directly against the
+    # image it just built, rather than paying for a second compose build.
+    image: kktech/kkemu:latest
     build:
       context: '../../'
       dockerfile: 'scripts/emulator/Dockerfile'

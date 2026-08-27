@@ -3,21 +3,42 @@
 # FAIL FAST — quick checks gate everything, no wasted compute.
 #
 # Stage 1: GATE (seconds, no Docker)
-#   ├─ lint-format        clang-format diff check
-#   ├─ static-analysis    cppcheck static analysis
-#   ├─ secret-scan        gitleaks credential detection
-#   └─ check-submodules   verify all deps present
+#   ├─ lint-format        clang-format check + submodule declarations
+#   ├─ static-analysis    cppcheck static analysis (parallel)
+#   └─ secret-scan        gitleaks credential detection
 #
-# Stage 2: BUILD (parallel, gated by Stage 1)
-#   ├─ build-emulator     Docker image → artifact
-#   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)
+# Stage 2: BUILD + TEST (parallel, gated by Stage 1)
+#   ├─ build-and-test     emulator image → make xunit → python-keepkey suite
+#   ├─ build-arm-firmware cross-compile → .bin/.elf (downloadable)
+#   └─ python-dylib-tests libkkemu.dylib screenshot regression (macOS)
 #
-# Stage 3: TEST (parallel, gated by Stage 2)
-#   ├─ unit-tests              GoogleTest (make xunit)
-#   └─ python-integration      full test suite
+# Stage 3: REPORT
+#   └─ generate-test-report   PDF from test artifacts
 #
 # Stage 4: PUBLISH (manual trigger, all tests must pass)
 #   └─ publish-emulator   DockerHub push (workflow_dispatch only)
+#
+# Design notes — why it is shaped this way:
+#
+#   The emulator image is built EXACTLY ONCE per run. It used to be built
+#   twice (once in build-emulator, once by `docker compose --build` in
+#   python-integration-tests) and then shipped between jobs as an 845 MB
+#   `docker save` tarball. That tarball cost ~77s to save+upload and ~49s
+#   to download+load, in order to run a test suite that takes 1s. Both
+#   test suites now run in the job that built the image.
+#
+#   The base image is pulled, not cached. The previous actions/cache of a
+#   649 MB `docker save` tar was ref-scoped, so every branch wrote its own
+#   copy; 13 of them were occupying 8.4 GB of the repo's 10 GB cache quota
+#   and evicting each other, which is why it missed on develop anyway.
+#
+#   static-analysis does NOT gate the build. cppcheck is advisory — a style
+#   or portability finding does not mean the firmware is wrong to compile —
+#   and as the slowest Stage 1 job it was serialising the entire pipeline
+#   behind itself. It still fails the run; it just no longer delays it.
+#   lint-format and secret-scan stay in the gate: both finish in ~20s, and
+#   secret-scan in particular should stop a leaked credential before any
+#   artifact is produced from that commit.
 
 name: CI
 
@@ -33,6 +54,13 @@ on:
         required: false
         type: boolean
         default: false
+
+# Supersede in-flight runs for the same PR. Pushes to long-lived branches
+# are never cancelled — a half-finished develop/master run tells you less
+# than nothing, and release branches gate real firmware artifacts.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   BASE_IMAGE: kktech/firmware:v15
@@ -52,25 +80,63 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Install clang-format-20 (pinned stable)
+      # Folded in from the former `check-submodules` job. It is a grep over
+      # .gitmodules that ran for 3s but cost a whole runner spin-up, and it
+      # sat in the `needs:` fan-in of every downstream job.
+      - name: Verify submodules are declared
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm.list
-          sudo apt-get update -qq && sudo apt-get install -y -qq clang-format-20
-          sudo ln -sf /usr/bin/clang-format-20 /usr/bin/clang-format
+          echo "Checking required submodule declarations..."
+          REQUIRED=(
+            "deps/crypto/trezor-firmware"
+            "deps/device-protocol"
+            "deps/python-keepkey"
+            "deps/googletest"
+            "deps/qrenc/QR-Code-generator"
+            "deps/sca-hardening/SecAESSTM32"
+          )
+          FAILED=0
+          for sub in "${REQUIRED[@]}"; do
+            if ! grep -q "$sub" .gitmodules; then
+              echo "::error::Missing required submodule: $sub"
+              FAILED=1
+            else
+              echo "  ✓ $sub"
+            fi
+          done
+          [ "$FAILED" = "0" ] || exit 1
+
+      # PyPI wheel instead of the LLVM apt repo. Same upstream binary,
+      # pinned just as tightly, without `apt-get update` against
+      # apt.llvm.org on every run.
+      - name: Install clang-format 20 (pinned stable)
+        run: |
+          python3 -m pip install --quiet --upgrade "clang-format==20.1.8"
+          clang-format --version
 
       - name: Check code formatting
         run: |
           echo "Using: $(clang-format --version)"
-          FAILED=0
-          for f in $(find include/keepkey lib/firmware lib/board lib/transport/src \
-                     -name '*.c' -o -name '*.h' 2>/dev/null | grep -v generated | grep -v '.pb.'); do
-            if ! clang-format --style=file --dry-run --Werror "$f" 2>/dev/null; then
-              echo "::warning file=$f::Formatting differs from .clang-format"
-              FAILED=1
-            fi
-          done
-          if [ "$FAILED" = "1" ]; then
+          # xargs -P fans the per-file checks across the runner's cores; each
+          # clang-format invocation is independent, so the only thing needing
+          # coordination is the exit status, which xargs aggregates (123 if
+          # any child failed).
+          #
+          # The pipeline is the `if` condition rather than a bare command
+          # because GitHub runs `run:` blocks under `bash -e` -- a bare
+          # failing pipeline would abort the step immediately and swallow the
+          # remediation message below. Inside an `if`, -e is suspended.
+          #
+          # shellcheck disable=SC2016  # $1 is expanded by the inner sh, not here
+          if ! find include/keepkey lib/firmware lib/board lib/transport/src \
+                    -name '*.c' -o -name '*.h' 2>/dev/null \
+               | grep -v generated | grep -v '.pb.' \
+               | xargs -P "$(nproc)" -I{} sh -c '
+                   if ! clang-format --style=file --dry-run --Werror "$1" 2>/dev/null; then
+                     echo "::warning file=$1::Formatting differs from .clang-format"
+                     exit 1
+                   fi
+                 ' _ {}
+          then
             echo ""
             echo "::error::Code formatting check failed. Run: clang-format -i <file> to fix."
             exit 1
@@ -127,6 +193,7 @@ jobs:
             --platform=unspecified \
             --inconclusive \
             --force \
+            -j8 \
             --inline-suppr \
             --suppressions-list=.cppcheck-suppressions \
             -I include \
@@ -185,45 +252,19 @@ jobs:
           path: cppcheck_report.txt
           retention-days: 30
 
-  check-submodules:
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Verify submodules are declared
-        run: |
-          echo "Checking required submodule declarations..."
-          REQUIRED=(
-            "deps/crypto/trezor-firmware"
-            "deps/device-protocol"
-            "deps/python-keepkey"
-            "deps/googletest"
-            "deps/qrenc/QR-Code-generator"
-            "deps/sca-hardening/SecAESSTM32"
-          )
-          FAILED=0
-          for sub in "${REQUIRED[@]}"; do
-            if ! grep -q "$sub" .gitmodules; then
-              echo "::error::Missing required submodule: $sub"
-              FAILED=1
-            else
-              echo "  ✓ $sub"
-            fi
-          done
-          [ "$FAILED" = "0" ] || exit 1
-
   # ═══════════════════════════════════════════════════════════
-  # STAGE 2: BUILD — compile only after gate passes
+  # STAGE 2: BUILD + TEST — compile once, test in place
   # ═══════════════════════════════════════════════════════════
 
-  build-emulator:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+  # Replaces the former build-emulator + unit-tests + python-integration-tests
+  # trio. Those three jobs built the emulator image twice and moved 845 MB of
+  # `docker save` tarball between runners to run suites that take 1s and 11s
+  # respectively. Both suites now run against the image in the job that built
+  # it, so the tarball only has to exist when it is actually published.
+  build-and-test:
+    needs: [lint-format, secret-scan]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -232,32 +273,20 @@ jobs:
 
       - name: Init submodules
         run: |
-          git submodule update --init deps/crypto/trezor-firmware
-          git submodule update --init deps/device-protocol
-          git submodule update --init --recursive deps/python-keepkey
-          git submodule update --init deps/googletest
-          git submodule update --init deps/qrenc/QR-Code-generator
-          git submodule update --init deps/sca-hardening/SecAESSTM32
+          # --jobs 4 clones these in parallel. Only python-keepkey is
+          # --recursive: trezor-firmware declares 9 nested submodules that
+          # this build does not use, and pulling them would cost more than
+          # the parallelism saves.
+          git submodule update --init --jobs 4 \
+            deps/crypto/trezor-firmware \
+            deps/device-protocol \
+            deps/googletest \
+            deps/qrenc/QR-Code-generator \
+            deps/sca-hardening/SecAESSTM32
+          git submodule update --init --recursive --jobs 4 deps/python-keepkey
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Cache base image
-        id: cache-base
-        uses: actions/cache@v5
-        with:
-          path: /tmp/base-image.tar
-          key: base-image-${{ env.BASE_IMAGE }}
-
-      - name: Pull and cache base image
-        if: steps.cache-base.outputs.cache-hit != 'true'
-        run: |
-          docker pull ${{ env.BASE_IMAGE }}
-          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
-
-      - name: Load base image from cache
-        if: steps.cache-base.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/base-image.tar
+      - name: Pull base image
+        run: docker pull ${{ env.BASE_IMAGE }}
 
       - name: Build emulator image
         run: |
@@ -265,19 +294,109 @@ jobs:
             -t ${{ env.EMU_IMAGE }} \
             -f scripts/emulator/Dockerfile \
             .
+          # docker-compose.yml declares `image: kktech/kkemu:latest` on the
+          # kkemu service. Tagging the image we just built under that name is
+          # what stops `docker compose up` from rebuilding it: compose only
+          # builds a service when its image is absent or --build is passed.
+          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
 
-      - name: Save emulator image
+      - name: Run firmware unit tests (make xunit)
+        run: |
+          # make xunit returns non-zero if any test fails — capture
+          # exit code so JUnit XML still gets copied for reporting
+          mkdir -p ${{ github.workspace }}/test-reports
+          docker run --rm \
+            -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
+            --entrypoint /bin/sh \
+            ${{ env.EMU_IMAGE }} \
+            -c "mkdir -p /kkemu/test-reports/firmware-unit && \
+                make xunit; RC=\$?; \
+                cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
+                exit \$RC"
+
+      - name: Build python-keepkey test image
+        working-directory: scripts/emulator
+        run: |
+          # Separate Dockerfile (base + apk/pip deps + COPY), so it does have
+          # to be built. It compiles no firmware; the cost is the cytoolz C
+          # extension in the pip layer.
+          docker compose build python-keepkey
+
+      - name: Run python-keepkey integration suite
+        working-directory: scripts/emulator
+        run: |
+          # No --build: kkemu resolves to the image tagged above, and
+          # python-keepkey was built in the previous step. --build here
+          # would force both to be rebuilt from scratch.
+          docker compose up --exit-code-from python-keepkey python-keepkey; PY_RC=$?
+
+          echo "=== Extracting test reports from Docker ==="
+          PY_CONTAINER=$(docker compose ps -a -q python-keepkey)
+          docker cp "$PY_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ \
+            || echo "WARN: python-keepkey docker cp failed"
+
+          echo "=== Extracted files ==="
+          find ${{ github.workspace }}/test-reports -type f | head -30
+          echo "=== Screenshot PNGs ==="
+          find ${{ github.workspace }}/test-reports/screenshots -name '*.png' 2>/dev/null | wc -l
+          echo "PNGs on host"
+
+          echo "python-keepkey exit code: $PY_RC"
+          if [ "$PY_RC" -ne 0 ]; then
+            echo "::error::python-keepkey tests failed (exit code $PY_RC)"
+            exit "$PY_RC"
+          fi
+
+      - name: Upload unit test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: unit-test-results
+          path: test-reports/firmware-unit/
+          retention-days: 30
+
+      - name: Upload Python test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: python-test-results
+          path: test-reports/python-keepkey/
+          retention-days: 30
+
+      - name: Upload OLED screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oled-screenshots
+          path: test-reports/screenshots/
+          retention-days: 90
+          if-no-files-found: warn
+
+      # Only materialised for the publish path. On a normal push or PR this
+      # is 845 MB of save + upload that nothing downstream consumes.
+      - name: Save emulator image for publish
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.publish_emulator == 'true'
         run: docker save ${{ env.EMU_IMAGE }} -o /tmp/emu-image.tar
 
       - name: Upload emulator image artifact
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.publish_emulator == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: emu-image
           path: /tmp/emu-image.tar
           retention-days: 1
 
+      - name: Tear down
+        if: always()
+        working-directory: scripts/emulator
+        run: docker compose down -v || true
+
   build-arm-firmware:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [lint-format, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -288,29 +407,20 @@ jobs:
 
       - name: Init submodules
         run: |
-          git submodule update --init deps/crypto/trezor-firmware
-          git submodule update --init deps/device-protocol
-          git submodule update --init --recursive deps/python-keepkey
-          git submodule update --init deps/googletest
-          git submodule update --init deps/qrenc/QR-Code-generator
-          git submodule update --init deps/sca-hardening/SecAESSTM32
+          # --jobs 4 clones these in parallel. Only python-keepkey is
+          # --recursive: trezor-firmware declares 9 nested submodules that
+          # this build does not use, and pulling them would cost more than
+          # the parallelism saves.
+          git submodule update --init --jobs 4 \
+            deps/crypto/trezor-firmware \
+            deps/device-protocol \
+            deps/googletest \
+            deps/qrenc/QR-Code-generator \
+            deps/sca-hardening/SecAESSTM32
+          git submodule update --init --recursive --jobs 4 deps/python-keepkey
 
-      - name: Cache base image
-        id: cache-base
-        uses: actions/cache@v5
-        with:
-          path: /tmp/base-image.tar
-          key: base-image-${{ env.BASE_IMAGE }}
-
-      - name: Pull and cache base image
-        if: steps.cache-base.outputs.cache-hit != 'true'
-        run: |
-          docker pull ${{ env.BASE_IMAGE }}
-          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
-
-      - name: Load base image from cache
-        if: steps.cache-base.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/base-image.tar
+      - name: Pull base image
+        run: docker pull ${{ env.BASE_IMAGE }}
 
       - name: Extract firmware version
         id: version
@@ -360,119 +470,6 @@ jobs:
           retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
-  # STAGE 3: TEST — run only after builds succeed
-  # ═══════════════════════════════════════════════════════════
-
-  unit-tests:
-    needs: build-emulator
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Download emulator image
-        uses: actions/download-artifact@v8
-        with:
-          name: emu-image
-          path: /tmp
-
-      - name: Load emulator image
-        run: docker load -i /tmp/emu-image.tar
-
-      - name: Run unit tests
-        run: |
-          # make xunit returns non-zero if any test fails — capture
-          # exit code so JUnit XML still gets copied for reporting
-          docker run --rm \
-            -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
-            --entrypoint /bin/sh \
-            ${{ env.EMU_IMAGE }} \
-            -c "mkdir -p /kkemu/test-reports/firmware-unit && \
-                make xunit; RC=\$?; \
-                cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
-                exit \$RC"
-
-      - name: Upload unit test results
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: unit-test-results
-          path: test-reports/firmware-unit/
-          retention-days: 30
-
-  python-integration-tests:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Init submodules
-        run: |
-          git submodule update --init deps/crypto/trezor-firmware
-          git submodule update --init deps/device-protocol
-          git submodule update --init --recursive deps/python-keepkey
-          git submodule update --init deps/googletest
-          git submodule update --init deps/qrenc/QR-Code-generator
-          git submodule update --init deps/sca-hardening/SecAESSTM32
-
-      - name: Build and run tests (docker compose)
-        working-directory: scripts/emulator
-        run: |
-          # Run each test container — capture exit codes, always extract reports
-          docker compose up --build --exit-code-from firmware-unit firmware-unit; FW_RC=$?
-          docker compose up --build --exit-code-from python-keepkey python-keepkey; PY_RC=$?
-
-          mkdir -p ${{ github.workspace }}/test-reports
-
-          echo "=== Extracting test reports from Docker ==="
-          PY_CONTAINER=$(docker compose ps -a -q python-keepkey)
-          FW_CONTAINER=$(docker compose ps -a -q firmware-unit)
-
-          docker cp "$FW_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ || echo "WARN: firmware-unit docker cp failed"
-          docker cp "$PY_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ || echo "WARN: python-keepkey docker cp failed"
-
-          echo "=== Extracted files ==="
-          find ${{ github.workspace }}/test-reports -type f | head -30
-          echo "=== Screenshot PNGs ==="
-          find ${{ github.workspace }}/test-reports/screenshots -name '*.png' 2>/dev/null | wc -l
-          echo "PNGs on host"
-
-          echo "firmware-unit exit code: $FW_RC"
-          echo "python-keepkey exit code: $PY_RC"
-
-          if [ "$FW_RC" -ne 0 ]; then
-            echo "::error::firmware-unit tests failed (exit code $FW_RC)"
-          fi
-          if [ "$PY_RC" -ne 0 ]; then
-            echo "::error::python-keepkey tests failed (exit code $PY_RC)"
-          fi
-          [ "$FW_RC" -eq 0 ] && [ "$PY_RC" -eq 0 ] || exit 1
-
-      - name: Upload Python test results
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: python-test-results
-          path: test-reports/python-keepkey/
-          retention-days: 30
-
-      - name: Upload OLED screenshots
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: oled-screenshots
-          path: test-reports/screenshots/
-          retention-days: 90
-          if-no-files-found: warn
-
-      - name: Tear down
-        if: always()
-        working-directory: scripts/emulator
-        run: docker compose down -v || true
-
-  # ═══════════════════════════════════════════════════════════
   # STAGE 3a-bis: DYLIB TESTS — libkkemu shared lib via python-keepkey
   # ═══════════════════════════════════════════════════════════
   # Builds the firmware emulator as a shared library (libkkemu.dylib on
@@ -486,7 +483,7 @@ jobs:
   # Fixing requires deduping the symbol — out of scope for this PR.
   # TODO: enable ubuntu-latest in a follow-up after the symbol cleanup.
   #
-  # Why a separate job from python-integration-tests:
+  # Why a separate job from the build-and-test suite:
   #   - Different artifact: .dylib (in-process FFI), not the kkemu
   #     UDP binary the existing job builds.
   #   - Different transport in tests: KK_TRANSPORT=dylib instead of UDP.
@@ -504,7 +501,7 @@ jobs:
   #     fsm_msgDebugLinkGetState is excluded from the build and any
   #     read_layout() call hangs the test).
   python-dylib-tests:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [lint-format, secret-scan]
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
@@ -515,11 +512,16 @@ jobs:
 
       - name: Init submodules
         run: |
-          git submodule update --init deps/crypto/trezor-firmware
-          git submodule update --init deps/device-protocol
-          git submodule update --init --recursive deps/python-keepkey
-          git submodule update --init deps/qrenc/QR-Code-generator
-          git submodule update --init deps/sca-hardening/SecAESSTM32
+          # --jobs 4 clones these in parallel. Only python-keepkey is
+          # --recursive: trezor-firmware declares 9 nested submodules that
+          # this build does not use, and pulling them would cost more than
+          # the parallelism saves.
+          git submodule update --init --jobs 4 \
+            deps/crypto/trezor-firmware \
+            deps/device-protocol \
+            deps/qrenc/QR-Code-generator \
+            deps/sca-hardening/SecAESSTM32
+          git submodule update --init --recursive --jobs 4 deps/python-keepkey
           # CMakeLists.txt requires googletest unconditionally even when
           # we only build the dylib target — the project's add_subdirectory
           # for it runs at configure time, before any target selection.
@@ -529,6 +531,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
       - name: Install pinned Python deps
         run: |
@@ -537,6 +540,13 @@ jobs:
           # is needed by lib/firmware's ethereum_tokens.def build step
           # (it fetches token-list JSON at compile time).
           pip install "protobuf==3.20.3" "nanopb==0.3.9.4.post3" requests
+
+      - name: Cache pinned protoc
+        id: cache-protoc
+        uses: actions/cache@v5
+        with:
+          path: /tmp/protoc.zip
+          key: protoc-21.12-osx-aarch_64
 
       - name: Install pinned protoc 3.21
         run: |
@@ -548,8 +558,10 @@ jobs:
           # both drop the leading 3.
           PROTOC_VERSION=21.12
           PROTOC_ASSET="protoc-${PROTOC_VERSION}-osx-aarch_64.zip"
-          curl -sSL -fL -o /tmp/protoc.zip \
-            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ASSET}"
+          if [ ! -f /tmp/protoc.zip ]; then
+            curl -sSL -fL -o /tmp/protoc.zip \
+              "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ASSET}"
+          fi
           # `-f` makes curl fail-fast on HTTP errors so we don't unzip
           # a 404 HTML page.
           file /tmp/protoc.zip
@@ -645,7 +657,7 @@ jobs:
         run: |
           pip install -e .
           # python-keepkey's setup.py doesn't list pytest as a dep;
-          # the existing python-integration-tests job runs inside a
+          # the build-and-test integration suite runs inside a
           # Docker image that has it baked. We're running on a vanilla
           # macos runner so we install it explicitly. Pin pytest-timeout
           # too — even though pytest-timeout can't break the dylib's C
@@ -679,7 +691,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   generate-test-report:
-    needs: [unit-tests, python-integration-tests]
+    needs: [build-and-test]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -738,7 +750,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
-    needs: [unit-tests, python-integration-tests, python-dylib-tests, build-arm-firmware]
+    needs: [build-and-test, python-dylib-tests, build-arm-firmware]
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.publish_emulator == 'true'
