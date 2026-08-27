@@ -97,7 +97,14 @@ unsigned wipeAuthData(void) {
 }
 
 unsigned addAuthAccount(char* accountWithSeed) {
-  char *domain, *account, *seedStr = NULL;
+  if (accountWithSeed == NULL) return TOKERR;
+
+  /* strtok() inserts NULs into the caller's protobuf string, so retain the
+   * original extent before parsing.  Every exit wipes that whole credential
+   * suffix, including the Base32 source, rather than leaving it in the static
+   * message decode buffer until another USB message arrives. */
+  const size_t sourceLen = strlen(accountWithSeed);
+  char *domain, *account, *seedStr;
   unsigned slot;
   char authSecret[AUTHSECRET_SIZE_MAX] = {
       0};  // 128-bit key len is the recommended minimum, this is room for
@@ -108,20 +115,24 @@ unsigned addAuthAccount(char* accountWithSeed) {
   // accountWithSeed should be of the form "domain:account:seedStr"
   domain = strtok(accountWithSeed, ":");  // get the domain string token
   if (NULL == domain) {
-    return TOKERR;
+    result = TOKERR;
+    goto cleanup;
   }
 
   account = strtok(NULL, ":");  // get the account string token
   if (NULL == account) {
-    return TOKERR;
+    result = TOKERR;
+    goto cleanup;
   }
   if (0 == strlen(account)) {
-    return TOKERR;
+    result = TOKERR;
+    goto cleanup;
   }
 
   seedStr = strtok(NULL, "");  // get the seed string string token
   if (NULL == seedStr) {
-    return TOKERR;
+    result = TOKERR;
+    goto cleanup;
   }
   if (0 == strlen(seedStr)) {
     result = TOKERR;
@@ -173,10 +184,8 @@ unsigned addAuthAccount(char* accountWithSeed) {
   result = NOERR;
 
 cleanup:
-  if (seedStr != NULL) {
-    memzero(seedStr, strlen(seedStr));
-  }
   memzero(authSecret, sizeof(authSecret));
+  memzero(accountWithSeed, sourceLen);
   return result;
 }
 

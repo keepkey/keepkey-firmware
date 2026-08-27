@@ -54,11 +54,11 @@ bool osmosis_validate_amount(bool has_value, const char* value) {
 }
 
 bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
-  initialized = true;
-  /* A previous session's has_message must not leak into this one: a stale
-   * true writes a comma BEFORE the first message. signAbort() also clears
-   * it, but init cannot depend on the host having aborted. */
-  has_message = false;
+  osmosis_signAbort();
+  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0) {
+    return false;
+  }
+
   msgs_remaining = _msg->msg_count;
   testnet = false;
 
@@ -110,11 +110,18 @@ bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
   // 10
   sha256_Update(&ctx, (uint8_t*)"\",\"msgs\":[", 10);
 
-  return success;
+  if (!success) {
+    osmosis_signAbort();
+    return false;
+  }
+  initialized = true;
+  return true;
 }
 
 bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
                                  const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
@@ -181,6 +188,8 @@ bool osmosis_signTxUpdateMsgDelegate(const char* amount,
                                      const char* delegator_address,
                                      const char* validator_address,
                                      const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
@@ -249,6 +258,8 @@ bool osmosis_signTxUpdateMsgUndelegate(const char* amount,
                                        const char* delegator_address,
                                        const char* validator_address,
                                        const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
@@ -317,6 +328,8 @@ bool osmosis_signTxUpdateMsgRedelegate(const char* amount,
                                        const char* validator_src_address,
                                        const char* validator_dst_address,
                                        const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
@@ -393,6 +406,8 @@ bool osmosis_signTxUpdateMsgLPAdd(const uint64_t pool_id, const char* sender,
                                   const char* denom_in_max_a,
                                   const char* amount_in_max_b,
                                   const char* denom_in_max_b) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   char buffer[96 + 1] = {0};
 
   if (has_message) {
@@ -447,6 +462,8 @@ bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char* sender,
                                      const char* denom_out_min_a,
                                      const char* amount_out_min_b,
                                      const char* denom_out_min_b) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   char buffer[96 + 1] = {0};
 
   if (has_message) {
@@ -497,6 +514,8 @@ bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char* sender,
 
 bool osmosis_signTxUpdateMsgRewards(const char* delegator_address,
                                     const char* validator_address) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
@@ -562,6 +581,8 @@ bool osmosis_signTxUpdateMsgIBCTransfer(const char* amount, const char* sender,
                                         const char* revision_number,
                                         const char* revision_height,
                                         const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
@@ -648,6 +669,8 @@ bool osmosis_signTxUpdateMsgSwap(const uint64_t pool_id,
                                  const char* token_in_amount,
                                  const char* token_in_denom,
                                  const char* token_out_min_amount) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   char buffer[96 + 1] = {0};
 
   // TODO: add testnet support

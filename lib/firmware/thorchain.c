@@ -53,8 +53,11 @@ bool thorchain_formatAmount(uint64_t amount, const char* asset, char* out,
 }
 
 bool thorchain_signTxInit(const HDNode* _node, const ThorchainSignTx* _msg) {
-  initialized = true;
-  has_message = false;
+  thorchain_signAbort();
+  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0) {
+    return false;
+  }
+
   msgs_remaining = _msg->msg_count;
   testnet = false;
 
@@ -104,12 +107,17 @@ bool thorchain_signTxInit(const HDNode* _node, const ThorchainSignTx* _msg) {
   // 10
   sha256_Update(&ctx, (uint8_t*)"\",\"msgs\":[", 10);
 
-  return success;
+  if (!success) {
+    thorchain_signAbort();
+    return false;
+  }
+  initialized = true;
+  return true;
 }
 
 bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
                                    const char* to_address) {
-  if (msgs_remaining == 0) return false;
+  if (!initialized || msgs_remaining == 0) return false;
 
   const char mainnetp[] = "thor";
   const char testnetp[] = "tthor";
@@ -162,7 +170,7 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
 }
 
 bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg) {
-  if (msgs_remaining == 0) return false;
+  if (!initialized || msgs_remaining == 0) return false;
 
   char buffer[64 + 1];
 

@@ -248,11 +248,17 @@ TEST(Thorchain, MultiMessageSignTxSeparatesMsgsWithComma) {
   thorchain_signAbort();
 }
 
-TEST(Thorchain, ZeroMessagesNeverFinishes) {
+TEST(Thorchain, ZeroOrOmittedMessagesFailInitialization) {
   HDNode node = {};
-  const ThorchainSignTx msg = {0,    {}, true, 0,  true, "thorchain", true, 0,
-                               true, 0,  true, "", true, 0,           true, 0};
-  ASSERT_TRUE(thorchain_signTxInit(&node, &msg));
+  ThorchainSignTx msg = {0,    {}, true, 0,  true, "thorchain", true, 0,
+                         true, 0,  true, "", true, 0,           true, 0};
+  EXPECT_FALSE(thorchain_signTxInit(&node, &msg));
+  EXPECT_FALSE(thorchain_signingIsInited());
   EXPECT_FALSE(thorchain_signingIsFinished());
-  thorchain_signAbort();
+  EXPECT_FALSE(thorchain_signTxUpdateMsgSend(1, "ignored"));
+
+  msg.has_msg_count = false;
+  msg.msg_count = 1;
+  EXPECT_FALSE(thorchain_signTxInit(&node, &msg));
+  EXPECT_FALSE(thorchain_signingIsInited());
 }
