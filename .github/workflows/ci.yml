@@ -385,6 +385,18 @@ jobs:
                 exit \$RC" || UNIT_RC=$?
           echo "UNIT_RC=$UNIT_RC" >> "$GITHUB_ENV"
           echo "firmware unit suite exit code: $UNIT_RC"
+
+          # The cp above sends its errors to /dev/null, so a build that stops
+          # emitting JUnit XML -- or a glob that stops matching -- would sail
+          # through and leave the report rendering "0 tests" with nothing
+          # objecting. That is the same silent-evidence-loss failure the
+          # python side hit earlier on this branch, so it is gated the same
+          # way: no XML is an infrastructure failure, distinct from a test
+          # failure, and it fails here rather than being discovered in a PDF.
+          if ! compgen -G "${{ github.workspace }}/test-reports/firmware-unit/*.xml" > /dev/null; then
+            echo "::error::make xunit produced no JUnit XML (suite exit code $UNIT_RC) — unit test evidence was lost"
+            exit 1
+          fi
           # That container runs as root and leaves root-owned paths behind in
           # the bind mount. The `docker cp` in the integration step below
           # chmods what it extracts into, and a root-owned directory there
