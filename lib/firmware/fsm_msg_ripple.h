@@ -88,12 +88,33 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
     return;
   }
 
-  char amount_string[20 + 4 + 1];
-  ripple_formatAmount(amount_string, sizeof(amount_string),
-                      msg->payment.amount);
+  /* Above RIPPLE_MAX_DROPS the serializer's own bound is exceeded; it guarded
+     that with assert(), which is compiled out of release builds, so the amount
+     would be encoded differently from the one supplied. Refuse here instead,
+     before anything is shown. */
+  if (msg->payment.amount > RIPPLE_MAX_DROPS) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Amount exceeds the largest XRP value this device can "
+                      "sign"));
+    layoutHome();
+    return;
+  }
 
+  /* Both renders must succeed BEFORE any confirmation. These used to be void
+     calls, so an unrenderable amount put "AMOUNT TOO LARGE TO DISPLAY" on the
+     screen and the numeric amount into the signature. */
+  char amount_string[20 + 4 + 1];
   char fee_string[20 + 4 + 1];
-  ripple_formatAmount(fee_string, sizeof(fee_string), msg->fee);
+  if (!ripple_formatAmount(amount_string, sizeof(amount_string),
+                           msg->payment.amount) ||
+      !ripple_formatAmount(fee_string, sizeof(fee_string), msg->fee)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Cannot display this XRP amount"));
+    layoutHome();
+    return;
+  }
 
   if (needs_confirm) {
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Send",

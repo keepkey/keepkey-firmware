@@ -56,12 +56,19 @@ bool ripple_getAddress(const uint8_t public_key[33],
   return true;
 }
 
-void ripple_formatAmount(char* buf, size_t len, uint64_t amount) {
+bool ripple_formatAmount(char* buf, size_t len, uint64_t amount) {
   bignum256 val;
   bn_read_uint64(amount, &val);
   if (!bn_format(&val, NULL, " XRP", RIPPLE_DECIMALS, 0, false, buf, len)) {
+    /* Keep the sentinel for anything that still wants to draw something, but
+       report the failure: writing "AMOUNT TOO LARGE TO DISPLAY" into a void
+       function meant fsm_msgRippleSignTx() could not tell, so it showed that
+       string and signed the numeric amount anyway. An amount the device cannot
+       render is not an amount it can ask anyone to approve. */
     strlcpy(buf, "AMOUNT TOO LARGE TO DISPLAY", len);
+    return false;
   }
+  return true;
 }
 
 static void append_u8(bool* ok, uint8_t** buf, const uint8_t* end,

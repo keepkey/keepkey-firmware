@@ -29,6 +29,13 @@
 
 #define RIPPLE_DECIMALS 6
 
+/* The largest drop amount ripple_serializeAmount() can encode. Above this the
+   value collides with the bits that flag "XRP" and "positive", so the
+   serializer would emit a different amount than the one supplied. It guarded
+   this with assert(), which compiles out of release builds -- so the bound has
+   to be enforced by the message handler instead. */
+#define RIPPLE_MAX_DROPS 100000000000ULL
+
 #define RIPPLE_FLAG_FULLY_CANONICAL 0x80000000
 
 typedef enum {
@@ -59,7 +66,10 @@ extern const RippleFieldMapping RFM_destinationTag;
 bool ripple_getAddress(const uint8_t public_key[33],
                        char address[MAX_ADDR_SIZE]);
 
-void ripple_formatAmount(char* buf, size_t len, uint64_t amount);
+/// Render `amount` drops as XRP.
+/// \returns false if it does not fit `buf`, in which case the transaction must
+/// be refused: an amount the device cannot render is not one it can show.
+bool ripple_formatAmount(char* buf, size_t len, uint64_t amount);
 
 void ripple_serializeType(bool* ok, uint8_t** buf, const uint8_t* end,
                           const RippleFieldMapping* m);

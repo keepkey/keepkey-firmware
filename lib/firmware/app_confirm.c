@@ -359,11 +359,43 @@ bool format_sign_identity_key_selection(const IdentityType* identity,
   return needed >= 0 && (size_t)needed < out_len;
 }
 
+/* Every field cryptoIdentityFingerprint() hashes has to be renderable without
+   ambiguity, because the screen that shows it is the only thing standing
+   between two identities that derive DIFFERENT keys.
+
+   proto goes into a title and host/port/user are concatenated into an ordinary
+   body, both drawn as layout text: a byte below 0x20 is invisible, a leading
+   space is dropped at a line start, and a newline re-wraps everything after
+   it. So "ssh"/"ssh\n", or a user with a trailing space, can present the same
+   approval while selecting different keys.
+
+   path and the visual challenge already avoid this by going through
+   confirm_bytes(). Putting the other four on their own escaped pages would add
+   four screens to every identity signature; instead require them to be what
+   they always are in practice -- URI components with no space and no control
+   byte -- and refuse anything else before a screen is drawn. 0x21..0x7E is the
+   same range confirm_bytes() renders literally. */
+static bool identity_field_is_unambiguous(bool has_value, const char* value) {
+  if (!has_value || !value) return true; /* absent is unambiguous */
+  for (const unsigned char* p = (const unsigned char*)value; *p; ++p) {
+    if (*p < 0x21 || *p > 0x7e) return false;
+  }
+  return true;
+}
+
 bool confirm_sign_identity(const IdentityType* identity, const char* challenge,
                            const char* curve) {
   char title[CONFIRM_SIGN_IDENTITY_TITLE], body[CONFIRM_SIGN_IDENTITY_BODY];
 
   if (!identity || !curve) return false;
+
+  /* Refuse before anything is shown -- see identity_field_is_unambiguous(). */
+  if (!identity_field_is_unambiguous(identity->has_proto, identity->proto) ||
+      !identity_field_is_unambiguous(identity->has_host, identity->host) ||
+      !identity_field_is_unambiguous(identity->has_port, identity->port) ||
+      !identity_field_is_unambiguous(identity->has_user, identity->user)) {
+    return false;
+  }
 
   /* These values select the key and signing algorithm. Keep them out of the
    * free-form identity body so the maximum-size path can be reviewed by the

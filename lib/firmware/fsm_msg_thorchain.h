@@ -155,6 +155,22 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
           layoutHome();
           return;
         }
+        /* Validate the recipient BEFORE the screen, not in the serializer.
+           thorchain_signTxUpdateMsgSend() already refuses a
+           malformed or wrong-network address, but it runs after this
+           confirmation, so the owner approved a transfer that was then
+           rejected. This release line's rule is that an invalid signed value
+           fails before approval, so the same check moves ahead of the
+           screen. */
+        if (!tendermint_validateBech32Address(
+                msg->send.to_address,
+                sign_tx->has_testnet && sign_tx->testnet ? "tthor" : "thor")) {
+          thorchain_signAbort();
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          "Invalid THORChain recipient address");
+          layoutHome();
+          return;
+        }
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {

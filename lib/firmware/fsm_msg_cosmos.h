@@ -167,6 +167,20 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
       default: {
         char amount_str[32];
         cosmos_formatAmount(msg->send.amount, amount_str, sizeof(amount_str));
+        /* Validate the recipient BEFORE the screen, not in the serializer.
+           tendermint_signTxUpdateMsgSend() already refuses a
+           malformed or wrong-network address, but it runs after this
+           confirmation, so the owner approved a transfer that was then
+           rejected. This release line's rule is that an invalid signed value
+           fails before approval, so the same check moves ahead of the
+           screen. */
+        if (!tendermint_validateBech32Address(msg->send.to_address, "cosmos")) {
+          tendermint_signAbort();
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          "Invalid Cosmos recipient address");
+          layoutHome();
+          return;
+        }
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {

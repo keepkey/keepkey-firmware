@@ -48,6 +48,25 @@ bool binance_validateTransfer(const BinanceTransferMsg* transfer) {
          binance_isValidDenom(input_coin->denom);
 }
 
+/* The address prefix this session's chain_id domain-binds the signature to.
+ *
+ * Accepting "bnb" or "tbnb" per address, independently, let one transfer mix
+ * networks and tied neither address to the chain_id inside the sign document:
+ * a mainnet envelope could display and sign a tbnb recipient. Derive the one
+ * permitted prefix from the chain_id once, here, and hold every input and
+ * output to it. An unrecognised chain_id has no prefix to derive, so it is
+ * refused rather than guessed -- the safe direction, and these three are the
+ * only chain ids BNB Beacon Chain ever used. */
+static const char* binance_addressPrefixForChain(const char* chain_id) {
+  if (!chain_id) return NULL;
+  if (strcmp(chain_id, "Binance-Chain-Tigris") == 0) return "bnb";
+  if (strcmp(chain_id, "Binance-Chain-Ganges") == 0) return "tbnb";
+  if (strcmp(chain_id, "Binance-Chain-Nile") == 0) return "tbnb";
+  return NULL;
+}
+
+static const char* address_prefix;
+
 bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg) {
   binance_signAbort();
   if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0 ||
@@ -56,6 +75,9 @@ bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg) {
       _msg->sequence < 0 || !_msg->has_source || _msg->source < 0) {
     return false;
   }
+
+  address_prefix = binance_addressPrefixForChain(_msg->chain_id);
+  if (!address_prefix) return false;
 
   msgs_remaining = _msg->msg_count;
 
@@ -117,13 +139,14 @@ bool binance_serializeInputOutput(const BinanceInputOutput* io) {
      address, a module address, or a punctuation-bearing HRP therefore reached
      the signed document.
 
-     Both Binance Chain account prefixes are accepted -- "bnb" for mainnet and
-     "tbnb" for testnet -- because transfers are serialized on either network,
-     and the pinned vectors in unittests/firmware/binance.cpp are testnet. What
-     is refused is everything else: another chain's prefix, a validator or
-     module address, and any payload that is not a 20-byte account. */
-  if (!tendermint_validateBech32Address(io->address, "bnb") &&
-      !tendermint_validateBech32Address(io->address, "tbnb")) {
+     The permitted prefix is the ONE that this session's chain_id selects (see
+     binance_addressPrefixForChain()), not "bnb or tbnb" per address: taking
+     them independently let a single transfer mix networks and bound neither
+     address to the chain_id the signature is domain-separated by. Everything
+     else is refused -- another chain's prefix, a validator or module address,
+     and any payload that is not a 20-byte account. */
+  if (!address_prefix) return false;
+  if (!tendermint_validateBech32Address(io->address, address_prefix)) {
     return false;
   }
 
@@ -221,6 +244,7 @@ void binance_signAbort(void) {
   initialized = false;
   has_message = false;
   msgs_remaining = 0;
+  address_prefix = NULL;
   memzero(&msg, sizeof(msg));
   memzero(&node, sizeof(node));
 }
