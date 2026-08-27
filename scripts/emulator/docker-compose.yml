@@ -13,10 +13,14 @@ services:
       - "127.0.0.1:5000:5000"
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health')\" || exit 1"]
-      interval: 3s
+      # The emulator is listening well inside a second; a 3s interval meant
+      # the integration suite sat waiting on poll granularity, not on the
+      # service. retries is raised alongside so the worst-case ceiling stays
+      # generous (40s) rather than shrinking to 20s with the faster interval.
+      interval: 1s
       timeout: 3s
-      retries: 20
-      start_period: 10s
+      retries: 40
+      start_period: 3s
   python-keepkey:
     # Named so CI can build it once (`docker compose build python-keepkey`)
     # and then `up` without --build, which would otherwise also force a

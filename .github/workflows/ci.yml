@@ -12,9 +12,6 @@
 #   ├─ build-arm-firmware cross-compile → .bin/.elf (downloadable)
 #   └─ python-dylib-tests libkkemu.dylib screenshot regression (macOS)
 #
-# Stage 3: REPORT
-#   └─ generate-test-report   PDF from test artifacts
-#
 # Stage 4: PUBLISH (manual trigger, all tests must pass)
 #   └─ publish-emulator   DockerHub push (workflow_dispatch only)
 #
@@ -45,8 +42,20 @@ name: CI
 on:
   push:
     branches: [master, develop, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
+    # Documentation-only commits do not need two firmware compiles. Note this
+    # skips the workflow entirely rather than reporting a neutral check --
+    # safe here because develop is unprotected and master's only required
+    # context is a CircleCI job that no longer exists in this repo. Revisit
+    # if branch protection starts requiring any CI job below.
+    paths-ignore: &docs_only
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/*.md'
   pull_request:
     branches: [master, develop]
+    paths-ignore: *docs_only
   workflow_dispatch:
     inputs:
       publish_emulator:
@@ -64,6 +73,12 @@ concurrency:
 
 env:
   BASE_IMAGE: kktech/firmware:v15
+  # Pulls of the 650 MB base image from Docker Hub cost ~34s per job. The
+  # same blob served from GHCR to a GitHub-hosted runner is markedly faster
+  # and is not subject to Docker Hub's anonymous pull limits. Populate it
+  # with the mirror-base-image workflow; CI falls back to Docker Hub
+  # automatically when the mirror is absent or unreadable.
+  BASE_IMAGE_MIRROR: ghcr.io/${{ github.repository_owner }}/firmware:v15
   EMU_IMAGE: kkemu-ci
 
 jobs:
@@ -263,6 +278,9 @@ jobs:
   # it, so the tarball only has to exist when it is actually published.
   build-and-test:
     needs: [lint-format, secret-scan]
+    permissions:
+      contents: read
+      packages: read
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -285,8 +303,31 @@ jobs:
             deps/sca-hardening/SecAESSTM32
           git submodule update --init --recursive --jobs 4 deps/python-keepkey
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Pull base image
-        run: docker pull ${{ env.BASE_IMAGE }}
+        run: |
+          # The image is re-tagged to its Docker Hub name because
+          # scripts/emulator/Dockerfile says `FROM kktech/firmware:v15`.
+          # Neither `docker build` nor `docker compose build` passes --pull,
+          # so a local image under that name satisfies the FROM without any
+          # registry round-trip -- and without editing the Dockerfile.
+          if docker pull "${{ env.BASE_IMAGE_MIRROR }}" 2>/dev/null; then
+            docker tag "${{ env.BASE_IMAGE_MIRROR }}" "${{ env.BASE_IMAGE }}"
+            echo "base image: GHCR mirror"
+          else
+            echo "::warning::GHCR mirror unavailable — falling back to Docker Hub. Run the mirror-base-image workflow to populate it."
+            docker pull "${{ env.BASE_IMAGE }}"
+            echo "base image: Docker Hub"
+          fi
 
       - name: Build emulator image
         run: |
@@ -314,13 +355,30 @@ jobs:
                 cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
                 exit \$RC"
 
+      # This image compiles no firmware, but its pip layer builds the cytoolz
+      # C extension against musl, which measured 28.8s -- plus ~8s for the apk
+      # layer. Both RUN layers sit *before* COPY, so they are stable across
+      # commits and cache cleanly; only the final COPY is invalidated by a
+      # source change.
+      #
+      # build-push-action rather than a `run:` step on purpose: the type=gha
+      # cache backend needs ACTIONS_RUNTIME_TOKEN and ACTIONS_CACHE_URL, and
+      # GitHub injects those into actions but NOT into `run:` shells. Driving
+      # buildx from a shell step here would warn and export nothing -- a cache
+      # that looks configured and silently does no work.
+      #
+      # The tag matches `image:` on the python-keepkey compose service, so
+      # `docker compose up` reuses this instead of rebuilding it.
       - name: Build python-keepkey test image
-        working-directory: scripts/emulator
-        run: |
-          # Separate Dockerfile (base + apk/pip deps + COPY), so it does have
-          # to be built. It compiles no firmware; the cost is the cytoolz C
-          # extension in the pip layer.
-          docker compose build python-keepkey
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: scripts/emulator/python-keepkey.Dockerfile
+          tags: kktech/kkemu-tests:latest
+          load: true
+          push: false
+          cache-from: type=gha,scope=python-keepkey-tests
+          cache-to: type=gha,mode=max,scope=python-keepkey-tests
 
       - name: Run python-keepkey integration suite
         working-directory: scripts/emulator
@@ -390,13 +448,45 @@ jobs:
           path: /tmp/emu-image.tar
           retention-days: 1
 
-      - name: Tear down
+      # Folded in from the former `generate-test-report` job. Every input it
+      # needs is already on this runner: the three report directories, the
+      # checkout, and the python-keepkey submodule. As a separate job it paid
+      # a runner spin-up plus three artifact downloads to reassemble state
+      # that had just been torn down. The script is pure stdlib.
+      #
+      # if: always() throughout, so a red test run still produces its report
+      # -- that is the run where the PDF matters most.
+      - name: Extract firmware version
+        id: version
         if: always()
-        working-directory: scripts/emulator
-        run: docker compose down -v || true
+        run: |
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate test report PDF
+        if: always()
+        env:
+          FW_VERSION: ${{ steps.version.outputs.fw_version }}
+          KK_BUILD_LABEL: ${{ github.head_ref || github.ref_name }}@${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 scripts/generate-test-report.py
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report
+          path: test-report.pdf
+          retention-days: 90
+
+      # No `docker compose down` -- this runner is destroyed within seconds
+      # of the job ending, so tearing down containers and volumes was ~10s
+      # spent tidying a machine that is about to cease to exist.
 
   build-arm-firmware:
     needs: [lint-format, secret-scan]
+    permissions:
+      contents: read
+      packages: read
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -419,8 +509,31 @@ jobs:
             deps/sca-hardening/SecAESSTM32
           git submodule update --init --recursive --jobs 4 deps/python-keepkey
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Pull base image
-        run: docker pull ${{ env.BASE_IMAGE }}
+        run: |
+          # The image is re-tagged to its Docker Hub name because
+          # scripts/emulator/Dockerfile says `FROM kktech/firmware:v15`.
+          # Neither `docker build` nor `docker compose build` passes --pull,
+          # so a local image under that name satisfies the FROM without any
+          # registry round-trip -- and without editing the Dockerfile.
+          if docker pull "${{ env.BASE_IMAGE_MIRROR }}" 2>/dev/null; then
+            docker tag "${{ env.BASE_IMAGE_MIRROR }}" "${{ env.BASE_IMAGE }}"
+            echo "base image: GHCR mirror"
+          else
+            echo "::warning::GHCR mirror unavailable — falling back to Docker Hub. Run the mirror-base-image workflow to populate it."
+            docker pull "${{ env.BASE_IMAGE }}"
+            echo "base image: Docker Hub"
+          fi
 
       - name: Extract firmware version
         id: version
@@ -685,65 +798,6 @@ jobs:
           path: test-reports/dylib-junit.xml
           retention-days: 30
           if-no-files-found: warn
-
-  # ═══════════════════════════════════════════════════════════
-  # STAGE 3b: TEST REPORT — generate PDF from test artifacts
-  # ═══════════════════════════════════════════════════════════
-
-  generate-test-report:
-    needs: [build-and-test]
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Download unit test results
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: unit-test-results
-          path: test-reports/firmware-unit/
-
-      - name: Download python test results
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: python-test-results
-          path: test-reports/python-keepkey/
-
-      - name: Download OLED screenshots
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: oled-screenshots
-          path: test-reports/screenshots/
-
-      - name: Extract firmware version
-        id: version
-        run: |
-          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
-          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Init python-keepkey submodule
-        run: git submodule update --init deps/python-keepkey
-
-      - name: Generate test report PDF
-        env:
-          FW_VERSION: ${{ steps.version.outputs.fw_version }}
-          KK_BUILD_LABEL: ${{ github.head_ref || github.ref_name }}@${{ github.event.pull_request.head.sha || github.sha }}
-        run: python3 scripts/generate-test-report.py
-
-      - name: Upload test report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-report
-          path: test-report.pdf
-          retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
