@@ -325,8 +325,14 @@ jobs:
             deps/sca-hardening/SecAESSTM32
           git submodule update --init --recursive --jobs 4 deps/python-keepkey
 
+      # continue-on-error because the mirror is optional by design. Without
+      # it a GHCR outage, a revoked package grant, or a token hiccup fails the
+      # job here -- before the Docker Hub fallback this login exists to enable
+      # ever gets a chance to run. A failed login simply means the subsequent
+      # mirror pull is unauthenticated, which takes the fallback path.
       - name: Log in to GHCR
         uses: docker/login-action@v4
+        continue-on-error: true
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -631,44 +637,36 @@ jobs:
             deps/sca-hardening/SecAESSTM32
           git submodule update --init --recursive --jobs 4 deps/python-keepkey
 
+      # continue-on-error because the mirror is optional by design. Without
+      # it a GHCR outage, a revoked package grant, or a token hiccup fails the
+      # job here -- before the Docker Hub fallback this login exists to enable
+      # ever gets a chance to run. A failed login simply means the subsequent
+      # mirror pull is unauthenticated, which takes the fallback path.
       - name: Log in to GHCR
         uses: docker/login-action@v4
+        continue-on-error: true
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
       - name: Pull base image
         run: |
-          # Two consumers, resolved differently:
-          #
-          #  1. `docker build` for the emulator image uses the classic builder,
-          #     which reads the local daemon image store. Re-tagging the mirror
-          #     to the Docker Hub name satisfies the `FROM kktech/firmware:v15`
-          #     in scripts/emulator/Dockerfile with no registry round-trip.
-          #
-          #  2. buildx (docker/build-push-action) uses the docker-container
-          #     driver, which does NOT see daemon-local images and resolves
-          #     FROM against a registry. Re-tagging alone silently left it
-          #     pulling from Docker Hub -- confirmed in run 33046944618, which
-          #     logged `[auth] kktech/firmware:pull token for
-          #     registry-1.docker.io` during the buildx step. RESOLVED_BASE is
-          #     therefore exported and passed to that build as a build-arg.
+          # This job runs the toolchain with `docker run`, so it only needs the
+          # image present in the local daemon store under its Docker Hub name.
+          # No buildx here, and so no RESOLVED_BASE -- see build-and-test,
+          # which does need both because buildx resolves FROM against a
+          # registry rather than the daemon.
           #
           # stderr is deliberately not suppressed: the fallback stops a mirror
           # problem being fatal, but hiding the error makes auth vs missing tag
           # vs transient network indistinguishable.
           if docker pull "${{ env.BASE_IMAGE_MIRROR }}"; then
             docker tag "${{ env.BASE_IMAGE_MIRROR }}" "${{ env.BASE_IMAGE }}"
-            echo "RESOLVED_BASE=${{ env.BASE_IMAGE_MIRROR }}" >> "$GITHUB_ENV"
             echo "base image: GHCR mirror"
           else
             echo "::warning::GHCR mirror unavailable — falling back to Docker Hub. Run the mirror-base-image workflow to populate it."
             docker pull "${{ env.BASE_IMAGE }}"
-            echo "RESOLVED_BASE=${{ env.BASE_IMAGE }}" >> "$GITHUB_ENV"
             echo "base image: Docker Hub"
           fi
 
@@ -808,7 +806,10 @@ jobs:
           # both drop the leading 3.
           PROTOC_VERSION=21.12
           PROTOC_ASSET="protoc-${PROTOC_VERSION}-osx-aarch_64.zip"
-          if [ ! -f /tmp/protoc.zip ]; then
+          # -s not -f: a cache entry can restore empty or truncated, and
+          # existence alone would skip the download and hand unzip a bad file
+          # with no retry.
+          if [ ! -s /tmp/protoc.zip ]; then
             curl -sSL -fL -o /tmp/protoc.zip \
               "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ASSET}"
           fi
