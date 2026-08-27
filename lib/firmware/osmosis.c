@@ -42,7 +42,7 @@ static bool testnet;
 const OsmosisSignTx* osmosis_getOsmosisSignTx(void) { return &msg; }
 
 bool osmosis_validate_required_text(bool has_value, const char* value) {
-  return has_value && value && value[0] != '\0';
+  return has_value && tendermint_validateSafeText(value);
 }
 
 bool osmosis_validate_amount(bool has_value, const char* value) {

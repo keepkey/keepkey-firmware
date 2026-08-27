@@ -118,15 +118,20 @@ void leave_home(void) {
  *     none
  */
 void toggle_screensaver(void) {
+  /* Auto-lock is a session boundary even while the device is waiting for the
+   * host between streamed signing messages.  Confirmation handlers block the
+   * main loop, so this check cannot interrupt a button hold; AWAY_FROM_HOME
+   * here means firmware has returned to the main loop and is idle. */
+  if (home_state != SCREENSAVER && idle_time >= storage_getAutoLockDelayMs()) {
+    fsm_abort_workflows();
+    session_clear(/*clear_pin=*/true);
+    layout_screensaver();
+    home_state = SCREENSAVER;
+    return;
+  }
+
   switch (home_state) {
     case AT_HOME:
-      if (idle_time >= storage_getAutoLockDelayMs()) {
-        fsm_abort_workflows();
-        session_clear(/*clear_pin=*/true);
-        layout_screensaver();
-        home_state = SCREENSAVER;
-      }
-
       break;
 
     case SCREENSAVER:

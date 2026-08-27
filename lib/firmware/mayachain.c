@@ -275,6 +275,32 @@ static bool mayachain_memo_has_empty_component(const char* memo, size_t size) {
   return false;
 }
 
+static bool mayachain_memo_is_structured_text(const char* memo, size_t size) {
+  if (!memo || size == 0) return false;
+
+  for (size_t i = 0; i < size; i++) {
+    const unsigned char c = (unsigned char)memo[i];
+    if (c < 0x21 || c > 0x7e) return false;
+  }
+  return true;
+}
+
+static bool mayachain_parse_bps(const char* text, uint16_t* bps) {
+  if (!text || !bps || text[0] == '\0') return false;
+  if (text[0] == '0' && text[1] != '\0') return false;
+
+  uint32_t value = 0;
+  for (const char* p = text; *p; p++) {
+    if (*p < '0' || *p > '9') return false;
+    const uint32_t digit = (uint32_t)(*p - '0');
+    if (value > (10000u - digit) / 10u) return false;
+    value = value * 10u + digit;
+  }
+
+  *bps = (uint16_t)value;
+  return true;
+}
+
 MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
                                                size_t size) {
   /*
@@ -306,7 +332,8 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
   /* One byte short of the buffer, so a full-length memo is still terminated by
      the memzero below. */
   if (size >= sizeof(memoBuf) ||
-      mayachain_memo_has_empty_component(swapStr, size)) {
+      mayachain_memo_has_empty_component(swapStr, size) ||
+      !mayachain_memo_is_structured_text(swapStr, size)) {
     return MAYACHAIN_MEMO_UNPARSED;
   }
   memzero(memoBuf, sizeof(memoBuf));
@@ -363,8 +390,8 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
   }
 
   // Check for swap
-  if (strncmp(parseTokPtrs[0], "SWAP", 4) == 0 || *parseTokPtrs[0] == 's' ||
-      *parseTokPtrs[0] == '=') {
+  if (strcmp(parseTokPtrs[0], "SWAP") == 0 ||
+      strcmp(parseTokPtrs[0], "s") == 0 || strcmp(parseTokPtrs[0], "=") == 0) {
     // This is a swap, set up destination and limit
     // This is the dest, may be blank which means swap to self
     parseTokPtrs[3] = "self";
@@ -409,8 +436,9 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
   }
 
   // Check for add liquidity
-  else if (strncmp(parseTokPtrs[0], "ADD", 3) == 0 || *parseTokPtrs[0] == 'a' ||
-           *parseTokPtrs[0] == '+') {
+  else if (strcmp(parseTokPtrs[0], "ADD") == 0 ||
+           strcmp(parseTokPtrs[0], "a") == 0 ||
+           strcmp(parseTokPtrs[0], "+") == 0) {
     if (tok != NULL) {
       // add liquidity pool address
       parseTokPtrs[3] = tok;
@@ -442,8 +470,9 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
   }
 
   // Check for withdraw liquidity
-  else if (strncmp(parseTokPtrs[0], "WITHDRAW", 8) == 0 ||
-           strncmp(parseTokPtrs[0], "wd", 2) == 0 || *parseTokPtrs[0] == '-') {
+  else if (strcmp(parseTokPtrs[0], "WITHDRAW") == 0 ||
+           strcmp(parseTokPtrs[0], "wd") == 0 ||
+           strcmp(parseTokPtrs[0], "-") == 0) {
     if (tok != NULL) {
       // add liquidity pool address
       parseTokPtrs[3] = tok;
@@ -451,10 +480,14 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
       return MAYACHAIN_MEMO_UNPARSED;  // malformed memo
     }
 
-    float percent = (float)(atoi(parseTokPtrs[3])) / 100;
+    uint16_t bps = 0;
+    if (!mayachain_parse_bps(parseTokPtrs[3], &bps)) {
+      return MAYACHAIN_MEMO_UNPARSED;
+    }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Mayachain withdraw liquidity",
-                 "Confirm withdraw %3.2f%% of asset %s on chain %s", percent,
+                 "Confirm withdraw %u.%02u%% of asset %s on chain %s",
+                 (unsigned)(bps / 100u), (unsigned)(bps % 100u),
                  parseTokPtrs[2], parseTokPtrs[1])) {
       return MAYACHAIN_MEMO_CANCELLED;
     }

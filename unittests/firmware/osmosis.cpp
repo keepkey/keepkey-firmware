@@ -128,11 +128,17 @@ TEST(Osmosis, RequiredValuesRejectEmptyAndNonDecimalAmounts) {
   EXPECT_FALSE(osmosis_validate_required_text(false, "uosmo"));
   EXPECT_FALSE(osmosis_validate_required_text(true, ""));
   EXPECT_TRUE(osmosis_validate_required_text(true, "uosmo"));
+  EXPECT_TRUE(osmosis_validate_required_text(true, "ibc/0123456789ABCDEF"));
+  EXPECT_FALSE(osmosis_validate_required_text(true, "u osmo"));
+  EXPECT_FALSE(osmosis_validate_required_text(true, "u\"osmo"));
+  EXPECT_FALSE(osmosis_validate_required_text(true, "u\\osmo"));
+  EXPECT_FALSE(osmosis_validate_required_text(true, "u\nosmo"));
 
   EXPECT_FALSE(osmosis_validate_amount(false, "1"));
   EXPECT_FALSE(osmosis_validate_amount(true, ""));
   EXPECT_FALSE(osmosis_validate_amount(true, "1.0"));
   EXPECT_FALSE(osmosis_validate_amount(true, "-1"));
+  EXPECT_FALSE(osmosis_validate_amount(true, "1e6"));
   EXPECT_TRUE(osmosis_validate_amount(true, "0"));
   EXPECT_TRUE(osmosis_validate_amount(true, "1000000"));
 }

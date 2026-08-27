@@ -107,6 +107,32 @@ TEST(Thorchain, MemoWithEmptyPositionalFieldIsNotStructured) {
                                        sizeof(kSaversAffiliate) - 1));
 }
 
+TEST(Thorchain, StructuredMemoRequiresExactSafeTokensAndCanonicalBps) {
+  static const char* const kUnparsed[] = {
+      "SWAP-extra:ETH.ETH:destination:100",
+      "swap:ETH.ETH:destination:100",
+      "ADDITION:ETH.ETH:destination",
+      "WITHDRAWAL:ETH.ETH:100",
+      "WITHDRAW:ETH.ETH:01",
+      "WITHDRAW:ETH.ETH:100x",
+      "WITHDRAW:ETH.ETH:10001",
+      "WITHDRAW:ETH.ETH:4294967296",
+      "WITHDRAW:ETH.ETH:-1",
+      "SWAP:ETH.ETH:destination with space:100",
+      "SWAP:ETH.ETH:destination\nnext:100",
+  };
+
+  for (const char* memo : kUnparsed) {
+    EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+              thorchain_parseConfirmMemo(memo, std::strlen(memo)))
+        << memo;
+  }
+
+  static const char kNonAscii[] = "SWAP:ETH.ETH:dest\x80:100";
+  EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+            thorchain_parseConfirmMemo(kNonAscii, sizeof(kNonAscii) - 1));
+}
+
 TEST(Thorchain, ThorchainGetAddress) {
   HDNode node = {
       0,

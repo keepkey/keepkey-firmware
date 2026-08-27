@@ -63,9 +63,11 @@ void fsm_msgSignIdentity(SignIdentity* msg) {
 
   CHECK_INITIALIZED
 
-  if (!confirm_sign_identity(&(msg->identity), msg->has_challenge_visual
-                                                   ? msg->challenge_visual
-                                                   : 0)) {
+  const char* curve =
+      msg->has_ecdsa_curve_name ? msg->ecdsa_curve_name : SECP256K1_NAME;
+  if (!confirm_sign_identity(
+          &(msg->identity),
+          msg->has_challenge_visual ? msg->challenge_visual : 0, curve)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Sign identity cancelled");
     layoutHome();
@@ -93,10 +95,6 @@ void fsm_msgSignIdentity(SignIdentity* msg) {
   address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) |
                  ((uint32_t)hash[15] << 24);
 
-  const char* curve = SECP256K1_NAME;
-  if (msg->has_ecdsa_curve_name) {
-    curve = msg->ecdsa_curve_name;
-  }
   HDNode* node = fsm_getDerivedNode(curve, address_n, 5, NULL);
   if (!node) {
     return;

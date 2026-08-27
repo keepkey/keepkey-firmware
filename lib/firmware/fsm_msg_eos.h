@@ -77,6 +77,9 @@ void fsm_msgEosGetPublicKey(const EosGetPublicKey* msg) {
 }
 
 void fsm_msgEosSignTx(const EosSignTx* msg) {
+  /* A second start is a boundary, including when its envelope is invalid. */
+  eos_signingAbort();
+
   CHECK_PARAM(msg->chain_id.size == 32, "Wrong chain_id size");
   CHECK_PARAM(msg->has_header, "Must have transaction header");
   CHECK_PARAM(msg->has_num_actions && 0 < msg->num_actions,
@@ -103,7 +106,12 @@ void fsm_msgEosSignTx(const EosSignTx* msg) {
 
 void fsm_msgEosTxActionAck(const EosTxActionAck* msg) {
   CHECK_PARAM(eos_signingIsInited(), "Must call EosSignTx to initiate signing");
-  CHECK_PARAM(msg->has_common, "Must have common");
+  if (!msg->has_common) {
+    eos_signingAbort();
+    fsm_sendFailure(FailureType_Failure_Other, "Must have common");
+    layoutHome();
+    return;
+  }
 
   int action_count = (int)msg->has_transfer + (int)msg->has_delegate +
                      (int)msg->has_undelegate + (int)msg->has_refund +
@@ -112,8 +120,13 @@ void fsm_msgEosTxActionAck(const EosTxActionAck* msg) {
                      (int)msg->has_update_auth + (int)msg->has_delete_auth +
                      (int)msg->has_link_auth + (int)msg->has_unlink_auth +
                      (int)msg->has_new_account + (int)msg->has_unknown + 0;
-  CHECK_PARAM(action_count == 1,
-              "Eos signing can only handle one action at a time");
+  if (action_count != 1) {
+    eos_signingAbort();
+    fsm_sendFailure(FailureType_Failure_Other,
+                    "Eos signing can only handle one action at a time");
+    layoutHome();
+    return;
+  }
 
   if (eos_hasActionUnknownDataRemaining()) {
     if (!msg->has_unknown) {

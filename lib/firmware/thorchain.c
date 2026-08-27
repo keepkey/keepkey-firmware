@@ -271,6 +271,32 @@ static bool thorchain_memo_has_empty_component(const char* memo, size_t size) {
   return false;
 }
 
+static bool thorchain_memo_is_structured_text(const char* memo, size_t size) {
+  if (!memo || size == 0) return false;
+
+  for (size_t i = 0; i < size; i++) {
+    const unsigned char c = (unsigned char)memo[i];
+    if (c < 0x21 || c > 0x7e) return false;
+  }
+  return true;
+}
+
+static bool thorchain_parse_bps(const char* text, uint16_t* bps) {
+  if (!text || !bps || text[0] == '\0') return false;
+  if (text[0] == '0' && text[1] != '\0') return false;
+
+  uint32_t value = 0;
+  for (const char* p = text; *p; p++) {
+    if (*p < '0' || *p > '9') return false;
+    const uint32_t digit = (uint32_t)(*p - '0');
+    if (value > (10000u - digit) / 10u) return false;
+    value = value * 10u + digit;
+  }
+
+  *bps = (uint16_t)value;
+  return true;
+}
+
 ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
                                                size_t size) {
   /*
@@ -304,7 +330,8 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
   // check if memo data is recognized
 
   if (size > THORCHAIN_MEMO_MAX ||
-      thorchain_memo_has_empty_component(swapStr, size)) {
+      thorchain_memo_has_empty_component(swapStr, size) ||
+      !thorchain_memo_is_structured_text(swapStr, size)) {
     return THORCHAIN_MEMO_UNPARSED;
   }
   memzero(memoBuf, sizeof(memoBuf));
@@ -360,8 +387,8 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
   }
 
   // Check for swap
-  if (strncmp(parseTokPtrs[0], "SWAP", 4) == 0 || *parseTokPtrs[0] == 's' ||
-      *parseTokPtrs[0] == '=') {
+  if (strcmp(parseTokPtrs[0], "SWAP") == 0 ||
+      strcmp(parseTokPtrs[0], "s") == 0 || strcmp(parseTokPtrs[0], "=") == 0) {
     // This is a swap, set up destination and limit
     // This is the dest, may be blank which means swap to self
     parseTokPtrs[3] = "self";
@@ -404,8 +431,9 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
   }
 
   // Check for add liquidity
-  else if (strncmp(parseTokPtrs[0], "ADD", 3) == 0 || *parseTokPtrs[0] == 'a' ||
-           *parseTokPtrs[0] == '+') {
+  else if (strcmp(parseTokPtrs[0], "ADD") == 0 ||
+           strcmp(parseTokPtrs[0], "a") == 0 ||
+           strcmp(parseTokPtrs[0], "+") == 0) {
     if (tok != NULL) {
       // add liquidity pool address
       parseTokPtrs[3] = tok;
@@ -437,8 +465,9 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
   }
 
   // Check for withdraw liquidity
-  else if (strncmp(parseTokPtrs[0], "WITHDRAW", 8) == 0 ||
-           strncmp(parseTokPtrs[0], "wd", 2) == 0 || *parseTokPtrs[0] == '-') {
+  else if (strcmp(parseTokPtrs[0], "WITHDRAW") == 0 ||
+           strcmp(parseTokPtrs[0], "wd") == 0 ||
+           strcmp(parseTokPtrs[0], "-") == 0) {
     if (tok != NULL) {
       // add liquidity pool address
       parseTokPtrs[3] = tok;
@@ -446,10 +475,14 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
       return THORCHAIN_MEMO_UNPARSED;  // malformed memo
     }
 
-    float percent = (float)(atoi(parseTokPtrs[3])) / 100;
+    uint16_t bps = 0;
+    if (!thorchain_parse_bps(parseTokPtrs[3], &bps)) {
+      return THORCHAIN_MEMO_UNPARSED;
+    }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Thorchain withdraw liquidity",
-                 "Confirm withdraw %3.2f%% of asset %s on chain %s", percent,
+                 "Confirm withdraw %u.%02u%% of asset %s on chain %s",
+                 (unsigned)(bps / 100u), (unsigned)(bps % 100u),
                  parseTokPtrs[2], parseTokPtrs[1])) {
       return THORCHAIN_MEMO_CANCELLED;
     }

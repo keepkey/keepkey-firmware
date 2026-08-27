@@ -76,6 +76,9 @@ static int process_ethereum_msg(EthereumSignTx* msg, bool* needs_confirm) {
 }
 
 void fsm_msgEthereumSignTx(EthereumSignTx* msg) {
+  /* A new start supersedes any old Ethereum stream before validation. */
+  ethereum_signing_abort();
+
   CHECK_INITIALIZED
 
   CHECK_PIN

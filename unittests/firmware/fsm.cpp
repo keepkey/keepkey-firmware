@@ -1,13 +1,20 @@
 extern "C" {
+#include "keepkey/board/keepkey_board.h"
+#include "keepkey/board/layout.h"
+#include "keepkey/board/timer.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/sha2.h"
 #include "keepkey/firmware/authenticator.h"
 #include "keepkey/firmware/binance.h"
+#include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/fsm.h"
+#include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/mayachain.h"
 #include "keepkey/firmware/osmosis.h"
+#include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/signtx_tendermint.h"
+#include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/thorchain.h"
 #include "trezor/crypto/secp256k1.h"
 }
@@ -93,5 +100,109 @@ TEST(Fsm, AbortWorkflowsClearsEveryObservableSigningSession) {
   EXPECT_FALSE(osmosis_signingIsInited());
   EXPECT_FALSE(thorchain_signingIsInited());
   EXPECT_FALSE(mayachain_signingIsInited());
+  EXPECT_FALSE(eos_signingIsInited());
+}
+
+TEST(Fsm, MissingBitcoinAckPayloadTerminatesSigning) {
+  fsm_init();
+
+  SignTx start = {};
+  start.inputs_count = 1;
+  start.outputs_count = 1;
+  HDNode root = {};
+  const CoinType* coin = coinByName("Bitcoin");
+  ASSERT_NE(nullptr, coin);
+
+  signing_init(&start, coin, &root);
+  ASSERT_TRUE(signing_is_active());
+
+  TxAck missing = {};
+  fsm_msgTxAck(&missing);
+  EXPECT_FALSE(signing_is_active());
+
+  TxAck stale = {};
+  stale.has_tx = true;
+  fsm_msgTxAck(&stale);
+  EXPECT_FALSE(signing_is_active());
+}
+
+TEST(Fsm, AutoLockTerminatesSigningWhileWaitingAwayFromHome) {
+  /* Production initializes the OLED before the main loop can auto-lock. The
+   * firmware unit binary does not, so mirror that board precondition before
+   * toggle_screensaver() draws its terminal state. */
+  static bool display_ready = false;
+  if (!display_ready) {
+    timer_init();
+    layout_init(display_canvas_init());
+    display_ready = true;
+  }
+
+  fsm_init();
+  layoutHomeForced();
+  storage_setAutoLockDelayMs(STORAGE_MIN_SCREENSAVER_TIMEOUT);
+
+  SignTx start = {};
+  start.inputs_count = 1;
+  start.outputs_count = 1;
+  HDNode root = {};
+  const CoinType* coin = coinByName("Bitcoin");
+  ASSERT_NE(nullptr, coin);
+  signing_init(&start, coin, &root);
+  ASSERT_TRUE(signing_is_active());
+
+  leave_home();
+  increment_idle_time(STORAGE_MIN_SCREENSAVER_TIMEOUT - 1);
+  toggle_screensaver();
+  EXPECT_TRUE(signing_is_active());
+
+  increment_idle_time(1);
+  toggle_screensaver();
+  EXPECT_FALSE(signing_is_active());
+
+  /* Restore a deterministic home state for subsequent tests. */
+  layoutHomeForced();
+}
+
+TEST(Fsm, InvalidSecondBitcoinStartTerminatesOldSigning) {
+  fsm_init();
+
+  SignTx first = {};
+  first.inputs_count = 1;
+  first.outputs_count = 1;
+  HDNode root = {};
+  const CoinType* coin = coinByName("Bitcoin");
+  ASSERT_NE(nullptr, coin);
+
+  signing_init(&first, coin, &root);
+  ASSERT_TRUE(signing_is_active());
+
+  SignTx invalid = {};
+  fsm_msgSignTx(&invalid);
+  EXPECT_FALSE(signing_is_active());
+
+  TxAck stale = {};
+  stale.has_tx = true;
+  fsm_msgTxAck(&stale);
+  EXPECT_FALSE(signing_is_active());
+}
+
+TEST(Fsm, MissingEosCommonTerminatesSigning) {
+  fsm_init();
+
+  HDNode root = {};
+  uint8_t chain_id[32] = {};
+  EosTxHeader header = {};
+  uint32_t path[8] = {};
+  eos_signingInit(chain_id, 1, &header, &root, path, 0);
+  ASSERT_TRUE(eos_signingIsInited());
+
+  EosTxActionAck missing = {};
+  fsm_msgEosTxActionAck(&missing);
+  EXPECT_FALSE(eos_signingIsInited());
+
+  EosTxActionAck stale = {};
+  stale.has_common = true;
+  stale.has_transfer = true;
+  fsm_msgEosTxActionAck(&stale);
   EXPECT_FALSE(eos_signingIsInited());
 }

@@ -81,6 +81,11 @@ void fsm_msgGetPublicKey(GetPublicKey* msg) {
 }
 
 void fsm_msgSignTx(SignTx* msg) {
+  /* A new start supersedes any prior Bitcoin stream even when this request is
+   * malformed.  Otherwise its Failure can be followed by an ACK that resumes
+   * the old, already-approved transaction. */
+  signing_abort();
+
   CHECK_INITIALIZED
 
   CHECK_PARAM(msg->inputs_count > 0,
@@ -107,7 +112,12 @@ void fsm_msgSignTx(SignTx* msg) {
 }
 
 void fsm_msgTxAck(TxAck* msg) {
-  CHECK_PARAM(msg->has_tx, _("No transaction provided"));
+  if (!msg->has_tx) {
+    signing_abort();
+    fsm_sendFailure(FailureType_Failure_Other, _("No transaction provided"));
+    layoutHome();
+    return;
+  }
 
   signing_txack(&(msg->tx));
 }

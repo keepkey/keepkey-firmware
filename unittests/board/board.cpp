@@ -92,6 +92,22 @@ TEST_F(BodyFits, ConfirmBodyFits) {
       << "a body overflowing by exactly one glyph must not report as fitting";
 }
 
+TEST(Board, ConfirmationFormattingRefusesAnySourceLoss) {
+  const std::string one_too_many(BODY_CHAR_MAX, 'A');
+
+  // Source overflow must return before confirm() sends a ButtonRequest or
+  // enters the interactive confirmation state machine.
+  EXPECT_FALSE(confirm(ButtonRequestType_ButtonRequest_Other, "Overflow", "%s",
+                       one_too_many.c_str()));
+
+  // Expansion is measured after formatting, not from the format string or any
+  // one argument. This is the shape used by multi-field confirmation bodies.
+  const std::string left(175, 'L');
+  const std::string right(175, 'R');
+  EXPECT_FALSE(confirm(ButtonRequestType_ButtonRequest_Other, "Overflow",
+                       "%s::%s", left.c_str(), right.c_str()));
+}
+
 TEST_F(BodyFits, ConstantPowerSeedRowsAreCompleteAndPagedAtRowBoundaries) {
   EXPECT_EQ(CONSTANT_POWER_BODY_WIDTH,
             KEEPKEY_DISPLAY_WIDTH - (128 + LEFT_MARGIN));
@@ -355,6 +371,33 @@ TEST(Board, PostPreviewMutationChangesExactByteReview) {
   EXPECT_GT(pages_a, 1u);
   EXPECT_NE(review_a, review_b)
       << "a byte after the old 32-byte Solana preview must change a page";
+}
+
+TEST(Board, IdentityKeySelectionDisclosesEveryKeySelector) {
+  IdentityType identity{};
+  identity.has_index = true;
+  identity.index = UINT32_MAX;
+  identity.has_path = true;
+  memset(identity.path, 'p', sizeof(identity.path) - 1);
+
+  char selection[CONFIRM_SIGN_IDENTITY_KEY];
+  ASSERT_TRUE(format_sign_identity_key_selection(&identity, "ed25519",
+                                                 selection, sizeof(selection)));
+  EXPECT_STREQ(selection,
+               "Index: 4294967295\nCurve: ed25519\nPath: shown next");
+
+  // The production path uses confirm_bytes(), whose page formatter must retain
+  // the complete maximum-size path rather than a BODY_CHAR_MAX prefix.
+  size_t pages = 0;
+  const std::string path(identity.path);
+  EXPECT_EQ(FormatEveryPage(path, &pages), path);
+  EXPECT_EQ(path.size(), sizeof(identity.path) - 1);
+  EXPECT_GT(pages, 1u);
+
+  identity.has_path = false;
+  ASSERT_TRUE(format_sign_identity_key_selection(&identity, "secp256k1",
+                                                 selection, sizeof(selection)));
+  EXPECT_STREQ(selection, "Index: 4294967295\nCurve: secp256k1\nPath: none");
 }
 
 // base_to_precision() previously used strlcpy(dst, src, n) to copy n DIGITS.

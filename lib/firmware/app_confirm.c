@@ -349,9 +349,41 @@ bool confirm_address(const char* desc, const char* address) {
  *     true/false of confirmation
  *
  */
-bool confirm_sign_identity(const IdentityType* identity,
-                           const char* challenge) {
+bool format_sign_identity_key_selection(const IdentityType* identity,
+                                        const char* curve, char* out,
+                                        size_t out_len) {
+  if (!identity || !curve || !out || out_len == 0) return false;
+  const int needed = snprintf(
+      out, out_len, "Index: %" PRIu32 "\nCurve: %s\nPath: %s", identity->index,
+      curve, (identity->has_path && identity->path[0]) ? "shown next" : "none");
+  return needed >= 0 && (size_t)needed < out_len;
+}
+
+bool confirm_sign_identity(const IdentityType* identity, const char* challenge,
+                           const char* curve) {
   char title[CONFIRM_SIGN_IDENTITY_TITLE], body[CONFIRM_SIGN_IDENTITY_BODY];
+
+  if (!identity || !curve) return false;
+
+  /* These values select the key and signing algorithm. Keep them out of the
+   * free-form identity body so the maximum-size path can be reviewed by the
+   * exact-byte pager instead of being shortened by a printf buffer. */
+  char key_selection[CONFIRM_SIGN_IDENTITY_KEY];
+  if (!format_sign_identity_key_selection(identity, curve, key_selection,
+                                          sizeof(key_selection)) ||
+      !confirm(ButtonRequestType_ButtonRequest_SignIdentity, "Identity Key",
+               "%s", key_selection)) {
+    memzero(key_selection, sizeof(key_selection));
+    return false;
+  }
+  memzero(key_selection, sizeof(key_selection));
+
+  if (identity->has_path && identity->path[0] &&
+      !confirm_bytes(ButtonRequestType_ButtonRequest_SignIdentity,
+                     "Identity Path", (const uint8_t*)identity->path,
+                     strlen(identity->path))) {
+    return false;
+  }
 
   /* Format protocol */
   if (identity->has_proto && identity->proto[0]) {
@@ -384,9 +416,26 @@ bool confirm_sign_identity(const IdentityType* identity,
     strlcat(body, "\n", sizeof(body));
   }
 
-  /* Format challenge */
-  if (challenge && strlen(challenge) != 0) {
-    strlcat(body, challenge, sizeof(body));
+  /* Preserve the established single identity/challenge screen when it can be
+   * formatted without loss. A maximum-size challenge does not fit the shared
+   * confirmation buffer after host and user metadata; in that case confirm the
+   * metadata first and page every challenge byte separately. */
+  if (challenge && challenge[0]) {
+    const size_t body_len = strlen(body);
+    const size_t challenge_len = strlen(challenge);
+    if (body_len + challenge_len < BODY_CHAR_MAX) {
+      strlcat(body, challenge, sizeof(body));
+      return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
+                     body);
+    }
+
+    if (body_len != 0 && !confirm(ButtonRequestType_ButtonRequest_SignIdentity,
+                                  title, "%s", body)) {
+      return false;
+    }
+    return confirm_bytes(ButtonRequestType_ButtonRequest_SignIdentity,
+                         "Visual Challenge", (const uint8_t*)challenge,
+                         challenge_len);
   }
 
   return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
