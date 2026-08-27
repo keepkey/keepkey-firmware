@@ -27,6 +27,10 @@ bool binance_signTxUpdateTransfer(const BinanceTransferMsg* _msg);
 bool binance_signTxUpdateMsgSend(const uint64_t amount, const char* to_address);
 bool binance_signTxFinalize(uint8_t* public_key, uint8_t* signature);
 bool binance_signingIsInited(void);
+
+/// True iff `address` is the account this session's key signs as. Use for a
+/// transfer's input, which is its authority.
+bool binance_addressIsSigner(const char* address);
 bool binance_signingIsFinished(void);
 void binance_signAbort(void);
 const BinanceSignTx* binance_getBinanceSignTx(void);

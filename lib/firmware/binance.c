@@ -236,6 +236,20 @@ bool binance_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
                            NULL) == 0;
 }
 
+/* The account this session's key signs as.
+ *
+ * A transfer's input is its authority. Checking only that it is a well-formed
+ * address on the session's network let a host obtain a signature over an input
+ * the device cannot represent, and no screen shows the input address, so
+ * nothing would have revealed it. */
+bool binance_addressIsSigner(const char* address) {
+  if (!initialized || !address || !address_prefix) return false;
+
+  char expected[46] = {0};
+  if (!tendermint_getAddress(&node, address_prefix, expected)) return false;
+  return strcmp(address, expected) == 0;
+}
+
 bool binance_signingIsInited(void) { return initialized; }
 
 bool binance_signingIsFinished(void) {

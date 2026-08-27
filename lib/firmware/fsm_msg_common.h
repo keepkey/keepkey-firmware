@@ -563,6 +563,10 @@ void fsm_msgEntropyAck(EntropyAck* msg) {
 void fsm_msgCancel(Cancel* msg) {
   (void)msg;
   fsm_abort_workflows();
+  /* See fsm_msgClearSession(): the abort routines for Binance, Tendermint,
+     Osmosis, THORChain, MAYAChain, EOS and Nano have no layout side effect, so
+     the cancelled transaction's approval screen would otherwise stay up. */
+  layoutHome();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 

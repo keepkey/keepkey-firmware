@@ -24,6 +24,10 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
 bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg);
 bool thorchain_signTxFinalize(uint8_t* public_key, uint8_t* signature);
 bool thorchain_signingIsInited(void);
+
+/// True iff `address` is the account this session's key signs as. Use for
+/// MsgDeposit's `signer`, which is serialized verbatim as the authority.
+bool thorchain_addressIsSigner(const char* address);
 bool thorchain_signingIsFinished(void);
 void thorchain_signAbort(void);
 const ThorchainSignTx* thorchain_getThorchainSignTx(void);

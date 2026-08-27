@@ -530,6 +530,37 @@ bool eos_compileActionUnknown(const EosActionCommon* common,
     char title[MEDIUM_STR_BUF];
     snprintf(title, sizeof(title), "%s:%s", account, name);
 
+    /* Show the AUTHORITIES this action runs under.
+     *
+     * unknown_common.authorization[] is part of the signed transaction and is
+     * compared across chunks and hashed into the preimage, but the screen
+     * below names only the contract, the action, a byte count and a data
+     * fingerprint. So an AdvancedMode owner approving an opaque action could
+     * not see which of their permissions it was being executed with -- the one
+     * part of an unknown action that says how much it is allowed to do.
+     * EosActionCommon carries at most 16 of them. */
+    for (pb_size_t i = 0; i < unknown_common.authorization_count; i++) {
+      const EosPermissionLevel* auth = &unknown_common.authorization[i];
+      char actor[EOS_NAME_STR_SIZE];
+      char permission[EOS_NAME_STR_SIZE];
+      CHECK_PARAM_RET(auth->has_actor && eos_formatName(auth->actor, actor),
+                      "Invalid authorization actor", false);
+      CHECK_PARAM_RET(
+          auth->has_permission && eos_formatName(auth->permission, permission),
+          "Invalid authorization permission", false);
+
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmEosAction, title,
+                   "Authorized by %s@%s (%u of %u)", actor, permission,
+                   (unsigned)(i + 1),
+                   (unsigned)unknown_common.authorization_count)) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        "Action Cancelled");
+        eos_signingAbort();
+        layoutHome();
+        return false;
+      }
+    }
+
     static uint8_t hash[32];
     hasher_Final(&hasher_unknown, hash);
 

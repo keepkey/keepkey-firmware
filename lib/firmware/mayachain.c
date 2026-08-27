@@ -263,6 +263,22 @@ bool mayachain_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
                            NULL) == 0;
 }
 
+/* The account this session's key signs as.
+ *
+ * MsgDeposit's `signer` is serialized verbatim as the message authority, so a
+ * merely well-formed thor/maya address let the device sign a document for an
+ * account it cannot represent -- and the confirmation labels that address as
+ * though it were a destination. There is exactly one authority a session can
+ * act as; require the host to name it. */
+bool mayachain_addressIsSigner(const char* address) {
+  if (!initialized || !address) return false;
+
+  char expected[46] = {0};
+  if (!tendermint_getAddress(&node, testnet ? "smaya" : "maya", expected))
+    return false;
+  return strcmp(address, expected) == 0;
+}
+
 bool mayachain_signingIsInited(void) { return initialized; }
 
 bool mayachain_signingIsFinished(void) {

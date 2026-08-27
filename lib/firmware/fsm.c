@@ -321,6 +321,15 @@ void fsm_msgClearSession(ClearSession* msg) {
   (void)msg;
   fsm_abort_workflows();
   session_clear(/*clear_pin=*/true);
+  /* Several abort routines -- Binance, Tendermint, Osmosis, THORChain,
+     MAYAChain, EOS, Nano -- only clear state and touch no layout, so without
+     this the approval screen of the transaction just cancelled stays on the
+     OLED, describing an operation that no longer exists.
+
+     Done here and in fsm_msgCancel() rather than inside fsm_abort_workflows(),
+     because that is also called from toggle_screensaver(), which draws the
+     screensaver immediately afterwards. */
+  layoutHome();
   fsm_sendSuccess("Session cleared");
 }
 

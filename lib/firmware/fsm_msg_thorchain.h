@@ -195,8 +195,15 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   } else if (msg->has_deposit) {
     const char* const signer_prefix =
         sign_tx->has_testnet && sign_tx->testnet ? "tthor" : "thor";
+    /* The signer must be THIS session's account, not merely a well-formed
+       address on the right network. MsgDeposit serializes `signer` verbatim as
+       the message authority, so a valid-but-foreign address produced a signed
+       document the device's key cannot authorize -- and the confirmation below
+       labels that address as though it were a destination, so the screen would
+       not have given it away. */
     if (!tendermint_validateSafeText(msg->deposit.asset) ||
-        !tendermint_validateBech32Address(msg->deposit.signer, signer_prefix)) {
+        !tendermint_validateBech32Address(msg->deposit.signer, signer_prefix) ||
+        !thorchain_addressIsSigner(msg->deposit.signer)) {
       thorchain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Invalid THORChain deposit fields");
