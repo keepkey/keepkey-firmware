@@ -21,6 +21,7 @@
 #define LAYOUT_H
 
 #include "keepkey/board/canvas.h"
+#include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/draw.h"
 
@@ -53,6 +54,11 @@
 #define BODY_TOP_MARGIN 7
 #define BODY_COLOR 0xFF
 #define BODY_WIDTH 225
+/* Constant-power layouts draw from the mirrored right half of the canvas at
+ * x = 128 + LEFT_MARGIN.  This is the complete horizontal budget available
+ * there; using BODY_WIDTH lets the renderer run past the canvas edge and drop
+ * seed words without an indication. */
+#define CONSTANT_POWER_BODY_WIDTH (KEEPKEY_DISPLAY_WIDTH - (128 + LEFT_MARGIN))
 #define BODY_WIDTH_WITH_ICON BODY_WIDTH - LEFT_MARGIN_WITH_ICON
 #define BODY_ROWS 3
 #define BODY_FONT_LINE_PADDING 4
@@ -128,9 +134,6 @@ void layout_add_animation(AnimateCallback callback, void* data,
                           uint32_t duration);
 void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed);
 void layout_clear(void);
-#if DEBUG_LINK
-void layout_debuglink_watermark(void);
-#endif
 void layout_clear_animations(void);
 void layout_clear_static(void);
 

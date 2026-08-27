@@ -37,6 +37,13 @@ void next_character(void);
 void recovery_character(const char* character);
 void recovery_delete_character(void);
 void recovery_cipher_finalize(void);
+
+/// Zero the recovery-side buffers and flags. Touches no storage. Called only
+/// by setup_abort(), which owns the ceremony as a whole.
+void recovery_cipher_reset(void);
+
+/// Abort the whole setup ceremony, not just its recovery half. Kept as the
+/// name existing callers use; it is an alias for setup_abort().
 void recovery_cipher_abort(void);
 
 #if DEBUG_LINK

@@ -71,6 +71,18 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Every job here only reads the repository: checkout, build, and run tests.
+# Artifacts move between jobs over the run-scoped artifact token, the GHCR
+# mirror read is anonymous with an explicit fallback, and the DockerHub push
+# authenticates with its own credentials -- nothing needs a writable
+# GITHUB_TOKEN. Declaring the floor once at the workflow level applies it to
+# all jobs, so a new job cannot silently inherit write scope.
+#
+# This closes code-scanning rule actions/missing-workflow-permissions, which
+# had one alert open per job.
+permissions:
+  contents: read
+
 env:
   BASE_IMAGE: kktech/firmware:v15
   # Pulls of the 650 MB base image from Docker Hub cost ~34s per job. The
@@ -374,7 +386,11 @@ jobs:
 
       - name: Build emulator image
         run: |
+          # Point FROM at whatever the mirror step resolved. Without this the
+          # Dockerfile's digest default is pulled straight from Docker Hub and
+          # the GHCR mirror above buys nothing on the heaviest job in the run.
           docker build \
+            --build-arg BASE_IMAGE="${RESOLVED_BASE:-${{ env.BASE_IMAGE }}}" \
             -t ${{ env.EMU_IMAGE }} \
             -f scripts/emulator/Dockerfile \
             .
@@ -558,35 +574,6 @@ jobs:
           path: /tmp/emu-image.tar
           retention-days: 1
 
-      # Folded in from the former `generate-test-report` job. Every input it
-      # needs is already on this runner: the three report directories, the
-      # checkout, and the python-keepkey submodule. As a separate job it paid
-      # a runner spin-up plus three artifact downloads to reassemble state
-      # that had just been torn down. The script is pure stdlib.
-      #
-      # if: always() throughout, so a red test run still produces its report
-      # -- that is the run where the PDF matters most.
-      - name: Extract firmware version
-        id: version
-        if: always()
-        run: |
-          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
-          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Generate test report PDF
-        if: always()
-        env:
-          FW_VERSION: ${{ steps.version.outputs.fw_version }}
-          KK_BUILD_LABEL: ${{ github.head_ref || github.ref_name }}@${{ github.event.pull_request.head.sha || github.sha }}
-        run: python3 scripts/generate-test-report.py
-
-      - name: Upload test report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: test-report
-          path: test-report.pdf
-          retention-days: 90
 
       # The verdict is applied here, once, after both suites have run and every
       # artifact has been captured. Failing at the point of the first red suite
@@ -708,6 +695,51 @@ jobs:
           ls -lh
           echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} built successfully"
 
+      # Both generate-test-report.py and release.yml verify an ARM build
+      # manifest, but nothing ever wrote one: 251f7a3f added the two consumers
+      # and no producer, which is why generate-test-report has failed on this
+      # branch since. Emit it here, the one place that has the binaries and
+      # both source SHAs at the same time.
+      #
+      # firmware_sha uses the same expression as this job's checkout and as
+      # the report's KK_FIRMWARE_SHA, so the three cannot disagree.
+      - name: Write ARM build manifest
+        env:
+          KK_FIRMWARE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+
+          bin_dir = pathlib.Path("bin")
+
+          def digest(path):
+              value = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      value.update(chunk)
+              return value.hexdigest()
+
+          files = sorted(
+              p for p in bin_dir.iterdir() if p.suffix in (".bin", ".elf"))
+          if not files:
+              raise SystemExit("no ARM binaries to manifest")
+
+          python_sha = subprocess.check_output(
+              ["git", "rev-parse", "HEAD:deps/python-keepkey"],
+              text=True).strip()
+
+          manifest = {
+              "firmware_sha": os.environ["KK_FIRMWARE_SHA"],
+              "python_sha": python_sha,
+              "files": [{"name": p.name, "sha256": digest(p)} for p in files],
+          }
+          target = bin_dir / "arm-build-manifest.json"
+          with target.open("w", encoding="utf-8") as handle:
+              json.dump(manifest, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -715,6 +747,7 @@ jobs:
           path: |
             bin/*.bin
             bin/*.elf
+            bin/arm-build-manifest.json
           retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
@@ -940,6 +973,136 @@ jobs:
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
   # ═══════════════════════════════════════════════════════════
+
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 3.5: RELEASE EVIDENCE — the signed test-report PDF
+  # ═══════════════════════════════════════════════════════════
+
+  # Deliberately NOT folded into build-and-test, unlike on develop.
+  #
+  # That fold was correct for develop's report script, which only needed the
+  # directories build-and-test already had. This branch's
+  # generate-test-report.py also consumes test-reports/dylib-junit.xml and the
+  # ARM manifest, and it fail()s hard when either is missing -- both are
+  # produced by other jobs, on other runners, in parallel. Folded, the report
+  # could never succeed. One runner spin-up is the price of evidence that
+  # covers the whole run.
+  generate-test-report:
+    needs: [build-and-test, python-dylib-tests, build-arm-firmware]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Download unit test results
+        uses: actions/download-artifact@v8
+        with:
+          name: unit-test-results
+          path: test-reports/firmware-unit/
+
+      - name: Download python test results
+        uses: actions/download-artifact@v8
+        with:
+          name: python-test-results
+          path: test-reports/python-keepkey/
+
+      - name: Download OLED screenshots
+        uses: actions/download-artifact@v8
+        with:
+          name: oled-screenshots
+          path: test-reports/screenshots/
+
+      - name: Download dylib test results
+        uses: actions/download-artifact@v8
+        with:
+          name: python-dylib-test-results
+          path: test-reports/
+
+      - name: Download ARM firmware
+        uses: actions/download-artifact@v8
+        with:
+          pattern: firmware-v*
+          path: test-reports/arm/
+          merge-multiple: true
+
+      - name: Extract firmware version
+        id: version
+        run: |
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
+          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve python-keepkey pin
+        id: python
+        run: |
+          git submodule update --init deps/python-keepkey
+          echo "sha=$(git rev-parse HEAD:deps/python-keepkey)" >> "$GITHUB_OUTPUT"
+
+      # generate-test-report.py records the exact provenance of the evidence
+      # it produces -- both source SHAs, the run it came from, and the two PRs
+      # under review. Those are release gates for 7.14.2, so the PDF names
+      # them rather than a single build label.
+      - name: Generate test report PDF
+        env:
+          FW_VERSION: ${{ steps.version.outputs.fw_version }}
+          KK_FIRMWARE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          KK_PYTHON_SHA: ${{ steps.python.outputs.sha }}
+          KK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          KK_WORKFLOW_EVENT: ${{ github.event_name }}
+          KK_FIRMWARE_PR: ${{ github.event.pull_request.html_url }}
+          # The submodule is pinned to ce5c1bb, the merge of python-keepkey
+          # PR #221 -- keep this URL and that pin in step. It previously named
+          # PR #219 while pinning 92e8745, which is #221's FIRST commit, so
+          # the evidence credited the wrong PR and the pinned tree predated
+          # 7c04903 ("test(solana): match AdvancedMode refusal").
+          KK_PYTHON_PR: https://github.com/keepkey/python-keepkey/pull/221
+        run: python3 scripts/generate-test-report.py
+
+      # A DIRECTORY, not a bare PDF: the script emits test-report.pdf next to
+      # test-report-manifest.json and test-report.pdf.sha256, and the hash and
+      # manifest are what make the PDF evidence rather than a printout.
+      - name: Upload test report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-report
+          path: test-report/
+          retention-days: 90
+          if-no-files-found: error
+
+  # ═══════════════════════════════════════════════════════════
+  # RELEASE EVIDENCE GATE
+  # ═══════════════════════════════════════════════════════════
+
+  # One required check that says "every job that produces release evidence
+  # succeeded". The individual jobs already fail the run on their own, but a
+  # release needs a single status to point at, and `if: always()` here means
+  # a skipped job is caught too -- a job that never ran has produced no
+  # evidence, which for a release is the same as failing.
+  #
+  # Job names track develop's folded pipeline: unit tests, the python
+  # integration suite and the report PDF all live in build-and-test now.
+  release-evidence-gate:
+    needs: [build-and-test, python-dylib-tests, build-arm-firmware,
+            generate-test-report]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every release job
+        env:
+          BUILD_AND_TEST_RESULT: ${{ needs.build-and-test.result }}
+          DYLIB_RESULT: ${{ needs.python-dylib-tests.result }}
+          ARM_RESULT: ${{ needs.build-arm-firmware.result }}
+          REPORT_RESULT: ${{ needs.generate-test-report.result }}
+        run: |
+          set -eu
+          for result in "$BUILD_AND_TEST_RESULT" "$DYLIB_RESULT" "$ARM_RESULT" \
+                        "$REPORT_RESULT"; do
+            test "$result" = success || exit 1
+          done
 
   publish-emulator:
     # static-analysis is listed explicitly even though it gates nothing else.

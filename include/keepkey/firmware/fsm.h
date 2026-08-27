@@ -38,6 +38,10 @@
 
 void fsm_init(void);
 
+/* End every in-flight workflow and scrub its volatile authorization/key
+ * state. Call before any operation that clears or revokes a session. */
+void fsm_abort_workflows(void);
+
 void fsm_sendSuccess(const char* text);
 
 void fsm_sendFailure(FailureType code, const char* text);

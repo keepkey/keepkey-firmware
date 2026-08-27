@@ -1,10 +1,6 @@
 void fsm_msgInitialize(Initialize* msg) {
   (void)msg;
-  recovery_cipher_abort();
-  signing_abort();
-  ethereum_signing_abort();
-  tendermint_signAbort();
-  eos_signingAbort();
+  fsm_abort_workflows();
   session_clear(false);  // do not clear PIN
   layoutHome();
   fsm_msgGetFeatures(0);
@@ -166,13 +162,14 @@ static bool isValidModelNumber(const char* model) {
   return false;
 }
 
-void checkPassphrase(void) {
+bool checkPassphrase(void) {
   if (!passphrase_protect()) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "authenticator needs passphrase");
     layoutHome();
-    return;
+    return false;
   }
+  return true;
 }
 
 void fsm_msgPing(Ping* msg) {
@@ -198,6 +195,7 @@ void fsm_msgPing(Ping* msg) {
       "Authenticator secret seed too large",
       "passphrase incorrect for authdata",
       "Auth secret unknown error",
+      "Action cancelled",
   };
 
   typedef enum _AUTH_MSG_TYPE {
@@ -238,7 +236,7 @@ void fsm_msgPing(Ping* msg) {
         0};  // allow room for domain + ":" + account
 
     CHECK_PIN
-    checkPassphrase();
+    if (!checkPassphrase()) return;
 
     switch (authMsg) {
       case INITAUTH:
@@ -277,8 +275,7 @@ void fsm_msgPing(Ping* msg) {
         break;
 
       case WIPEADATA:
-        wipeAuthData();
-        errcode = NOERR;
+        errcode = wipeAuthData();
         resp->has_message = false;
         break;
 
@@ -448,6 +445,18 @@ void fsm_msgChangeWipeCode(ChangeWipeCode* msg) {
 void fsm_msgWipeDevice(WipeDevice* msg) {
   (void)msg;
 
+  /* Supersede active work when the request ARRIVES, not when it succeeds.
+   *
+   * Aborting only on the wipe path left the cancel path resumable: a
+   * WipeDevice that interrupts a streamed signing session puts its own screen
+   * up, and if the owner declines the wipe the handler returns with the old
+   * session still live. The host then sends the TxAck it was already holding
+   * and the interrupted signing continues -- across a screen that said nothing
+   * about that transaction. A new top-level ceremony ends whatever preceded
+   * it, exactly as the Bitcoin and Ethereum signing starts do; whether the
+   * owner then approves the wipe is a separate question. */
+  fsm_abort_workflows();
+
   if (!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
                "Do you want to erase your private keys and settings?")) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
@@ -529,6 +538,7 @@ void fsm_msgLoadDevice(LoadDevice* msg) {
 
 void fsm_msgResetDevice(ResetDevice* msg) {
   CHECK_NOT_INITIALIZED
+  CHECK_NO_CEREMONY
 
   reset_init(msg->has_display_random && msg->display_random,
              msg->has_strength ? msg->strength : 128,
@@ -552,11 +562,11 @@ void fsm_msgEntropyAck(EntropyAck* msg) {
 
 void fsm_msgCancel(Cancel* msg) {
   (void)msg;
-  recovery_cipher_abort();
-  signing_abort();
-  ethereum_signing_abort();
-  tendermint_signAbort();
-  eos_signingAbort();
+  fsm_abort_workflows();
+  /* See fsm_msgClearSession(): the abort routines for Binance, Tendermint,
+     Osmosis, THORChain, MAYAChain, EOS and Nano have no layout side effect, so
+     the cancelled transaction's approval screen would otherwise stay up. */
+  layoutHome();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
@@ -651,11 +661,23 @@ apply_settings_cancelled:
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
+  CHECK_NO_CEREMONY
+
   if (msg->has_dry_run && msg->dry_run) {
     CHECK_INITIALIZED
   } else {
     CHECK_NOT_INITIALIZED
   }
+
+  /* CHECK_NO_CEREMONY above refuses a recovery that would collide with an
+   * armed setup ceremony, but setup_isArmed() knows nothing about signing. A
+   * dry run is permitted on an initialized device, so it can start while a
+   * streamed signing session is waiting on its next ACK -- and run to
+   * completion with that session still resumable afterwards. Abort here rather
+   * than inside the macro so the refusal keeps its meaning, and abort only
+   * after both init-state checks have passed: a recovery that is about to be
+   * rejected must not tear down work it never replaces. */
+  fsm_abort_workflows();
 
   recovery_cipher_init(
       msg->has_word_count ? msg->word_count : 0,

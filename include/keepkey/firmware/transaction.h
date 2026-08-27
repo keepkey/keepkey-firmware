@@ -25,6 +25,7 @@
 #include "keepkey/transport/interface.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define TX_OVERWINTERED 0x80000000
@@ -74,7 +75,8 @@ uint32_t serialize_script_sig(const uint8_t* signature, uint32_t signature_len,
                               uint8_t sighash, uint8_t* out);
 uint32_t serialize_script_multisig(const CoinType* coin,
                                    const MultisigRedeemScriptType* multisig,
-                                   uint8_t sighash, uint8_t* out);
+                                   uint8_t sighash, uint8_t* out,
+                                   size_t out_len);
 int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
                    TxOutputBinType* out, bool needs_confirm);
 
