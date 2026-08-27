@@ -278,9 +278,18 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     return;
   }
 
-  if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // See if we can parse the tx memo. This memo ignored if deposit msg has
-    // memo
+  /* Review the OUTER transaction memo whenever it is present -- including when
+   * the deposit carries one of its own.
+   *
+   * These are two different strings in the signed document, not one superseding
+   * the other: thorchain_signTxInit() hashes sign_tx->memo into the StdSignDoc
+   * "memo" field, and the MsgDeposit value below hashes deposit.memo
+   * separately. Skipping this review when deposit.has_memo let a host show a
+   * benign deposit memo while a different outer memo was signed unseen -- the
+   * exact thing this release line exists to prevent. Both are signed, so both
+   * are shown. */
+  if (sign_tx->has_memo) {
+    // See if we can parse the tx memo.
     /* strnlen, not sizeof -- see the deposit path above. */
     ThorchainMemoResult memo_result = thorchain_parseConfirmMemo(
         sign_tx->memo, strnlen(sign_tx->memo, sizeof(sign_tx->memo)));
