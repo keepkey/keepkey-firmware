@@ -28,6 +28,7 @@
 
 #define CONFIRM_SIGN_IDENTITY_TITLE 32
 #define CONFIRM_SIGN_IDENTITY_BODY 416
+#define CONFIRM_SIGN_IDENTITY_KEY 96
 
 bool confirm_cipher(bool encrypt, const char* key);
 bool confirm_encrypt_msg(const char* msg, bool signing);
@@ -46,7 +47,11 @@ bool confirm_transaction(const char* total_amount, const char* fee);
 bool confirm_load_device(bool is_node);
 bool confirm_address(const char* desc, const char* address);
 bool confirm_xpub(const char* node_str, const char* xpub);
-bool confirm_sign_identity(const IdentityType* identity, const char* challenge);
+bool format_sign_identity_key_selection(const IdentityType* identity,
+                                        const char* curve, char* out,
+                                        size_t out_len);
+bool confirm_sign_identity(const IdentityType* identity, const char* challenge,
+                           const char* curve);
 
 /**
  * Render the largest screen-sized prefix of a byte string.

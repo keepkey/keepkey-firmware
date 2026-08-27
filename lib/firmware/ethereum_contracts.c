@@ -26,7 +26,6 @@
 #include "keepkey/firmware/ethereum_contracts/zxappliquid.h"
 #include "keepkey/firmware/ethereum_contracts/zxliquidtx.h"
 #include "keepkey/firmware/ethereum_contracts/zxswap.h"
-#include "keepkey/firmware/ethereum_contracts/makerdao.h"
 
 bool zx_isExchangeProxyChain(uint32_t chain_id) {
   /* Optimism is deliberately absent: 0x deploys a DIFFERENT Exchange Proxy
@@ -81,8 +80,6 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,
 
   if (thor_isThorchainTx(msg)) return true;
 
-  if (makerdao_isMakerDAO(data_total, msg)) return true;
-
   return false;
 }
 
@@ -105,9 +102,6 @@ bool ethereum_contractConfirmed(uint32_t data_total, const EthereumSignTx* msg,
     return zx_confirmApproveLiquidity(data_total, msg);
 
   if (thor_isThorchainTx(msg)) return thor_confirmThorTx(data_total, msg);
-
-  if (makerdao_isMakerDAO(data_total, msg))
-    return makerdao_confirmMakerDAO(data_total, msg);
 
   return false;
 }

@@ -324,6 +324,32 @@ TEST(Ethereum, TransformErc20AlwaysRequiresAdvancedMode) {
                                         nullptr));
 }
 
+TEST(Ethereum, MakerDaoSelectorsAreNotSpecializedForPointRelease) {
+  struct MakerCall {
+    const uint8_t selector[4];
+    size_t argument_count;
+  };
+  static const MakerCall kCalls[] = {
+      {{0xc7, 0x40, 0x73, 0xa1}, 1},  // open(address)
+      {{0x1b, 0x96, 0x81, 0x60}, 5},  // wipeAndFree(...,address)
+  };
+
+  for (const MakerCall& call : kCalls) {
+    EthereumSignTx msg = EthereumSignTx{};
+    msg.has_chain_id = true;
+    msg.chain_id = 1;
+    msg.has_to = true;
+    msg.to.size = 20;
+    msg.has_data_initial_chunk = true;
+    msg.data_initial_chunk.size = 4 + call.argument_count * 32;
+    std::memcpy(msg.data_initial_chunk.bytes, call.selector,
+                sizeof(call.selector));
+
+    EXPECT_FALSE(
+        ethereum_contractHandled(msg.data_initial_chunk.size, &msg, nullptr));
+  }
+}
+
 TEST(Ethereum, Eip712ChainIdRequiresCanonicalUint32) {
   uint32_t value = 0;
   EXPECT_TRUE(eip712_parse_canonical_u32("0", &value));

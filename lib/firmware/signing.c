@@ -1974,3 +1974,5 @@ void signing_abort(void) {
   coin = NULL;
   curve = NULL;
 }
+
+bool signing_is_active(void) { return signing; }

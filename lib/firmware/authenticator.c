@@ -62,6 +62,13 @@ void authenticator_clear_cache(void) {
   localAuthdataUpdate = true;
 }
 
+static unsigned authenticator_cancel(void) {
+  /* A nested confirmation refusal does not pass through fsm_msgCancel(), so it
+   * must revoke the decrypted authenticator cache itself. */
+  authenticator_clear_cache();
+  return CANCELED;
+}
+
 #if DEBUG_LINK
 static unsigned _otpSlot = 0;
 void getAuthSlot(char* authSlotData) {
@@ -86,7 +93,7 @@ unsigned wipeAuthData(void) {
   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Wipe Authdata",
                "Do you want to PERMANENTLY delete all authenticator "
                "accounts?")) {
-    return CANCELED;
+    return authenticator_cancel();
   }
 
   // wipe storage and reset authdata encryption flag
@@ -186,6 +193,7 @@ unsigned addAuthAccount(char* accountWithSeed) {
 cleanup:
   memzero(authSecret, sizeof(authSecret));
   memzero(accountWithSeed, sourceLen);
+  if (result == CANCELED) authenticator_clear_cache();
   return result;
 }
 
@@ -281,15 +289,25 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
   char otpStrLarge[10] = {0};
   // snprintf(otpStrLarge, 9, "\x19%06u", otp);
   snprintf(otpStrLarge, 9, "%06u", otp);
-  (void)review_immediate(ButtonRequestType_ButtonRequest_Other, "display OTP",
-                         "Press button to display OTP");
+  if (!review_immediate(ButtonRequestType_ButtonRequest_Other, "display OTP",
+                        "Press button to display OTP")) {
+    memzero(hmac, sizeof(hmac));
+    memzero(otpStrLarge, sizeof(otpStrLarge));
+    memzero(otpStr, 9);
+    return authenticator_cancel();
+  }
 
   // Check to see if user needs to regenerate OTP
   tRemainVal -=
       (getSysTime() - t0) / 1000;  // time since kk received time value
   if (tRemainVal < 4) {
-    (void)review_immediate(ButtonRequestType_ButtonRequest_Other, "OTP Timeout",
-                           "OTP time slice timed out, regenerate OTP");
+    if (!review_immediate(ButtonRequestType_ButtonRequest_Other, "OTP Timeout",
+                          "OTP time slice timed out, regenerate OTP")) {
+      memzero(hmac, sizeof(hmac));
+      memzero(otpStrLarge, sizeof(otpStrLarge));
+      memzero(otpStr, 9);
+      return authenticator_cancel();
+    }
   } else {
     char accStr[DOMAIN_SIZE + ACCOUNT_SIZE + 2] = {0};
     strncpy(accStr, authData[slot].domain, DOMAIN_SIZE);
@@ -302,6 +320,8 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
       layoutProgressForAuth(otpStrLarge, accStr, (1000 * remainingdmSec) / 300);
     }
   }
+  memzero(hmac, sizeof(hmac));
+  memzero(otpStrLarge, sizeof(otpStrLarge));
   return NOERR;
 }
 
@@ -362,7 +382,7 @@ unsigned removeAuthAccount(char* domAcc) {
   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
                "Do you want to PERMANENTLY delete account %.*s:%.*s?",
                DOMAIN_SIZE - 1, domain, ACCOUNT_SIZE - 1, account)) {
-    return CANCELED;
+    return authenticator_cancel();
   }
 
   memzero((void*)&authData[slot], sizeof(authType));

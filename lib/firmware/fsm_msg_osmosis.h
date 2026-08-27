@@ -684,10 +684,10 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
                                         msg->ibc_transfer.source_channel) ||
         !osmosis_validate_required_text(msg->ibc_transfer.has_source_port,
                                         msg->ibc_transfer.source_port) ||
-        !osmosis_validate_required_text(msg->ibc_transfer.has_revision_height,
-                                        msg->ibc_transfer.revision_height) ||
-        !osmosis_validate_required_text(msg->ibc_transfer.has_revision_number,
-                                        msg->ibc_transfer.revision_number) ||
+        !osmosis_validate_amount(msg->ibc_transfer.has_revision_height,
+                                 msg->ibc_transfer.revision_height) ||
+        !osmosis_validate_amount(msg->ibc_transfer.has_revision_number,
+                                 msg->ibc_transfer.revision_number) ||
         !osmosis_validate_required_text(msg->ibc_transfer.has_denom,
                                         msg->ibc_transfer.denom) ||
         !osmosis_validate_amount(msg->ibc_transfer.has_amount,
