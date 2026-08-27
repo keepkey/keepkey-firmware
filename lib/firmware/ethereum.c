@@ -454,6 +454,29 @@ bool ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
           suffix = " AVAX";
           break;  // Avalanche C-Chain
       }
+
+      /* No case matched: this chain's native asset has no name here.
+       *
+       * Falling through with suffix == NULL made bn_format() render a bare
+       * 18-decimal number -- "Send 0.05 to 0xABC" -- which names no asset and
+       * no network, on a screen that is the whole basis for the signature.
+       * Both the value and the gas fee go through this function with
+       * token == NULL, so an unmapped chain got two unlabelled numbers.
+       *
+       * Adding more cases does not fix this; the fallback has to stop being
+       * silent. Refusing is not right either: every caller treats false as a
+       * hard refusal, so a chain merely missing from this list -- a new L2,
+       * say -- would become unsignable, including its gas.
+       *
+       * So state exactly what is known. Wei is the base unit of every EVM
+       * chain regardless of what its native asset is called, so the amount
+       * stays exact and carries a correct unit; what is dropped is the claim
+       * to know the asset's name. This is the same rendering sub-gwei amounts
+       * already get a few lines above. */
+      if (!suffix) {
+        suffix = " Wei";
+        decimals = 0;
+      }
     }
   }
   if (!bn_format(amnt, NULL, suffix, decimals, 0, false, buf, buflen)) {

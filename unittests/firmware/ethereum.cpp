@@ -124,6 +124,17 @@ TEST(Ethereum, NativeAmountsUseTheSigningChainsTicker) {
   ASSERT_TRUE(ethereumFormatAmount(&amount, nullptr, 42161, rendered,
                                    sizeof(rendered)));
   EXPECT_STREQ("1.5 ETH", rendered);
+
+  /* An unmapped chain must never render a bare, unit-less number. Wei is the
+     base unit of every EVM chain, so the amount stays exact while the device
+     stops claiming to know an asset name it does not have. */
+  ASSERT_TRUE(ethereumFormatAmount(&amount, nullptr, 59144, rendered,
+                                   sizeof(rendered)));
+  EXPECT_STREQ("1500000000000000000 Wei", rendered);
+
+  ASSERT_TRUE(
+      ethereumFormatAmount(&amount, nullptr, 257, rendered, sizeof(rendered)));
+  EXPECT_STREQ("1500000000000000000 Wei", rendered);
 }
 
 TEST(Ethereum, TransferAmountUsesTheRequestsSigningChain) {

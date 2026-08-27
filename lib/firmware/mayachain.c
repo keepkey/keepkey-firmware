@@ -128,7 +128,24 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
   const char mainnetp[] = "maya";
   const char testnetp[] = "smaya";
   const char* pfix;
-  char buffer[64 + 1];
+  /* Sized for the amount/denom segment below, which is the longest thing this
+     function formats:
+
+       "amount":[{"amount":"   21
+       <uint64>                20
+       ","denom":"             11
+       <denom>                 68   (MayachainMsgSend.denom max_size 69)
+       "}]                      3   = 123, + NUL = 124
+
+     It was 65. tendermint_snprintf() fails closed when its output does not
+     fit, so nothing was ever mis-signed -- but the failure landed AFTER
+     fsm_msgMayachainMsgAck() had already shown the amount and taken the
+     owner's approval, so a long yet perfectly valid denomination was approved
+     and only then refused. This branch's rule is that anything unrenderable
+     fails BEFORE the confirmation, so make the segment fit its own documented
+     maximum. Unlike THORChain, which hardcodes "rune", this denom is
+     host-supplied, which is why only MAYAChain hits it. */
+  char buffer[128];
 
   size_t decoded_len;
   char hrp[45];

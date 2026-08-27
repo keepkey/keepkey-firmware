@@ -185,6 +185,51 @@ TEST(Mayachain, MayachainSignTx) {
              64) == 0);
 }
 
+TEST(Mayachain, LongestValidDenomSerializes) {
+  /* The amount/denom segment is the longest thing
+     mayachain_signTxUpdateMsgSend() formats, and its scratch buffer used to be
+     65 bytes against a documented 124-byte maximum. tendermint_snprintf() fails
+     closed, so nothing was mis-signed -- but the refusal came after the
+     confirmation screen had already been approved. A denomination at the
+     protocol maximum must serialize, not fail late. */
+  HDNode node = {
+      0,
+      0,
+      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {0xb9, 0x9a, 0x39, 0x3a, 0x5a, 0x53, 0x0d, 0x90, 0xef, 0x6e, 0x46,
+       0x4e, 0x8e, 0x2f, 0x2b, 0x8b, 0x5c, 0x64, 0xa7, 0x97, 0x29, 0xcd,
+       0x60, 0x3b, 0x1f, 0xba, 0x33, 0x81, 0x7d, 0x1a, 0x75, 0xa1},
+      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      &secp256k1_info};
+  hdnode_fill_public_key(&node);
+
+  const MayachainSignTx msg = {
+      5,    {0x80000000 | 44, 0x80000000 | 931, 0x80000000, 0, 0},
+      true, 6359,
+      true, "mayachain-mainnet-v1",
+      true, 3000,
+      true, 200000,
+      true, "",
+      true, 19,
+      true, 1};
+  ASSERT_TRUE(mayachain_signTxInit(&node, &msg));
+
+  /* 68 visible characters: MayachainMsgSend.denom's max_size of 69 less NUL. */
+  char denom[69];
+  std::memset(denom, 'a', 68);
+  denom[68] = '\0';
+  ASSERT_EQ(68u, std::strlen(denom));
+
+  /* A uint64 at its widest, so the segment is at its documented maximum. */
+  EXPECT_TRUE(mayachain_signTxUpdateMsgSend(
+      18446744073709551615ULL, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k",
+      denom));
+}
+
 TEST(Mayachain, MultiMessageSignTxSeparatesMsgsWithComma) {
   /* Regression for the missing comma between "msgs":[...] entries: before the
      has_message guard, two MsgSends serialized back-to-back ("}}{") and the
