@@ -1,0 +1,22 @@
+# gitleaks configuration for keepkey-firmware
+#
+# Extends the stock gitleaks rule set — every default rule stays active. This
+# file only adds narrowly-scoped allowlists for false positives that recur
+# across commits, which .gitleaksignore cannot express: its entries are keyed
+# by commit SHA, so a rebased, cherry-picked, or merged commit reintroduces the
+# same finding under a new fingerprint. Prefer .gitleaksignore for a genuine
+# one-off; add here only when the same content keeps coming back.
+
+[extend]
+useDefault = true
+
+# Release/security docs record the exact submodule commits a build pins, e.g.
+#   - python-keepkey: `c406a1ba9120da410c356dbff7f4d4bd1e1758fa`;
+# A 40-char lowercase hex git SHA has enough entropy to trip generic-api-key.
+# Scoped with condition = "AND" so this only exempts SHA-shaped strings inside
+# markdown docs — a real credential in docs/ is still reported.
+[[allowlists]]
+description = "Git commit SHAs quoted in markdown docs"
+condition = "AND"
+paths = ['''(^|/)docs/.*\.md$''']
+regexes = ['''\b[0-9a-f]{40}\b''']

@@ -87,11 +87,20 @@ jobs:
           fetch-depth: 0
 
       - name: Install gitleaks
+        env:
+          # Pinned deliberately. Resolving "latest" through api.github.com is
+          # rate-limited per runner IP and returned 403 in CI; a pinned release
+          # URL needs no API call and keeps scan results reproducible.
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
         run: |
-          GITLEAKS_VERSION=$(curl -sSf https://api.github.com/repos/gitleaks/gitleaks/releases/latest \
-            | grep -oP '"tag_name":\s*"v\K[^"]+')
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
+          set -euo pipefail
+          TARBALL="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${TARBALL}"
+          curl -sSfL --retry 3 --retry-delay 5 --retry-all-errors -o "$TARBALL" "$URL"
+          echo "${GITLEAKS_SHA256}  ${TARBALL}" | sha256sum -c -
+          sudo tar -xzf "$TARBALL" -C /usr/local/bin gitleaks
+          rm -f "$TARBALL"
           gitleaks version
 
       - name: Run gitleaks
