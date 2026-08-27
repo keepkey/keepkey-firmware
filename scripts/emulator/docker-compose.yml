@@ -15,8 +15,11 @@ services:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health')\" || exit 1"]
       # The emulator is listening well inside a second; a 3s interval meant
       # the integration suite sat waiting on poll granularity, not on the
-      # service. retries is raised alongside so the worst-case ceiling stays
-      # generous (40s) rather than shrinking to 20s with the faster interval.
+      # service. retries is raised alongside so shortening the interval does
+      # not also shorten how long a slow start is tolerated -- a failing check
+      # can burn up to `timeout` before the next `interval`, so the ceiling is
+      # roughly start_period + retries * (timeout + interval), not
+      # retries * interval.
       interval: 1s
       timeout: 3s
       retries: 40

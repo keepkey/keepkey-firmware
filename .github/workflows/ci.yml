@@ -315,17 +315,32 @@ jobs:
 
       - name: Pull base image
         run: |
-          # The image is re-tagged to its Docker Hub name because
-          # scripts/emulator/Dockerfile says `FROM kktech/firmware:v15`.
-          # Neither `docker build` nor `docker compose build` passes --pull,
-          # so a local image under that name satisfies the FROM without any
-          # registry round-trip -- and without editing the Dockerfile.
-          if docker pull "${{ env.BASE_IMAGE_MIRROR }}" 2>/dev/null; then
+          # Two consumers, resolved differently:
+          #
+          #  1. `docker build` for the emulator image uses the classic builder,
+          #     which reads the local daemon image store. Re-tagging the mirror
+          #     to the Docker Hub name satisfies the `FROM kktech/firmware:v15`
+          #     in scripts/emulator/Dockerfile with no registry round-trip.
+          #
+          #  2. buildx (docker/build-push-action) uses the docker-container
+          #     driver, which does NOT see daemon-local images and resolves
+          #     FROM against a registry. Re-tagging alone silently left it
+          #     pulling from Docker Hub -- confirmed in run 33046944618, which
+          #     logged `[auth] kktech/firmware:pull token for
+          #     registry-1.docker.io` during the buildx step. RESOLVED_BASE is
+          #     therefore exported and passed to that build as a build-arg.
+          #
+          # stderr is deliberately not suppressed: the fallback stops a mirror
+          # problem being fatal, but hiding the error makes auth vs missing tag
+          # vs transient network indistinguishable.
+          if docker pull "${{ env.BASE_IMAGE_MIRROR }}"; then
             docker tag "${{ env.BASE_IMAGE_MIRROR }}" "${{ env.BASE_IMAGE }}"
+            echo "RESOLVED_BASE=${{ env.BASE_IMAGE_MIRROR }}" >> "$GITHUB_ENV"
             echo "base image: GHCR mirror"
           else
             echo "::warning::GHCR mirror unavailable — falling back to Docker Hub. Run the mirror-base-image workflow to populate it."
             docker pull "${{ env.BASE_IMAGE }}"
+            echo "RESOLVED_BASE=${{ env.BASE_IMAGE }}" >> "$GITHUB_ENV"
             echo "base image: Docker Hub"
           fi
 
@@ -346,6 +361,12 @@ jobs:
           # make xunit returns non-zero if any test fails — capture
           # exit code so JUnit XML still gets copied for reporting
           mkdir -p ${{ github.workspace }}/test-reports
+          # `|| UNIT_RC=$?` rather than a bare command: `run:` steps execute
+          # under `bash -e`, so a failing suite would abort the step here and
+          # skip the python integration suite entirely. These used to be
+          # separate jobs, where one red suite never suppressed the other.
+          # Both now run every time and the verdict is applied at the end.
+          UNIT_RC=0
           docker run --rm \
             -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
             --entrypoint /bin/sh \
@@ -353,7 +374,9 @@ jobs:
             -c "mkdir -p /kkemu/test-reports/firmware-unit && \
                 make xunit; RC=\$?; \
                 cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
-                exit \$RC"
+                exit \$RC" || UNIT_RC=$?
+          echo "UNIT_RC=$UNIT_RC" >> "$GITHUB_ENV"
+          echo "firmware unit suite exit code: $UNIT_RC"
           # That container runs as root and leaves root-owned paths behind in
           # the bind mount. The `docker cp` in the integration step below
           # chmods what it extracts into, and a root-owned directory there
@@ -387,6 +410,8 @@ jobs:
           tags: kkemu-tests-deps:latest
           load: true
           push: false
+          build-args: |
+            BASE_IMAGE=${{ env.RESOLVED_BASE }}
           cache-from: type=gha,scope=python-keepkey-deps
           cache-to: type=gha,mode=max,scope=python-keepkey-deps
 
@@ -401,6 +426,8 @@ jobs:
           tags: kktech/kkemu-tests:latest
           load: true
           push: false
+          build-args: |
+            BASE_IMAGE=${{ env.RESOLVED_BASE }}
           cache-from: type=gha,scope=python-keepkey-deps
 
       - name: Run python-keepkey integration suite
@@ -409,7 +436,13 @@ jobs:
           # No --build: kkemu resolves to the image tagged above, and
           # python-keepkey was built in the previous step. --build here
           # would force both to be rebuilt from scratch.
-          docker compose up --exit-code-from python-keepkey python-keepkey; PY_RC=$?
+          # `|| PY_RC=$?` rather than `; PY_RC=$?`: under `bash -e` a failing
+          # compose run aborts the step immediately, so none of the extraction
+          # or gating below would execute -- losing the reports on exactly the
+          # run where they matter most. A command in an `||` list is exempt
+          # from -e.
+          PY_RC=0
+          docker compose up --exit-code-from python-keepkey python-keepkey || PY_RC=$?
 
           echo "=== Extracting test reports from Docker ==="
           PY_CONTAINER=$(docker compose ps -a -q python-keepkey)
@@ -439,11 +472,8 @@ jobs:
             exit 1
           fi
 
+          echo "PY_RC=$PY_RC" >> "$GITHUB_ENV"
           echo "python-keepkey exit code: $PY_RC"
-          if [ "$PY_RC" -ne 0 ]; then
-            echo "::error::python-keepkey tests failed (exit code $PY_RC)"
-            exit "$PY_RC"
-          fi
 
       - name: Upload unit test results
         uses: actions/upload-artifact@v7
@@ -518,6 +548,24 @@ jobs:
           path: test-report.pdf
           retention-days: 90
 
+      # The verdict is applied here, once, after both suites have run and every
+      # artifact has been captured. Failing at the point of the first red suite
+      # would skip the second one and truncate the evidence.
+      - name: Test suite verdict
+        if: always()
+        run: |
+          RC=0
+          if [ "${UNIT_RC:-1}" -ne 0 ]; then
+            echo "::error::firmware unit tests failed (exit code ${UNIT_RC:-unknown})"
+            RC=1
+          fi
+          if [ "${PY_RC:-1}" -ne 0 ]; then
+            echo "::error::python-keepkey tests failed (exit code ${PY_RC:-unknown})"
+            RC=1
+          fi
+          [ "$RC" = "0" ] && echo "both suites passed"
+          exit "$RC"
+
       # No `docker compose down` -- this runner is destroyed within seconds
       # of the job ending, so tearing down containers and volumes was ~10s
       # spent tidying a machine that is about to cease to exist.
@@ -561,17 +609,32 @@ jobs:
 
       - name: Pull base image
         run: |
-          # The image is re-tagged to its Docker Hub name because
-          # scripts/emulator/Dockerfile says `FROM kktech/firmware:v15`.
-          # Neither `docker build` nor `docker compose build` passes --pull,
-          # so a local image under that name satisfies the FROM without any
-          # registry round-trip -- and without editing the Dockerfile.
-          if docker pull "${{ env.BASE_IMAGE_MIRROR }}" 2>/dev/null; then
+          # Two consumers, resolved differently:
+          #
+          #  1. `docker build` for the emulator image uses the classic builder,
+          #     which reads the local daemon image store. Re-tagging the mirror
+          #     to the Docker Hub name satisfies the `FROM kktech/firmware:v15`
+          #     in scripts/emulator/Dockerfile with no registry round-trip.
+          #
+          #  2. buildx (docker/build-push-action) uses the docker-container
+          #     driver, which does NOT see daemon-local images and resolves
+          #     FROM against a registry. Re-tagging alone silently left it
+          #     pulling from Docker Hub -- confirmed in run 33046944618, which
+          #     logged `[auth] kktech/firmware:pull token for
+          #     registry-1.docker.io` during the buildx step. RESOLVED_BASE is
+          #     therefore exported and passed to that build as a build-arg.
+          #
+          # stderr is deliberately not suppressed: the fallback stops a mirror
+          # problem being fatal, but hiding the error makes auth vs missing tag
+          # vs transient network indistinguishable.
+          if docker pull "${{ env.BASE_IMAGE_MIRROR }}"; then
             docker tag "${{ env.BASE_IMAGE_MIRROR }}" "${{ env.BASE_IMAGE }}"
+            echo "RESOLVED_BASE=${{ env.BASE_IMAGE_MIRROR }}" >> "$GITHUB_ENV"
             echo "base image: GHCR mirror"
           else
             echo "::warning::GHCR mirror unavailable — falling back to Docker Hub. Run the mirror-base-image workflow to populate it."
             docker pull "${{ env.BASE_IMAGE }}"
+            echo "RESOLVED_BASE=${{ env.BASE_IMAGE }}" >> "$GITHUB_ENV"
             echo "base image: Docker Hub"
           fi
 
