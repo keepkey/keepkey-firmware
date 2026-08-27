@@ -41,8 +41,10 @@ jobs:
           SOURCE: ${{ inputs.source_image }}
         run: |
           set -euo pipefail
-          # Mirror under the bare image name (no tag) plus its tag, so the
-          # destination reads ghcr.io/<owner>/firmware:<tag>.
+          # Strip the source registry/namespace, keeping image name and tag,
+          # so the destination reads ghcr.io/<owner>/firmware:<tag>. One
+          # reference is pushed, not two -- no separate untagged or :latest
+          # push is performed.
           NAME="${SOURCE##*/}"          # kktech/firmware:v15 -> firmware:v15
           DEST="ghcr.io/${{ github.repository_owner }}/${NAME}"
           echo "mirroring ${SOURCE} -> ${DEST}"

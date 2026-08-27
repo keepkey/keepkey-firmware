@@ -144,7 +144,7 @@ jobs:
           # shellcheck disable=SC2016  # $1 is expanded by the inner sh, not here
           if ! find include/keepkey lib/firmware lib/board lib/transport/src \
                     -name '*.c' -o -name '*.h' 2>/dev/null \
-               | grep -v generated | grep -v '.pb.' \
+               | grep -v generated | grep -vF '.pb.' \
                | xargs -P "$(nproc)" -I{} sh -c '
                    if ! clang-format --style=file --dry-run --Werror "$1" 2>/dev/null; then
                      echo "::warning file=$1::Formatting differs from .clang-format"
