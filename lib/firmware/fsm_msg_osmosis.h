@@ -676,6 +676,12 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
 
   } else if (msg->has_ibc_transfer) {
     /** Confirm required transaction parameters exist */
+    /* The receiver has to be well-formed bech32 BEFORE any screen opens.
+       The serializer refuses a malformed one, but it runs after every IBC
+       approval has already been taken, so the owner approved a transfer
+       that was then rejected. Its HRP belongs to the counterparty chain,
+       so only well-formedness can be checked here -- that is exactly what
+       the serializer checks, moved ahead of the confirmations. */
     if (!osmosis_validate_required_text(msg->ibc_transfer.has_sender,
                                         msg->ibc_transfer.sender) ||
         !osmosis_validate_required_text(msg->ibc_transfer.has_receiver,
@@ -684,6 +690,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
                                         msg->ibc_transfer.source_channel) ||
         !osmosis_validate_required_text(msg->ibc_transfer.has_source_port,
                                         msg->ibc_transfer.source_port) ||
+        !tendermint_bech32IsWellFormed(msg->ibc_transfer.receiver) ||
         !osmosis_validate_amount(msg->ibc_transfer.has_revision_height,
                                  msg->ibc_transfer.revision_height) ||
         !osmosis_validate_amount(msg->ibc_transfer.has_revision_number,

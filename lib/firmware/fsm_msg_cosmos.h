@@ -417,6 +417,12 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
        document says. tendermint_validateSafeText() is the same gate the
        Osmosis IBC path already applies to these exact fields; the revision
        counters are digit strings, so hold them to that as well. */
+    /* The receiver has to be well-formed bech32 BEFORE any screen opens.
+       The serializer refuses a malformed one, but it runs after every IBC
+       approval has already been taken, so the owner approved a transfer
+       that was then rejected. Its HRP belongs to the counterparty chain,
+       so only well-formedness can be checked here -- that is exactly what
+       the serializer checks, moved ahead of the confirmations. */
     if (!msg->ibc_transfer.has_sender || !msg->ibc_transfer.has_receiver ||
         !msg->ibc_transfer.has_source_channel ||
         !msg->ibc_transfer.has_source_port ||
@@ -427,6 +433,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
         !tendermint_validateSafeText(msg->ibc_transfer.receiver) ||
         !tendermint_validateSafeText(msg->ibc_transfer.source_channel) ||
         !tendermint_validateSafeText(msg->ibc_transfer.source_port) ||
+        !tendermint_bech32IsWellFormed(msg->ibc_transfer.receiver) ||
         !cosmos_validate_unsigned_decimal(msg->ibc_transfer.revision_height) ||
         !cosmos_validate_unsigned_decimal(msg->ibc_transfer.revision_number) ||
         strcmp(msg->ibc_transfer.denom, "uatom") != 0) {

@@ -385,10 +385,17 @@ bool confirm_sign_identity(const IdentityType* identity, const char* challenge,
     return false;
   }
 
-  /* Format protocol */
+  /* Format protocol -- verbatim, NOT uppercased.
+   *
+   * cryptoIdentityFingerprint() hashes identity->proto exactly as the host
+   * sent it, so "ssh" and "SSH" select DIFFERENT keys. kk_strupr() made both
+   * render as "SSH login to: ", so the one screen that names the protocol
+   * could not distinguish two identities that sign with different keys.
+   * Canonicalizing the other way is not open to us: the fingerprint is what
+   * derives every existing identity key, and changing its input would strand
+   * them. So show the bytes that are actually hashed. */
   if (identity->has_proto && identity->proto[0]) {
     strlcpy(title, identity->proto, sizeof(title));
-    kk_strupr(title);
     strlcat(title, " login to: ", sizeof(title));
   } else {
     strlcpy(title, "Login to: ", sizeof(title));
@@ -416,26 +423,29 @@ bool confirm_sign_identity(const IdentityType* identity, const char* challenge,
     strlcat(body, "\n", sizeof(body));
   }
 
-  /* Preserve the established single identity/challenge screen when it can be
-   * formatted without loss. A maximum-size challenge does not fit the shared
-   * confirmation buffer after host and user metadata; in that case confirm the
-   * metadata first and page every challenge byte separately. */
+  /* EVERY visual challenge goes through the exact-byte pager.
+   *
+   * The challenge is hashed into the signature on the non-SSH/GPG identity
+   * path, so the screen has to be able to tell two different challenges apart.
+   * Short ones used to be strlcat'd into `body` and drawn with "%s", which
+   * makes them layout text rather than bytes: a control byte is invisible, a
+   * run of spaces collapses at a line start, and a newline re-wraps everything
+   * around it. Two distinct signed challenges could therefore produce an
+   * identical approval, and only challenges too long for the shared buffer got
+   * the treatment that would have shown the difference.
+   *
+   * Confirm the identity metadata on its own screen -- always, so the title
+   * still names the protocol even when there is no host or user -- then page
+   * the challenge with confirm_bytes(), which escapes every byte outside
+   * 0x21..0x7E. */
   if (challenge && challenge[0]) {
-    const size_t body_len = strlen(body);
-    const size_t challenge_len = strlen(challenge);
-    if (body_len + challenge_len < BODY_CHAR_MAX) {
-      strlcat(body, challenge, sizeof(body));
-      return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
-                     body);
-    }
-
-    if (body_len != 0 && !confirm(ButtonRequestType_ButtonRequest_SignIdentity,
-                                  title, "%s", body)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
+                 body)) {
       return false;
     }
     return confirm_bytes(ButtonRequestType_ButtonRequest_SignIdentity,
                          "Visual Challenge", (const uint8_t*)challenge,
-                         challenge_len);
+                         strlen(challenge));
   }
 
   return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
