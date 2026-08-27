@@ -779,7 +779,12 @@ jobs:
           KK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           KK_WORKFLOW_EVENT: ${{ github.event_name }}
           KK_FIRMWARE_PR: ${{ github.event.pull_request.html_url }}
-          KK_PYTHON_PR: https://github.com/keepkey/python-keepkey/pull/219
+          # The submodule is pinned to ce5c1bb, the merge of python-keepkey
+          # PR #221 -- keep this URL and that pin in step. It previously named
+          # PR #219 while pinning 92e8745, which is #221's FIRST commit, so
+          # the evidence credited the wrong PR and the pinned tree predated
+          # 7c04903 ("test(solana): match AdvancedMode refusal").
+          KK_PYTHON_PR: https://github.com/keepkey/python-keepkey/pull/221
         run: python3 scripts/generate-test-report.py
 
       - name: Upload test report
