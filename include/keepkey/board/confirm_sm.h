@@ -144,6 +144,23 @@ bool confirm_with_custom_layout(layout_notification_t layout_notification_func,
                                 const char* request_body, ...)
     __attribute__((format(printf, 4, 5)));
 
+/// Address/xpub verification, custom layout -- the layout is HONORED.
+///
+/// Unlike confirm_with_custom_layout(), which routes consent screens through
+/// the measured standard renderer, this keeps the caller's renderer so the
+/// address QR code survives. Use it only for screens that display a
+/// device-derived public value for checking; anything the owner is consenting
+/// to sign belongs on confirm_with_custom_layout().
+/// \param layout_notification_func      Layout callback.
+/// \param type            The kind of button request to send to the host.
+/// \param request_title   Title of confirm message.
+/// \param request_body    Body of confirm message.
+/// \returns true iff the device confirmed.
+bool confirm_address_with_custom_layout(
+    layout_notification_t layout_notification_func, ButtonRequestType type,
+    const char* request_title, const char* request_body, ...)
+    __attribute__((format(printf, 4, 5)));
+
 /// User confirmation.
 ///
 /// Does not message the host for ButtonAcks.

@@ -58,7 +58,18 @@ bool ethereum_typed_hash_policy_allows(bool advanced_mode) {
  */
 bool ethereum_structured_eip712_enabled(void) { return false; }
 
-#define MAX_CHAIN_ID 2147483630
+/* The EIP-155 legacy recovery id is v + 2 * chain_id + 35, computed below in
+ * a uint32_t, where v is 0 or 1. The bound is the largest chain id whose
+ * WORST case still fits:
+ *
+ *     2 * 2147483629 + 35 + 1 == 4294967294   <= UINT32_MAX, fits
+ *     2 * 2147483630 + 35 + 1 == 4294967296   wraps to 0
+ *
+ * The old bound of 2147483630 sat exactly on that wrap: with v == 0 it lands
+ * on UINT32_MAX, and with v == 1 it reports a recovery id of 0 for a signature
+ * the device really made. A verifier recovers the wrong address from that, so
+ * the signature is silently unverifiable rather than refused. */
+#define MAX_CHAIN_ID 2147483629
 
 #define ETHEREUM_TX_TYPE_LEGACY 0UL
 #define ETHEREUM_TX_TYPE_EIP_2930 1UL
@@ -639,6 +650,21 @@ static bool ethereum_signing_check(const EthereumSignTx* msg) {
 
   if (msg->gas_price.size + msg->gas_limit.size > 30) {
     // sanity check that fee doesn't overflow
+    return false;
+  }
+
+  /* The same sanity check, for the field the EIP-1559 fee screen actually
+     multiplies. confirmEthereumTx() feeds max_fee_per_gas into
+     bn_multiply(&val, &gas, &secp256k1.prime), which reduces its product
+     modulo the curve prime. The legacy bound above never reaches it: a 1559
+     transaction carries no gas_price, so gas_price.size is 0 and a 32-byte
+     max_fee_per_gas paired with a 32-byte gas_limit passes untouched. The
+     product then wraps and the approval screen names a gas cost that is not
+     the one being signed -- the display diverges from the signature, which is
+     the one thing this release line exists to prevent. Hold the 1559 pair to
+     the same 30-byte budget. */
+  if (msg->has_max_fee_per_gas &&
+      msg->max_fee_per_gas.size + msg->gas_limit.size > 30) {
     return false;
   }
 

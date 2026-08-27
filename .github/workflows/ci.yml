@@ -34,6 +34,14 @@ on:
         type: boolean
         default: false
 
+# Every job here only reads the repository: checkout, build, and run tests.
+# Artifacts move between jobs over the run-scoped artifact token, and the
+# DockerHub push authenticates with its own credentials -- nothing needs a
+# writable GITHUB_TOKEN. Declaring the floor once at the workflow level applies
+# it to all jobs, so a new job cannot silently inherit write scope.
+permissions:
+  contents: read
+
 env:
   BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
   EMU_IMAGE: kkemu-ci

@@ -445,6 +445,18 @@ void fsm_msgChangeWipeCode(ChangeWipeCode* msg) {
 void fsm_msgWipeDevice(WipeDevice* msg) {
   (void)msg;
 
+  /* Supersede active work when the request ARRIVES, not when it succeeds.
+   *
+   * Aborting only on the wipe path left the cancel path resumable: a
+   * WipeDevice that interrupts a streamed signing session puts its own screen
+   * up, and if the owner declines the wipe the handler returns with the old
+   * session still live. The host then sends the TxAck it was already holding
+   * and the interrupted signing continues -- across a screen that said nothing
+   * about that transaction. A new top-level ceremony ends whatever preceded
+   * it, exactly as the Bitcoin and Ethereum signing starts do; whether the
+   * owner then approves the wipe is a separate question. */
+  fsm_abort_workflows();
+
   if (!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
                "Do you want to erase your private keys and settings?")) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
@@ -453,7 +465,6 @@ void fsm_msgWipeDevice(WipeDevice* msg) {
   }
 
   /* Wipe device */
-  fsm_abort_workflows();
   storage_wipe();
   storage_reset();
   storage_resetUuid();
@@ -653,6 +664,16 @@ void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
   } else {
     CHECK_NOT_INITIALIZED
   }
+
+  /* CHECK_NO_CEREMONY above refuses a recovery that would collide with an
+   * armed setup ceremony, but setup_isArmed() knows nothing about signing. A
+   * dry run is permitted on an initialized device, so it can start while a
+   * streamed signing session is waiting on its next ACK -- and run to
+   * completion with that session still resumable afterwards. Abort here rather
+   * than inside the macro so the refusal keeps its meaning, and abort only
+   * after both init-state checks have passed: a recovery that is about to be
+   * rejected must not tear down work it never replaces. */
+  fsm_abort_workflows();
 
   recovery_cipher_init(
       msg->has_word_count ? msg->word_count : 0,

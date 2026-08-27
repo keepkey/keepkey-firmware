@@ -50,6 +50,22 @@ bool osmosis_validate_amount(bool has_value, const char* value) {
   for (const char* p = value; *p; ++p) {
     if (*p < '0' || *p > '9') return false;
   }
+
+  /* Require the canonical decimal spelling: no leading zeros, except for the
+     single value "0" itself.
+
+     base_to_precision() places the decimal point a fixed `precision` digits
+     from the right, so a padded amount keeps its value -- "0000001" and "1"
+     both render 0.000001 OSMO. What it does not keep is its spelling: the
+     padding survives into the screen, so "00000001" shows as "00.000001 OSMO"
+     and "0001000000" as "0001.000000 OSMO". The signed JSON carries the
+     padded string verbatim, so a host can pick which of many renderings of
+     one amount the owner is shown, and two devices handed the same transfer
+     can display it differently. An amount screen must have exactly one
+     spelling. Nothing legitimate needs the padding: the Cosmos SDK emits
+     canonical integers. */
+  if (value[0] == '0' && value[1] != '\0') return false;
+
   return true;
 }
 

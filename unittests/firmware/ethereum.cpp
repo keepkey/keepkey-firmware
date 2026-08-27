@@ -60,8 +60,19 @@ TEST(Ethereum, ChainIdValidationCoversPresenceAndBounds) {
   msg.chain_id = 1;
   EXPECT_TRUE(ethereum_chainIdIsValid(&msg));
 
-  msg.chain_id = 2147483630u;
+  /* The boundary is where v + 2 * chain_id + 35 stops fitting in a uint32_t
+     at the worst-case v == 1. Pin both sides of it, in 64-bit arithmetic so
+     the check itself cannot wrap. */
+  msg.chain_id = 2147483629u;
   EXPECT_TRUE(ethereum_chainIdIsValid(&msg));
+  EXPECT_EQ(2ull * 2147483629ull + 35ull + 1ull, 4294967294ull);
+
+  /* One higher wraps to 0: a recovery id the device never produced. */
+  EXPECT_EQ(2ull * 2147483630ull + 35ull + 1ull, 4294967296ull);
+  EXPECT_EQ(static_cast<uint32_t>(2ull * 2147483630ull + 35ull + 1ull), 0u);
+
+  msg.chain_id = 2147483630u;
+  EXPECT_FALSE(ethereum_chainIdIsValid(&msg));
 
   msg.chain_id = 2147483631u;
   EXPECT_FALSE(ethereum_chainIdIsValid(&msg));

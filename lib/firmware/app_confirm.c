@@ -254,9 +254,9 @@ bool confirm_load_device(bool is_node) {
  *
  */
 bool confirm_xpub(const char* node_str, const char* xpub) {
-  return confirm_with_custom_layout(&layout_xpub_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    node_str, "%s", xpub);
+  return confirm_address_with_custom_layout(
+      &layout_xpub_notification, ButtonRequestType_ButtonRequest_Address,
+      node_str, "%s", xpub);
 }
 
 /*
@@ -270,9 +270,9 @@ bool confirm_xpub(const char* node_str, const char* xpub) {
  *
  */
 bool confirm_cosmos_address(const char* desc, const char* address) {
-  return confirm_with_custom_layout(&layout_cosmos_address_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    desc, "%s", address);
+  return confirm_address_with_custom_layout(
+      &layout_cosmos_address_notification,
+      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
 /*
@@ -286,9 +286,9 @@ bool confirm_cosmos_address(const char* desc, const char* address) {
  *
  */
 bool confirm_osmosis_address(const char* desc, const char* address) {
-  return confirm_with_custom_layout(&layout_osmosis_address_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    desc, "%s", address);
+  return confirm_address_with_custom_layout(
+      &layout_osmosis_address_notification,
+      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
 /*
@@ -302,9 +302,9 @@ bool confirm_osmosis_address(const char* desc, const char* address) {
  *
  */
 bool confirm_ethereum_address(const char* desc, const char* address) {
-  return confirm_with_custom_layout(&layout_ethereum_address_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    desc, "%s", address);
+  return confirm_address_with_custom_layout(
+      &layout_ethereum_address_notification,
+      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
 /*
@@ -318,9 +318,9 @@ bool confirm_ethereum_address(const char* desc, const char* address) {
  *
  */
 bool confirm_nano_address(const char* desc, const char* address) {
-  return confirm_with_custom_layout(&layout_nano_address_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    desc, "%s", address);
+  return confirm_address_with_custom_layout(
+      &layout_nano_address_notification,
+      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
 /*
@@ -334,9 +334,9 @@ bool confirm_nano_address(const char* desc, const char* address) {
  *
  */
 bool confirm_address(const char* desc, const char* address) {
-  return confirm_with_custom_layout(&layout_address_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    desc, "%s", address);
+  return confirm_address_with_custom_layout(
+      &layout_address_notification, ButtonRequestType_ButtonRequest_Address,
+      desc, "%s", address);
 }
 
 /*
