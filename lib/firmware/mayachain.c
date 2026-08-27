@@ -57,11 +57,11 @@ bool mayachain_formatAmount(uint64_t amount, const char* denom, char* out,
 }
 
 bool mayachain_signTxInit(const HDNode* _node, const MayachainSignTx* _msg) {
-  initialized = true;
-  /* A previous session's has_message must not leak into this one: a stale
-   * true writes a comma BEFORE the first message. signAbort() also clears
-   * it, but init cannot depend on the host having aborted. */
-  has_message = false;
+  mayachain_signAbort();
+  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0) {
+    return false;
+  }
+
   msgs_remaining = _msg->msg_count;
   testnet = false;
 
@@ -111,11 +111,18 @@ bool mayachain_signTxInit(const HDNode* _node, const MayachainSignTx* _msg) {
   // 10
   sha256_Update(&ctx, (uint8_t*)"\",\"msgs\":[", 10);
 
-  return success;
+  if (!success) {
+    mayachain_signAbort();
+    return false;
+  }
+  initialized = true;
+  return true;
 }
 
 bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
                                    const char* to_address, const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "maya";
   const char testnetp[] = "smaya";
   const char* pfix;
@@ -170,6 +177,8 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
 }
 
 bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit* depmsg) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   char buffer[64 + 1];
 
   if (has_message) {

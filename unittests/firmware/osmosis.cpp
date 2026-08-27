@@ -91,12 +91,10 @@ TEST(Osmosis, MultiMessageSignTxSeparatesMsgsWithComma) {
   osmosis_signAbort();
 }
 
-TEST(Osmosis, ZeroMessagesNeverFinishes) {
-  /* msg_count:0 used to "finish" trivially (msgs_remaining==0 from the start),
-     signing a document whose msgs array was never populated. */
+TEST(Osmosis, ZeroOrOmittedMessagesFailInitialization) {
   HDNode node = testNode();
 
-  const OsmosisSignTx msg = {
+  OsmosisSignTx msg = {
       5,    {0x80000000 | 44, 0x80000000 | 118, 0x80000000, 0, 0},
       true, 251252,
       true, "osmosis-1",
@@ -106,9 +104,15 @@ TEST(Osmosis, ZeroMessagesNeverFinishes) {
       true, 4,
       true, 0  // msg_count
   };
-  ASSERT_TRUE(osmosis_signTxInit(&node, &msg));
+  EXPECT_FALSE(osmosis_signTxInit(&node, &msg));
+  EXPECT_FALSE(osmosis_signingIsInited());
   EXPECT_FALSE(osmosis_signingIsFinished());
-  osmosis_signAbort();
+  EXPECT_FALSE(osmosis_signTxUpdateMsgSend("1", "ignored", "uosmo"));
+
+  msg.has_msg_count = false;
+  msg.msg_count = 1;
+  EXPECT_FALSE(osmosis_signTxInit(&node, &msg));
+  EXPECT_FALSE(osmosis_signingIsInited());
 }
 
 TEST(Osmosis, RequiredValuesRejectEmptyAndNonDecimalAmounts) {

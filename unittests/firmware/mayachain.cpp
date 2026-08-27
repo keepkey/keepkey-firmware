@@ -230,9 +230,7 @@ TEST(Mayachain, MultiMessageSignTxSeparatesMsgsWithComma) {
   mayachain_signAbort();
 }
 
-TEST(Mayachain, ZeroMessagesNeverFinishes) {
-  /* msg_count:0 used to "finish" trivially (msgs_remaining==0 from the start),
-     signing a document whose msgs array was never populated. */
+TEST(Mayachain, ZeroOrOmittedMessagesFailInitialization) {
   HDNode node = {
       0,
       0,
@@ -258,7 +256,13 @@ TEST(Mayachain, ZeroMessagesNeverFinishes) {
       true, 19,
       true, 0  // msg_count
   };
-  ASSERT_TRUE(mayachain_signTxInit(&node, &msg));
+  EXPECT_FALSE(mayachain_signTxInit(&node, &msg));
+  EXPECT_FALSE(mayachain_signingIsInited());
   EXPECT_FALSE(mayachain_signingIsFinished());
-  mayachain_signAbort();
+  EXPECT_FALSE(mayachain_signTxUpdateMsgSend(1, "ignored", "cacao"));
+
+  msg.has_msg_count = false;
+  msg.msg_count = 1;
+  EXPECT_FALSE(mayachain_signTxInit(&node, &msg));
+  EXPECT_FALSE(mayachain_signingIsInited());
 }

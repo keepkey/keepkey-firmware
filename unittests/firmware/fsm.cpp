@@ -1,5 +1,7 @@
 extern "C" {
 #include "keepkey/transport/interface.h"
+#include "trezor/crypto/sha2.h"
+#include "keepkey/firmware/authenticator.h"
 #include "keepkey/firmware/binance.h"
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/fsm.h"
@@ -13,6 +15,15 @@ extern "C" {
 #include "gtest/gtest.h"
 
 #include <cstring>
+
+TEST(Fsm, AuthenticatorCredentialSourceIsWipedOnEveryExit) {
+  char credential[] = "site:user:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+  ASSERT_EQ(LARGESEED, addAuthAccount(credential));
+
+  for (size_t i = 0; i < sizeof(credential); ++i) {
+    EXPECT_EQ('\0', credential[i]);
+  }
+}
 
 TEST(Fsm, AbortWorkflowsClearsEveryObservableSigningSession) {
   HDNode node = {};
@@ -36,16 +47,19 @@ TEST(Fsm, AbortWorkflowsClearsEveryObservableSigningSession) {
                                     "uatom", TENDERMINT_SIGNING_GENERIC));
 
   OsmosisSignTx osmosis = {};
+  osmosis.has_msg_count = true;
   osmosis.msg_count = 1;
   std::strcpy(osmosis.chain_id, "osmosis-1");
   ASSERT_TRUE(osmosis_signTxInit(&node, &osmosis));
 
   ThorchainSignTx thorchain = {};
+  thorchain.has_msg_count = true;
   thorchain.msg_count = 1;
   std::strcpy(thorchain.chain_id, "thorchain-1");
   ASSERT_TRUE(thorchain_signTxInit(&node, &thorchain));
 
   MayachainSignTx mayachain = {};
+  mayachain.has_msg_count = true;
   mayachain.msg_count = 1;
   std::strcpy(mayachain.chain_id, "mayachain-mainnet-v1");
   ASSERT_TRUE(mayachain_signTxInit(&node, &mayachain));
