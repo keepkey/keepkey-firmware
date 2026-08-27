@@ -354,6 +354,13 @@ jobs:
                 make xunit; RC=\$?; \
                 cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
                 exit \$RC"
+          # That container runs as root and leaves root-owned paths behind in
+          # the bind mount. The `docker cp` in the integration step below
+          # chmods what it extracts into, and a root-owned directory there
+          # makes it fail outright -- copying nothing. This did not arise when
+          # the two suites lived in separate jobs, each with a pristine
+          # test-reports/.
+          sudo chown -R "$(id -u):$(id -g)" "${{ github.workspace }}/test-reports"
 
       # The pip layer here builds the cytoolz C extension against musl, which
       # measured 36.8s, plus ~8s for the apk layer. Those are worth caching.
@@ -406,14 +413,31 @@ jobs:
 
           echo "=== Extracting test reports from Docker ==="
           PY_CONTAINER=$(docker compose ps -a -q python-keepkey)
-          docker cp "$PY_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ \
-            || echo "WARN: python-keepkey docker cp failed"
+          if [ -z "$PY_CONTAINER" ]; then
+            echo "::error::could not resolve the python-keepkey container to extract reports from"
+            exit 1
+          fi
+          docker cp "$PY_CONTAINER":/kkemu/test-reports/. "${{ github.workspace }}/test-reports/"
 
           echo "=== Extracted files ==="
           find ${{ github.workspace }}/test-reports -type f | head -30
-          echo "=== Screenshot PNGs ==="
-          find ${{ github.workspace }}/test-reports/screenshots -name '*.png' 2>/dev/null | wc -l
-          echo "PNGs on host"
+          PNGS=$(find ${{ github.workspace }}/test-reports/screenshots -name '*.png' 2>/dev/null | wc -l)
+          echo "=== Screenshot PNGs on host: $PNGS ==="
+
+          # Extraction is gated, not warned about. A silent `docker cp` failure
+          # previously let this job go green having lost every integration
+          # result: 437 tests and 310 screenshots stayed inside the container,
+          # the artifacts uploaded empty, and the report PDF rendered
+          # "0 passed, 0 failed". Losing test evidence must fail the run.
+          JUNIT="${{ github.workspace }}/test-reports/python-keepkey/junit.xml"
+          if [ ! -s "$JUNIT" ]; then
+            echo "::error::python-keepkey junit.xml missing or empty after extraction — test results were lost"
+            exit 1
+          fi
+          if [ "$PNGS" -eq 0 ]; then
+            echo "::error::no OLED screenshots extracted — the screenshot pipeline or the extraction is broken"
+            exit 1
+          fi
 
           echo "python-keepkey exit code: $PY_RC"
           if [ "$PY_RC" -ne 0 ]; then
