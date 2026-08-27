@@ -202,6 +202,14 @@ jobs:
 
       - name: Run cppcheck
         run: |
+          # `|| CPPCHECK_RC=$?` rather than `; CPPCHECK_RC=$?`. cppcheck is run
+          # with --error-exitcode=1, so it returns non-zero whenever it finds
+          # anything -- and `run:` steps execute under `bash -e`, which means
+          # the step died right here on exactly the runs that have findings.
+          # The `cat` that emits the ::warning file= annotations and the
+          # severity summary below never ran, leaving a bare failure with no
+          # diagnostics. A command in an `||` list is exempt from -e.
+          CPPCHECK_RC=0
           cppcheck \
             --enable=warning,style,performance,portability \
             --std=c11 \
@@ -223,7 +231,7 @@ jobs:
             --template='::warning file={file},line={line},col={column}::{severity}: {message} [{id}]' \
             --output-file=cppcheck_report.txt \
             --error-exitcode=1 \
-            lib/ include/keepkey/ tools/ 2>&1; CPPCHECK_RC=$?
+            lib/ include/keepkey/ tools/ 2>&1 || CPPCHECK_RC=$?
 
           # Count issues by severity
           ERRORS=$(grep -c '\berror:' cppcheck_report.txt 2>/dev/null || true)
