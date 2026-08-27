@@ -97,7 +97,7 @@ unsigned wipeAuthData(void) {
 }
 
 unsigned addAuthAccount(char* accountWithSeed) {
-  char *domain, *account, *seedStr;
+  char *domain, *account, *seedStr = NULL;
   unsigned slot;
   char authSecret[AUTHSECRET_SIZE_MAX] = {
       0};  // 128-bit key len is the recommended minimum, this is room for
@@ -124,16 +124,19 @@ unsigned addAuthAccount(char* accountWithSeed) {
     return TOKERR;
   }
   if (0 == strlen(seedStr)) {
-    return TOKERR;
+    result = TOKERR;
+    goto cleanup;
   }
 
   authSecretLen = base32_decoded_length(strlen(seedStr));
   if (AUTHSECRET_SIZE_MAX < authSecretLen) {
-    return LARGESEED;
+    result = LARGESEED;
+    goto cleanup;
   }
 
   if (!getAuthData()) {
-    return BADPASS;  // fingerprint did not match, passphrase incorrect
+    result = BADPASS;  // fingerprint did not match, passphrase incorrect
+    goto cleanup;
   }
 
   // look for first empty slot
@@ -143,7 +146,8 @@ unsigned addAuthAccount(char* accountWithSeed) {
     }
   }
   if (slot == AUTHDATA_SIZE) {
-    return NOSLOT;  // no empty slots
+    result = NOSLOT;  // no empty slots
+    goto cleanup;
   }
 
   if (NULL == base32_decode((const char*)seedStr, strlen(seedStr),
@@ -169,6 +173,9 @@ unsigned addAuthAccount(char* accountWithSeed) {
   result = NOERR;
 
 cleanup:
+  if (seedStr != NULL) {
+    memzero(seedStr, strlen(seedStr));
+  }
   memzero(authSecret, sizeof(authSecret));
   return result;
 }
