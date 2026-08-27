@@ -41,12 +41,25 @@ jobs:
           SOURCE: ${{ inputs.source_image }}
         run: |
           set -euo pipefail
-          # Strip the source registry/namespace, keeping image name and tag,
-          # so the destination reads ghcr.io/<owner>/firmware:<tag>. One
-          # reference is pushed, not two -- no separate untagged or :latest
-          # push is performed.
-          NAME="${SOURCE##*/}"          # kktech/firmware:v15 -> firmware:v15
-          DEST="ghcr.io/${{ github.repository_owner }}/${NAME}"
+
+          # The source is constrained to the upstream base image, and the
+          # destination name is fixed rather than derived from the input.
+          #
+          # Both matter. ci.yml pulls BASE_IMAGE_MIRROR and builds firmware
+          # from it, so whatever lands at ghcr.io/<owner>/firmware:<tag> is
+          # trusted by every subsequent build. Deriving the destination from
+          # the input -- as this previously did, via ${SOURCE##*/} -- meant a
+          # dispatch of `anyone/firmware:v15` would resolve to that same
+          # destination and overwrite the image CI trusts. Dispatch needs
+          # write access, but "a writer can typo" and "a writer can silently
+          # replace the firmware build base" are different blast radii.
+          if [[ ! "${SOURCE}" =~ ^kktech/firmware:[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::refusing to mirror '${SOURCE}'. This workflow only mirrors kktech/firmware:<tag>, because ci.yml builds firmware from whatever it publishes."
+            exit 1
+          fi
+
+          TAG="${SOURCE##*:}"
+          DEST="ghcr.io/${{ github.repository_owner }}/firmware:${TAG}"
           echo "mirroring ${SOURCE} -> ${DEST}"
           docker pull "${SOURCE}"
           docker tag  "${SOURCE}" "${DEST}"
