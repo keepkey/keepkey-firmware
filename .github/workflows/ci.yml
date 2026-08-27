@@ -695,6 +695,51 @@ jobs:
           ls -lh
           echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} built successfully"
 
+      # Both generate-test-report.py and release.yml verify an ARM build
+      # manifest, but nothing ever wrote one: 251f7a3f added the two consumers
+      # and no producer, which is why generate-test-report has failed on this
+      # branch since. Emit it here, the one place that has the binaries and
+      # both source SHAs at the same time.
+      #
+      # firmware_sha uses the same expression as this job's checkout and as
+      # the report's KK_FIRMWARE_SHA, so the three cannot disagree.
+      - name: Write ARM build manifest
+        env:
+          KK_FIRMWARE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+
+          bin_dir = pathlib.Path("bin")
+
+          def digest(path):
+              value = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      value.update(chunk)
+              return value.hexdigest()
+
+          files = sorted(
+              p for p in bin_dir.iterdir() if p.suffix in (".bin", ".elf"))
+          if not files:
+              raise SystemExit("no ARM binaries to manifest")
+
+          python_sha = subprocess.check_output(
+              ["git", "rev-parse", "HEAD:deps/python-keepkey"],
+              text=True).strip()
+
+          manifest = {
+              "firmware_sha": os.environ["KK_FIRMWARE_SHA"],
+              "python_sha": python_sha,
+              "files": [{"name": p.name, "sha256": digest(p)} for p in files],
+          }
+          target = bin_dir / "arm-build-manifest.json"
+          with target.open("w", encoding="utf-8") as handle:
+              json.dump(manifest, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -702,6 +747,7 @@ jobs:
           path: |
             bin/*.bin
             bin/*.elf
+            bin/arm-build-manifest.json
           retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
