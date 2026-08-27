@@ -799,17 +799,34 @@ void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
   snprintf(buf, len, "%llu.%s %s", (unsigned long long)whole, frac_str, symbol);
 }
 
+/* Solana's own default when a transaction carries no SetComputeUnitLimit:
+   200,000 compute units per non-ComputeBudget instruction, capped at
+   1,400,000. See the runtime's compute_budget_processor. */
+#define SOL_DEFAULT_CU_PER_INSTRUCTION 200000u
+#define SOL_MAX_CU_LIMIT 1400000u
+
+static bool solana_isComputeBudgetInstruction(uint8_t type) {
+  return type == SOL_INSTR_COMPUTE_BUDGET_HEAP_FRAME ||
+         type == SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT ||
+         type == SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE ||
+         type == SOL_INSTR_COMPUTE_BUDGET_LOADED_ACCOUNTS_SIZE;
+}
+
 bool solana_calculatePriorityFee(const SolanaParsedTx* tx, uint64_t* fee_out,
                                  bool* has_fee) {
   const uint64_t divisor = 1000000u;
   uint64_t price = 0;
-  uint64_t limit = 1400000u;
+  uint64_t limit = 0;
   bool seen_price = false;
   bool seen_limit = false;
+  uint64_t non_budget_instructions = 0;
   *has_fee = false;
 
   for (uint8_t i = 0; i < tx->num_instructions; i++) {
     const SolanaParsedInstruction* pi = &tx->instructions[i];
+    if (!solana_isComputeBudgetInstruction((uint8_t)pi->type)) {
+      non_budget_instructions++;
+    }
     if (pi->type == SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE) {
       if (seen_price) return false;
       seen_price = true;
@@ -820,6 +837,21 @@ bool solana_calculatePriorityFee(const SolanaParsedTx* tx, uint64_t* fee_out,
       limit = pi->extra_value;
     }
   }
+
+  if (!seen_limit) {
+    /* Not the 1,400,000 cap.
+     *
+     * Assuming the cap whenever SetComputeUnitLimit was absent overstated the
+     * screen badly: a transfer plus a unit-price instruction is charged on
+     * 200,000 CUs, and the device showed seven times that as the "Maximum
+     * priority fee". It is an upper bound, so nothing was ever understated --
+     * but a maximum the runtime will never reach is not the transaction's
+     * maximum, and this release line is about screens that describe the thing
+     * being signed. num_instructions is a uint8_t, so this cannot overflow. */
+    limit = non_budget_instructions * SOL_DEFAULT_CU_PER_INSTRUCTION;
+    if (limit > SOL_MAX_CU_LIMIT) limit = SOL_MAX_CU_LIMIT;
+  }
+
   if (!seen_price || price == 0) return true;
 
   uint64_t whole = price / divisor;
