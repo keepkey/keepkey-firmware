@@ -355,20 +355,37 @@ jobs:
                 cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
                 exit \$RC"
 
-      # This image compiles no firmware, but its pip layer builds the cytoolz
-      # C extension against musl, which measured 28.8s -- plus ~8s for the apk
-      # layer. Both RUN layers sit *before* COPY, so they are stable across
-      # commits and cache cleanly; only the final COPY is invalidated by a
-      # source change.
+      # The pip layer here builds the cytoolz C extension against musl, which
+      # measured 36.8s, plus ~8s for the apk layer. Those are worth caching.
+      # The COPY layer below them is NOT: it ships the whole build context,
+      # and it is invalidated by every commit, so it can never produce a hit.
+      #
+      # Caching the whole image is therefore a net loss, and measurably so --
+      # a first attempt with cache-to on the full image spent 103.9s in
+      # "exporting to GitHub Actions Cache" to save 36.8s of pip. Hence the
+      # split: cache-to on the `deps` target only, and cache-from (never
+      # cache-to) on the image that adds COPY.
       #
       # build-push-action rather than a `run:` step on purpose: the type=gha
       # cache backend needs ACTIONS_RUNTIME_TOKEN and ACTIONS_CACHE_URL, and
       # GitHub injects those into actions but NOT into `run:` shells. Driving
       # buildx from a shell step here would warn and export nothing -- a cache
       # that looks configured and silently does no work.
-      #
-      # The tag matches `image:` on the python-keepkey compose service, so
-      # `docker compose up` reuses this instead of rebuilding it.
+      - name: Build python-keepkey dependency layers
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: scripts/emulator/python-keepkey.Dockerfile
+          target: deps
+          tags: kkemu-tests-deps:latest
+          load: true
+          push: false
+          cache-from: type=gha,scope=python-keepkey-deps
+          cache-to: type=gha,mode=max,scope=python-keepkey-deps
+
+      # No cache-to here -- see above. The tag matches `image:` on the
+      # python-keepkey compose service, so `docker compose up` reuses this
+      # instead of rebuilding it.
       - name: Build python-keepkey test image
         uses: docker/build-push-action@v6
         with:
@@ -377,8 +394,7 @@ jobs:
           tags: kktech/kkemu-tests:latest
           load: true
           push: false
-          cache-from: type=gha,scope=python-keepkey-tests
-          cache-to: type=gha,mode=max,scope=python-keepkey-tests
+          cache-from: type=gha,scope=python-keepkey-deps
 
       - name: Run python-keepkey integration suite
         working-directory: scripts/emulator

@@ -1,4 +1,8 @@
-FROM kktech/firmware:v15
+# Split into a `deps` stage on purpose. The dependency layers below are
+# stable across commits and worth caching; the COPY layer beneath them ships
+# the whole build context and is invalidated by every commit, so exporting it
+# to a layer cache is pure cost with no possible hit. CI caches `deps` only.
+FROM kktech/firmware:v15 AS deps
 
 # Extra Python deps needed by tests that aren't in the shared base image.
 # - rlp + eth-keys + eth-utils: build the canonical EIP-1559 type-2 pre-image
@@ -9,6 +13,8 @@ FROM kktech/firmware:v15
 # linked against musl. Verified locally against the pinned image.
 RUN apk add --no-cache python3-dev gcc musl-dev
 RUN python3 -m pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome
+
+FROM deps
 
 WORKDIR /kkemu
 COPY ./ /kkemu
