@@ -69,6 +69,34 @@ TEST(Cosmos, HostTextMustBeSafeForJsonAndDisplay) {
       "cosmosvaloper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkh52tw", ""));
 }
 
+TEST(Cosmos, ChainNameIsNotTheBech32Prefix) {
+  /* coinByName() matches case-insensitively, so a TendermintSignTx naming
+     "Cosmos", "cosmos" or "COSMOS" all resolve to the same coin -- but only
+     one spelling is the HRP. Using chain_name for address work therefore made
+     correctness depend on the case the host happened to send: valid cosmos1...
+     recipients would be rejected and a "Cosmos1..." sender derived. The
+     handlers use coin->bech32_prefix for both instead. */
+  for (const char* spelling : {"Cosmos", "cosmos", "COSMOS"}) {
+    const CoinType* coin = coinByName(spelling);
+    ASSERT_NE(nullptr, coin) << spelling;
+    /* NOTE: has_bech32_prefix is FALSE for the tendermint family even though
+       the string is populated (coins.def has Cosmos as `false, "cosmos"`).
+       Anything gating on that flag would refuse every Cosmos transaction, so
+       the handlers gate on the string being non-empty. */
+    EXPECT_FALSE(coin->has_bech32_prefix) << spelling;
+    EXPECT_STREQ("cosmos", coin->bech32_prefix) << spelling;
+
+    /* A real mainnet account address validates against the prefix... */
+    EXPECT_TRUE(tendermint_validateBech32Address(
+        "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", coin->bech32_prefix))
+        << spelling;
+  }
+
+  /* ...and would NOT have validated against the capitalized chain_name. */
+  EXPECT_FALSE(tendermint_validateBech32Address(
+      "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "Cosmos"));
+}
+
 TEST(Cosmos, CosmosGetAddress) {
   HDNode node = {
       0,

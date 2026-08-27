@@ -443,7 +443,12 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
         !msg->ibc_transfer.has_revision_height ||
         !msg->ibc_transfer.has_revision_number ||
         !msg->ibc_transfer.has_denom || !msg->ibc_transfer.has_amount ||
-        !tendermint_validateSafeText(msg->ibc_transfer.sender) ||
+        /* `sender` is the authority the message acts as and is written into
+           the signed JSON verbatim, but no screen shows it. Safe text alone
+           left an arbitrary printable value surviving every approval. Bind it
+           to the account this session signs as -- the serializer now refuses a
+           mismatch too, but that happens after the screens. */
+        !tendermint_addressIsSigner(msg->ibc_transfer.sender, "cosmos") ||
         !tendermint_validateSafeText(msg->ibc_transfer.receiver) ||
         !tendermint_validateSafeText(msg->ibc_transfer.source_channel) ||
         !tendermint_validateSafeText(msg->ibc_transfer.source_port) ||

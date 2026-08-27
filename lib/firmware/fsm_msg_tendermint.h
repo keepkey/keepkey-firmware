@@ -10,6 +10,21 @@ void fsm_msgTendermintGetAddress(const TendermintGetAddress* msg) {
   if (!coin) {
     return;
   }
+  /* The HRP comes from the coin, not from chain_name -- coinByName() matches
+     case-insensitively, so a request naming "Cosmos" would otherwise derive
+     "Cosmos1..." addresses that no Cosmos node would accept, and that the
+     signing path would then refuse as wrong-network. */
+  /* Gate on the STRING, not coin->has_bech32_prefix. In coins.def the
+     tendermint family carries a populated prefix behind a false flag --
+     Cosmos is `false, "cosmos"`, Osmosis `false, "osmo"`, THORChain
+     `false, "thor"` -- while Binance and Bitcoin set the flag. Requiring the
+     flag would refuse every Cosmos transaction. */
+  if (coin->bech32_prefix[0] == '\0') {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    "Coin has no bech32 prefix");
+    layoutHome();
+    return;
+  }
   HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
   if (!node) {
@@ -18,7 +33,7 @@ void fsm_msgTendermintGetAddress(const TendermintGetAddress* msg) {
 
   hdnode_fill_public_key(node);
 
-  if (!tendermint_getAddress(node, msg->chain_name, resp->address)) {
+  if (!tendermint_getAddress(node, coin->bech32_prefix, resp->address)) {
     memzero((void*)node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_FirmwareError,
                     _("Can't encode address"));
@@ -162,6 +177,27 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck* msg) {
     return;
   }
 
+  /* Addresses are built from the coin's bech32 prefix, never from chain_name.
+   *
+   * coinByName() matches with strncasecmp(), so "Cosmos" and "cosmos" both
+   * resolve to the same coin -- but only one of them is the HRP. Using
+   * chain_name for address work makes correctness depend on the case the host
+   * happened to send: a request naming "Cosmos" would reject every valid
+   * cosmos1... recipient here and derive a "Cosmos1..." sender in the
+   * serializer. coin->bech32_prefix is the single authority for both. */
+  /* Gate on the STRING, not coin->has_bech32_prefix. In coins.def the
+     tendermint family carries a populated prefix behind a false flag --
+     Cosmos is `false, "cosmos"`, Osmosis `false, "osmo"`, THORChain
+     `false, "thor"` -- while Binance and Bitcoin set the flag. Requiring the
+     flag would refuse every Cosmos transaction. */
+  if (coin->bech32_prefix[0] == '\0') {
+    tendermint_signAbort();
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    "Coin has no bech32 prefix");
+    layoutHome();
+    return;
+  }
+
   switch (msg->send.address_type) {
     case OutputAddressType_TRANSFER:
     default: {
@@ -184,7 +220,7 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck* msg) {
          fails before approval, so the same check moves ahead of the
          screen. */
       if (!tendermint_validateBech32Address(msg->send.to_address,
-                                            msg->chain_name)) {
+                                            coin->bech32_prefix)) {
         tendermint_signAbort();
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         "Invalid Tendermint recipient address");
@@ -205,7 +241,7 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck* msg) {
   }
 
   if (!tendermint_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
-                                      msg->chain_name, msg->denom,
+                                      coin->bech32_prefix, msg->denom,
                                       msg->message_type_prefix)) {
     tendermint_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,

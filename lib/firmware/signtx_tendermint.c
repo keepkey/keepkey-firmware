@@ -541,6 +541,17 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
     return false;
   }
 
+  /* The sender must be THIS signer.
+   *
+   * from_address was derived here and then thrown away: the JSON below writes
+   * the host-supplied `sender` verbatim, and no screen displayed it. So an
+   * arbitrary sender survived every approval and produced a signed IBC message
+   * naming an account that cannot authorize it. There is exactly one account
+   * this session can act as; require the host to name it. */
+  if (!sender || strcmp(sender, from_address) != 0) {
+    return false;
+  }
+
   if (has_message) {
     sha256_Update(&ctx, (uint8_t*)",", 1);
   }
@@ -618,6 +629,17 @@ bool tendermint_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
   sha256_Final(&ctx, hash);
   return ecdsa_sign_digest(&secp256k1, node.private_key, hash, signature, NULL,
                            NULL) == 0;
+}
+
+/* The account this session signs as, under `chain_prefix`. Handlers use it to
+   refuse a mismatched `sender` BEFORE any screen opens, rather than letting the
+   serializer refuse it after the approval. */
+bool tendermint_addressIsSigner(const char* address, const char* chain_prefix) {
+  if (!address || !chain_prefix) return false;
+
+  char expected[54] = {0};
+  if (!tendermint_getAddress(&node, chain_prefix, expected)) return false;
+  return strcmp(address, expected) == 0;
 }
 
 bool tendermint_signingIsInited(TendermintSigningType type) {
