@@ -24,6 +24,17 @@ TEST(Cosmos, HostTextMustBeSafeForJsonAndDisplay) {
       "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "cosmos"));
   EXPECT_FALSE(tendermint_validateBech32Address(
       "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "thor"));
+
+  /* A good checksum and the right HRP do not make it an account address. An
+     account is a 20-byte hash == 32 five-bit groups; every other payload
+     length must be refused, or a deposit signer could be an operator address
+     or an arbitrary blob. These three carry valid bech32 checksums. */
+  EXPECT_TRUE(tendermint_validateBech32Address(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a", "cosmos"));
+  EXPECT_FALSE(tendermint_validateBech32Address(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnl07mr", "cosmos"));
+  EXPECT_FALSE(tendermint_validateBech32Address(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqe9efq6", "cosmos"));
 }
 
 TEST(Cosmos, CosmosGetAddress) {

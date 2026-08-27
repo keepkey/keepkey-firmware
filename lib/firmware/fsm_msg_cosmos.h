@@ -5,6 +5,19 @@ static void cosmos_formatAmount(uint64_t amount, char* out, size_t out_len) {
   }
 }
 
+/* An IBC revision counter as it must appear in the signed Amino JSON: a
+   non-empty run of digits with no leading zero beyond the single value "0".
+   Anything else either injects into the document (it is interpolated with a
+   bare "%s") or gives one counter several spellings on screen. */
+static bool cosmos_validate_unsigned_decimal(const char* value) {
+  if (!value || value[0] == '\0') return false;
+  for (const char* p = value; *p; ++p) {
+    if (*p < '0' || *p > '9') return false;
+  }
+  if (value[0] == '0' && value[1] != '\0') return false;
+  return true;
+}
+
 void fsm_msgCosmosGetAddress(const CosmosGetAddress* msg) {
   RESP_INIT(CosmosAddress);
 
@@ -380,12 +393,28 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     }
   } else if (msg->has_ibc_transfer) {
     /** Confirm required transaction parameters exist */
+    /* Presence alone is not enough. Every one of these strings is copied
+       into the signed Amino JSON by tendermint_signTxUpdateMsgIBCTransfer()
+       with a bare "%s" through tendermint_snprintf(), which -- unlike
+       tendermint_sha256UpdateEscaped() -- does no escaping. A receiver or
+       source_channel carrying a quote or a backslash therefore writes JSON
+       structure into the document the device signs, and a control byte or an
+       empty value makes the confirmation screens ambiguous about what that
+       document says. tendermint_validateSafeText() is the same gate the
+       Osmosis IBC path already applies to these exact fields; the revision
+       counters are digit strings, so hold them to that as well. */
     if (!msg->ibc_transfer.has_sender || !msg->ibc_transfer.has_receiver ||
         !msg->ibc_transfer.has_source_channel ||
         !msg->ibc_transfer.has_source_port ||
         !msg->ibc_transfer.has_revision_height ||
         !msg->ibc_transfer.has_revision_number ||
         !msg->ibc_transfer.has_denom || !msg->ibc_transfer.has_amount ||
+        !tendermint_validateSafeText(msg->ibc_transfer.sender) ||
+        !tendermint_validateSafeText(msg->ibc_transfer.receiver) ||
+        !tendermint_validateSafeText(msg->ibc_transfer.source_channel) ||
+        !tendermint_validateSafeText(msg->ibc_transfer.source_port) ||
+        !cosmos_validate_unsigned_decimal(msg->ibc_transfer.revision_height) ||
+        !cosmos_validate_unsigned_decimal(msg->ibc_transfer.revision_number) ||
         strcmp(msg->ibc_transfer.denom, "uatom") != 0) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,

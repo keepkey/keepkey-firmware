@@ -74,6 +74,10 @@ bool tendermint_validateSafeText(const char* value) {
   return true;
 }
 
+/* A Tendermint account address is the 20-byte RIPEMD-160 of the public key,
+   carried as base32: 20 * 8 / 5 == 32 five-bit groups. */
+#define TENDERMINT_ACCOUNT_ADDRESS_GROUPS 32
+
 bool tendermint_validateBech32Address(const char* address,
                                       const char* expected_prefix) {
   if (!address || !expected_prefix || expected_prefix[0] == '\0') return false;
@@ -81,8 +85,18 @@ bool tendermint_validateBech32Address(const char* address,
   char hrp[84] = {0};
   uint8_t decoded[65] = {0};
   size_t decoded_len = 0;
-  return bech32_decode(hrp, decoded, &decoded_len, address) == 1 &&
-         strcmp(hrp, expected_prefix) == 0;
+  if (bech32_decode(hrp, decoded, &decoded_len, address) != 1) return false;
+  if (strcmp(hrp, expected_prefix) != 0) return false;
+
+  /* A correct checksum and the right HRP still do not make it an ACCOUNT
+     address. bech32_decode() hands back the raw five-bit groups and succeeds
+     for any payload length, so a validator-operator address, a longer module
+     address, or an arbitrary blob under the same prefix all passed -- and the
+     THORChain and MAYAChain deposit paths accept the result as a signer.
+     tendermint_getAddress() above encodes a 20-byte RIPEMD-160 hash, which is
+     exactly 20 * 8 / 5 == 32 groups; require the same of anything the device
+     is asked to treat as an account. */
+  return decoded_len == TENDERMINT_ACCOUNT_ADDRESS_GROUPS;
 }
 
 void tendermint_sha256UpdateEscaped(SHA256_CTX* ctx, const char* s,

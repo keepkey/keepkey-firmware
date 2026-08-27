@@ -54,6 +54,9 @@ static int libkkemu_initialized = 0;
 
 static uint8_t frame_ring[FRAME_RING_SIZE][FRAME_PACKED_SIZE];
 static uint8_t last_packed[FRAME_PACKED_SIZE];
+/* Pack target for libkkemu_capture_frame(), so a frame that turns out to be a
+   duplicate never touches the ring. See the comment there. */
+static uint8_t capture_scratch[FRAME_PACKED_SIZE];
 static int last_packed_valid = 0;
 static uint32_t frame_write_idx =
     0; /* monotonic, mod FRAME_RING_SIZE for slot */
@@ -108,23 +111,34 @@ size_t libkkemu_socketWrite(int iface, const void* buffer, size_t size) {
 static void libkkemu_capture_frame(const uint8_t* canvas_buf) {
   if (!canvas_buf) return;
 
-  uint8_t* slot = frame_ring[frame_write_idx % FRAME_RING_SIZE];
-  memset(slot, 0, FRAME_PACKED_SIZE);
+  /* Pack into scratch, NOT straight into the ring slot.
+   *
+   * Packing in place and only then testing for a duplicate destroyed data:
+   * once the ring is full, frame_ring[frame_write_idx % FRAME_RING_SIZE] is
+   * the OLDEST UNREAD frame, and the early return on a duplicate left it
+   * overwritten while frame_read_idx still pointed at it. The host's next
+   * kkemu_pop_frame() then returned a frame it had never been shown, and the
+   * one it was owed was gone. Deduplicate first; touch the ring only for a
+   * frame that is actually going to be published. */
+  memset(capture_scratch, 0, FRAME_PACKED_SIZE);
   for (int x = 0; x < 256; x++) {
     for (int y = 0; y < 64; y++) {
       if (display_mono_pixel_is_lit(canvas_buf[y * 256 + x], x, y)) {
-        slot[x + (y / 8) * 256] |= (uint8_t)(1u << (y % 8));
+        capture_scratch[x + (y / 8) * 256] |= (uint8_t)(1u << (y % 8));
       }
     }
   }
 
   /* Dedup: skip if identical to last captured */
-  if (last_packed_valid && memcmp(slot, last_packed, FRAME_PACKED_SIZE) == 0) {
+  if (last_packed_valid &&
+      memcmp(capture_scratch, last_packed, FRAME_PACKED_SIZE) == 0) {
     return;
   }
-  memcpy(last_packed, slot, FRAME_PACKED_SIZE);
+  memcpy(last_packed, capture_scratch, FRAME_PACKED_SIZE);
   last_packed_valid = 1;
 
+  memcpy(frame_ring[frame_write_idx % FRAME_RING_SIZE], capture_scratch,
+         FRAME_PACKED_SIZE);
   frame_write_idx++;
   /* Drop oldest if host fell behind */
   if (frame_write_idx - frame_read_idx > FRAME_RING_SIZE) {
@@ -237,6 +251,7 @@ void kkemu_shutdown(void) {
   memzero(&rb_debug_out, sizeof(rb_debug_out));
   memzero(frame_ring, sizeof(frame_ring));
   memzero(last_packed, sizeof(last_packed));
+  memzero(capture_scratch, sizeof(capture_scratch));
   memzero(display_packed_scratch, sizeof(display_packed_scratch));
   last_packed_valid = 0;
   frame_write_idx = 0;
