@@ -279,10 +279,10 @@ TEST(Ethereum, ThorchainNativeAssetUsesOnlyItsZeroAddressSentinel) {
   EXPECT_FALSE(thor_assetIsNative(nullptr));
 }
 
-// transformERC20(address,address,uint256,uint256,(uint32,bytes)[]) — the two
-// address words carry the token in their low 20 bytes.
-static void MakeTransformErc20(EthereumSignTx* msg, const char* in_token,
-                               const char* out_token) {
+// A canonical transformERC20 call with one transformation whose data is one
+// byte. The transformation byte is deliberately outside the four static words
+// that the retired decoder displayed.
+static void MakeTransformErc20(EthereumSignTx* msg, uint8_t transform_byte) {
   *msg = EthereumSignTx{};
   msg->has_to = true;
   msg->to.size = 20;
@@ -290,80 +290,38 @@ static void MakeTransformErc20(EthereumSignTx* msg, const char* in_token,
   msg->has_chain_id = true;
   msg->chain_id = 1;
   msg->has_data_initial_chunk = true;
-  msg->data_initial_chunk.size = 4 + 4 * 32;
+  msg->data_initial_chunk.size = 4 + 11 * 32;
   std::memcpy(msg->data_initial_chunk.bytes, "\x41\x55\x65\xb0", 4);
-  if (in_token)
-    std::memcpy(msg->data_initial_chunk.bytes + 4 + 12, in_token, 20);
-  if (out_token)
-    std::memcpy(msg->data_initial_chunk.bytes + 4 + 32 + 12, out_token, 20);
+  std::memcpy(msg->data_initial_chunk.bytes + 4 + 12, kTUSD, 20);
+  std::memcpy(msg->data_initial_chunk.bytes + 4 + 32 + 12, kTGBP, 20);
+  msg->data_initial_chunk.bytes[4 + 3 * 32 - 1] = 1;     // input amount
+  msg->data_initial_chunk.bytes[4 + 4 * 32 - 1] = 1;     // minimum output
+  msg->data_initial_chunk.bytes[4 + 5 * 32 - 1] = 0xa0;  // array offset
+  msg->data_initial_chunk.bytes[4 + 6 * 32 - 1] = 1;     // array length
+  msg->data_initial_chunk.bytes[4 + 7 * 32 - 1] = 0x20;  // element offset
+  msg->data_initial_chunk.bytes[4 + 8 * 32 - 1] = 1;     // deployment nonce
+  msg->data_initial_chunk.bytes[4 + 9 * 32 - 1] = 0x40;  // data offset
+  msg->data_initial_chunk.bytes[4 + 10 * 32 - 1] = 1;    // data length
+  msg->data_initial_chunk.bytes[4 + 10 * 32] = transform_byte;
 }
 
-TEST(Ethereum, TransformErc20RequiresCompleteCalldataForClearSigning) {
-  EthereumSignTx msg;
-  MakeTransformErc20(&msg, kTUSD, kTGBP);
+TEST(Ethereum, TransformErc20AlwaysRequiresAdvancedMode) {
+  EthereumSignTx first, second;
+  MakeTransformErc20(&first, 0x41);
+  MakeTransformErc20(&second, 0x42);
 
-  EXPECT_TRUE(
-      ethereum_contractHandled(msg.data_initial_chunk.size, &msg, nullptr));
+  ASSERT_EQ(first.data_initial_chunk.size, second.data_initial_chunk.size);
+  ASSERT_EQ(0, std::memcmp(first.data_initial_chunk.bytes,
+                           second.data_initial_chunk.bytes,
+                           first.data_initial_chunk.size - 32));
+  ASSERT_NE(0, std::memcmp(first.data_initial_chunk.bytes,
+                           second.data_initial_chunk.bytes,
+                           first.data_initial_chunk.size));
+
   EXPECT_FALSE(
-      ethereum_contractHandled(msg.data_initial_chunk.size + 1, &msg, nullptr));
-}
-
-TEST(Ethereum, TransformErc20RejectsAmountsThatDoNotFitTheDisplay) {
-  EthereumSignTx msg;
-  MakeTransformErc20(&msg, kTUSD, kTGBP);
-
-  std::memset(msg.data_initial_chunk.bytes + 4 + 2 * 32, 0xff, 32);
-  EXPECT_FALSE(zx_confirmZxTransERC20(msg.data_initial_chunk.size, &msg));
-
-  MakeTransformErc20(&msg, kTUSD, kTGBP);
-  std::memset(msg.data_initial_chunk.bytes + 4 + 3 * 32, 0xff, 32);
-  EXPECT_FALSE(zx_confirmZxTransERC20(msg.data_initial_chunk.size, &msg));
-}
-
-// The decoder shows four values and hides the transformations[] body. That is
-// only defensible because the input amount and minimum output amount bound the
-// outcome — and ethereumFormatAmount() renders the literal "Unknown token
-// value" whenever tokenByChainAddress() misses, so an unresolved token turns
-// the bound into nothing while the calldata still executes.
-//
-// Gating on the lookup rather than on a chain allowlist keeps this correct
-// however the tables change. It matters in practice: the generated table
-// carries ~1924 entries for chain 1, three each for BSC and Polygon, and NONE
-// for Base, Arbitrum or Avalanche, so on those chains every pair fails here.
-TEST(Ethereum, TransformErc20RequiresBothTokensResolvable) {
-  EthereumSignTx msg;
-
-  // Both known -> the device can name what it is showing.
-  MakeTransformErc20(&msg, kTUSD, kTGBP);
-  EXPECT_TRUE(
-      ethereum_contractHandled(msg.data_initial_chunk.size, &msg, nullptr));
-
-  // Either side unknown -> refuse to claim it, so ethereum.c falls through to
-  // the raw-calldata path (AdvancedMode-gated, bytes shown).
-  MakeTransformErc20(&msg, nullptr, kTGBP);
-  EXPECT_FALSE(
-      ethereum_contractHandled(msg.data_initial_chunk.size, &msg, nullptr))
-      << "unknown INPUT token must not clear-sign";
-
-  MakeTransformErc20(&msg, kTUSD, nullptr);
-  EXPECT_FALSE(
-      ethereum_contractHandled(msg.data_initial_chunk.size, &msg, nullptr))
-      << "unknown OUTPUT token must not clear-sign";
-
-  MakeTransformErc20(&msg, nullptr, nullptr);
-  EXPECT_FALSE(
-      ethereum_contractHandled(msg.data_initial_chunk.size, &msg, nullptr));
-
-  // A chain with no token table entries at all cannot name either asset, so it
-  // must refuse even though 0x deploys the same proxy there. This is what the
-  // chain allowlist was previously being asked to approximate.
-  for (uint32_t cid : {8453u, 42161u, 43114u}) {
-    MakeTransformErc20(&msg, kTUSD, kTGBP);
-    msg.chain_id = cid;
-    EXPECT_FALSE(
-        ethereum_contractHandled(msg.data_initial_chunk.size, &msg, nullptr))
-        << "chain " << cid << " has no token entries; nothing is nameable";
-  }
+      ethereum_contractHandled(first.data_initial_chunk.size, &first, nullptr));
+  EXPECT_FALSE(ethereum_contractHandled(second.data_initial_chunk.size, &second,
+                                        nullptr));
 }
 
 TEST(Ethereum, Eip712ChainIdRequiresCanonicalUint32) {
