@@ -1,4 +1,4 @@
-FROM kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
+FROM kktech/firmware:v15
 
 # Extra Python deps needed by tests that aren't in the shared base image.
 # - rlp + eth-keys + eth-utils: build the canonical EIP-1559 type-2 pre-image
@@ -8,11 +8,7 @@ FROM kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace0
 # compiles a C extension at install time and needs Python.h + a C toolchain
 # linked against musl. Verified locally against the pinned image.
 RUN apk add --no-cache python3-dev gcc musl-dev
-# pytest-timeout: a protocol/UI mismatch between firmware and the pinned tests
-# deadlocks -- firmware waits for a ButtonAck the test never sends, the test waits
-# for a response that never comes -- and without a per-test bound that consumes the
-# entire 30-minute job budget and takes Phase 2 with it. See #466.
-RUN python3 -m pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome pytest-timeout
+RUN python3 -m pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome
 
 WORKDIR /kkemu
 COPY ./ /kkemu

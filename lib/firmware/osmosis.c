@@ -96,62 +96,16 @@ bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
   return success;
 }
 
-static bool osmosis_isCanonicalAmount(const char* value) {
-  if (!value) return false;
-  const size_t len = strlen(value);
-  if (len == 0 || len > OSMOSIS_MAX_AMOUNT_DIGITS ||
-      (len > 1 && value[0] == '0')) {
-    return false;
-  }
-  for (size_t i = 0; i < len; i++) {
-    if (value[i] < '0' || value[i] > '9') return false;
-  }
-  return true;
-}
-
-static bool osmosis_isCanonicalUint64(const char* value) {
-  if (!osmosis_isCanonicalAmount(value)) return false;
-
-  uint64_t parsed = 0;
-  for (size_t i = 0; value[i]; i++) {
-    const uint8_t digit = (uint8_t)(value[i] - '0');
-    if (parsed > (UINT64_MAX - digit) / 10) return false;
-    parsed = parsed * 10 + digit;
-  }
-  return true;
-}
-
-static bool osmosis_isValidDenom(const char* denom) {
-  if (!denom) return false;
-  const size_t len = strlen(denom);
-  if (len == 0 || len > OSMOSIS_MAX_DENOM_LEN) return false;
-
-  // Cosmos/Osmosis denominations are printable identifiers, not arbitrary
-  // JSON. This includes native, IBC and factory-style paths while excluding
-  // whitespace, quotes, backslashes and control bytes.
-  for (size_t i = 0; i < len; i++) {
-    const char c = denom[i];
-    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-          (c >= '0' && c <= '9') || c == '/' || c == ':' || c == '.' ||
-          c == '_' || c == '-')) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
-                                 const char* denom) {
+bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address) {
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
   char buffer[64 + 1];
 
   size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
-  if (!osmosis_isCanonicalUint64(amount) || !osmosis_isValidDenom(denom) ||
-      !bech32_decode(hrp, decoded, &decoded_len, to_address)) {
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
+  if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) {
     return false;
   }
 
@@ -171,20 +125,10 @@ bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
   const char* const prelude = "{\"type\":\"cosmos-sdk/MsgSend\",\"value\":{";
   sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
-  // The amount and denom are host-supplied and land in the signed document
-  // verbatim, so escape them the way chain_id and memo are escaped in
-  // osmosis_signTxInit. Hashing in segments also lifts the 64-byte scratch
-  // buffer limit, which IBC and factory denom paths exceed.
-  const char* const amount_prefix = "\"amount\":[{\"amount\":\"";
-  sha256_Update(&ctx, (uint8_t*)amount_prefix, strlen(amount_prefix));
-  tendermint_sha256UpdateEscaped(&ctx, amount, strlen(amount));
-
-  const char* const denom_prefix = "\",\"denom\":\"";
-  sha256_Update(&ctx, (uint8_t*)denom_prefix, strlen(denom_prefix));
-  tendermint_sha256UpdateEscaped(&ctx, denom, strlen(denom));
-
-  const char* const coin_suffix = "\"}]";
-  sha256_Update(&ctx, (uint8_t*)coin_suffix, strlen(coin_suffix));
+  // 21 + ^20 + 19 = ^60
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"amount\":[{\"amount\":\"%s\",\"denom\":\"uosmo\"}]", amount);
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -208,8 +152,8 @@ bool osmosis_signTxUpdateMsgDelegate(const char* amount,
 
   char buffer[128] = {0};
   size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
 
   if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
     return false;
@@ -269,8 +213,8 @@ bool osmosis_signTxUpdateMsgUndelegate(const char* amount,
 
   char buffer[128] = {0};
   size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
 
   if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
     return false;
@@ -330,8 +274,8 @@ bool osmosis_signTxUpdateMsgRedelegate(const char* amount,
 
   char buffer[128] = {0};
   size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
 
   if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
     return false;
@@ -489,8 +433,8 @@ bool osmosis_signTxUpdateMsgRewards(const char* delegator_address,
 
   char buffer[128] = {0};
   size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
 
   if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
     return false;
@@ -547,8 +491,8 @@ bool osmosis_signTxUpdateMsgIBCTransfer(const char* amount, const char* sender,
 
   char buffer[128] = {0};
   size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
+  char hrp[45] = {0};
+  uint8_t decoded[38] = {0};
 
   if (!bech32_decode(hrp, decoded, &decoded_len, receiver)) {
     return false;
@@ -672,42 +616,6 @@ bool osmosis_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
   sha256_Final(&ctx, hash);
   return ecdsa_sign_digest(&secp256k1, node.private_key, hash, signature, NULL,
                            NULL) == 0;
-}
-
-/*
- * Cosmos amounts arrive as integer base-unit strings. These screens used to
- * render them with atof() + "%.6f", which rounds anything past ~7 significant
- * digits — on the very screen the user approves — and linked newlib's floating
- * point engine into a ROM budget with no room for it. bn_format_uint64 places
- * the decimal point in integer math, the same way the Hive and Ethereum
- * confirm screens do.
- */
-bool osmosis_formatAmount(char* out, size_t out_len, const char* value,
-                          const char* denom) {
-  if (!out || out_len == 0) return false;
-  out[0] = '\0';
-  if (!osmosis_isCanonicalAmount(value) || !osmosis_isValidDenom(denom) ||
-      (strcmp(denom, "uosmo") == 0 && !osmosis_isCanonicalUint64(value))) {
-    return false;
-  }
-
-  int written;
-  if (strcmp(denom, "uosmo") == 0) {
-    char scaled[OSMOSIS_MAX_AMOUNT_DIGITS + 2];
-    if (base_to_precision((uint8_t*)scaled, (const uint8_t*)value,
-                          sizeof(scaled), strlen(value),
-                          OSMOSIS_PRECISION) < 0) {
-      return false;
-    }
-    written = snprintf(out, out_len, "%s OSMO", scaled);
-  } else {
-    written = snprintf(out, out_len, "%s %s", value, denom);
-  }
-  if (written < 0 || (size_t)written >= out_len) {
-    out[0] = '\0';
-    return false;
-  }
-  return true;
 }
 
 bool osmosis_signingIsInited(void) { return initialized; }

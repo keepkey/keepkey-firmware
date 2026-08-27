@@ -35,8 +35,6 @@
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/authenticator.h"
-#include "keepkey/firmware/bip85.h"
-#include "keepkey/rand/rng_health.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/binance.h"
@@ -46,7 +44,6 @@
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
-#include "keepkey/firmware/hive.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/mayachain.h"
 #include "keepkey/firmware/osmosis.h"
@@ -56,7 +53,6 @@
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/ripple.h"
-#include "keepkey/firmware/signed_metadata.h"
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/solana.h"
@@ -66,7 +62,6 @@
 #include "keepkey/firmware/tron.h"
 #include "keepkey/firmware/ton.h"
 #include "keepkey/firmware/transaction.h"
-#include "keepkey/firmware/zcash.h"
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
@@ -84,8 +79,6 @@
 
 #include "messages.pb.h"
 #include "messages-ethereum.pb.h"
-#include "messages-hive.pb.h"
-#include "messages-zcash.pb.h"
 #include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
 #include "messages-osmosis.pb.h"
@@ -99,10 +92,6 @@
 #include "messages-solana.pb.h"
 
 #include <stdio.h>
-/* strnlen: the THORChain memo paths measure fixed arrays rather than
-   trusting their capacity. Included explicitly instead of relying on the
-   fsm_msg_*.h textual includes below to drag it in by accident. */
-#include <string.h>
 
 #define _(X) (X)
 
@@ -115,53 +104,11 @@ static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
     return;                                             \
   }
 
-/* A locked bitcoin-only wallet leaves the RAM shadow reset, so handlers that
- * merely PERSIST settings look perfectly ordinary: storage_setPin(),
- * storage_setLabel() and friends update the shadow, storage_commit() then
- * returns without writing (the btc_only_locked backstop in storage.c), and the
- * handler answers Success. The change appears to take effect for the rest of
- * the session and is gone at the next boot.
- *
- * CHECK_NOT_INITIALIZED already refuses this for the ceremonies that CREATE a
- * seed. The same reasoning applies to every handler that expects its write to
- * survive a reboot, and those were missed. Refuse before doing the work rather
- * than reporting a success that did not happen. */
-#define CHECK_NOT_BITCOIN_ONLY_LOCKED                                \
-  if (storage_isBitcoinOnlyLocked()) {                               \
-    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,           \
-                    "Bitcoin-only wallet present. Use Wipe first."); \
-    layoutHome();                                                    \
-    return;                                                          \
-  }
-
-#define CHECK_NOT_INITIALIZED                                              \
-  if (storage_isInitialized()) {                                           \
-    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,                 \
-                    "Device is already initialized. Use Wipe first.");     \
-    return;                                                                \
-  }                                                                        \
-  /* A locked bitcoin-only wallet leaves the device LOOKING uninitialized: \
-   * the RAM shadow was reset at boot, so storage_isInitialized() is       \
-   * false. Refuse here, loudly, before the user does the work -- a        \
-   * ceremony allowed to run would end in storage_commit() declining to    \
-   * write and the handler reporting success anyway. */                    \
-  if (storage_isBitcoinOnlyLocked()) {                                     \
-    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,                 \
-                    "Bitcoin-only wallet present. Use Wipe first.");       \
-    return;                                                                \
-  }
-
-/* Only the two ceremony STARTS use this. Every other message that persists
- * anything is handled structurally instead: storage_commit() aborts an armed
- * ceremony, so a handler that writes can never have its write consumed by
- * one -- the worst it can do is end it. */
-#define CHECK_NO_CEREMONY                                     \
-  if (setup_isArmed()) {                                      \
-    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,    \
-                    "Device is in the middle of setup. Send " \
-                    "Initialize or Cancel first.");           \
-    layoutHome();                                             \
-    return;                                                   \
+#define CHECK_NOT_INITIALIZED                                          \
+  if (storage_isInitialized()) {                                       \
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,             \
+                    "Device is already initialized. Use Wipe first."); \
+    return;                                                            \
   }
 
 #define CHECK_PIN              \
@@ -329,21 +276,12 @@ void fsm_msgClearSession(ClearSession* msg) {
   fsm_sendSuccess("Session cleared");
 }
 
-// Always-on handlers: Bitcoin and common device messages (fsm_msg_coin,
-// fsm_msg_common), CipherKeyValue/identity (fsm_msg_crypto) and debug-link.
-// None of these is a coin engine.
 #include "fsm_msg_common.h"
 #include "fsm_msg_coin.h"
-#include "fsm_msg_crypto.h"
-#include "fsm_msg_debug.h"
-#if !BITCOIN_ONLY
-// BIP-85 derives child mnemonics for OTHER wallets -- a multi-chain feature.
-// It must be gated in step with messagemap.def: a handler compiled with no
-// entry referencing it is an unused function, which -Werror turns into a
-// build failure.
-#include "fsm_msg_bip85.h"
 #include "fsm_msg_ethereum.h"
 #include "fsm_msg_nano.h"
+#include "fsm_msg_crypto.h"
+#include "fsm_msg_debug.h"
 #include "fsm_msg_eos.h"
 #include "fsm_msg_cosmos.h"
 #include "fsm_msg_osmosis.h"
@@ -355,26 +293,3 @@ void fsm_msgClearSession(ClearSession* msg) {
 #include "fsm_msg_tron.h"
 #include "fsm_msg_ton.h"
 #include "fsm_msg_solana.h"
-#include "fsm_msg_hive.h"
-/* After fsm_msg_solana.h: reuses its base58 helper and the KKSOLSC1 parser. */
-#include "fsm_msg_clearsign_attestor.h"
-#else
-// Bitcoin-only: the coin engines above are compiled out, but the always-on
-// Initialize/ClearSession/Cancel handlers still call their *_abort() hooks,
-// and factory-reset calls signed_metadata_clear_signers() (EVM clearsign).
-// With no state to reset, no-ops are the correct definitions -- and defining
-// them here keeps those handlers free of build-variant branches.
-void ethereum_signing_abort(void) {}
-void tendermint_signAbort(void) {}
-void eos_signingAbort(void) {}
-void signed_metadata_clear_signers(void) {}
-#endif  // !BITCOIN_ONLY
-#if ZCASH_PRIVACY
-#include "fsm_msg_zcash.h"
-#else
-// Zcash shielded/Orchard engine compiled out. The always-on
-// Initialize/ClearSession/Cancel handlers still call zcash_signing_abort();
-// with no privacy state to reset, a no-op is correct. (Bitcoin-only forces
-// privacy off, so this stub also covers the bitcoin-only image.)
-void zcash_signing_abort(void) {}
-#endif

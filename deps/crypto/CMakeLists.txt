@@ -32,7 +32,6 @@ set(sources
     #trezor-firmware/crypto/tests/test_openssl.c
     #trezor-firmware/crypto/tests/test_speed.c
     trezor-firmware/crypto/secp256k1.c
-    trezor-firmware/crypto/bip340.c
     trezor-firmware/crypto/bignum.c
     trezor-firmware/crypto/segwit_addr.c
     trezor-firmware/crypto/ripemd160.c
@@ -58,18 +57,6 @@ set(sources
     #trezor-firmware/crypto/aes/aestst.c
     trezor-firmware/crypto/aes/aestab.c)
 
-# Pallas/Orchard curve arithmetic (~2.4k LOC) -- only the Zcash shielded engine
-# uses it. Excluded from the default and bitcoin-only images.
-if(${KK_ZCASH_PRIVACY})
-  list(APPEND sources
-      trezor-firmware/crypto/pallas.c
-      trezor-firmware/crypto/pallas_ct.c
-      trezor-firmware/crypto/pallas_sinsemilla.c
-      trezor-firmware/crypto/pallas_swu.c
-      trezor-firmware/crypto/redpallas.c
-      trezor-firmware/crypto/zcash_zip316.c)
-endif()
-
     # Clang 5.0 in the docker image (kktech/firmware:v7) is missing
     # <xmmintrin.h>, which breaks these. Until they're needed, we'll just elide
     # them.
@@ -81,6 +68,7 @@ endif()
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/trezor-firmware/crypto
+  ${CMAKE_CURRENT_SOURCE_DIR}/trezor-firmware/
   ${CMAKE_CURRENT_SOURCE_DIR}/trezor-firmware/crypto/ed25519-donna
   ${OPENSSL_INCLUDE_DIR})
 

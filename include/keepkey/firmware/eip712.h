@@ -25,9 +25,9 @@
     Parser wants to see C strings, not javascript strings:
         requires all complete json message strings to be enclosed by braces,
    i.e., { ... } Cannot have entire json string quoted, i.e., "{ ... }" will not
-   work. Remove all quote escape chars, e.g., {"types":  not  {\"types\":
-    Integer values must use canonical base-10 digits. Negative values use a
-   leading minus sign. Do not prefix ints or uints with 0x.
+   work. Remove all quote escape chars, e.g., {"types":  not  {\"types\": int
+   values must be hex. Negative sign indicates negative value, e.g., -5, -8a67
+        Note: Do not prefix ints or uints with 0x
     All hex and byte strings must be big-endian
     Byte strings and address should be prefixed by 0x
 */
@@ -98,23 +98,7 @@ typedef enum { DOMAIN = 1, MESSAGE } dm;
 
 #define LAST_ERROR JSON_TYPE_WNOVAL
 
-/* A review screen was not confirmed. Deliberately above LAST_ERROR and outside
-   the failMsgReturn[] table in ethereum.c, which is sized LAST_ERROR - 2 and
-   indexed err - 3: a code at or below LAST_ERROR would shift every message in
-   that table. failMessage() handles this one before the table is reached, and
-   reports it as FailureType_Failure_ActionCancelled rather than a parse
-   error. */
-#define USER_CANCELLED 34
-
-int encAddress(const char* string, uint8_t* encoded);
 int encode(const json_t* jsonTypes, const json_t* jsonVals, const char* typeS,
            uint8_t* hashRet);
-bool eip712_parse_canonical_u32(const char* text, uint32_t* value);
-
-/* Exposed for strict-value regression tests. encAddress is declared above with
-   the rest of the encoder API; re-declaring it here trips
-   -Werror=redundant-decls on the ARM build. */
-int encodeBytes(const char* string, uint8_t* encoded);
-int encodeBytesN(const char* typeT, const char* string, uint8_t* encoded);
 
 #endif

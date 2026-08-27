@@ -3,7 +3,6 @@ extern "C" {
 #include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/tendermint.h"
-#include "messages-tendermint.pb.h"
 #include "trezor/crypto/secp256k1.h"
 }
 
@@ -55,14 +54,10 @@ TEST(Cosmos, CosmosSignTx) {
       true, 0,              // sequence
       true, 1               // msg_count
   };
-  ASSERT_TRUE(tendermint_signTxInit(&node, &msg, sizeof(CosmosSignTx), "uatom",
-                                    TENDERMINT_SIGNING_COSMOS));
-  EXPECT_TRUE(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS));
-  EXPECT_FALSE(tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC));
+  ASSERT_TRUE(tendermint_signTxInit(&node, &msg, sizeof(CosmosSignTx), "uatom"));
 
-  ASSERT_TRUE(tendermint_signTxUpdateMsgSend(
-      100000, "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "cosmos",
-      "uatom", "cosmos-sdk"));
+  ASSERT_TRUE(tendermint_signTxUpdateMsgSend(100000, "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "cosmos", "uatom", "cosmos-sdk"));
+
 
   uint8_t public_key[33];
   uint8_t signature[64];
@@ -70,45 +65,10 @@ TEST(Cosmos, CosmosSignTx) {
 
   EXPECT_TRUE(
       memcmp(signature,
-             (uint8_t*)"\x41\x99\x66\x30\x08\xef\xea\x75\x93\x56\x35\xe6\x1a"
-                       "\x11\xdf\xa3\x3c\xeb\xeb\x91\xc1\xca\xed\xc6\x0e\x5e"
-                       "\xef\x3c\xa2\xc0\x1f\x83\x48\x08\x36\xe6\x21\x89\x51"
-                       "\x14\x36\x64\x7f\xac\x5a\xbd\xc2\x9f\x54\xae\x3d\x7e"
-                       "\x47\x56\x43\xca\x33\xc7\xad\x2c\x8a\x53\x2b\x39",
+             (uint8_t *)"\x41\x99\x66\x30\x08\xef\xea\x75\x93\x56\x35\xe6\x1a"
+                        "\x11\xdf\xa3\x3c\xeb\xeb\x91\xc1\xca\xed\xc6\x0e\x5e"
+                        "\xef\x3c\xa2\xc0\x1f\x83\x48\x08\x36\xe6\x21\x89\x51"
+                        "\x14\x36\x64\x7f\xac\x5a\xbd\xc2\x9f\x54\xae\x3d\x7e"
+                        "\x47\x56\x43\xca\x33\xc7\xad\x2c\x8a\x53\x2b\x39",
              64) == 0);
-}
-
-TEST(Cosmos, TendermintSessionBindsProtocolAndAssetConfiguration) {
-  HDNode node = {};
-  node.curve = &secp256k1_info;
-  TendermintSignTx msg = {};
-  msg.has_account_number = true;
-  msg.has_chain_id = true;
-  strcpy(msg.chain_id, "chain-1");
-  msg.has_fee_amount = true;
-  msg.fee_amount = 1;
-  msg.has_gas = true;
-  msg.gas = 1;
-  msg.has_sequence = true;
-  msg.has_msg_count = true;
-  msg.msg_count = 1;
-  msg.has_chain_name = true;
-  strcpy(msg.chain_name, "Cosmos");
-  msg.has_denom = true;
-  strcpy(msg.denom, "uatom");
-  msg.has_message_type_prefix = true;
-  strcpy(msg.message_type_prefix, "cosmos-sdk");
-
-  ASSERT_TRUE(tendermint_signTxInit(&node, &msg, sizeof(msg), msg.denom,
-                                    TENDERMINT_SIGNING_GENERIC));
-  EXPECT_TRUE(tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC));
-  EXPECT_FALSE(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS));
-  EXPECT_TRUE(tendermint_signingConfigMatches("Cosmos", "uatom", "cosmos-sdk"));
-  EXPECT_FALSE(
-      tendermint_signingConfigMatches("Cosmos", "uosmo", "cosmos-sdk"));
-  EXPECT_FALSE(
-      tendermint_signingConfigMatches("Osmosis", "uatom", "cosmos-sdk"));
-  EXPECT_FALSE(
-      tendermint_signingConfigMatches("Cosmos", "uatom", "other-prefix"));
-  tendermint_signAbort();
 }

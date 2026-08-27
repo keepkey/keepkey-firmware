@@ -3,8 +3,7 @@ if(${KK_EMULATOR})
   set(sources
       oled.c
       udp.c
-      setup.c
-      random.c)
+      setup.c)
 
 
 
@@ -20,7 +19,6 @@ if(${KK_EMULATOR})
         oled.c
         udp.c
         setup.c
-        random.c
         ringbuf.c
         libkkemu.c)
 
@@ -36,14 +34,7 @@ if(${KK_EMULATOR})
     target_include_directories(kkemulator_dylib PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_BINARY_DIR}/include
-        ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto)
-    # libkkemu.c runs the firmware event loop on a dedicated thread (POSIX
-    # pthreads; Win32 CreateThread under MinGW). Threads::Threads is a no-op on
-    # the Win32 path and pulls in -lpthread on POSIX. Use the PLAIN signature —
-    # tools/emulator/CMakeLists.txt links this same target plainly, and CMake
-    # forbids mixing keyword (PRIVATE) and plain target_link_libraries calls.
-    find_package(Threads REQUIRED)
-    target_link_libraries(kkemulator_dylib Threads::Threads)
+        ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
     set_target_properties(kkemulator_dylib PROPERTIES
         OUTPUT_NAME "kkemu"
         POSITION_INDEPENDENT_CODE ON)
