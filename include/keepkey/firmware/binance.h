@@ -17,6 +17,10 @@ typedef struct _BinanceTransferMsg_BinanceCoin BinanceCoin;
 bool binance_isValidDenom(const char* denom);
 bool binance_validateTransfer(const BinanceTransferMsg* transfer);
 bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg);
+
+/// The single bech32 prefix this session's chain_id permits, or NULL when no
+/// session is active. Every input and output address must carry it.
+const char* binance_sessionAddressPrefix(void);
 bool binance_serializeCoin(const BinanceCoin* coin);
 bool binance_serializeInputOutput(const BinanceInputOutput* io);
 bool binance_signTxUpdateTransfer(const BinanceTransferMsg* _msg);

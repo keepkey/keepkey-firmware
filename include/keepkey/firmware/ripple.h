@@ -71,6 +71,9 @@ bool ripple_getAddress(const uint8_t public_key[33],
 /// be refused: an amount the device cannot render is not one it can show.
 bool ripple_formatAmount(char* buf, size_t len, uint64_t amount);
 
+/// True iff `address` decodes to the 21 raw bytes the serializer requires.
+bool ripple_validateAddress(const char* address);
+
 void ripple_serializeType(bool* ok, uint8_t** buf, const uint8_t* end,
                           const RippleFieldMapping* m);
 
@@ -100,6 +103,8 @@ bool ripple_serialize(uint8_t** buf, const uint8_t* end, const RippleSignTx* tx,
                       const char* source_address, const uint8_t* pubkey,
                       const uint8_t* sig, size_t sig_len);
 
-void ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp);
+/// \returns false if the transaction could not be serialized or signed, in
+/// which case `resp` is incomplete and must not be sent as a success.
+bool ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp);
 
 #endif

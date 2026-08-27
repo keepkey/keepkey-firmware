@@ -81,6 +81,23 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
   if (!node) return;
   hdnode_fill_public_key(node);
 
+  /* Absent fields are not zero-valued fields. Without these, an omitted
+     payment/amount/destination reached the screens as 0 XRP to an empty
+     address, and ripple_serialize() simply omitted what was missing -- so the
+     owner approved one transaction and the device signed another. The
+     destination is checked here too: ripple_serializeAddress() enforces the
+     21-byte decode with assert(), which is compiled out of release builds, and
+     runs only after both confirmations. */
+  if (!msg->has_payment || !msg->payment.has_amount ||
+      !msg->payment.has_destination ||
+      !ripple_validateAddress(msg->payment.destination)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Payment amount and destination are required"));
+    layoutHome();
+    return;
+  }
+
   if (!msg->has_fee || msg->fee < RIPPLE_MIN_FEE || msg->fee > RIPPLE_MAX_FEE) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -139,7 +156,15 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
     return;
   }
 
-  ripple_signTx(node, msg, resp);
+  /* A failed sign left has_signature/has_serialized_tx false, and the response
+     went out anyway -- the host saw an empty success where an error belonged.
+   */
+  if (!ripple_signTx(node, msg, resp)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other, _("Ripple signing failed"));
+    layoutHome();
+    return;
+  }
   memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_RippleSignedTx, resp);
   layoutHome();

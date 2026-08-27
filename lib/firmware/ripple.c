@@ -56,6 +56,22 @@ bool ripple_getAddress(const uint8_t public_key[33],
   return true;
 }
 
+/* An address the serializer will actually accept.
+ *
+ * ripple_serializeAddress() decodes and requires exactly 21 raw bytes, but that
+ * runs after both confirmations -- and it guards the length with assert(),
+ * which is compiled out of release builds. So a malformed destination was
+ * displayed and approved before anything checked it. Same check, available
+ * early. */
+bool ripple_validateAddress(const char* address) {
+  if (!address || address[0] == '\0') return false;
+  uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
+  const uint32_t len =
+      ripple_decode_check(address, HASHER_SHA2D, addr_raw, MAX_ADDR_RAW_SIZE);
+  memzero(addr_raw, sizeof(addr_raw));
+  return len == 21;
+}
+
 bool ripple_formatAmount(char* buf, size_t len, uint64_t amount) {
   bignum256 val;
   bn_read_uint64(amount, &val);
@@ -235,9 +251,9 @@ bool ripple_serialize(uint8_t** buf, const uint8_t* end, const RippleSignTx* tx,
   return ok;
 }
 
-void ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp) {
+bool ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp) {
   const curve_info* curve = get_curve_by_name("secp256k1");
-  if (!curve) return;
+  if (!curve) return false;
 
   // Set canonical flag, since trezor-crypto ECDSA implementation returns
   // fully-canonical signatures, thereby enforcing it in the transaction
@@ -256,13 +272,13 @@ void ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp) {
   memcpy(resp->serialized_tx.bytes, "\x53\x54\x58\x00", 4);
 
   char source_address[MAX_ADDR_SIZE];
-  if (!ripple_getAddress(node->public_key, source_address)) return;
+  if (!ripple_getAddress(node->public_key, source_address)) return false;
 
   uint8_t* buf = resp->serialized_tx.bytes + 4;
   size_t len = sizeof(resp->serialized_tx.bytes) - 4;
   if (!ripple_serialize(&buf, buf + len, tx, source_address, node->public_key,
                         NULL, 0))
-    return;
+    return false;
 
   // Ripple uses the first half of SHA512
   uint8_t hash[64];
@@ -272,7 +288,7 @@ void ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp) {
   if (ecdsa_sign_digest(&secp256k1, node->private_key, hash, sig, NULL, NULL) !=
       0) {
     // Failure
-    return;
+    return false;
   }
 
   resp->signature.size = ecdsa_sig_to_der(sig, resp->signature.bytes);
@@ -284,8 +300,9 @@ void ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp) {
   len = sizeof(resp->serialized_tx);
   if (!ripple_serialize(&buf, buf + len, tx, source_address, node->public_key,
                         resp->signature.bytes, resp->signature.size))
-    return;
+    return false;
 
   resp->has_serialized_tx = true;
   resp->serialized_tx.size = buf - resp->serialized_tx.bytes;
+  return true;
 }

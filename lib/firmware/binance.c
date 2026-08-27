@@ -67,6 +67,8 @@ static const char* binance_addressPrefixForChain(const char* chain_id) {
 
 static const char* address_prefix;
 
+const char* binance_sessionAddressPrefix(void) { return address_prefix; }
+
 bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg) {
   binance_signAbort();
   if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0 ||

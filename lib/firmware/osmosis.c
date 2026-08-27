@@ -69,6 +69,38 @@ bool osmosis_validate_amount(bool has_value, const char* value) {
   return true;
 }
 
+/* The network prefix this session signs under. */
+static const char* osmosis_sessionPrefix(void) {
+  return testnet ? "tosmo" : "osmo";
+}
+
+bool osmosis_validate_account_address(bool has_value, const char* value) {
+  return osmosis_validate_required_text(has_value, value) &&
+         tendermint_validateBech32Address(value, osmosis_sessionPrefix());
+}
+
+bool osmosis_validate_validator_address(bool has_value, const char* value) {
+  return osmosis_validate_required_text(has_value, value) &&
+         tendermint_validateValidatorAddress(value, osmosis_sessionPrefix());
+}
+
+/* A `sender` field is the AUTHORITY the message acts as, and it is copied into
+   the signed document verbatim. The LP, swap and IBC paths never showed it, so
+   the owner approved a document naming an account no screen mentioned.
+   Displaying it would add a screen to every one of those flows; binding it is
+   both stronger and free, because there is only one account this session can
+   legitimately act as -- the one whose key signs. A mismatch could never
+   produce a valid transaction anyway, so refusing it costs nothing. */
+bool osmosis_address_is_signer(const char* address) {
+  if (!initialized || !address) return false;
+
+  char expected[46] = {0};
+  if (!tendermint_getAddress(&node, osmosis_sessionPrefix(), expected)) {
+    return false;
+  }
+  return strcmp(address, expected) == 0;
+}
+
 bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
   osmosis_signAbort();
   if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0 ||
