@@ -666,14 +666,38 @@ TEST(Solana, PriorityFeeCalculationIsRoundedAndOverflowSafe) {
   EXPECT_TRUE(has_fee);
   EXPECT_EQ(fee, 70000000ULL);
 
-  /* No explicit limit uses the protocol maximum so the displayed liability
-     cannot understate the fee. */
-  tx.num_instructions = 1;
-  tx.instructions[0].type = SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE;
-  tx.instructions[0].extra_value = 2000000;
+  /* With no explicit limit, use the limit the RUNTIME will request: 200,000
+     compute units per non-ComputeBudget instruction, capped at 1,400,000.
+
+     This replaces an earlier rule that assumed the 1,400,000 cap whenever
+     SetComputeUnitLimit was absent. That could not understate the fee, but it
+     overstated it badly -- a transfer alongside a unit-price instruction is
+     charged on 200,000 CUs and was shown as seven times that. Deriving the
+     limit still cannot understate what the runtime charges, because it is
+     exactly what the runtime charges. */
+  memset(&tx, 0, sizeof(tx));
+  tx.num_instructions = 2;
+  tx.instructions[0].type = SOL_INSTR_SYSTEM_TRANSFER;
+  tx.instructions[1].type = SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE;
+  tx.instructions[1].extra_value = 2000000;
   ASSERT_TRUE(solana_calculatePriorityFee(&tx, &fee, &has_fee));
   EXPECT_TRUE(has_fee);
-  EXPECT_EQ(fee, 2800000ULL);
+  EXPECT_EQ(fee, 400000ULL); /* 2 lamports/CU * 1 * 200,000 CUs */
+
+  /* Seven non-budget instructions reach the 1,400,000 cap exactly, which is
+     also the most SOL_MAX_INSTRUCTIONS (8) allows alongside a price
+     instruction. The clamp stays as defence rather than as a reachable path. */
+  memset(&tx, 0, sizeof(tx));
+  tx.num_instructions = 8;
+  for (int i = 0; i < 7; i++)
+    tx.instructions[i].type = SOL_INSTR_SYSTEM_TRANSFER;
+  tx.instructions[7].type = SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE;
+  tx.instructions[7].extra_value = 2000000;
+  ASSERT_TRUE(solana_calculatePriorityFee(&tx, &fee, &has_fee));
+  EXPECT_TRUE(has_fee);
+  EXPECT_EQ(fee, 2800000ULL); /* capped: 2 * 1,400,000 */
+
+  memset(&tx, 0, sizeof(tx));
 
   tx.num_instructions = 2;
   tx.instructions[0].type = SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT;

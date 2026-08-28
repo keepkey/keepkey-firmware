@@ -1,22 +1,43 @@
-title = "KeepKey firmware gitleaks configuration"
+# gitleaks configuration for keepkey-firmware
+#
+# Extends the stock gitleaks rule set — every default rule stays active. This
+# file only adds narrowly-scoped allowlists for false positives that recur
+# across commits, which .gitleaksignore cannot express: its entries are keyed
+# by commit SHA, so a rebased, cherry-picked, or merged commit reintroduces the
+# same finding under a new fingerprint. Prefer .gitleaksignore for a genuine
+# one-off; add here only when the same content keeps coming back.
 
 [extend]
 useDefault = true
 
-# Published U2F attestation material and historical vendored test vectors.
+# Published U2F attestation material and vendored third-party code.
+#
+# Deliberately NOT allowlisted: any first-party test tree. An earlier revision
+# of this branch carried '''^tests/''' here, which turned off secret detection
+# for every first-party test present or future -- a real credential committed
+# under it would have passed CI. No such directory exists in this repository,
+# so the entry exempted nothing and only stood ready to exempt something later.
+# If a fixture ever does trip a rule, allowlist that path or its fingerprint,
+# not the tree above it.
 [[allowlists]]
-description = "Public device material and third-party historical fixtures"
+description = "Public device material and vendored third-party code"
 paths = [
   '''include/keepkey/firmware/u2f/trezordevkey\.pem''',
   '''include/keepkey/firmware/u2f/u2f_keys\.h''',
   '''^deps/''',
-  '''^tests/''',
 ]
 
+# Release/security docs record the exact submodule commits a build pins, e.g.
+#   - python-keepkey: `c406a1ba9120da410c356dbff7f4d4bd1e1758fa`;
+# A 40-char lowercase hex git SHA has enough entropy to trip generic-api-key.
+# Scoped with condition = "AND" so this only exempts SHA-shaped strings inside
+# markdown docs — a real credential in docs/ is still reported.
+#
+# This supersedes an earlier, narrower rule on the release branch that matched
+# only python-keepkey pins under generic-api-key; every string that one
+# exempted is a subset of this one.
 [[allowlists]]
-description = "Documented python-keepkey commit pins"
-targetRules = ["generic-api-key"]
+description = "Git commit SHAs quoted in markdown docs"
 condition = "AND"
-paths = ['''^docs/''']
-regexes = ['''python-keepkey[^\n]{0,16}`[0-9a-f]{40}`''']
-regexTarget = "match"
+paths = ['''(^|/)docs/.*\.md$''']
+regexes = ['''\b[0-9a-f]{40}\b''']

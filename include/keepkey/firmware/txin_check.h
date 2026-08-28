@@ -29,6 +29,7 @@
 
 void txin_dgst_addto(const uint8_t* data, size_t len);
 void txin_dgst_initialize(void);
+void txin_dgst_reset_current(void);
 bool txin_dgst_compare(const char* amt_str, const char* addr_str);
 void txin_dgst_final(void);
 void txin_dgst_getstrs(char* prev, char* cur, size_t len);

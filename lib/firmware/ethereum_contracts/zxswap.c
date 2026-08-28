@@ -53,6 +53,7 @@ static bool isSellToUniswapCall(const EthereumSignTx* msg) {
  */
 static bool zxswap_resolveBothTokens(const EthereumSignTx* msg,
                                      const TokenType** from,
+                                     const TokenType** via,
                                      const TokenType** to,
                                      const char** exchange) {
   /* Everything read before the token count is known lives in the selector plus
@@ -114,6 +115,25 @@ static bool zxswap_resolveBothTokens(const EthereumSignTx* msg,
   const TokenType* t = tokenByChainAddress(
       msg->chain_id, msg->data_initial_chunk.bytes + 4 + (6 + adder) * 32 + 12);
 
+  /* The MIDDLE token of a three-token route, which the screen used to omit.
+   *
+   * sellToUniswap() executes one swap per adjacent pair, so tokens[1] selects
+   * the pair contracts the trade actually routes through. Reading only
+   * tokens[0] and tokens[last] meant every tokens[1] produced the same
+   * "Sell X / Buy at least Y" screen while the route underneath it changed --
+   * a different set of pools, a different counterparty, the same approval.
+   *
+   * Resolve it on the same terms as the endpoints, and hold it to the same
+   * chain-scoped check: an unresolvable hop makes the whole call
+   * undisplayable, so it falls through to the AdvancedMode raw-calldata path
+   * rather than being shown as a two-token trade it is not. */
+  const TokenType* v = NULL;
+  if (adder) {
+    v = tokenByChainAddress(msg->chain_id,
+                            msg->data_initial_chunk.bytes + 4 + 6 * 32 + 12);
+    if (!zx_tokenLabelsThisChain(msg->chain_id, v)) return false;
+  }
+
   /* Not just "resolved" -- resolved to metadata for this exact chain.  The
    * lookup is chain-scoped, and this second check keeps the decoder fail-closed
    * if a future caller ever supplies metadata directly. */
@@ -122,6 +142,7 @@ static bool zxswap_resolveBothTokens(const EthereumSignTx* msg,
     return false;
 
   if (from) *from = f;
+  if (via) *via = v;
   if (to) *to = t;
   if (exchange) *exchange = (isSushi == 0) ? "Uniswap" : "Sushiswap";
   return true;
@@ -145,7 +166,7 @@ bool zx_isZxSwap(const EthereumSignTx* msg) {
      here is what makes it fall through to the raw-calldata path, which is
      AdvancedMode-gated and shows the bytes; refusing in the confirm would be
      read as a user cancel (see ethereum.c, ethereum_contractConfirmed). */
-  return zxswap_resolveBothTokens(msg, NULL, NULL, NULL);
+  return zxswap_resolveBothTokens(msg, NULL, NULL, NULL, NULL);
 }
 
 bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
@@ -170,9 +191,9 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
     return false;
   }
 
-  const TokenType *from, *to;
+  const TokenType *from, *via, *to;
   const char* exchange;
-  if (!zxswap_resolveBothTokens(msg, &from, &to, &exchange)) return false;
+  if (!zxswap_resolveBothTokens(msg, &from, &via, &to, &exchange)) return false;
 
   char constr1[40], constr2[40];
 
@@ -197,6 +218,23 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, exchange,
                "Sell %s\nBuy at least %s", constr1, constr2)) {
     return false;
+  }
+
+  /* Name the intermediate hop on its own screen. The amounts above bound only
+     the ends of the route; this is the asset the trade passes through, and it
+     is as much a part of what is being signed as they are.
+
+     Tickers in the generated table lead with a space (" USDC") because
+     ethereumFormatAmount() appends them straight after a number. Step over it
+     rather than emitting "Route via  USDC". */
+  if (via) {
+    const char* via_ticker = via->ticker ? via->ticker : "";
+    while (*via_ticker == ' ') via_ticker++;
+    if (*via_ticker == '\0') return false;
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, exchange,
+                 "Route via %s", via_ticker)) {
+      return false;
+    }
   }
 
   /* Anything past the ABI encoding is signed but describes nothing this screen

@@ -24,7 +24,26 @@
 #include <stdlib.h>
 
 /// Reset the hardware random number generator
+#include <stdbool.h>
+
 void reset_rng(void);
+
+/// Boot-lifetime record that the RNG reported a seed or clock error.
+///
+/// RNG_SR_SEIS latches in hardware only until it is cleared, and random32()
+/// clears it whenever the underlying condition has gone -- so a self-test
+/// reading RNG_SR alone cannot see a transient fault that random32() already
+/// recovered from. This mirror is set at the moment the hardware latch is
+/// cleared and is never cleared itself: recovery is a power cycle.
+bool rng_seed_error_latched(void);
+
+#ifdef EMULATOR
+/// Test seam for the STM32 seed/clock-error state machine. These helpers are
+/// absent from ARM firmware; reset models a fresh power-on between cases.
+void rng_test_power_on_reset(void);
+void rng_test_observe_transient_error(void);
+void rng_test_observe_persistent_error(void);
+#endif
 
 void random_permute_char(char* str, size_t len);
 void random_permute_u16(uint16_t* buf, size_t count);

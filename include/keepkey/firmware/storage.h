@@ -27,6 +27,27 @@
 
 #define STORAGE_VERSION \
   17 /* Must add case fallthrough in storage_fromFlash after increment*/
+
+/* The highest storage version that has actually SHIPPED to users. A signed
+ * upgrade must never wipe, and the way that breaks is a release whose
+ * STORAGE_VERSION sits BELOW a version already in the field: every such device
+ * then reads its blob as an unknown future format and resets. Lowering this
+ * number is the exact edit that turns every upgrade in the field into a silent
+ * wipe, so it must be an explicit, reviewed act rather than a side effect.
+ * v7.14.1 shipped storage V17. */
+#define STORAGE_VERSION_LAST_SHIPPED 17
+
+/* A seed CREATED under bitcoin-only firmware is stamped with a version in a
+ * reserved band (base + the normal version). Multi-chain firmware that knows
+ * the band refuses to load it and requires an explicit wipe; older multi-chain
+ * firmware treats it as an unknown version and resets. Either way a seed born
+ * on bitcoin-only firmware is never usable by multi-chain code. A pre-existing
+ * multi-chain wallet keeps its normal version and stays portable (it was
+ * already multi-chain-exposed). Multi-chain versions MUST stay below the band
+ * forever (static-asserted in storage.c). */
+#define STORAGE_VERSION_BTC_ONLY_BASE 10000
+#define STORAGE_VERSION_BTC_ONLY \
+  (STORAGE_VERSION_BTC_ONLY_BASE + STORAGE_VERSION)
 #define STORAGE_RETRIES 3
 
 #define RANDOM_SALT_LEN 32
@@ -47,6 +68,19 @@ void storage_reset(void);
 
 /// \brief Clear storage.
 void storage_wipe(void);
+
+/// \brief True when flash holds storage this build must refuse to load or
+/// overwrite -- a bitcoin-only wallet seen by multi-chain firmware, or a newer
+/// in-band wallet than this build understands.
+///
+/// Handlers that CREATE a seed must check this and refuse. The device looks
+/// uninitialized while locked (the RAM shadow was reset, so
+/// storage_isInitialized() is false), and storage_commit() silently declines to
+/// write, so a ceremony allowed to run would report success while persisting
+/// nothing -- and a seed the user funded would vanish on the next boot.
+///
+/// Cleared only by storage_wipe().
+bool storage_isBitcoinOnlyLocked(void);
 
 /// \brief Clear storage key and storage key fingerprint.
 void storage_clearKeys(void);

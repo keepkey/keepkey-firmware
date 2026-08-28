@@ -128,20 +128,42 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
   const char mainnetp[] = "maya";
   const char testnetp[] = "smaya";
   const char* pfix;
-  char buffer[64 + 1];
+  /* Sized for the amount/denom segment below, which is the longest thing this
+     function formats:
 
-  size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
-  if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) {
-    return false;
-  }
+       "amount":[{"amount":"   21
+       <uint64>                20
+       ","denom":"             11
+       <denom>                 68   (MayachainMsgSend.denom max_size 69)
+       "}]                      3   = 123, + NUL = 124
+
+     It was 65. tendermint_snprintf() fails closed when its output does not
+     fit, so nothing was ever mis-signed -- but the failure landed AFTER
+     fsm_msgMayachainMsgAck() had already shown the amount and taken the
+     owner's approval, so a long yet perfectly valid denomination was approved
+     and only then refused. This branch's rule is that anything unrenderable
+     fails BEFORE the confirmation, so make the segment fit its own documented
+     maximum. Unlike THORChain, which hardcodes "rune", this denom is
+     host-supplied, which is why only MAYAChain hits it. */
+  char buffer[128];
 
   char from_address[46];
 
   pfix = mainnetp;
   if (testnet) {
     pfix = testnetp;
+  }
+
+  /* Validate the recipient against THIS network's prefix and the 20-byte
+     account length, before it reaches the bare "%s" JSON serialization below.
+     This used to be a bare bech32_decode() into hrp[45]/decoded[38], which
+     both overflowed on host-chosen input and checked neither the network nor
+     the payload length -- so a wrong-chain address, a module or operator
+     address, or a punctuation-bearing HRP all passed straight into the signed
+     document. Select the prefix first so there is something to check against.
+   */
+  if (!tendermint_validateBech32Address(to_address, pfix)) {
+    return false;
   }
 
   if (!tendermint_getAddress(&node, pfix, from_address)) {
@@ -241,6 +263,22 @@ bool mayachain_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
                            NULL) == 0;
 }
 
+/* The account this session's key signs as.
+ *
+ * MsgDeposit's `signer` is serialized verbatim as the message authority, so a
+ * merely well-formed thor/maya address let the device sign a document for an
+ * account it cannot represent -- and the confirmation labels that address as
+ * though it were a destination. There is exactly one authority a session can
+ * act as; require the host to name it. */
+bool mayachain_addressIsSigner(const char* address) {
+  if (!initialized || !address) return false;
+
+  char expected[46] = {0};
+  if (!tendermint_getAddress(&node, testnet ? "smaya" : "maya", expected))
+    return false;
+  return strcmp(address, expected) == 0;
+}
+
 bool mayachain_signingIsInited(void) { return initialized; }
 
 bool mayachain_signingIsFinished(void) {
@@ -273,6 +311,49 @@ static bool mayachain_memo_has_empty_component(const char* memo, size_t size) {
   }
 
   return false;
+}
+
+static bool mayachain_memo_has_canonical_separators(const char* memo,
+                                                    size_t size) {
+  /* The grammar is  OP:CHAIN.ASSET:DEST:LIMIT[:AFFILIATE:BPS]  -- ':' between
+     fields, '.' only inside the chain/asset pair.
+
+     The tokenizer below cannot tell the two apart. After splitting the
+     operation on ':' it calls strtok(NULL, ":.") three times, so ':' and '.'
+     are interchangeable for everything it reads. A memo that puts a colon
+     where the dot belongs,
+
+         SWAP:ETH:USDT:dest:limit
+
+     therefore produces exactly the same three tokens as SWAP:ETH.USDT:... and
+     is reviewed as "asset USDT on chain ETH", while THORChain/MAYAChain read
+     that same memo with USDT as the DESTINATION -- every field after the
+     operation shifts by one, including the address the funds go to. The screen
+     and the protocol disagree about a memo the signature covers.
+
+     Require the dot exactly once and only inside the second colon-delimited
+     field. Anything else is not this grammar, so it goes to the raw-byte path
+     rather than through a parser that would mislabel it. A destination that
+     legitimately contains a dot is refused here too; disclosure of the exact
+     bytes is the safe direction, and this parser is fail-closed by design. */
+  if (!memo || size == 0) return false;
+
+  size_t field = 0;
+  size_t dots_total = 0;
+  size_t dots_in_asset_field = 0;
+
+  for (size_t i = 0; i < size; i++) {
+    if (memo[i] == ':') {
+      field++;
+      continue;
+    }
+    if (memo[i] == '.') {
+      dots_total++;
+      if (field == 1) dots_in_asset_field++;
+    }
+  }
+
+  return dots_total == 1 && dots_in_asset_field == 1;
 }
 
 static bool mayachain_memo_is_structured_text(const char* memo, size_t size) {
@@ -333,7 +414,8 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
      the memzero below. */
   if (size >= sizeof(memoBuf) ||
       mayachain_memo_has_empty_component(swapStr, size) ||
-      !mayachain_memo_is_structured_text(swapStr, size)) {
+      !mayachain_memo_is_structured_text(swapStr, size) ||
+      !mayachain_memo_has_canonical_separators(swapStr, size)) {
     return MAYACHAIN_MEMO_UNPARSED;
   }
   memzero(memoBuf, sizeof(memoBuf));

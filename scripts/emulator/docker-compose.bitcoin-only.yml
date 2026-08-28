@@ -1,0 +1,11 @@
+services:
+  kkemu:
+    image: kktech/kkemu-bitcoin-only:latest
+    build:
+      args:
+        coinsupport: "-DKK_BITCOIN_ONLY=ON"
+
+  firmware-unit:
+    build:
+      args:
+        coinsupport: "-DKK_BITCOIN_ONLY=ON"

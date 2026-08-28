@@ -15,6 +15,7 @@
 #include "keepkey/board/usb.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
@@ -53,6 +54,9 @@ static int libkkemu_initialized = 0;
 
 static uint8_t frame_ring[FRAME_RING_SIZE][FRAME_PACKED_SIZE];
 static uint8_t last_packed[FRAME_PACKED_SIZE];
+/* Pack target for libkkemu_capture_frame(), so a frame that turns out to be a
+   duplicate never touches the ring. See the comment there. */
+static uint8_t capture_scratch[FRAME_PACKED_SIZE];
 static int last_packed_valid = 0;
 static uint32_t frame_write_idx =
     0; /* monotonic, mod FRAME_RING_SIZE for slot */
@@ -107,23 +111,34 @@ size_t libkkemu_socketWrite(int iface, const void* buffer, size_t size) {
 static void libkkemu_capture_frame(const uint8_t* canvas_buf) {
   if (!canvas_buf) return;
 
-  uint8_t* slot = frame_ring[frame_write_idx % FRAME_RING_SIZE];
-  memset(slot, 0, FRAME_PACKED_SIZE);
+  /* Pack into scratch, NOT straight into the ring slot.
+   *
+   * Packing in place and only then testing for a duplicate destroyed data:
+   * once the ring is full, frame_ring[frame_write_idx % FRAME_RING_SIZE] is
+   * the OLDEST UNREAD frame, and the early return on a duplicate left it
+   * overwritten while frame_read_idx still pointed at it. The host's next
+   * kkemu_pop_frame() then returned a frame it had never been shown, and the
+   * one it was owed was gone. Deduplicate first; touch the ring only for a
+   * frame that is actually going to be published. */
+  memset(capture_scratch, 0, FRAME_PACKED_SIZE);
   for (int x = 0; x < 256; x++) {
     for (int y = 0; y < 64; y++) {
       if (display_mono_pixel_is_lit(canvas_buf[y * 256 + x], x, y)) {
-        slot[x + (y / 8) * 256] |= (uint8_t)(1u << (y % 8));
+        capture_scratch[x + (y / 8) * 256] |= (uint8_t)(1u << (y % 8));
       }
     }
   }
 
   /* Dedup: skip if identical to last captured */
-  if (last_packed_valid && memcmp(slot, last_packed, FRAME_PACKED_SIZE) == 0) {
+  if (last_packed_valid &&
+      memcmp(capture_scratch, last_packed, FRAME_PACKED_SIZE) == 0) {
     return;
   }
-  memcpy(last_packed, slot, FRAME_PACKED_SIZE);
+  memcpy(last_packed, capture_scratch, FRAME_PACKED_SIZE);
   last_packed_valid = 1;
 
+  memcpy(frame_ring[frame_write_idx % FRAME_RING_SIZE], capture_scratch,
+         FRAME_PACKED_SIZE);
   frame_write_idx++;
   /* Drop oldest if host fell behind */
   if (frame_write_idx - frame_read_idx > FRAME_RING_SIZE) {
@@ -193,6 +208,22 @@ int kkemu_init(uint8_t* flash_buf, size_t flash_len) {
 void kkemu_shutdown(void) {
   if (!libkkemu_initialized) return;
 
+  /*
+   * End any workflow still in flight BEFORE anything else.
+   *
+   * The buffer scrubbing below covers the transport rings and the frame ring,
+   * but signing state and fsm_derived_node -- the shared derived private-key
+   * scratch -- live behind fsm_abort_workflows(), which nothing here was
+   * calling. In the dylib case this file is written for, the library sits in a
+   * long-running host process, so a shutdown/init cycle would carry an old
+   * workflow and its key material across into the next session. That is the
+   * same exposure the comment below describes, and it needs the same answer.
+   *
+   * Before storage_commit() so the committed image reflects the aborted state
+   * rather than a half-finished ceremony.
+   */
+  fsm_abort_workflows();
+
   /* Flush any pending storage to the flash buffer */
   storage_commit();
 
@@ -220,6 +251,7 @@ void kkemu_shutdown(void) {
   memzero(&rb_debug_out, sizeof(rb_debug_out));
   memzero(frame_ring, sizeof(frame_ring));
   memzero(last_packed, sizeof(last_packed));
+  memzero(capture_scratch, sizeof(capture_scratch));
   memzero(display_packed_scratch, sizeof(display_packed_scratch));
   last_packed_valid = 0;
   frame_write_idx = 0;

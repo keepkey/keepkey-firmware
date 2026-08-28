@@ -1,7 +1,4 @@
 extern "C" {
-#include "keepkey/board/keepkey_board.h"
-#include "keepkey/board/layout.h"
-#include "keepkey/board/timer.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/sha2.h"
 #include "keepkey/firmware/authenticator.h"
@@ -23,6 +20,10 @@ extern "C" {
 
 #include <cstring>
 
+// The shared bootstrap initializes the canvas and timer queues exactly once.
+// Calling timer_init() again relinks the static runnable nodes into a cycle.
+void kk_test_board_init(void);
+
 TEST(Fsm, AuthenticatorCredentialSourceIsWipedOnEveryExit) {
   char credential[] = "site:user:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
   ASSERT_EQ(LARGESEED, addAuthAccount(credential));
@@ -32,6 +33,7 @@ TEST(Fsm, AuthenticatorCredentialSourceIsWipedOnEveryExit) {
   }
 }
 
+#if !BITCOIN_ONLY
 TEST(Fsm, AbortWorkflowsClearsEveryObservableSigningSession) {
   HDNode node = {};
   node.curve = &secp256k1_info;
@@ -102,6 +104,7 @@ TEST(Fsm, AbortWorkflowsClearsEveryObservableSigningSession) {
   EXPECT_FALSE(mayachain_signingIsInited());
   EXPECT_FALSE(eos_signingIsInited());
 }
+#endif
 
 TEST(Fsm, MissingBitcoinAckPayloadTerminatesSigning) {
   fsm_init();
@@ -127,15 +130,10 @@ TEST(Fsm, MissingBitcoinAckPayloadTerminatesSigning) {
 }
 
 TEST(Fsm, AutoLockTerminatesSigningWhileWaitingAwayFromHome) {
-  /* Production initializes the OLED before the main loop can auto-lock. The
-   * firmware unit binary does not, so mirror that board precondition before
-   * toggle_screensaver() draws its terminal state. */
-  static bool display_ready = false;
-  if (!display_ready) {
-    timer_init();
-    layout_init(display_canvas_init());
-    display_ready = true;
-  }
+  /* Production initializes the OLED before the main loop can auto-lock. Use
+   * the firmware suite's one-time board bootstrap to mirror that precondition
+   * without reinitializing and corrupting the static timer queues. */
+  kk_test_board_init();
 
   fsm_init();
   layoutHomeForced();
@@ -186,6 +184,7 @@ TEST(Fsm, InvalidSecondBitcoinStartTerminatesOldSigning) {
   EXPECT_FALSE(signing_is_active());
 }
 
+#if !BITCOIN_ONLY
 TEST(Fsm, MissingEosCommonTerminatesSigning) {
   fsm_init();
 
@@ -206,3 +205,4 @@ TEST(Fsm, MissingEosCommonTerminatesSigning) {
   fsm_msgEosTxActionAck(&stale);
   EXPECT_FALSE(eos_signingIsInited());
 }
+#endif

@@ -33,7 +33,7 @@ jobs:
       ci_run_id: ${{ steps.evidence.outputs.ci_run_id }}
       arm_artifact: ${{ steps.evidence.outputs.arm_artifact }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           submodules: recursive
 
@@ -92,22 +92,30 @@ jobs:
               raise SystemExit('exact-commit CI has no test-report artifact')
           prefix = 'firmware-v%s-' % os.environ['FW_VERSION']
           arm = [name for name in names if name.startswith(prefix)]
-          if len(arm) != 1:
-              raise SystemExit('expected one exact ARM artifact, found %r' % arm)
+          variants = {
+              variant: [name for name in arm if name.endswith('-' + variant)]
+              for variant in ('full', 'bitcoin-only')
+          }
+          if any(len(found) != 1 for found in variants.values()):
+              raise SystemExit('expected exact full and bitcoin-only ARM artifacts, found %r' % arm)
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write('arm_artifact=%s\n' % arm[0])
+              output.write('arm_full_artifact=%s\n' % variants['full'][0])
+              output.write('arm_bitcoin_artifact=%s\n' % variants['bitcoin-only'][0])
           PY
 
       - name: Verify audited source and binary hashes
         env:
           GH_TOKEN: ${{ github.token }}
           CI_RUN_ID: ${{ steps.evidence.outputs.ci_run_id }}
-          ARM_ARTIFACT: ${{ steps.evidence.outputs.arm_artifact }}
+          ARM_FULL_ARTIFACT: ${{ steps.evidence.outputs.arm_full_artifact }}
+          ARM_BITCOIN_ARTIFACT: ${{ steps.evidence.outputs.arm_bitcoin_artifact }}
         run: |
           gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name test-report --dir audited-report
           gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name "$ARM_ARTIFACT" --dir audited-arm
+            --name "$ARM_FULL_ARTIFACT" --dir audited-arm/full
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "$ARM_BITCOIN_ARTIFACT" --dir audited-arm/bitcoin-only
           python3 - <<'PY'
           import hashlib
           import json
@@ -140,25 +148,51 @@ jobs:
           pdf = report_dir / manifest['pdf']['path']
           if digest(pdf) != manifest['pdf']['sha256']:
               raise SystemExit('presign PDF hash mismatch')
-          arm_manifest = arm_dir / 'arm-build-manifest.json'
-          if digest(arm_manifest) != manifest['arm']['manifest_sha256']:
-              raise SystemExit('ARM manifest hash mismatch')
-          expected = {item['name']: item['sha256']
-                      for item in manifest['arm']['files']}
-          actual = {path.name: digest(path)
-                    for path in arm_dir.iterdir()
-                    if path.suffix in ('.bin', '.elf')}
-          if not expected or actual != expected:
-              raise SystemExit('audited ARM artifact set or hash mismatch')
-          print('exact presign evidence and ARM binaries verified')
+          variants = manifest.get('arm', {}).get('variants', {})
+          if set(variants) != {'full', 'bitcoin-only'}:
+              raise SystemExit('presign manifest does not bind both ARM products')
+          manifest_hashes = {}
+          for variant, evidence in variants.items():
+              variant_dir = arm_dir / variant
+              arm_manifest = variant_dir / 'arm-build-manifest.json'
+              manifest_hashes[variant] = digest(arm_manifest)
+              if manifest_hashes[variant] != evidence['manifest_sha256']:
+                  raise SystemExit('%s ARM manifest hash mismatch' % variant)
+              expected = {item['name']: item['sha256']
+                          for item in evidence['files']}
+              actual = {path.name: digest(path)
+                        for path in variant_dir.iterdir()
+                        if path.suffix in ('.bin', '.elf')}
+              if not expected or actual != expected:
+                  raise SystemExit('%s audited ARM artifact set or hash mismatch' % variant)
+          combined = hashlib.sha256(json.dumps(
+              manifest_hashes, sort_keys=True).encode('ascii')).hexdigest()
+          if combined != manifest['arm']['manifest_set_sha256']:
+              raise SystemExit('ARM manifest-set hash mismatch')
+          print('exact presign evidence and both ARM products verified')
           PY
 
   build-firmware:
     needs: validate
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 'suffix' names the published files; 'variant' is the internal build
+          # selector. The default build takes an EMPTY suffix so its assets keep
+          # the names every previous release used (v7.14.x shipped
+          # firmware.keepkey.bin). Only bitcoin-only is qualified, because it is
+          # the unusual one.
+          - variant: full
+            suffix: ""
+            cmake_flags: ""
+          - variant: bitcoin-only
+            suffix: "-bitcoin-only"
+            cmake_flags: "-DKK_BITCOIN_ONLY=ON"
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Download audited release inputs
         env:
@@ -206,34 +240,48 @@ jobs:
       - name: Compute hashes
         working-directory: release
         run: |
-          echo "# KeepKey Firmware v${{ needs.validate.outputs.fw_version }} — Hash Manifest" > HASHES.txt
-          echo "" >> HASHES.txt
-          for f in *.bin; do
-            [ -f "$f" ] || continue
-            FULL_HASH=$(sha256sum "$f" | awk '{print $1}')
-            echo "sha256 (full)    $f  $FULL_HASH" >> HASHES.txt
-            FILE_SIZE=$(stat -c%s "$f")
-            if [ "$FILE_SIZE" -gt 256 ]; then
-              PAYLOAD_HASH=$(tail -c +257 "$f" | sha256sum | awk '{print $1}')
-              echo "sha256 (payload) $f  $PAYLOAD_HASH" >> HASHES.txt
-            fi
-            echo "" >> HASHES.txt
-          done
-          cat HASHES.txt
+          SUFFIX="${{ matrix.suffix }}"
+          {
+            echo "# KeepKey Firmware v${{ needs.validate.outputs.fw_version }} — Hash Manifest"
+            echo ""
+            # Provenance: name the exact toolchain these bytes came out of. BASE_IMAGE
+            # is a sha256 manifest digest, not a tag, so this identifies one immutable
+            # image rather than whatever the tag pointed at on the day. Without it a
+            # green CI build and a locally reproduced binary cannot be shown to be the
+            # same toolchain product. See GH #425.
+            echo "builder image    ${BASE_IMAGE}"
+            echo "source commit    ${GITHUB_SHA}"
+            echo ""
+            for f in *.bin; do
+              [ -f "$f" ] || continue
+              FULL_HASH=$(sha256sum "$f" | awk '{print $1}')
+              echo "sha256 (full)    $f  $FULL_HASH"
+              FILE_SIZE=$(stat -c%s "$f")
+              if [ "$FILE_SIZE" -gt 256 ]; then
+                PAYLOAD_HASH=$(tail -c +257 "$f" | sha256sum | awk '{print $1}')
+                echo "sha256 (payload) $f  $PAYLOAD_HASH"
+              fi
+              echo ""
+            done
+          } > "HASHES${SUFFIX}.txt"
+          cat "HASHES${SUFFIX}.txt"
 
       - name: Rename artifacts
         working-directory: release
         run: |
           VER="${{ needs.validate.outputs.fw_version }}"
-          [ -f firmware.keepkey.bin ] && mv firmware.keepkey.bin "firmware.keepkey.v${VER}.bin"
-          [ -f firmware.keepkey.elf ] && mv firmware.keepkey.elf "firmware.keepkey.v${VER}.elf"
+          SUFFIX="${{ matrix.suffix }}"
+          [ -f firmware.keepkey.bin ] && mv firmware.keepkey.bin "firmware.keepkey.v${VER}${SUFFIX}.bin"
+          [ -f firmware.keepkey.elf ] && mv firmware.keepkey.elf "firmware.keepkey.v${VER}${SUFFIX}.elf"
           [ -f bootloader.bin ] && mv bootloader.bin "bootloader.v${VER}.bin"
           ls -lh
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: release-firmware
+          # Per-variant, because upload-artifact v4+ makes names immutable: two
+          # matrix legs writing one name is a hard failure, not a merge.
+          name: release-firmware-${{ matrix.variant }}
           path: release/*
           retention-days: 90
 
@@ -242,13 +290,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           submodules: recursive
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -274,19 +322,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Download firmware artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: release-firmware
+          pattern: release-firmware-*
           path: artifacts
+          merge-multiple: true
 
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
           cp artifacts/*.bin artifacts/*.elf artifacts/*.pdf artifacts/*.json \
-            artifacts/HASHES.txt release-assets/
+            artifacts/HASHES*.txt release-assets/
           ls -lh release-assets/
 
       - name: Generate release body
@@ -315,7 +364,7 @@ jobs:
           EOF
 
       - name: Create draft release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           draft: true
           name: "Firmware v${{ needs.validate.outputs.fw_version }}"

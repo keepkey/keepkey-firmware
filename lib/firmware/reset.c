@@ -21,6 +21,7 @@
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/messages.h"
 #include "keepkey/board/util.h"
+#include "keepkey/firmware/dice_input.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
@@ -28,6 +29,7 @@
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
+#include "keepkey/rand/rng_health.h"
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/bip39.h"
 #include "trezor/crypto/memzero.h"
@@ -67,6 +69,18 @@ static uint32_t strength;
 static uint8_t CONFIDENTIAL int_entropy[32];
 static char CONFIDENTIAL current_words[MNEMONIC_BY_SCREEN_BUF];
 
+/* SHA-256 of the ASCII roll string, shown to the user and exposed over
+ * DebugLink. A digest of secret input is not the input, but it is a
+ * verification oracle for a 99-symbol space, so it is treated as
+ * confidential and cleared as soon as the reset that produced it ends. */
+static uint8_t CONFIDENTIAL dice_digest[32];
+static bool has_dice_digest = false;
+
+static void dice_digest_clear(void) {
+  memzero(dice_digest, sizeof(dice_digest));
+  has_dice_digest = false;
+}
+
 bool setup_isArmed(void) { return setup.kind != SETUP_NONE; }
 
 bool setup_isArmedAs(SetupKind kind) {
@@ -77,6 +91,7 @@ void setup_abort(void) {
   /* The recovery half owns its own word buffers. Clearing them is a memzero
    * too; like everything here it touches no storage. */
   recovery_cipher_reset();
+  mnemonic_clear();
 
   memzero(&setup, sizeof(setup));
   memzero(int_entropy, sizeof(int_entropy));
@@ -85,6 +100,10 @@ void setup_abort(void) {
    * `mnemo` buffer.  A cancelled/error ceremony has no owner for that secret,
    * so the common abort path must clear it along with the setup scratch. */
   mnemonic_clear();
+  /* The roll digest is ceremony state like the rest: it only describes the
+   * reset that produced it, and leaving it live would keep serving it over
+   * DebugLink for the rest of the boot. */
+  dice_digest_clear();
   strength = 0;
 }
 
@@ -177,11 +196,8 @@ void setup_commit(const char* mnemonic, bool imported) {
 void reset_init(bool display_random, uint32_t _strength,
                 bool passphrase_protection, bool pin_protection,
                 const char* language, const char* label, bool _no_backup,
-                uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter) {
-  /* Retained in the wire/API signature for compatibility. Revealing the
-   * device entropy lets a host that supplies external entropy reconstruct the
-   * seed preimage, so 7.14.2 deliberately ignores this legacy request. */
-  (void)display_random;
+                uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter,
+                bool dice_entropy) {
   if (_strength != 128 && _strength != 192 && _strength != 256) {
     fsm_sendFailure(
         FailureType_Failure_SyntaxError,
@@ -190,11 +206,41 @@ void reset_init(bool display_random, uint32_t _strength,
     return;
   }
 
+  if (display_random && _no_backup) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Can't show internal entropy when backup is skipped"));
+    layoutHome();
+    return;
+  }
+
+  /* Refused, not silently ignored: the entropy screen renders the POST-mix
+   * internal entropy, so honoring both would hand a host that reads that
+   * screen the seed pre-image and make the dice fold-in worthless. 7.15
+   * removes the entropy screen outright; this release keeps it because
+   * already-shipped hosts of the 7.14 line legitimately request it, but it
+   * must never coexist with dice. */
+  if (display_random && dice_entropy) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Can't show internal entropy when dice entropy is used"));
+    layoutHome();
+    return;
+  }
+
   /* Nothing below this line writes storage. Everything the host asked for is
    * staged, and stays staged until reset_entropy() reaches setup_commit().
    * Returning early from any of the screens below therefore rolls the whole
    * ceremony back by doing nothing at all: setup.kind is still SETUP_NONE,
-   * so no later message can consume what was staged. */
+   * so no later message can consume what was staged.
+   *
+   * This is also the whole of the abandoned-ceremony fix. There is no
+   * separate awaiting_entropy flag left to get out of step with: the ONLY
+   * armed-ness is setup.kind, it is set by the single setup_arm() at the
+   * bottom of this function -- after every screen, dice included -- and
+   * reset_entropy() is gated on it through setup_require(). An abort at any
+   * screen therefore leaves nothing armed for a later EntropyAck to consume,
+   * and setup_stage() refuses outright to start a second ceremony on top of
+   * an armed one, so an in-flight reset's entropy can never be overwritten
+   * by a re-entrant one. */
   if (!setup_stage(passphrase_protection, language, label, _auto_lock_delay_ms,
                    _u2f_counter, _no_backup)) {
     return;
@@ -221,9 +267,110 @@ void reset_init(bool display_random, uint32_t _strength,
     }
   }
 
-  random_buffer(int_entropy, 32);
+  /* Asked here rather than only inside the draw below so the host gets a real
+   * error message instead of a halted device: this is the one key-material path
+   * with somewhere to report a failure to.
+   *
+   * This does NOT prove the generator is unpredictable; see the scope note at
+   * the top of lib/rand/rng_health.c. It proves it is present and not stuck. */
+  if (!rng_health_check()) {
+    /* FirmwareError, not SyntaxError/Other: nothing about the request is
+     * wrong. The device's own entropy source failed its self-test, which is a
+     * hardware/firmware fault the host cannot correct by retrying. */
+    setup_abort();
+    fsm_sendFailure(
+        FailureType_Failure_FirmwareError,
+        _("Random number generator self-test failed; cannot create a wallet"));
+    layoutHome();
+    return;
+  }
+
+  /* The gate above and this draw are deliberately not separable: the check
+   * cannot be edited out of this function while leaving the draw behind. */
+  if (!random_buffer_checked(int_entropy, 32)) {
+    /* The draw may have written part of int_entropy before failing. */
+    setup_abort();
+    fsm_sendFailure(
+        FailureType_Failure_FirmwareError,
+        _("Random number generator self-test failed; cannot create a wallet"));
+    layoutHome();
+    return;
+  }
+
+  /* Dice fold in before EntropyRequest, so the host contribution arrives
+   * strictly after the device has committed to its own.
+   *
+   * The mixed value is deliberately NOT displayable: display_random is
+   * refused above whenever dice are in use, because the entropy screen shows
+   * the POST-mix value, and a host that supplies ext_entropy and reads that
+   * screen once computes SHA256(shown || ext_entropy) -- the seed pre-image
+   * -- making the dice fold-in worthless. The roll digest below is safe by
+   * contrast: it is a hash of the user's own input, not of seed material.
+   *
+   * The digest needs no clear here -- setup_stage() above ran setup_abort(),
+   * which zeroes it. */
+  if (dice_entropy) {
+    static char CONFIDENTIAL dice_rolls[DICE_MAX_ROLLS];
+    static char CONFIDENTIAL digest_hex[17];
+    uint32_t rolls_needed = dice_rolls_for_strength(strength);
+
+    if (!dice_input_collect(dice_rolls, rolls_needed)) {
+      memzero(dice_rolls, sizeof(dice_rolls));
+      /* setup_abort() is the whole rollback -- staged settings, int_entropy,
+       * strength, roll digest. Load-bearing: the tiny-message pump that
+       * accepted the Cancel/Initialize does not dispatch fsm_msgCancel, so
+       * nothing else has aborted the ceremony at this point. */
+      setup_abort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Reset cancelled"));
+      layoutHome();
+      return;
+    }
+
+    sha256_Raw((const uint8_t*)dice_rolls, rolls_needed, dice_digest);
+    has_dice_digest = true;
+
+    data2hex(dice_digest, 8, digest_hex);
+    bool confirmed =
+        confirm(ButtonRequestType_ButtonRequest_DiceRoll, _("Dice Rolls"),
+                _("%lu rolls recorded.\nDigest: %s"),
+                (unsigned long)rolls_needed, digest_hex);
+    memzero(digest_hex, sizeof(digest_hex));
+    if (!confirmed) {
+      memzero(dice_rolls, sizeof(dice_rolls));
+      setup_abort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Reset cancelled"));
+      layoutHome();
+      return;
+    }
+
+    dice_mix(int_entropy, dice_rolls, rolls_needed);
+    memzero(dice_rolls, sizeof(dice_rolls));
+  }
+
+  if (display_random) {
+    static char CONFIDENTIAL ent_str[4][17];
+    data2hex(int_entropy, 8, ent_str[0]);
+    data2hex(int_entropy + 8, 8, ent_str[1]);
+    data2hex(int_entropy + 16, 8, ent_str[2]);
+    data2hex(int_entropy + 24, 8, ent_str[3]);
+
+    if (!confirm(ButtonRequestType_ButtonRequest_ResetDevice,
+                 _("Internal Entropy"), "%s %s %s %s", ent_str[0], ent_str[1],
+                 ent_str[2], ent_str[3])) {
+      memzero(ent_str, sizeof(ent_str));
+      setup_abort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Reset cancelled"));
+      layoutHome();
+      return;
+    }
+    memzero(ent_str, sizeof(ent_str));
+  }
 
   if (!setup_stagePin(pin_protection)) {
+    /* Clears the roll digest along with the staged settings and entropy. */
     setup_abort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     _("PINs do not match"));
@@ -272,7 +419,7 @@ void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
        * nothing to reset -- and a host-reachable wipe is not a rollback. */
       setup_abort();
       layoutHome();
-      return;
+      goto exit;
     }
   }
 
@@ -368,12 +515,15 @@ void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
   fsm_sendSuccess(_("Device reset"));
 
 exit:
+  /* The roll digest is cleared by setup_abort(); every path that reaches
+   * here has already run it, directly or through setup_commit(). */
   memzero(&ctx, sizeof(ctx));
   memzero(tokened_mnemonic, sizeof(tokened_mnemonic));
   memzero(mnemonic_by_screen, sizeof(mnemonic_by_screen));
   memzero(formatted_mnemonic, sizeof(formatted_mnemonic));
   memzero(mnemonic_display, sizeof(mnemonic_display));
   memzero(formatted_word, sizeof(formatted_word));
+  mnemonic_clear();
   layoutHome();
 }
 
@@ -384,4 +534,12 @@ uint32_t reset_get_int_entropy(uint8_t* entropy) {
 }
 
 const char* reset_get_word(void) { return current_words; }
+
+uint32_t reset_get_dice_digest(uint8_t* digest) {
+  if (!has_dice_digest) {
+    return 0;
+  }
+  memcpy(digest, dice_digest, 32);
+  return 32;
+}
 #endif

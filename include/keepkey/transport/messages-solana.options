@@ -5,11 +5,16 @@ SolanaAddress.address max_size:64
 
 SolanaTokenInfo.mint max_size:32
 SolanaTokenInfo.symbol max_size:13
+SolanaTokenInfo.signature max_size:64
 
 SolanaSignTx.address_n max_count:8
 SolanaSignTx.coin_name max_size:21
 SolanaSignTx.raw_tx max_size:2048
 SolanaSignTx.token_info max_count:4
+SolanaSignTx.schema_payload max_size:256
+SolanaSignTx.schema_signature max_size:64
+SolanaSignTx.token_recipient_owner max_count:4
+SolanaSignTx.token_recipient_owner max_size:32
 
 SolanaSignedTx.signature max_size:64
 
@@ -26,3 +31,7 @@ SolanaSignOffchainMessage.message max_size:1212
 
 SolanaOffchainMessageSignature.public_key max_size:32
 SolanaOffchainMessageSignature.signature max_size:64
+
+SolanaSignTx.lut_account max_count:8
+SolanaSignTx.lut_account max_size:32
+SolanaSignTx.lut_signature max_size:64

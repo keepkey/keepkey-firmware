@@ -142,6 +142,82 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
   thorchainData =
       (uint8_t*)(msg->data_initial_chunk.bytes + 4 + (is_expiry ? 6 : 5) * 32);
 
+  /* Everything non-interactive FIRST, so an unrenderable call fails before any
+   * approval is taken.
+   *
+   * The amount used to be formatted after the router, vault and asset screens
+   * had been approved, and the expiry word validated after that. bn_format()
+   * refuses a value it cannot render, and ethereum.c turns a false return from
+   * this decoder into ActionCancelled -- so a large but valid amount, or a
+   * non-canonical expiry, told the owner they had cancelled a transaction they
+   * had already approved three screens of. Resolve the asset, render the
+   * amount, and check the expiry up here; the confirmations below then only
+   * display what is already known to be displayable. */
+  assetAddress = contractAssetAddress;
+  /* The THORChain ABI uses the zero address to mean this signing chain's
+   * native asset.  Resolve that router-specific meaning directly instead of
+   * routing it through the Ethereum-only 0xeeee..eeee token sentinel.  A NULL
+   * token makes ethereumFormatAmount() select the native ticker from chain_id.
+   */
+  if (thor_assetIsNative(contractAssetAddress)) {
+    assetToken = NULL;
+  } else {
+    assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
+  }
+
+  char amountStr[41];
+  if (assetToken == UnknownToken) {
+    /* We don't know what the exponent should be, so confirm the raw
+     * unformatted number. */
+    if (!thor_formatUnknownAssetAmount(
+            msg->data_initial_chunk.bytes + 4 + 2 * 32, amountStr,
+            sizeof(amountStr)))
+      return false;
+  } else {
+    if (!ethereumFormatAmount(&Amount, assetToken, msg->chain_id, amountStr,
+                              sizeof(amountStr)))
+      return false;
+  }
+
+  /* depositWithExpiry() carries a fifth head word the deposit() variant does
+   * not: the expiry. It was validated into the length arithmetic and signed,
+   * but no screen ever named it, so a host could pick any 256-bit value while
+   * this decoder suppressed the raw-calldata review that would have shown it.
+   * An expiry is a deadline -- it decides whether the swap can still execute
+   * -- so it has to be on screen.
+   *
+   * Rendered as a decimal epoch for the same reason as the Uniswap deadline
+   * (zxliquidtx.c): ctime() on this target reads only the low 4 bytes of a
+   * 64-bit time_t. Words above 2^64 are refused rather than shown truncated,
+   * because a far-future expiry displayed as a small epoch is worse than no
+   * screen at all -- it reads as "already expired" when it means the
+   * opposite. */
+  char expiry_str[21] = {0};
+  if (is_expiry) {
+    const uint8_t* expiry_word = msg->data_initial_chunk.bytes + 4 + 4 * 32;
+    for (size_t i = 0; i < 24; i++) {
+      if (expiry_word[i] != 0) return false;
+    }
+    uint64_t expiry = 0;
+    for (size_t i = 24; i < 32; i++) {
+      expiry = (expiry << 8) | expiry_word[i];
+    }
+
+    char tmp[21];
+    int len = 0;
+    if (expiry == 0) {
+      tmp[len++] = '0';
+    } else {
+      while (expiry > 0 && len < (int)sizeof(tmp)) {
+        tmp[len++] = (char)('0' + (int)(expiry % 10));
+        expiry /= 10;
+      }
+    }
+    for (int i = 0; i < len; i++) {
+      expiry_str[i] = tmp[len - 1 - i];
+    }
+  }
+
   // Start confirmations
   for (ctr = 0; ctr < 20; ctr++) {
     snprintf(&confStr[ctr * 2], 3, "%02x", msg->to.bytes[ctr]);
@@ -169,18 +245,6 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
     return false;
   }
 
-  assetAddress = contractAssetAddress;
-  /* The THORChain ABI uses the zero address to mean this signing chain's
-   * native asset.  Resolve that router-specific meaning directly instead of
-   * routing it through the Ethereum-only 0xeeee..eeee token sentinel.  A NULL
-   * token makes ethereumFormatAmount() select the native ticker from chain_id.
-   */
-  if (thor_assetIsNative(contractAssetAddress)) {
-    assetToken = NULL;
-  } else {
-    assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
-  }
-
   if (assetToken == UnknownToken) {
     // just display token address and amount as string
     for (ctr = 0; ctr < 20; ctr++) {
@@ -190,74 +254,22 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
                  "Thorchain data", "from asset %s", confStr)) {
       return false;
     }
-    // We don't know what the exponent should be so just confirm raw unformatted
-    // number
-    /* bn_format() BLANKS its output buffer and returns 0 when the value
-     * does not fit -- ignoring the return renders an EMPTY amount on the
-     * confirmation screen, the one rendering a user cannot read as wrong.
-     * Never leave the caller a blank amount. */
-    if (!thor_formatUnknownAssetAmount(
-            msg->data_initial_chunk.bytes + 4 + 2 * 32, confStr,
-            sizeof(confStr)))
-      return false;
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain data", "amount %s", confStr)) {
+                 "Thorchain data", "amount %s", amountStr)) {
       return false;
     }
 
   } else {
-    if (!ethereumFormatAmount(&Amount, assetToken, msg->chain_id, confStr,
-                              sizeof(confStr)))
-      return false;
-
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain data", "Confirm sending %s", confStr)) {
+                 "Thorchain data", "Confirm sending %s", amountStr)) {
       return false;
     }
   }
 
-  /* depositWithExpiry() carries a fifth head word the deposit() variant does
-   * not: the expiry. It was validated into the length arithmetic and signed,
-   * but no screen ever named it, so a host could pick any 256-bit value while
-   * this decoder suppressed the raw-calldata review that would have shown it.
-   * An expiry is a deadline -- it decides whether the swap can still execute
-   * -- so it has to be on screen.
-   *
-   * Rendered as a decimal epoch for the same reason as the Uniswap deadline
-   * (zxliquidtx.c): ctime() on this target reads only the low 4 bytes of a
-   * 64-bit time_t. Words above 2^64 are refused rather than shown truncated,
-   * because a far-future expiry displayed as a small epoch is worse than no
-   * screen at all -- it reads as "already expired" when it means the
-   * opposite. */
-  if (is_expiry) {
-    const uint8_t* expiry_word = msg->data_initial_chunk.bytes + 4 + 4 * 32;
-    for (size_t i = 0; i < 24; i++) {
-      if (expiry_word[i] != 0) return false;
-    }
-    uint64_t expiry = 0;
-    for (size_t i = 24; i < 32; i++) {
-      expiry = (expiry << 8) | expiry_word[i];
-    }
-
-    char expiry_str[21] = {0};
-    char tmp[21];
-    int len = 0;
-    if (expiry == 0) {
-      tmp[len++] = '0';
-    } else {
-      while (expiry > 0 && len < (int)sizeof(tmp)) {
-        tmp[len++] = (char)('0' + (int)(expiry % 10));
-        expiry /= 10;
-      }
-    }
-    for (int i = 0; i < len; i++) {
-      expiry_str[i] = tmp[len - 1 - i];
-    }
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain data", "Expiry epoch %s", expiry_str)) {
-      return false;
-    }
+  if (is_expiry && !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                            "Thorchain data", "Expiry epoch %s", expiry_str)) {
+    return false;
   }
 
   /* Pass the memo's true ABI length, not a fixed 64. There is no raw-memo

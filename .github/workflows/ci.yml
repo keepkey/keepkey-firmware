@@ -38,6 +38,12 @@ env:
   BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
   EMU_IMAGE: kkemu-ci
 
+# Least-privilege default. Jobs in this workflow only need repository reads;
+# publishing uses DockerHub credentials and does not need a write-capable
+# GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   # ═══════════════════════════════════════════════════════════
   # STAGE 1: GATE — kill bad PRs in seconds
@@ -48,7 +54,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -81,27 +87,61 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Install gitleaks
+        # Pin and verify the only scanner binary that is installed/executed.
+        # Bumps require an independently recorded digest and ruleset review.
         run: |
-          GITLEAKS_VERSION=8.30.0
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
-          gitleaks version
+          GITLEAKS_VERSION=8.30.1
+          GITLEAKS_SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          GITLEAKS_ARCHIVE=/tmp/gitleaks.tar.gz
+          curl --fail --show-error --location \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o "${GITLEAKS_ARCHIVE}"
+          echo "${GITLEAKS_SHA256}  ${GITLEAKS_ARCHIVE}" | sha256sum --check --strict
+          tar -xzf "${GITLEAKS_ARCHIVE}" -C /usr/local/bin gitleaks
+          INSTALLED_VERSION=$(gitleaks version)
+          echo "gitleaks ${INSTALLED_VERSION}"
+          test "${INSTALLED_VERSION}" = "${GITLEAKS_VERSION}"
 
       - name: Run gitleaks
-        run: gitleaks detect --source . --verbose --redact
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          # fetch-depth: 0 makes every fork ref available. An unscoped scan
+          # therefore walks disconnected keepkey-stack histories that are not
+          # ancestors of this firmware change (#544). Scan only the revisions
+          # introduced by the triggering event.
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            LOG_OPTS="${PR_BASE_SHA}..${PR_HEAD_SHA}"
+          elif [ "$EVENT_NAME" = "push" ] &&
+               [[ ! "$PUSH_BEFORE_SHA" =~ ^0+$ ]]; then
+            LOG_OPTS="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            LOG_OPTS="${GITHUB_SHA}"
+          else
+            gitleaks detect --source . --no-git --verbose --redact
+            exit 0
+          fi
+
+          echo "Scanning revision range: ${LOG_OPTS}"
+          gitleaks detect --source . --log-opts="${LOG_OPTS}" --verbose --redact
 
   static-analysis:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: false
@@ -168,7 +208,7 @@ jobs:
           echo "cppcheck: clean — zero findings"
 
       - name: Upload cppcheck report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: cppcheck-report
@@ -180,7 +220,7 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -206,6 +246,20 @@ jobs:
           done
           [ "$FAILED" = "0" ] || exit 1
 
+      - name: Enforce RNG source invariants
+        run: |
+          if grep -q 'RAND_PLATFORM_INDEPENDENT=0' CMakeLists.txt; then
+            echo "::error::RAND_PLATFORM_INDEPENDENT is a definedness switch, not a value toggle"
+            exit 1
+          fi
+          grep -q 'add_definitions(-DRAND_PLATFORM_INDEPENDENT)' CMakeLists.txt
+          grep -q '#ifndef RAND_PLATFORM_INDEPENDENT' lib/rand/rng.c
+          grep -q 'defined(EMULATOR) && defined(__arm__)' lib/rand/rng.c
+          if grep -En 'return[[:space:]]+random\(\)' lib/rand/rng.c; then
+            echo "::error::Emulator cryptography must not use libc random()"
+            exit 1
+          fi
+
   # ═══════════════════════════════════════════════════════════
   # STAGE 2: BUILD — compile only after gate passes
   # ═══════════════════════════════════════════════════════════
@@ -216,7 +270,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -230,11 +284,11 @@ jobs:
           git submodule update --init deps/sca-hardening/SecAESSTM32
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -260,7 +314,7 @@ jobs:
         run: docker save ${{ env.EMU_IMAGE }} -o /tmp/emu-image.tar
 
       - name: Upload emulator image artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: emu-image
           path: /tmp/emu-image.tar
@@ -270,9 +324,20 @@ jobs:
     needs: [lint-format, static-analysis, check-submodules, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      # Both release variants must compile on every PR. Without the
+      # bitcoin-only leg, a change that only breaks the KK_BITCOIN_ONLY image
+      # goes green here and fails for the first time in the release build.
+      matrix:
+        include:
+          - variant: full
+            cmake_flags: ""
+          - variant: bitcoin-only
+            cmake_flags: "-DKK_BITCOIN_ONLY=ON"
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -287,7 +352,7 @@ jobs:
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -318,6 +383,7 @@ jobs:
             ${{ env.BASE_IMAGE }} /bin/sh -c "\
               mkdir /root/build && cd /root/build && \
               cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
+                ${{ matrix.cmake_flags }} \
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
                 -DCMAKE_COLOR_MAKEFILE=ON && \
               make && \
@@ -341,6 +407,8 @@ jobs:
           echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} built successfully"
 
       - name: Bind ARM outputs to source commits
+        env:
+          ARM_VARIANT: ${{ matrix.variant }}
         run: |
           python3 - <<'PY'
           import datetime
@@ -375,6 +443,7 @@ jobs:
               "python_sha": subprocess.check_output(
                   ["git", "rev-parse", "HEAD:deps/python-keepkey"],
                   text=True).strip(),
+              "variant": os.environ["ARM_VARIANT"],
               "files": files,
           }
           with open("bin/arm-build-manifest.json", "w", encoding="utf-8") as handle:
@@ -383,9 +452,11 @@ jobs:
           PY
 
       - name: Upload firmware artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}
+          # matrix.variant in the name: two legs uploading the same artifact
+          # name is a hard failure on upload-artifact@v4+ (see release.yml).
+          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${{ matrix.variant }}
           path: |
             bin/*.bin
             bin/*.elf
@@ -402,7 +473,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Download emulator image
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: emu-image
           path: /tmp
@@ -424,7 +495,7 @@ jobs:
                 exit \$RC"
 
       - name: Upload unit test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: unit-test-results
@@ -435,9 +506,21 @@ jobs:
     needs: [lint-format, static-analysis, check-submodules, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: full
+            project: kkci-full
+            python_artifact: python-test-results
+            oled_artifact: oled-screenshots
+          - variant: bitcoin-only
+            project: kkci-bitcoin-only
+            python_artifact: python-test-results-bitcoin-only
+            oled_artifact: oled-screenshots-bitcoin-only
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -453,23 +536,35 @@ jobs:
       - name: Build and run tests (docker compose)
         working-directory: scripts/emulator
         run: |
+          COMPOSE_ARGS=(-f docker-compose.yml)
+          if [ "${{ matrix.variant }}" = "bitcoin-only" ]; then
+            COMPOSE_ARGS+=(-f docker-compose.bitcoin-only.yml)
+          fi
+
           # Run each test container — capture exit codes, always extract reports
           set +e
-          docker compose up --build --exit-code-from firmware-unit firmware-unit; FW_RC=$?
-          docker compose up --build --exit-code-from python-keepkey python-keepkey; PY_RC=$?
+          docker compose "${COMPOSE_ARGS[@]}" -p ${{ matrix.project }} \
+            up --build --exit-code-from firmware-unit firmware-unit; FW_RC=$?
+          docker compose "${COMPOSE_ARGS[@]}" -p ${{ matrix.project }} \
+            up --build --exit-code-from python-keepkey python-keepkey; PY_RC=$?
           set -e
 
-          mkdir -p ${{ github.workspace }}/test-reports
+          REPORT_ROOT=${{ github.workspace }}/test-reports/${{ matrix.variant }}
+          mkdir -p "$REPORT_ROOT"
 
           echo "=== Extracting test reports from Docker ==="
-          PY_CONTAINER=$(docker compose ps -a -q python-keepkey)
-          FW_CONTAINER=$(docker compose ps -a -q firmware-unit)
+          PY_CONTAINER=$(docker compose "${COMPOSE_ARGS[@]}" -p ${{ matrix.project }} ps -a -q python-keepkey)
+          FW_CONTAINER=$(docker compose "${COMPOSE_ARGS[@]}" -p ${{ matrix.project }} ps -a -q firmware-unit)
 
-          docker cp "$FW_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ || echo "WARN: firmware-unit docker cp failed"
-          docker cp "$PY_CONTAINER":/kkemu/test-reports/. ${{ github.workspace }}/test-reports/ || echo "WARN: python-keepkey docker cp failed"
+          docker cp "$FW_CONTAINER":/kkemu/test-reports/. "$REPORT_ROOT/" || echo "WARN: firmware-unit docker cp failed"
+          docker cp "$PY_CONTAINER":/kkemu/test-reports/. "$REPORT_ROOT/" || echo "WARN: python-keepkey docker cp failed"
 
           echo "=== Extracted files ==="
-          find ${{ github.workspace }}/test-reports -type f | head -30
+          find "$REPORT_ROOT" -type f | head -30
+          echo "=== Screenshot PNGs ==="
+          find "$REPORT_ROOT/screenshots" -name '*.png' 2>/dev/null | wc -l
+          echo "PNGs on host"
+
           echo "firmware-unit exit code: $FW_RC"
           echo "python-keepkey exit code: $PY_RC"
 
@@ -482,26 +577,39 @@ jobs:
           [ "$FW_RC" -eq 0 ] && [ "$PY_RC" -eq 0 ] || exit 1
 
       - name: Upload Python test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
-          name: python-test-results
-          path: test-reports/python-keepkey/
+          name: ${{ matrix.python_artifact }}
+          path: test-reports/${{ matrix.variant }}/python-keepkey/
+          retention-days: 30
+
+      - name: Upload native test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: firmware-unit-results-${{ matrix.variant }}
+          path: test-reports/${{ matrix.variant }}/firmware-unit/
           retention-days: 30
 
       - name: Upload OLED screenshots
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
-          name: oled-screenshots
-          path: test-reports/screenshots/
+          name: ${{ matrix.oled_artifact }}
+          path: test-reports/${{ matrix.variant }}/screenshots/
           retention-days: 90
           if-no-files-found: error
 
       - name: Tear down
         if: always()
         working-directory: scripts/emulator
-        run: docker compose down -v || true
+        run: |
+          COMPOSE_ARGS=(-f docker-compose.yml)
+          if [ "${{ matrix.variant }}" = "bitcoin-only" ]; then
+            COMPOSE_ARGS+=(-f docker-compose.bitcoin-only.yml)
+          fi
+          docker compose "${COMPOSE_ARGS[@]}" -p ${{ matrix.project }} down -v || true
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 3a-bis: DYLIB TESTS — libkkemu shared lib via python-keepkey
@@ -530,7 +638,12 @@ jobs:
   #     pb2 files expect; newer protoc generates Python that requires
   #     newer protobuf runtime, which breaks the python-keepkey suite).
   #   - protobuf 3.20.3 (Python runtime — strict pin).
-  #   - nanopb 0.3.9.4.post3 (the proto generator the firmware build uses).
+  #   - nanopb 0.3.9.4.post3 — NOTE: this is NOT the version the firmware
+  #     builder image uses. The pinned image builds nanopb-0.3.9.8 from source
+  #     (see Dockerfile). This job installs a different generator via pip, so
+  #     headers produced here are not byte-comparable with the firmware build's.
+  #     Tracked in GH #425; do not treat this job's output as provenance for
+  #     the firmware artifacts.
   #   - KK_DEBUG_LINK=ON (default OFF; without it,
   #     fsm_msgDebugLinkGetState is excluded from the build and any
   #     read_layout() call hangs the test).
@@ -540,7 +653,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -557,7 +670,7 @@ jobs:
           git submodule update --init deps/googletest
 
       - name: Setup Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.10'
 
@@ -664,7 +777,7 @@ jobs:
         # PR. Tagged with the short commit SHA so multiple PR pushes
         # don't overwrite each other when a reviewer downloads them.
         if: always() && env.DYLIB_PATH != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: libkkemu-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ env.DYLIB_PATH }}
@@ -697,7 +810,7 @@ jobs:
             -v --tb=short --junit-xml=../../../test-reports/dylib-junit.xml
 
       - name: Upload dylib test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: python-dylib-test-results
@@ -716,40 +829,42 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download unit test results
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: unit-test-results
           path: test-reports/firmware-unit/
 
       - name: Download python test results
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: python-test-results
           path: test-reports/python-keepkey/
 
       - name: Download OLED screenshots
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: oled-screenshots
           path: test-reports/screenshots/
 
       - name: Download dylib test results
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: python-dylib-test-results
           path: test-reports/
 
       - name: Download ARM firmware
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           pattern: firmware-v*
           path: test-reports/arm/
-          merge-multiple: true
+          # Preserve one directory per product. Full and bitcoin-only contain
+          # identically named outputs whose bytes intentionally differ.
+          merge-multiple: false
 
       - name: Extract firmware version
         id: version
@@ -771,11 +886,11 @@ jobs:
           KK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           KK_WORKFLOW_EVENT: ${{ github.event_name }}
           KK_FIRMWARE_PR: ${{ github.event.pull_request.html_url }}
-          KK_PYTHON_PR: https://github.com/keepkey/python-keepkey/pull/219
+          KK_PYTHON_PR: https://github.com/keepkey/python-keepkey/pull/197
         run: python3 scripts/generate-test-report.py
 
       - name: Upload test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: test-report
@@ -802,6 +917,68 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
+
+  # ═══════════════════════════════════════════════════════════
+  # GATE: one authoritative answer for the whole graph
+  # ═══════════════════════════════════════════════════════════
+  #
+  # Every build and test job declares `needs: [lint-format, static-analysis,
+  # check-submodules, secret-scan]`. When one of those gate jobs fails, GitHub
+  # marks the whole downstream graph SKIPPED rather than failed -- and a skipped
+  # job is not a red check. The run summary then shows green ticks on whatever
+  # finished, which reads as healthy unless someone opens the job list.
+  #
+  # That has now happened three times on the 7.14.2 line: gitleaks failing on
+  # develop, lint-format timing out inside its apt.llvm.org install (#471), and
+  # gitleaks again after an unpinned upstream bump. Each time the ARM build,
+  # the unit tests and both python suites produced NOTHING while the run looked
+  # partially green.
+  #
+  # This job exists so that cannot happen quietly. It needs every required job,
+  # runs with `if: always()` so it executes even when they skip, and fails
+  # unless each one reports exactly `success`. failure, cancelled and skipped
+  # are all treated as not-success, because for a required job they are.
+  #
+  # publish-emulator is deliberately absent: it is workflow_dispatch-only and
+  # is legitimately skipped on every push and pull_request.
+  #
+  # Point branch protection at THIS job rather than the individual ones. It is
+  # the only check whose green means "the entire graph ran and passed".
+  ci-gate:
+    name: CI gate
+    if: always()
+    needs:
+      - lint-format
+      - secret-scan
+      - static-analysis
+      - check-submodules
+      - build-emulator
+      - build-arm-firmware
+      - unit-tests
+      - python-integration-tests
+      - python-dylib-tests
+      - generate-test-report
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Assert every required job succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$NEEDS_JSON" | jq -r 'to_entries[] | "\(.value.result)\t\(.key)"' | sort
+          echo
+          NOT_SUCCESS=$(echo "$NEEDS_JSON" \
+            | jq -r 'to_entries[] | select(.value.result != "success") | .key')
+          if [ -n "$NOT_SUCCESS" ]; then
+            NOT_SUCCESS_INLINE=$(printf '%s\n' "$NOT_SUCCESS" | tr '\n' ' ')
+            echo "::error::Required jobs did not succeed: ${NOT_SUCCESS_INLINE}"
+            echo "A skipped or cancelled required job is NOT a pass. If a gate-stage"
+            echo "job failed, everything downstream was skipped and produced no signal."
+            exit 1
+          fi
+          echo "All required jobs reported success."
+
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
@@ -813,12 +990,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download emulator image
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: emu-image
           path: /tmp
@@ -839,7 +1016,7 @@ jobs:
           docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:v${{ steps.version.outputs.fw_version }}
 
       - name: Login to DockerHub
-        uses: docker/login-action@v4
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7
         with:
           username: ${{ secrets.KK_DOCKERHUB_USER }}
           password: ${{ secrets.KK_DOCKERHUB_PASS }}

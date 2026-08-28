@@ -36,10 +36,29 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
   resp->has_model = true;
   strlcpy(resp->model, model(), sizeof(resp->model));
 
+  /* Taproot capability.  Reported directly so a host does not have to infer
+     P2TR support from a firmware version -- that inference breaks whenever the
+     feature is retargeted to a different release. */
+  resp->has_supports_taproot = true;
+  resp->supports_taproot = true;
+
   /* Variant Name */
   resp->has_firmware_variant = true;
+#if BITCOIN_ONLY
+  /* Report the established KeepKeyBTC / EmulatorBTC names rather than the
+     board variant, so that existing hosts recognise a bitcoin-only image and
+     skip multi-chain-only behaviour instead of offering it features this
+     firmware does not implement. */
+#ifdef EMULATOR
+  strlcpy(resp->firmware_variant, "EmulatorBTC",
+          sizeof(resp->firmware_variant));
+#else
+  strlcpy(resp->firmware_variant, "KeepKeyBTC", sizeof(resp->firmware_variant));
+#endif
+#else
   strlcpy(resp->firmware_variant, variant_getName(),
           sizeof(resp->firmware_variant));
+#endif
 
   /* Security settings */
   resp->has_pin_protection = true;
@@ -120,6 +139,12 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
 void fsm_msgGetCoinTable(GetCoinTable* msg) {
   RESP_INIT(CoinTable);
 
+#if BITCOIN_ONLY
+  const size_t coin_table_count = COINS_COUNT;
+#else
+  const size_t coin_table_count = COINS_COUNT + TOKENS_COUNT;
+#endif
+
   CHECK_PARAM(msg->has_start == msg->has_end,
               "Incorrect GetCoinTable parameters");
 
@@ -127,9 +152,8 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
   resp->chunk_size = sizeof(resp->table) / sizeof(resp->table[0]);
 
   if (msg->has_start && msg->has_end) {
-    if (COINS_COUNT + TOKENS_COUNT <= msg->start ||
-        COINS_COUNT + TOKENS_COUNT < msg->end || msg->end < msg->start ||
-        resp->chunk_size < msg->end - msg->start) {
+    if (coin_table_count <= msg->start || coin_table_count < msg->end ||
+        msg->end < msg->start || resp->chunk_size < msg->end - msg->start) {
       fsm_sendFailure(FailureType_Failure_Other,
                       "Incorrect GetCoinTable parameters");
       layoutHome();
@@ -138,7 +162,7 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
   }
 
   resp->has_num_coins = true;
-  resp->num_coins = COINS_COUNT + TOKENS_COUNT;
+  resp->num_coins = coin_table_count;
 
   if (msg->has_start && msg->has_end) {
     resp->table_count = msg->end - msg->start;
@@ -146,8 +170,10 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
     for (size_t i = 0; i < msg->end - msg->start; i++) {
       if (msg->start + i < COINS_COUNT) {
         resp->table[i] = coins[msg->start + i];
+#if !BITCOIN_ONLY
       } else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
         coinFromToken(&resp->table[i], &tokens[msg->start + i - COINS_COUNT]);
+#endif
       }
     }
   }
@@ -164,6 +190,7 @@ static bool isValidModelNumber(const char* model) {
 
 bool checkPassphrase(void) {
   if (!passphrase_protect()) {
+    authenticator_clear_cache();
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "authenticator needs passphrase");
     layoutHome();
@@ -445,6 +472,18 @@ void fsm_msgChangeWipeCode(ChangeWipeCode* msg) {
 void fsm_msgWipeDevice(WipeDevice* msg) {
   (void)msg;
 
+  /* Supersede active work when the request ARRIVES, not when it succeeds.
+   *
+   * Aborting only on the wipe path left the cancel path resumable: a
+   * WipeDevice that interrupts a streamed signing session puts its own screen
+   * up, and if the owner declines the wipe the handler returns with the old
+   * session still live. The host then sends the TxAck it was already holding
+   * and the interrupted signing continues -- across a screen that said nothing
+   * about that transaction. A new top-level ceremony ends whatever preceded
+   * it, exactly as the Bitcoin and Ethereum signing starts do; whether the
+   * owner then approves the wipe is a separate question. */
+  fsm_abort_workflows();
+
   if (!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
                "Do you want to erase your private keys and settings?")) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
@@ -454,6 +493,7 @@ void fsm_msgWipeDevice(WipeDevice* msg) {
 
   /* Wipe device */
   fsm_abort_workflows();
+  session_clear(/*clear_pin=*/true);
   storage_wipe();
   storage_reset();
   storage_resetUuid();
@@ -538,7 +578,8 @@ void fsm_msgResetDevice(ResetDevice* msg) {
              msg->has_no_backup ? msg->no_backup : false,
              msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms
                                          : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
-             msg->has_u2f_counter ? msg->u2f_counter : 0);
+             msg->has_u2f_counter ? msg->u2f_counter : 0,
+             msg->has_dice_entropy && msg->dice_entropy);
 }
 
 void fsm_msgEntropyAck(EntropyAck* msg) {
@@ -552,6 +593,10 @@ void fsm_msgEntropyAck(EntropyAck* msg) {
 void fsm_msgCancel(Cancel* msg) {
   (void)msg;
   fsm_abort_workflows();
+  /* See fsm_msgClearSession(): the abort routines for Binance, Tendermint,
+     Osmosis, THORChain, MAYAChain, EOS and Nano have no layout side effect, so
+     the cancelled transaction's approval screen would otherwise stay up. */
+  layoutHome();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
@@ -653,6 +698,16 @@ void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
   } else {
     CHECK_NOT_INITIALIZED
   }
+
+  /* CHECK_NO_CEREMONY above refuses a recovery that would collide with an
+   * armed setup ceremony, but setup_isArmed() knows nothing about signing. A
+   * dry run is permitted on an initialized device, so it can start while a
+   * streamed signing session is waiting on its next ACK -- and run to
+   * completion with that session still resumable afterwards. Abort here rather
+   * than inside the macro so the refusal keeps its meaning, and abort only
+   * after both init-state checks have passed: a recovery that is about to be
+   * rejected must not tear down work it never replaces. */
+  fsm_abort_workflows();
 
   recovery_cipher_init(
       msg->has_word_count ? msg->word_count : 0,

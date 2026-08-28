@@ -27,6 +27,10 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
 bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit* depmsg);
 bool mayachain_signTxFinalize(uint8_t* public_key, uint8_t* signature);
 bool mayachain_signingIsInited(void);
+
+/// True iff `address` is the account this session's key signs as. Use for
+/// MsgDeposit's `signer`, which is serialized verbatim as the authority.
+bool mayachain_addressIsSigner(const char* address);
 bool mayachain_signingIsFinished(void);
 void mayachain_signAbort(void);
 const MayachainSignTx* mayachain_getMayachainSignTx(void);

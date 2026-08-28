@@ -36,13 +36,19 @@ static char last_amount_str[AMT_STR_LEN]; /* spend value of last tx */
 static char last_addr_str[ADDR_STR_LEN];  /* last spend-to address */
 static SHA256_CTX txin_hash_ctx;
 
+// Reset only the in-progress digest, preserving the prior transaction used by
+// the duplicate-output warning.
+void txin_dgst_reset_current(void) {
+  memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
+  sha256_Init(&txin_hash_ctx);
+}
+
 // initialize the txin digest machine
 void txin_dgst_initialize(void) {
-  memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
   memzero(txin_last_digest, SHA256_DIGEST_LENGTH);
   memzero(last_amount_str, AMT_STR_LEN);
   memzero(last_addr_str, ADDR_STR_LEN);
-  sha256_Init(&txin_hash_ctx);
+  txin_dgst_reset_current();
   return;
 }
 
@@ -89,7 +95,6 @@ void txin_dgst_save_and_reset(const char* amt_str, const char* addr_str) {
   memcpy(txin_last_digest, txin_current_digest, SHA256_DIGEST_LENGTH);
   memcpy(last_amount_str, amt_str, AMT_STR_LEN);
   memcpy(last_addr_str, addr_str, ADDR_STR_LEN);
-  memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
-  sha256_Init(&txin_hash_ctx);
+  txin_dgst_reset_current();
   return;
 }
