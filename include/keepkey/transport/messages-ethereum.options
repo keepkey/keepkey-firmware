@@ -49,4 +49,6 @@ Ethereum712TypesValues.eip712data			          max_size:2048
 
 EthereumTxMetadata.signed_payload                 max_size:1024
 EthereumMetadataAck.display_summary               max_size:32
-
+LoadClearsignSigner.pubkey                        max_size:33
+LoadClearsignSigner.alias                         max_size:32
+LoadClearsignSigner.icon                          max_size:384

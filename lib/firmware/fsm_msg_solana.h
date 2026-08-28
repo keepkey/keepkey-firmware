@@ -388,6 +388,59 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
 }
 
 /* Validate Solana derivation path: m/44'/501'/account'[/change'] */
+/* Off-chain message format 0: restricted ASCII -- printable, space included. */
+static bool solana_offchain_payload_is_ascii(const uint8_t* data, size_t size) {
+  for (size_t i = 0; i < size; i++) {
+    if (data[i] < 0x20 || data[i] > 0x7e) return false;
+  }
+  return true;
+}
+
+/* Off-chain message format 1: well-formed UTF-8. Rejects overlong encodings,
+   surrogate halves, and anything above U+10FFFF, so the bytes the device
+   signs really are the text the screen claims they are. */
+static bool solana_offchain_payload_is_utf8(const uint8_t* data, size_t size) {
+  size_t i = 0;
+  while (i < size) {
+    const uint8_t c = data[i];
+    size_t extra;
+    uint32_t cp;
+
+    if (c < 0x80) {
+      i++;
+      continue;
+    } else if ((c & 0xe0) == 0xc0) {
+      extra = 1;
+      cp = c & 0x1fu;
+    } else if ((c & 0xf0) == 0xe0) {
+      extra = 2;
+      cp = c & 0x0fu;
+    } else if ((c & 0xf8) == 0xf0) {
+      extra = 3;
+      cp = c & 0x07u;
+    } else {
+      return false; /* continuation byte or 5+ byte lead */
+    }
+
+    if (i + extra >= size) return false;
+    for (size_t k = 1; k <= extra; k++) {
+      const uint8_t cc = data[i + k];
+      if ((cc & 0xc0) != 0x80) return false;
+      cp = (cp << 6) | (cc & 0x3fu);
+    }
+
+    /* Shortest form only, no surrogates, within Unicode range. */
+    if (extra == 1 && cp < 0x80u) return false;
+    if (extra == 2 && cp < 0x800u) return false;
+    if (extra == 3 && cp < 0x10000u) return false;
+    if (cp > 0x10ffffu) return false;
+    if (cp >= 0xd800u && cp <= 0xdfffu) return false;
+
+    i += extra + 1;
+  }
+  return true;
+}
+
 static bool solana_pathIsStandard(const uint32_t* path, size_t count) {
   if (count < 3 || count > 4) return false;
   if (path[0] != (0x80000000 | 44)) return false;  /* 44' */
@@ -645,8 +698,7 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg) {
 
   /* Ed25519 sign */
   uint8_t sig[SOL_SIG_SIZE];
-  ed25519_sign(msg->message.bytes, msg->message.size, node->private_key,
-               node->public_key + 1, sig);
+  ed25519_sign(msg->message.bytes, msg->message.size, node->private_key, sig);
 
   resp->has_signature = true;
   resp->signature.size = SOL_SIG_SIZE;
@@ -698,6 +750,26 @@ void fsm_msgSolanaSignOffchainMessage(const SolanaSignOffchainMessage* msg) {
   if (msg->message.size > 1212) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Off-chain message exceeds 1212-byte limit"));
+    layoutHome();
+    return;
+  }
+
+  /* The format tag is part of the signed envelope and is named on the
+     confirmation screen ("Format: ASCII"), but nothing checked that the
+     payload actually is that format. A host could declare restricted ASCII
+     and sign arbitrary binary, or declare UTF-8 and sign malformed UTF-8, and
+     the device would vouch for the label either way. Check the bytes against
+     the tag they travel under, before anything is confirmed or signed. */
+  const bool payload_matches_format =
+      (format == 0) ? solana_offchain_payload_is_ascii(msg->message.bytes,
+                                                       msg->message.size)
+                    : solana_offchain_payload_is_utf8(msg->message.bytes,
+                                                      msg->message.size);
+  if (!payload_matches_format) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    format == 0
+                        ? _("Message is not restricted ASCII (format 0)")
+                        : _("Message is not valid UTF-8 (format 1)"));
     layoutHome();
     return;
   }

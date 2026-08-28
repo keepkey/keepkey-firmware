@@ -79,25 +79,31 @@ bool sa_confirmWithdrawFromSalary(uint32_t data_total,
    * be able to drift apart. See sa_withdrawFromSalaryExtentOk(). */
   if (!sa_withdrawFromSalaryExtentOk(msg)) return false;
 
-  char confStr[41];
-  // confirm raw unformatted numbers
-  /* bn_format() BLANKS its output buffer and returns 0 when the value does
-   * not fit -- ignoring the return renders an EMPTY amount on the
-   * confirmation screen, the one rendering a user cannot read as wrong. */
-  if (!sa_formatUint256(msg->data_initial_chunk.bytes + 4, "", confStr,
-                        sizeof(confStr)))
+  /* Format BOTH values before either screen.
+   *
+   * bn_format() blanks its output and returns 0 when the value does not fit,
+   * so an unrenderable amount is a refusal. Doing the second format after the
+   * first confirmation meant a large but perfectly valid uint256 amount failed
+   * only once the salary ID had been approved -- and the Ethereum dispatcher
+   * reports that late failure as ActionCancelled, so the owner is told they
+   * cancelled something they had in fact approved. Non-interactive work
+   * belongs before the first screen. */
+  char idStr[41];
+  char amountStr[41];
+  if (!sa_formatUint256(msg->data_initial_chunk.bytes + 4, "", idStr,
+                        sizeof(idStr)))
     return false;
+  if (!sa_formatUint256(msg->data_initial_chunk.bytes + 4 + 32, " Token Units",
+                        amountStr, sizeof(amountStr)))
+    return false;
+
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Sablier",
-               "Salary ID %s", confStr)) {
+               "Salary ID %s", idStr)) {
     return false;
   }
 
-  // confirm raw unformatted numbers
-  if (!sa_formatUint256(msg->data_initial_chunk.bytes + 4 + 32, " Token Units",
-                        confStr, sizeof(confStr)))
-    return false;
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Sablier",
-               "Withdraw Amount %s", confStr)) {
+               "Withdraw Amount %s", amountStr)) {
     return false;
   }
   return true;

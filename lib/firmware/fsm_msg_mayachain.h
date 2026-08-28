@@ -172,6 +172,22 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
           layoutHome();
           return;
         }
+        /* Validate the recipient BEFORE the screen, not in the serializer.
+           mayachain_signTxUpdateMsgSend() already refuses a
+           malformed or wrong-network address, but it runs after this
+           confirmation, so the owner approved a transfer that was then
+           rejected. This release line's rule is that an invalid signed value
+           fails before approval, so the same check moves ahead of the
+           screen. */
+        if (!tendermint_validateBech32Address(
+                msg->send.to_address,
+                sign_tx->has_testnet && sign_tx->testnet ? "smaya" : "maya")) {
+          mayachain_signAbort();
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          "Invalid MAYAChain recipient address");
+          layoutHome();
+          return;
+        }
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {
@@ -196,8 +212,15 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
   } else if (msg->has_deposit) {
     const char* const signer_prefix =
         sign_tx->has_testnet && sign_tx->testnet ? "smaya" : "maya";
+    /* The signer must be THIS session's account, not merely a well-formed
+       address on the right network. MsgDeposit serializes `signer` verbatim as
+       the message authority, so a valid-but-foreign address produced a signed
+       document the device's key cannot authorize -- and the confirmation below
+       labels that address as though it were a destination, so the screen would
+       not have given it away. */
     if (!tendermint_validateSafeText(msg->deposit.asset) ||
-        !tendermint_validateBech32Address(msg->deposit.signer, signer_prefix)) {
+        !tendermint_validateBech32Address(msg->deposit.signer, signer_prefix) ||
+        !mayachain_addressIsSigner(msg->deposit.signer)) {
       mayachain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Invalid MAYAChain deposit fields");
@@ -276,9 +299,18 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     return;
   }
 
-  if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // See if we can parse the tx memo. This memo ignored if deposit msg has
-    // memo
+  /* Review the OUTER transaction memo whenever it is present -- including when
+   * the deposit carries one of its own.
+   *
+   * These are two different strings in the signed document, not one superseding
+   * the other: mayachain_signTxInit() hashes sign_tx->memo into the StdSignDoc
+   * "memo" field, and the MsgDeposit value below hashes deposit.memo
+   * separately. Skipping this review when deposit.has_memo let a host show a
+   * benign deposit memo while a different outer memo was signed unseen -- the
+   * exact thing this release line exists to prevent. Both are signed, so both
+   * are shown. */
+  if (sign_tx->has_memo) {
+    // See if we can parse the tx memo.
     MayachainMemoResult memo_result = mayachain_parseConfirmMemo(
         sign_tx->memo, strnlen(sign_tx->memo, sizeof(sign_tx->memo)));
     if (memo_result == MAYACHAIN_MEMO_CANCELLED) {

@@ -5,6 +5,19 @@ static void cosmos_formatAmount(uint64_t amount, char* out, size_t out_len) {
   }
 }
 
+/* An IBC revision counter as it must appear in the signed Amino JSON: a
+   non-empty run of digits with no leading zero beyond the single value "0".
+   Anything else either injects into the document (it is interpolated with a
+   bare "%s") or gives one counter several spellings on screen. */
+static bool cosmos_validate_unsigned_decimal(const char* value) {
+  if (!value || value[0] == '\0') return false;
+  for (const char* p = value; *p; ++p) {
+    if (*p < '0' || *p > '9') return false;
+  }
+  if (value[0] == '0' && value[1] != '\0') return false;
+  return true;
+}
+
 void fsm_msgCosmosGetAddress(const CosmosGetAddress* msg) {
   RESP_INIT(CosmosAddress);
 
@@ -117,8 +130,22 @@ void fsm_msgCosmosSignTx(const CosmosSignTx* msg) {
 
 void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
   // Confirm transaction basics
-  CHECK_PARAM(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS),
-              "Cosmos signing not in progress");
+  /* A continuation for the WRONG protocol is terminal for the session it
+     found, not just for itself.
+
+     Cosmos and generic Tendermint share one signer in signtx_tendermint.c,
+     told apart only by signing_type. CHECK_PARAM sends a failure and returns,
+     leaving that shared state initialized: a Cosmos session survived a
+     Tendermint ACK (and vice versa), the UI went home, and the session stayed
+     resumable by a later stale ACK of its own protocol. Clear the shared
+     signer first, the way every malformed-ACK path below already does. */
+  if (!tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS)) {
+    tendermint_signAbort();
+    fsm_sendFailure(FailureType_Failure_Other,
+                    "Cosmos signing not in progress");
+    layoutHome();
+    return;
+  }
 
   const CoinType* coin = fsm_getCoin(true, "Cosmos");
   if (!coin) {
@@ -140,6 +167,20 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
       default: {
         char amount_str[32];
         cosmos_formatAmount(msg->send.amount, amount_str, sizeof(amount_str));
+        /* Validate the recipient BEFORE the screen, not in the serializer.
+           tendermint_signTxUpdateMsgSend() already refuses a
+           malformed or wrong-network address, but it runs after this
+           confirmation, so the owner approved a transfer that was then
+           rejected. This release line's rule is that an invalid signed value
+           fails before approval, so the same check moves ahead of the
+           screen. */
+        if (!tendermint_validateBech32Address(msg->send.to_address, "cosmos")) {
+          tendermint_signAbort();
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          "Invalid Cosmos recipient address");
+          layoutHome();
+          return;
+        }
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {
@@ -380,12 +421,40 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     }
   } else if (msg->has_ibc_transfer) {
     /** Confirm required transaction parameters exist */
+    /* Presence alone is not enough. Every one of these strings is copied
+       into the signed Amino JSON by tendermint_signTxUpdateMsgIBCTransfer()
+       with a bare "%s" through tendermint_snprintf(), which -- unlike
+       tendermint_sha256UpdateEscaped() -- does no escaping. A receiver or
+       source_channel carrying a quote or a backslash therefore writes JSON
+       structure into the document the device signs, and a control byte or an
+       empty value makes the confirmation screens ambiguous about what that
+       document says. tendermint_validateSafeText() is the same gate the
+       Osmosis IBC path already applies to these exact fields; the revision
+       counters are digit strings, so hold them to that as well. */
+    /* The receiver has to be well-formed bech32 BEFORE any screen opens.
+       The serializer refuses a malformed one, but it runs after every IBC
+       approval has already been taken, so the owner approved a transfer
+       that was then rejected. Its HRP belongs to the counterparty chain,
+       so only well-formedness can be checked here -- that is exactly what
+       the serializer checks, moved ahead of the confirmations. */
     if (!msg->ibc_transfer.has_sender || !msg->ibc_transfer.has_receiver ||
         !msg->ibc_transfer.has_source_channel ||
         !msg->ibc_transfer.has_source_port ||
         !msg->ibc_transfer.has_revision_height ||
         !msg->ibc_transfer.has_revision_number ||
         !msg->ibc_transfer.has_denom || !msg->ibc_transfer.has_amount ||
+        /* `sender` is the authority the message acts as and is written into
+           the signed JSON verbatim, but no screen shows it. Safe text alone
+           left an arbitrary printable value surviving every approval. Bind it
+           to the account this session signs as -- the serializer now refuses a
+           mismatch too, but that happens after the screens. */
+        !tendermint_addressIsSigner(msg->ibc_transfer.sender, "cosmos") ||
+        !tendermint_validateSafeText(msg->ibc_transfer.receiver) ||
+        !tendermint_validateSafeText(msg->ibc_transfer.source_channel) ||
+        !tendermint_validateSafeText(msg->ibc_transfer.source_port) ||
+        !tendermint_bech32IsWellFormed(msg->ibc_transfer.receiver) ||
+        !cosmos_validate_unsigned_decimal(msg->ibc_transfer.revision_height) ||
+        !cosmos_validate_unsigned_decimal(msg->ibc_transfer.revision_number) ||
         strcmp(msg->ibc_transfer.denom, "uatom") != 0) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,

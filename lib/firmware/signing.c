@@ -26,13 +26,13 @@
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/crypto.h"
-#include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/transaction.h"
+#include "trezor/crypto/bip340.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/secp256k1.h"
@@ -58,7 +58,16 @@ static uint32_t inputs_count;
 static uint32_t outputs_count;
 static const CoinType* coin;
 static const curve_info* curve;
-static const HDNode* root;
+/* The signer's OWN copy of the signing root, not the caller's node.
+ *
+ * signing_init() takes `const HDNode *`, so the node it is handed belongs to
+ * the caller. signing_abort() has to scrub the master private key, and it
+ * cannot do that through that pointer: casting away const to write through a
+ * genuinely read-only node is undefined behavior, and a caller whose node was
+ * automatic -- as unittests/firmware/fsm.cpp's stack `root` is -- would be
+ * written through after its lifetime ended. Copy on the way in and scrub what
+ * we own on the way out; the caller's node stays the caller's business. */
+static CONFIDENTIAL HDNode root;
 static CONFIDENTIAL HDNode node;
 static bool signing = false;
 enum {
@@ -82,12 +91,33 @@ static TxInputType input;
 static TxOutputBinType bin_output;
 static TxStruct to, tp, ti;
 static Hasher hasher_prevouts, hasher_sequence, hasher_outputs, hasher_check;
+/* BIP-341 commits to every input's amount and scriptPubKey, which BIP-143
+   does not, so taproot needs two accumulators segwit never required.  These
+   are SHA256_CTX rather than Hasher because BIP-341 fixes them to plain
+   SHA256: a Hasher carries a union sized by GROESTL512_CTX and would cost
+   ~1.2 KB of SRAM here for no benefit. */
+static SHA256_CTX ctx_amounts, ctx_scriptpubkeys;
+/* BIP-143 hashes prevouts/sequences/outputs with DOUBLE sha256 (hasher_sign is
+   HASHER_SHA2D for Bitcoin); BIP-341 specifies SINGLE sha256.  The BIP-143
+   accumulators therefore cannot be reused -- doing so yields a valid signature
+   over the wrong commitment.  Hence a parallel set. */
+static SHA256_CTX ctx_prevouts_tr, ctx_sequences_tr, ctx_outputs_tr;
 static uint8_t CONFIDENTIAL privkey[32];
 static uint8_t pubkey[33], sig[64];
 static uint8_t hash_prevouts[32], hash_sequence[32], hash_outputs[32];
+static uint8_t hash_amounts[32], hash_scriptpubkeys[32];
+static uint8_t hash_prevouts_tr[32], hash_sequences_tr[32], hash_outputs_tr[32];
 static uint8_t hash_prefix[32];
 static uint8_t hash_check[32];
 static uint64_t to_spend, authorized_bip143_in, spending, change_spend;
+static bool has_taproot_input, missing_bip341_input_amount;
+/*
+ * Taproot signatures must never be reachable before phase 1 has completed
+ * the physical transaction-summary confirmation. Keep this as independent
+ * state instead of inferring it from signing_stage so a malformed or
+ * corrupted stage transition fails closed at the Schnorr signing boundary.
+ */
+static bool taproot_transaction_confirmed;
 static uint32_t version = 1;
 static uint32_t lock_time = 0;
 static uint32_t expiry = 0;
@@ -101,6 +131,7 @@ static uint8_t multisig_fp[32];
 static uint32_t in_address_n[8];
 static size_t in_address_n_count;
 static uint32_t tx_weight;
+static int signing_update_ctr;
 
 /* A marker for in_address_n_count to indicate a mismatch in bip32 paths in
    input */
@@ -112,6 +143,10 @@ static uint32_t tx_weight;
 /* The maximum allowed change address.  This should be large enough for normal
    use and still allow to quickly brute-force the correct bip32 path. */
 #define BIP32_MAX_LAST_ELEMENT 1000000
+
+/* BIP-341 SIGHASH_DEFAULT: commits to all outputs, and unlike SIGHASH_ALL
+   its byte is omitted from the witness entirely. */
+#define SIGHASH_DEFAULT_TAPROOT 0
 
 /* transaction header size: 4 byte version */
 #define TXSIZE_HEADER 4
@@ -408,6 +443,18 @@ void phase1_request_next_input(void) {
     //  compute segwit hashPrevouts & hashSequence
     hasher_Final(&hasher_prevouts, hash_prevouts);
     hasher_Final(&hasher_sequence, hash_sequence);
+    if (has_taproot_input && missing_bip341_input_amount) {
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Taproot transaction input without amount"));
+      signing_abort();
+      return;
+    }
+    if (coin->has_taproot && coin->taproot) {
+      sha256_Final(&ctx_amounts, hash_amounts);
+      sha256_Final(&ctx_scriptpubkeys, hash_scriptpubkeys);
+      sha256_Final(&ctx_prevouts_tr, hash_prevouts_tr);
+      sha256_Final(&ctx_sequences_tr, hash_sequences_tr);
+    }
     hasher_Final(&hasher_check, hash_check);
     // init hashOutputs
     hasher_Reset(&hasher_outputs);
@@ -427,10 +474,11 @@ void phase2_request_next_input(void) {
 
 /// Compares two BIP32 paths, returning true iff there is something mismatched
 /// about the mixed-mode change.
-static bool isCrossAccountSegwitChangeForbidden(
-    const uint32_t* lhs_address_n, size_t lhs_address_n_count,
-    const uint32_t* rhs_address_n, size_t rhs_address_n_count,
-    OutputScriptType rhs_script_type) {
+bool isCrossAccountSegwitChangeForbidden(const uint32_t* lhs_address_n,
+                                         size_t lhs_address_n_count,
+                                         const uint32_t* rhs_address_n,
+                                         size_t rhs_address_n_count,
+                                         OutputScriptType rhs_script_type) {
   (void)lhs_address_n;
 
   size_t count = rhs_address_n_count;
@@ -454,6 +502,10 @@ static bool isCrossAccountSegwitChangeForbidden(
 
   if (out_purpose == (0x80000000 | 84) &&
       rhs_script_type != OutputScriptType_PAYTOWITNESS)
+    return true;
+
+  if (out_purpose == (0x80000000 | 86) &&
+      rhs_script_type != OutputScriptType_PAYTOTAPROOT)
     return true;
 
   return false;
@@ -564,7 +616,12 @@ bool check_change_bip32_path(const TxOutputType* toutput) {
           toutput->address_n[count - 1] <= BIP32_MAX_LAST_ELEMENT);
 }
 
-bool compile_input_script_sig(TxInputType* tinput) {
+/* Re-validates the input against what phase 1 saw, then derives its node into
+   `node`.  Split out of compile_input_script_sig() so taproot can reuse the
+   checks and the derivation without building a scriptSig -- a taproot input
+   has an empty one, and skipping this would also skip the guard that the
+   host has not swapped address_n between phases. */
+static bool prepare_input_node(TxInputType* tinput) {
   if (!multisig_fp_mismatch) {
     // check that this is still multisig
     uint8_t h[32];
@@ -587,13 +644,20 @@ bool compile_input_script_sig(TxInputType* tinput) {
       return false;
     }
   }
-  memcpy(&node, root, sizeof(HDNode));
+  memcpy(&node, &root, sizeof(HDNode));
   if (hdnode_private_ckd_cached(&node, tinput->address_n,
                                 tinput->address_n_count, NULL) == 0) {
     // Failed to derive private key
     return false;
   }
   hdnode_fill_public_key(&node);
+  return true;
+}
+
+bool compile_input_script_sig(TxInputType* tinput) {
+  if (!prepare_input_node(tinput)) {
+    return false;
+  }
   if (tinput->has_multisig) {
     tinput->script_sig.size = compile_script_multisig(coin, &(tinput->multisig),
                                                       tinput->script_sig.bytes);
@@ -611,7 +675,8 @@ void signing_init(const SignTx* msg, const CoinType* _coin,
   inputs_count = msg->inputs_count;
   outputs_count = msg->outputs_count;
   coin = _coin;
-  root = _root;
+  memzero(&root, sizeof(root));
+  if (_root) memcpy(&root, _root, sizeof(root));
   version = msg->version;
   lock_time = msg->lock_time;
   expiry = msg->expiry;
@@ -646,6 +711,9 @@ void signing_init(const SignTx* msg, const CoinType* _coin,
   spending = 0;
   change_spend = 0;
   authorized_bip143_in = 0;
+  has_taproot_input = false;
+  missing_bip341_input_amount = false;
+  taproot_transaction_confirmed = false;
   memset(&input, 0, sizeof(TxInputType));
   memset(&resp, 0, sizeof(TxRequest));
 
@@ -659,6 +727,12 @@ void signing_init(const SignTx* msg, const CoinType* _coin,
   multisig_fp_set = false;
   multisig_fp_mismatch = false;
   next_nonsegwit_input = 0xffffffff;
+
+  /* An OP_RETURN-only transaction never reaches the payment-output path that
+   * normally resets this context. Start each signing request with a fresh
+   * current digest while preserving the previous completed transaction used
+   * by the duplicate-output warning. */
+  txin_dgst_reset_current();
 
   curve = get_curve_by_name(coin->curve_name);
   if (!curve) curve = get_curve_by_name(SECP256K1_NAME);
@@ -692,6 +766,26 @@ void signing_init(const SignTx* msg, const CoinType* _coin,
     hasher_Init(&hasher_check, curve->hasher_sign);
   }
 
+  /* BIP-341 fixes these as plain SHA256, independent of the coin's signing
+     hasher, so they are initialised separately on purpose.
+
+     Initialised on the taproot condition alone, and deliberately outside the
+     overwintered branch above. Every update and finalise site for these five
+     contexts is gated only on `coin->has_taproot && coin->taproot`, but the
+     initialisation used to sit inside the non-overwintered `else`. Since
+     `overwintered` comes from the host on SignTx, setting it on a taproot
+     coin skipped the init while leaving the use sites live, so the sighash
+     was built from whatever these static contexts held -- uninitialised on
+     the first signature after boot, and carried over from the previous
+     transaction after that. */
+  if (coin->has_taproot && coin->taproot) {
+    sha256_Init(&ctx_amounts);
+    sha256_Init(&ctx_scriptpubkeys);
+    sha256_Init(&ctx_prevouts_tr);
+    sha256_Init(&ctx_sequences_tr);
+    sha256_Init(&ctx_outputs_tr);
+  }
+
   layoutProgressSwipe(_("Signing transaction"), 0);
 
   send_req_1_input();
@@ -715,11 +809,26 @@ static bool is_multisig_output_script_type(const TxOutputType* txoutput) {
   return false;
 }
 
+bool signing_output_multisig_quorum_is_valid(const TxOutputType* txoutput) {
+  return txoutput != NULL && (!txoutput->has_multisig ||
+                              multisig_quorum_is_valid(&txoutput->multisig));
+}
+
+void signing_checksum_script_type_bytes(InputScriptType script_type,
+                                        uint8_t out[4]) {
+  const uint32_t value = (uint32_t)script_type;
+  out[0] = (uint8_t)value;
+  out[1] = (uint8_t)(value >> 8);
+  out[2] = (uint8_t)(value >> 16);
+  out[3] = (uint8_t)(value >> 24);
+}
+
 static bool is_internal_input_script_type(const TxInputType* txinput) {
   if (txinput->script_type == InputScriptType_SPENDADDRESS ||
       txinput->script_type == InputScriptType_SPENDMULTISIG ||
       txinput->script_type == InputScriptType_SPENDP2SHWITNESS ||
-      txinput->script_type == InputScriptType_SPENDWITNESS) {
+      txinput->script_type == InputScriptType_SPENDWITNESS ||
+      txinput->script_type == InputScriptType_SPENDTAPROOT) {
     return true;
   }
   return false;
@@ -729,7 +838,8 @@ static bool is_change_output_script_type(const TxOutputType* txoutput) {
   if (txoutput->script_type == OutputScriptType_PAYTOADDRESS ||
       txoutput->script_type == OutputScriptType_PAYTOMULTISIG ||
       txoutput->script_type == OutputScriptType_PAYTOP2SHWITNESS ||
-      txoutput->script_type == OutputScriptType_PAYTOWITNESS) {
+      txoutput->script_type == OutputScriptType_PAYTOWITNESS ||
+      txoutput->script_type == OutputScriptType_PAYTOTAPROOT) {
     return true;
   }
   return false;
@@ -737,7 +847,8 @@ static bool is_change_output_script_type(const TxOutputType* txoutput) {
 
 static bool is_segwit_input_script_type(const TxInputType* txinput) {
   if (txinput->script_type == InputScriptType_SPENDP2SHWITNESS ||
-      txinput->script_type == InputScriptType_SPENDWITNESS) {
+      txinput->script_type == InputScriptType_SPENDWITNESS ||
+      txinput->script_type == InputScriptType_SPENDTAPROOT) {
     return true;
   }
   return false;
@@ -757,6 +868,16 @@ static bool signing_validate_input(const TxInputType* txinput) {
     return false;
   }
   if (txinput->has_multisig) {
+    /* Validate before tx_input_script_size() uses m for fee accounting. The
+     * mixed single-sig/multisig path can stop comparing a common fingerprint,
+     * so the later fingerprint validation is not a sufficient boundary. */
+    if (!multisig_quorum_is_valid(&txinput->multisig)) {
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid multisig quorum"));
+      signing_abort();
+      return false;
+    }
+
     /* DER-encoded secp256k1 signatures are at most 72 bytes. The generated
      * field is bytes[73], but the legacy nanopb decoder can accept size 74
      * because its static repeated-element stride includes padding. Bound the
@@ -794,6 +915,13 @@ static bool signing_validate_input(const TxInputType* txinput) {
     }
   }
 
+  if (txinput->script_type == InputScriptType_SPENDTAPROOT &&
+      (!coin->has_taproot || !coin->taproot)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Taproot not enabled on this coin."));
+    signing_abort();
+    return false;
+  }
   if (is_segwit_input_script_type(txinput)) {
     if (!coin->has_segwit) {
       fsm_sendFailure(FailureType_Failure_Other,
@@ -813,6 +941,12 @@ static bool signing_validate_input(const TxInputType* txinput) {
 }
 
 static bool signing_validate_output(const TxOutputType* txoutput) {
+  if (!signing_output_multisig_quorum_is_valid(txoutput)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid multisig quorum"));
+    signing_abort();
+    return false;
+  }
   if (txoutput->has_multisig && !is_multisig_output_script_type(txoutput)) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     _("Multisig field provided but not expected."));
@@ -828,19 +962,21 @@ static bool signing_validate_output(const TxOutputType* txoutput) {
     return false;
   }
 
+  // has_taproot is the nanopb presence flag, not the value. Every coin in
+  // coins.def sets it, so both fields must be checked.
+  if (txoutput->script_type == OutputScriptType_PAYTOTAPROOT &&
+      (!coin->has_taproot || !coin->taproot)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Taproot not enabled on this coin."));
+    signing_abort();
+    return false;
+  }
+
   if (txoutput->script_type == OutputScriptType_PAYTOOPRETURN) {
     if (txoutput->has_address || (txoutput->address_n_count > 0) ||
         txoutput->has_multisig) {
       fsm_sendFailure(FailureType_Failure_Other,
                       _("OP_RETURN output with address or multisig"));
-      signing_abort();
-      return false;
-    }
-
-    if (txoutput->script_type == OutputScriptType_PAYTOTAPROOT &&
-        !coin->has_taproot) {
-      fsm_sendFailure(FailureType_Failure_Other,
-                      _("Taproot not enabled on this coin."));
       signing_abort();
       return false;
     }
@@ -913,6 +1049,36 @@ static bool signing_check_input(TxInputType* txinput) {
   // compute segwit hashPrevouts & hashSequence
   tx_prevout_hash(&hasher_prevouts, txinput);
   tx_sequence_hash(&hasher_sequence, txinput);
+  // BIP-341 commits to the amount and scriptPubKey of EVERY input, not just
+  // the taproot ones, so these must be accumulated for all of them.  Only
+  // coins with taproot enabled pay the per-input derivation, and
+  // hdnode_private_ckd_cached keeps repeated derivations along one account
+  // path cheap.
+  if (coin->has_taproot && coin->taproot) {
+    has_taproot_input |= txinput->script_type == InputScriptType_SPENDTAPROOT;
+    missing_bip341_input_amount |= !txinput->has_amount;
+    uint8_t script_pubkey[64];
+    size_t script_pubkey_len = 0;
+    if (!fill_input_script_pubkey(coin, &root, txinput, script_pubkey,
+                                  &script_pubkey_len, sizeof(script_pubkey))) {
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Failed to derive input scriptPubKey"));
+      signing_abort();
+      return false;
+    }
+    /* outpoint: prev_hash is carried display-order and goes out reversed,
+       matching tx_prevout_hash() */
+    for (int i = 0; i < 32; i++) {
+      sha256_Update(&ctx_prevouts_tr, &txinput->prev_hash.bytes[31 - i], 1);
+    }
+    sha256_Update(&ctx_prevouts_tr, (const uint8_t*)&txinput->prev_index, 4);
+    sha256_Update(&ctx_sequences_tr, (const uint8_t*)&txinput->sequence, 4);
+    sha256_Update(&ctx_amounts, (const uint8_t*)&txinput->amount, 8);
+    uint8_t lenbuf[5];
+    uint32_t lenlen = ser_length(script_pubkey_len, lenbuf);
+    sha256_Update(&ctx_scriptpubkeys, lenbuf, lenlen);
+    sha256_Update(&ctx_scriptpubkeys, script_pubkey, script_pubkey_len);
+  }
   if (coin->decred) {
     if (txinput->decred_script_version > 0) {
       fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -933,8 +1099,10 @@ static bool signing_check_input(TxInputType* txinput) {
   // hash prevout and script type to check it later (relevant for fee
   // computation)
   tx_prevout_hash(&hasher_check, txinput);
-  hasher_Update(&hasher_check, (const uint8_t*)&txinput->script_type,
-                sizeof(&txinput->script_type));
+  uint8_t script_type_bytes[4];
+  signing_checksum_script_type_bytes(txinput->script_type, script_type_bytes);
+  hasher_Update(&hasher_check, script_type_bytes, sizeof(script_type_bytes));
+  memzero(script_type_bytes, sizeof(script_type_bytes));
   return true;
 }
 
@@ -996,7 +1164,7 @@ static bool signing_check_output(TxOutputType* txoutput) {
   }
   spending += txoutput->amount;
   int co =
-      run_policy_compile_output(coin, root, txoutput, &bin_output, !is_change);
+      run_policy_compile_output(coin, &root, txoutput, &bin_output, !is_change);
   if (!is_change) {
     layoutProgress(_("Signing transaction"), progress);
   }
@@ -1017,6 +1185,15 @@ static bool signing_check_output(TxOutputType* txoutput) {
   }
   //  compute segwit hashOuts
   tx_output_hash(&hasher_outputs, &bin_output, coin->decred);
+  /* BIP-341's sha_outputs: single sha256 over amount || ser_script */
+  if (coin->has_taproot && coin->taproot) {
+    sha256_Update(&ctx_outputs_tr, (const uint8_t*)&bin_output.amount, 8);
+    uint8_t lenbuf[5];
+    uint32_t lenlen = ser_length(bin_output.script_pubkey.size, lenbuf);
+    sha256_Update(&ctx_outputs_tr, lenbuf, lenlen);
+    sha256_Update(&ctx_outputs_tr, bin_output.script_pubkey.bytes,
+                  bin_output.script_pubkey.size);
+  }
   return true;
 }
 
@@ -1053,6 +1230,9 @@ static bool signing_check_fee(void) {
     signing_abort();
     return false;
   }
+  if (has_taproot_input) {
+    taproot_transaction_confirmed = true;
+  }
   return true;
 }
 
@@ -1076,6 +1256,9 @@ static void phase1_request_next_output(void) {
       tx_hash_final(&ti, hash_prefix, false);
     }
     hasher_Final(&hasher_outputs, hash_outputs);
+    if (coin->has_taproot && coin->taproot) {
+      sha256_Final(&ctx_outputs_tr, hash_outputs_tr);
+    }
     if (!signing_check_fee()) {
       return;
     }
@@ -1090,6 +1273,14 @@ static void phase1_request_next_output(void) {
       phase2_request_next_input();
     }
   }
+}
+
+/* BIP-341 key-path sighash.  The assembly itself lives in bip341_sighash()
+   so the field ordering is unit-testable against the published vectors. */
+static void signing_hash_bip341(uint32_t input_index, uint8_t* hash) {
+  bip341_sighash(SIGHASH_DEFAULT_TAPROOT, version, lock_time, hash_prevouts_tr,
+                 hash_amounts, hash_scriptpubkeys, hash_sequences_tr,
+                 hash_outputs_tr, input_index, hash);
 }
 
 static void signing_hash_bip143(const TxInputType* txinput, uint8_t* hash) {
@@ -1266,7 +1457,78 @@ static bool signing_sign_input(void) {
 static bool signing_sign_segwit_input(TxInputType* txinput) {
   // idx1: index to sign
 
-  if (is_segwit_input_script_type(txinput)) {
+  if (txinput->script_type == InputScriptType_SPENDTAPROOT) {
+    if (!taproot_transaction_confirmed) {
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Taproot transaction was not confirmed"));
+      signing_abort();
+      return false;
+    }
+    /* No scriptSig to build, but the same re-validation and derivation the
+       other input types get. */
+    if (!prepare_input_node(txinput)) {
+      fsm_sendFailure(FailureType_Failure_Other, _("Failed to compile input"));
+      signing_abort();
+      return false;
+    }
+    if (txinput->amount > authorized_bip143_in) {
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Transaction has changed during signing"));
+      signing_abort();
+      return false;
+    }
+    authorized_bip143_in -= txinput->amount;
+
+    uint8_t hash[32];
+    signing_hash_bip341(idx1, hash);
+
+    /* Sign with the BIP-86 tweaked key, so the signature verifies against the
+       output key committed to in the scriptPubKey rather than the internal
+       key. */
+    static CONFIDENTIAL uint8_t tweaked[32];
+    if (bip340_tweak_seckey(curve->params, node.private_key,
+                            /*merkle_root=*/NULL, tweaked) != 0) {
+      memzero(tweaked, sizeof(tweaked));
+      fsm_sendFailure(FailureType_Failure_Other, _("Failed to tweak key"));
+      signing_abort();
+      return false;
+    }
+    /* aux = NULL means an all-zero aux_rand, i.e. deterministic signing.  That
+       is spec-permitted and matches this firmware's ECDSA, which is RFC6979
+       deterministic; the nonce still depends on the private key and the
+       message, so it is never reused across different transactions.  Fresh
+       randomness would only add side-channel hardening, at the cost of making
+       signatures unreproducible and so untestable against a published
+       vector. */
+    int sign_ret = bip340_sign(curve->params, tweaked, hash, sizeof(hash),
+                               /*aux=*/NULL, sig);
+    memzero(tweaked, sizeof(tweaked));
+    if (sign_ret != 0) {
+      fsm_sendFailure(FailureType_Failure_Other, _("Signing failed"));
+      signing_abort();
+      return false;
+    }
+
+    resp.has_serialized = true;
+    resp.serialized.has_signature_index = true;
+    resp.serialized.signature_index = idx1;
+    resp.serialized.has_signature = true;
+    /* signing_txack() memsets resp, and this branch bypasses
+       signing_sign_hash(), which is where every other input type sets this.
+       Without it nanopb omits serialized_tx and the host loses the witness
+       and the tx footer. */
+    resp.serialized.has_serialized_tx = true;
+    resp.serialized.signature.size = 64;
+    memcpy(resp.serialized.signature.bytes, sig, 64);
+
+    /* Witness is a single 64-byte element.  SIGHASH_DEFAULT omits the trailing
+       sighash byte entirely -- appending 0x00 would be a different, invalid
+       signature. */
+    uint32_t r = 0;
+    r += ser_length(1, resp.serialized.serialized_tx.bytes + r);
+    r += tx_serialize_script(64, sig, resp.serialized.serialized_tx.bytes + r);
+    resp.serialized.serialized_tx.size = r;
+  } else if (is_segwit_input_script_type(txinput)) {
     if (!compile_input_script_sig(txinput)) {
       fsm_sendFailure(FailureType_Failure_Other, _("Failed to compile input"));
       signing_abort();
@@ -1379,10 +1641,9 @@ void signing_txack(TransactionType* tx) {
     return;
   }
 
-  static int update_ctr = 0;
-  if (update_ctr++ == 20) {
+  if (signing_update_ctr++ == 20) {
     layoutProgress(_("Signing transaction"), progress);
-    update_ctr = 0;
+    signing_update_ctr = 0;
   }
 
   memset(&resp, 0, sizeof(TxRequest));
@@ -1436,6 +1697,7 @@ void signing_txack(TransactionType* tx) {
           send_req_2_prev_meta();
         }
       } else if (tx->inputs[0].script_type == InputScriptType_SPENDWITNESS ||
+                 tx->inputs[0].script_type == InputScriptType_SPENDTAPROOT ||
                  tx->inputs[0].script_type ==
                      InputScriptType_SPENDP2SHWITNESS) {
         if (coin->decred) {
@@ -1568,6 +1830,26 @@ void signing_txack(TransactionType* tx) {
           signing_abort();
           return;
         }
+        /* BIP-341 commits to every input's amount and scriptPubKey. For a
+           mixed legacy+Taproot transaction the host must provide the legacy
+           amount, and it must describe the actual prevout rather than an
+           invented commitment that would produce an invalid signature. */
+        if (coin->has_taproot && coin->taproot && input.has_amount) {
+          uint8_t expected_script[64];
+          size_t expected_script_len = 0;
+          if (input.amount != tx->bin_outputs[0].amount ||
+              !fill_input_script_pubkey(coin, &root, &input, expected_script,
+                                        &expected_script_len,
+                                        sizeof(expected_script)) ||
+              expected_script_len != tx->bin_outputs[0].script_pubkey.size ||
+              memcmp(expected_script, tx->bin_outputs[0].script_pubkey.bytes,
+                     expected_script_len) != 0) {
+            fsm_sendFailure(FailureType_Failure_SyntaxError,
+                            _("Input amount or script does not match prevout"));
+            signing_abort();
+            return;
+          }
+        }
         to_spend += tx->bin_outputs[0].amount;
       }
       if (idx2 < tp.outputs_len - 1) {
@@ -1600,7 +1882,6 @@ void signing_txack(TransactionType* tx) {
       }
       return;
     case STAGE_REQUEST_3_OUTPUT:
-
       txin_dgst_final();
 
       if (!signing_validate_output(&tx->outputs[0]) ||
@@ -1624,8 +1905,12 @@ void signing_txack(TransactionType* tx) {
       }
       // check prevouts and script type
       tx_prevout_hash(&hasher_check, tx->inputs);
-      hasher_Update(&hasher_check, (const uint8_t*)&tx->inputs[0].script_type,
-                    sizeof(&tx->inputs[0].script_type));
+      uint8_t script_type_bytes[4];
+      signing_checksum_script_type_bytes(tx->inputs[0].script_type,
+                                         script_type_bytes);
+      hasher_Update(&hasher_check, script_type_bytes,
+                    sizeof(script_type_bytes));
+      memzero(script_type_bytes, sizeof(script_type_bytes));
       if (idx2 == idx1) {
         if (!compile_input_script_sig(&tx->inputs[0])) {
           fsm_sendFailure(FailureType_Failure_Other,
@@ -1674,7 +1959,7 @@ void signing_txack(TransactionType* tx) {
       progress = 500 + ((signatures * progress_step +
                          (inputs_count + idx2) * progress_meta_step) >>
                         PROGRESS_PRECISION);
-      int co = run_policy_compile_output(coin, root, tx->outputs, &bin_output,
+      int co = run_policy_compile_output(coin, &root, tx->outputs, &bin_output,
                                          false);
       if (co <= TXOUT_COMPILE_ERROR) {
         send_fsm_co_error_message(co);
@@ -1700,7 +1985,7 @@ void signing_txack(TransactionType* tx) {
         signatures++;
         progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
         layoutProgress(_("Signing transaction"), progress);
-        update_ctr = 0;
+        signing_update_ctr = 0;
         if (idx1 < inputs_count - 1) {
           idx1++;
           phase2_request_next_input();
@@ -1767,7 +2052,7 @@ void signing_txack(TransactionType* tx) {
         signatures++;
         progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
         layoutProgress(_("Signing transaction"), progress);
-        update_ctr = 0;
+        signing_update_ctr = 0;
       } else if (tx->inputs[0].script_type ==
                      InputScriptType_SPENDP2SHWITNESS &&
                  !tx->inputs[0].has_multisig) {
@@ -1821,7 +2106,7 @@ void signing_txack(TransactionType* tx) {
       if (!signing_validate_output(&tx->outputs[0])) {
         return;
       }
-      co = run_policy_compile_output(coin, root, tx->outputs, &bin_output,
+      co = run_policy_compile_output(coin, &root, tx->outputs, &bin_output,
                                      false);
       if (co <= TXOUT_COMPILE_ERROR) {
         send_fsm_co_error_message(co);
@@ -1854,7 +2139,7 @@ void signing_txack(TransactionType* tx) {
       signatures++;
       progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
       layoutProgress(_("Signing transaction"), progress);
-      update_ctr = 0;
+      signing_update_ctr = 0;
       if (idx1 < inputs_count - 1) {
         idx1++;
         send_req_segwit_witness();
@@ -1913,7 +2198,7 @@ void signing_txack(TransactionType* tx) {
       signatures++;
       progress = 500 + ((signatures * progress_step) >> PROGRESS_PRECISION);
       layoutProgress(_("Signing transaction"), progress);
-      update_ctr = 0;
+      signing_update_ctr = 0;
       if (idx1 < inputs_count - 1) {
         idx1++;
         send_req_decred_witness();
@@ -1931,27 +2216,25 @@ void signing_txack(TransactionType* tx) {
 void signing_abort(void) {
   if (signing) {
     layoutHome();
-    signing = false;
   }
-  /* root points at fsm_getDerivedNode()'s static HDNode. Clearing only the
-   * pointer leaves the master private key resident across cancellation,
-   * ClearSession, lock, or wipe. */
-  if (root) memzero((void*)root, sizeof(*root));
+  fsm_clearDerivedNode();
+  txin_dgst_reset_current();
+  memzero(&inputs_count, sizeof(inputs_count));
+  memzero(&outputs_count, sizeof(outputs_count));
+  memzero(&coin, sizeof(coin));
+  memzero(&curve, sizeof(curve));
+  /* Scrub the signer's own copy of the master key, so it does not stay
+   * resident across cancellation, ClearSession, lock, or wipe. */
   memzero(&root, sizeof(root));
   memzero(&node, sizeof(node));
-  memzero(privkey, sizeof(privkey));
-  memzero(pubkey, sizeof(pubkey));
-  memzero(sig, sizeof(sig));
-  memzero(hash_prevouts, sizeof(hash_prevouts));
-  memzero(hash_sequence, sizeof(hash_sequence));
-  memzero(hash_outputs, sizeof(hash_outputs));
-  memzero(hash_prefix, sizeof(hash_prefix));
-  memzero(hash_check, sizeof(hash_check));
-  memzero(multisig_fp, sizeof(multisig_fp));
-  memzero(in_address_n, sizeof(in_address_n));
+  memzero(&signing, sizeof(signing));
+  memzero(&signing_stage, sizeof(signing_stage));
+  memzero(&idx1, sizeof(idx1));
+  memzero(&idx2, sizeof(idx2));
+  memzero(&signatures, sizeof(signatures));
+  memzero(&resp, sizeof(resp));
   memzero(&input, sizeof(input));
   memzero(&bin_output, sizeof(bin_output));
-  memzero(&resp, sizeof(resp));
   memzero(&to, sizeof(to));
   memzero(&tp, sizeof(tp));
   memzero(&ti, sizeof(ti));
@@ -1959,20 +2242,139 @@ void signing_abort(void) {
   memzero(&hasher_sequence, sizeof(hasher_sequence));
   memzero(&hasher_outputs, sizeof(hasher_outputs));
   memzero(&hasher_check, sizeof(hasher_check));
-  inputs_count = outputs_count = 0;
-  signing_stage = STAGE_REQUEST_1_INPUT;
-  idx1 = idx2 = signatures = 0;
-  to_spend = authorized_bip143_in = spending = change_spend = 0;
-  version = 1;
-  lock_time = expiry = version_group_id = branch_id = 0;
-  overwintered = false;
-  next_nonsegwit_input = 0;
-  progress = progress_step = progress_meta_step = 0;
-  multisig_fp_set = multisig_fp_mismatch = false;
-  in_address_n_count = 0;
-  tx_weight = 0;
-  coin = NULL;
-  curve = NULL;
+  memzero(&ctx_amounts, sizeof(ctx_amounts));
+  memzero(&ctx_scriptpubkeys, sizeof(ctx_scriptpubkeys));
+  memzero(&ctx_prevouts_tr, sizeof(ctx_prevouts_tr));
+  memzero(&ctx_sequences_tr, sizeof(ctx_sequences_tr));
+  memzero(&ctx_outputs_tr, sizeof(ctx_outputs_tr));
+  memzero(privkey, sizeof(privkey));
+  memzero(pubkey, sizeof(pubkey));
+  memzero(sig, sizeof(sig));
+  memzero(hash_prevouts, sizeof(hash_prevouts));
+  memzero(hash_sequence, sizeof(hash_sequence));
+  memzero(hash_outputs, sizeof(hash_outputs));
+  memzero(hash_amounts, sizeof(hash_amounts));
+  memzero(hash_scriptpubkeys, sizeof(hash_scriptpubkeys));
+  memzero(hash_prevouts_tr, sizeof(hash_prevouts_tr));
+  memzero(hash_sequences_tr, sizeof(hash_sequences_tr));
+  memzero(hash_outputs_tr, sizeof(hash_outputs_tr));
+  memzero(hash_prefix, sizeof(hash_prefix));
+  memzero(hash_check, sizeof(hash_check));
+  memzero(&to_spend, sizeof(to_spend));
+  memzero(&authorized_bip143_in, sizeof(authorized_bip143_in));
+  memzero(&spending, sizeof(spending));
+  memzero(&change_spend, sizeof(change_spend));
+  memzero(&has_taproot_input, sizeof(has_taproot_input));
+  memzero(&missing_bip341_input_amount, sizeof(missing_bip341_input_amount));
+  memzero(&taproot_transaction_confirmed,
+          sizeof(taproot_transaction_confirmed));
+  memzero(&version, sizeof(version));
+  memzero(&lock_time, sizeof(lock_time));
+  memzero(&expiry, sizeof(expiry));
+  memzero(&overwintered, sizeof(overwintered));
+  memzero(&version_group_id, sizeof(version_group_id));
+  memzero(&branch_id, sizeof(branch_id));
+  memzero(&next_nonsegwit_input, sizeof(next_nonsegwit_input));
+  memzero(&progress, sizeof(progress));
+  memzero(&progress_step, sizeof(progress_step));
+  memzero(&progress_meta_step, sizeof(progress_meta_step));
+  memzero(&multisig_fp_set, sizeof(multisig_fp_set));
+  memzero(&multisig_fp_mismatch, sizeof(multisig_fp_mismatch));
+  memzero(multisig_fp, sizeof(multisig_fp));
+  memzero(in_address_n, sizeof(in_address_n));
+  memzero(&in_address_n_count, sizeof(in_address_n_count));
+  memzero(&tx_weight, sizeof(tx_weight));
+  memzero(&signing_update_ctr, sizeof(signing_update_ctr));
 }
 
 bool signing_is_active(void) { return signing; }
+
+#if DEBUG_LINK
+static CoinType signing_test_coin;
+static curve_info signing_test_curve;
+static bool signing_test_bytes_are_zero(const void* ptr, size_t len) {
+  const uint8_t* bytes = (const uint8_t*)ptr;
+  uint8_t aggregate = 0;
+  for (size_t i = 0; i < len; i++) aggregate |= bytes[i];
+  return aggregate == 0;
+}
+
+void signing_test_seed_state(void) {
+  coin = &signing_test_coin;
+  curve = &signing_test_curve;
+  memset(&root, 0xA5, sizeof(root));
+  signing = true;
+  signing_stage = STAGE_REQUEST_5_OUTPUT;
+  memset(&node, 0xA5, sizeof(node));
+  memset(&resp, 0xA5, sizeof(resp));
+  memset(&input, 0xA5, sizeof(input));
+  memset(&bin_output, 0xA5, sizeof(bin_output));
+  memset(&to, 0xA5, sizeof(to));
+  memset(&tp, 0xA5, sizeof(tp));
+  memset(&ti, 0xA5, sizeof(ti));
+  memset(&hasher_prevouts, 0xA5, sizeof(hasher_prevouts));
+  memset(&hasher_sequence, 0xA5, sizeof(hasher_sequence));
+  memset(&hasher_outputs, 0xA5, sizeof(hasher_outputs));
+  memset(&hasher_check, 0xA5, sizeof(hasher_check));
+  memset(&ctx_amounts, 0xA5, sizeof(ctx_amounts));
+  memset(&ctx_scriptpubkeys, 0xA5, sizeof(ctx_scriptpubkeys));
+  memset(&ctx_prevouts_tr, 0xA5, sizeof(ctx_prevouts_tr));
+  memset(&ctx_sequences_tr, 0xA5, sizeof(ctx_sequences_tr));
+  memset(&ctx_outputs_tr, 0xA5, sizeof(ctx_outputs_tr));
+  memset(privkey, 0xA5, sizeof(privkey));
+  memset(pubkey, 0xA5, sizeof(pubkey));
+  memset(sig, 0xA5, sizeof(sig));
+  memset(hash_prevouts, 0xA5, sizeof(hash_prevouts));
+  memset(hash_sequence, 0xA5, sizeof(hash_sequence));
+  memset(hash_outputs, 0xA5, sizeof(hash_outputs));
+  memset(hash_amounts, 0xA5, sizeof(hash_amounts));
+  memset(hash_scriptpubkeys, 0xA5, sizeof(hash_scriptpubkeys));
+  memset(hash_prevouts_tr, 0xA5, sizeof(hash_prevouts_tr));
+  memset(hash_sequences_tr, 0xA5, sizeof(hash_sequences_tr));
+  memset(hash_outputs_tr, 0xA5, sizeof(hash_outputs_tr));
+  memset(hash_prefix, 0xA5, sizeof(hash_prefix));
+  memset(hash_check, 0xA5, sizeof(hash_check));
+  memset(multisig_fp, 0xA5, sizeof(multisig_fp));
+  memset(in_address_n, 0xA5, sizeof(in_address_n));
+  inputs_count = outputs_count = idx1 = idx2 = signatures = 1;
+  to_spend = authorized_bip143_in = spending = change_spend = 1;
+  version = lock_time = expiry = version_group_id = branch_id = 1;
+  next_nonsegwit_input = progress = progress_step = progress_meta_step = 1;
+  tx_weight = 1;
+  in_address_n_count = 1;
+  has_taproot_input = missing_bip341_input_amount = true;
+  taproot_transaction_confirmed = overwintered = true;
+  multisig_fp_set = multisig_fp_mismatch = true;
+  signing_update_ctr = 1;
+  fsm_test_seedDerivedNode();
+}
+
+bool signing_test_state_is_cleared(void) {
+#define IS_ZERO(V) signing_test_bytes_are_zero(&(V), sizeof(V))
+  return IS_ZERO(node) && IS_ZERO(resp) && IS_ZERO(input) &&
+         IS_ZERO(bin_output) && IS_ZERO(to) && IS_ZERO(tp) && IS_ZERO(ti) &&
+         coin == NULL && curve == NULL && IS_ZERO(root) && !signing &&
+         signing_stage == 0 && IS_ZERO(hasher_prevouts) &&
+         IS_ZERO(hasher_sequence) && IS_ZERO(hasher_outputs) &&
+         IS_ZERO(hasher_check) && IS_ZERO(ctx_amounts) &&
+         IS_ZERO(ctx_scriptpubkeys) && IS_ZERO(ctx_prevouts_tr) &&
+         IS_ZERO(ctx_sequences_tr) && IS_ZERO(ctx_outputs_tr) &&
+         IS_ZERO(privkey) && IS_ZERO(pubkey) && IS_ZERO(sig) &&
+         IS_ZERO(hash_prevouts) && IS_ZERO(hash_sequence) &&
+         IS_ZERO(hash_outputs) && IS_ZERO(hash_amounts) &&
+         IS_ZERO(hash_scriptpubkeys) && IS_ZERO(hash_prevouts_tr) &&
+         IS_ZERO(hash_sequences_tr) && IS_ZERO(hash_outputs_tr) &&
+         IS_ZERO(hash_prefix) && IS_ZERO(hash_check) && IS_ZERO(multisig_fp) &&
+         IS_ZERO(in_address_n) && inputs_count == 0 && outputs_count == 0 &&
+         idx1 == 0 && idx2 == 0 && signatures == 0 && to_spend == 0 &&
+         authorized_bip143_in == 0 && spending == 0 && change_spend == 0 &&
+         version == 0 && lock_time == 0 && expiry == 0 &&
+         version_group_id == 0 && branch_id == 0 && next_nonsegwit_input == 0 &&
+         progress == 0 && progress_step == 0 && progress_meta_step == 0 &&
+         tx_weight == 0 && in_address_n_count == 0 && !has_taproot_input &&
+         !missing_bip341_input_amount && !taproot_transaction_confirmed &&
+         !overwintered && !multisig_fp_set && !multisig_fp_mismatch &&
+         signing_update_ctr == 0 && fsm_test_derivedNodeIsZero();
+#undef IS_ZERO
+}
+#endif

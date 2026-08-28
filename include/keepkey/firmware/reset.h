@@ -83,12 +83,21 @@ void setup_arm(SetupKind kind);
 /// mnemonic, disarms, then commits to flash.
 void setup_commit(const char* mnemonic, bool imported);
 
+/* \a dice_entropy runs the on-device dice collection, which folds into the
+ * device half BEFORE the EntropyRequest and entirely before setup_arm().
+ * Mutually exclusive with \a display_random: the entropy screen shows the
+ * post-mix value, which would be the seed pre-image once ext_entropy is
+ * known, so requesting both is refused. */
 void reset_init(bool display_random, uint32_t _strength,
                 bool passphrase_protection, bool pin_protection,
                 const char* language, const char* label, bool _no_backup,
-                uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter);
+                uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter,
+                bool dice_entropy);
 void reset_entropy(const uint8_t* ext_entropy, uint32_t len);
 uint32_t reset_get_int_entropy(uint8_t* entropy);
 const char* reset_get_word(void);
+/// \returns 32 and fills \a digest with SHA-256 of the roll string, or 0 if
+/// the current ceremony collected no dice. Cleared by setup_abort().
+uint32_t reset_get_dice_digest(uint8_t* digest);
 
 #endif

@@ -158,6 +158,16 @@ void fsm_msgTronSignMessage(TronSignMessage* msg) {
 
   CHECK_PIN
 
+  /* An omitted or zero-length message is not a message. confirm_bytes()
+     renders size 0 as the literal "(empty)" and returns whatever the owner
+     pressed, so without this the device would sign a payload no screen ever
+     showed -- the same hole already closed on the TON and Solana paths. */
+  if (!msg->has_message || msg->message.size == 0) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Missing message"));
+    layoutHome();
+    return;
+  }
+
   /* Merge note (#432 vs this branch): #432 gated TRON message signing behind
    * AdvancedMode because the message was a blind sign. It is not any more —
    * confirm_bytes() below paginates and displays EVERY signed byte, which is

@@ -47,6 +47,8 @@ void recovery_cipher_reset(void);
 void recovery_cipher_abort(void);
 
 #if DEBUG_LINK
+void recovery_cipher_test_set_word_fragments(void);
+bool recovery_cipher_test_word_fragments_are_zero(void);
 const char* recovery_get_cipher(void);
 const char* recovery_get_auto_completed_word(void);
 #endif

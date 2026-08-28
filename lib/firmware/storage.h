@@ -185,6 +185,9 @@ typedef enum {
   SUS_Invalid,
   SUS_Valid,
   SUS_Updated,
+  /// Storage was written by bitcoin-only firmware and this build must not load
+  /// it. The wallet stays INTACT in flash -- this is a refusal, never a wipe.
+  SUS_BitcoinOnlyLocked,
 } StorageUpdateStatus;
 
 /// \brief Copy configuration from storage partition in flash memory to shadow

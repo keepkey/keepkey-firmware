@@ -48,6 +48,27 @@ bool binance_validateTransfer(const BinanceTransferMsg* transfer) {
          binance_isValidDenom(input_coin->denom);
 }
 
+/* The address prefix this session's chain_id domain-binds the signature to.
+ *
+ * Accepting "bnb" or "tbnb" per address, independently, let one transfer mix
+ * networks and tied neither address to the chain_id inside the sign document:
+ * a mainnet envelope could display and sign a tbnb recipient. Derive the one
+ * permitted prefix from the chain_id once, here, and hold every input and
+ * output to it. An unrecognised chain_id has no prefix to derive, so it is
+ * refused rather than guessed -- the safe direction, and these three are the
+ * only chain ids BNB Beacon Chain ever used. */
+static const char* binance_addressPrefixForChain(const char* chain_id) {
+  if (!chain_id) return NULL;
+  if (strcmp(chain_id, "Binance-Chain-Tigris") == 0) return "bnb";
+  if (strcmp(chain_id, "Binance-Chain-Ganges") == 0) return "tbnb";
+  if (strcmp(chain_id, "Binance-Chain-Nile") == 0) return "tbnb";
+  return NULL;
+}
+
+static const char* address_prefix;
+
+const char* binance_sessionAddressPrefix(void) { return address_prefix; }
+
 bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg) {
   binance_signAbort();
   if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0 ||
@@ -56,6 +77,9 @@ bool binance_signTxInit(const HDNode* _node, const BinanceSignTx* _msg) {
       _msg->sequence < 0 || !_msg->has_source || _msg->source < 0) {
     return false;
   }
+
+  address_prefix = binance_addressPrefixForChain(_msg->chain_id);
+  if (!address_prefix) return false;
 
   msgs_remaining = _msg->msg_count;
 
@@ -107,10 +131,24 @@ bool binance_serializeCoin(const BinanceCoin* coin) {
 }
 
 bool binance_serializeInputOutput(const BinanceInputOutput* io) {
-  size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
-  if (!bech32_decode(hrp, decoded, &decoded_len, io->address)) {
+  /* io->address is written verbatim into the signed JSON immediately below, so
+     it has to be a Binance ACCOUNT address, not merely a string with a valid
+     bech32 checksum.
+
+     The previous bare bech32_decode() into hrp[45]/decoded[38] checked neither
+     the network nor the payload length, and both buffers were undersized for
+     what a host can send -- see tendermint_bech32DecodeChecked(). A wrong-HRP
+     address, a module address, or a punctuation-bearing HRP therefore reached
+     the signed document.
+
+     The permitted prefix is the ONE that this session's chain_id selects (see
+     binance_addressPrefixForChain()), not "bnb or tbnb" per address: taking
+     them independently let a single transfer mix networks and bound neither
+     address to the chain_id the signature is domain-separated by. Everything
+     else is refused -- another chain's prefix, a validator or module address,
+     and any payload that is not a 20-byte account. */
+  if (!address_prefix) return false;
+  if (!tendermint_validateBech32Address(io->address, address_prefix)) {
     return false;
   }
 
@@ -198,6 +236,20 @@ bool binance_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
                            NULL) == 0;
 }
 
+/* The account this session's key signs as.
+ *
+ * A transfer's input is its authority. Checking only that it is a well-formed
+ * address on the session's network let a host obtain a signature over an input
+ * the device cannot represent, and no screen shows the input address, so
+ * nothing would have revealed it. */
+bool binance_addressIsSigner(const char* address) {
+  if (!initialized || !address || !address_prefix) return false;
+
+  char expected[46] = {0};
+  if (!tendermint_getAddress(&node, address_prefix, expected)) return false;
+  return strcmp(address, expected) == 0;
+}
+
 bool binance_signingIsInited(void) { return initialized; }
 
 bool binance_signingIsFinished(void) {
@@ -208,6 +260,7 @@ void binance_signAbort(void) {
   initialized = false;
   has_message = false;
   msgs_remaining = 0;
+  address_prefix = NULL;
   memzero(&msg, sizeof(msg));
   memzero(&node, sizeof(node));
 }

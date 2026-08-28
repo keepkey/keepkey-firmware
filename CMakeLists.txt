@@ -9,7 +9,7 @@ endif()
 
 project(
   KeepKeyFirmware
-  VERSION 7.14.2
+  VERSION 7.14.3
   LANGUAGES C CXX ASM)
 
 set(BOOTLOADER_MAJOR_VERSION 2)
@@ -20,6 +20,8 @@ option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_BUILD_DYLIB "Build libkkemu shared library (.dylib/.so)" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
 option(KK_BUILD_FUZZERS "Build the fuzzers?" OFF)
+option(KK_BITCOIN_ONLY "Build Bitcoin-only firmware (strip all non-BTC coins)"
+       OFF)
 
 # When building the dylib, every static lib it links (kkfirmware, kkboard,
 # trezorcrypto, kkrand, kktransport, qrcodegenerator, SecAESSTM32, ...) must
@@ -97,13 +99,21 @@ add_definitions(-DED25519_FORCE_32BIT=1)
 
 add_definitions(-DUSE_PRECOMPUTED_CP=0)
 
-add_definitions(-DUSE_ETHEREUM=1)
+if(${KK_BITCOIN_ONLY})
+  # Strip the coin-specific trezor-crypto primitives whose only callers
+  # (ethereum.c / nano.c) are themselves compiled out of this image. KECCAK
+  # stays on: it is a generic hash, and the saving is not worth the risk.
+  add_definitions(-DUSE_ETHEREUM=0)
+  add_definitions(-DUSE_NANO=0)
+else()
+  add_definitions(-DUSE_ETHEREUM=1)
+  add_definitions(-DUSE_NANO=1)
+endif()
 add_definitions(-DUSE_KECCAK=1)
 add_definitions(-DUSE_GRAPHENE=0)
 add_definitions(-DUSE_CARDANO=0)
 add_definitions(-DUSE_MONERO=0)
 add_definitions(-DUSE_NEM=0)
-add_definitions(-DUSE_NANO=1)
 
 # trezor-crypto's rand.c tests only whether this macro is defined.  A value of
 # zero therefore did not disable anything; it excluded the library's insecure
@@ -131,6 +141,16 @@ if(${KK_DEBUG_LINK})
   add_definitions(-DDEBUG_LINK=1)
 else()
   add_definitions(-DDEBUG_LINK=0)
+endif()
+
+# Always defined, 0 or 1, and always tested with `#if BITCOIN_ONLY`. Device
+# builds compile with -Wundef -Werror, so an undefined identifier inside `#if`
+# is a hard error rather than a silent zero -- which is what we want, because
+# a silently-zero guard would ship the coin engines into the stripped image.
+if(${KK_BITCOIN_ONLY})
+  add_definitions(-DBITCOIN_ONLY=1)
+else()
+  add_definitions(-DBITCOIN_ONLY=0)
 endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")

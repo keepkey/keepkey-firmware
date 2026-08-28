@@ -53,15 +53,6 @@ bool format_sign_identity_key_selection(const IdentityType* identity,
 bool confirm_sign_identity(const IdentityType* identity, const char* challenge,
                            const char* curve);
 
-/**
- * Render the largest screen-sized prefix of a byte string.
- *
- * Whitespace, backslashes, controls, and non-ASCII bytes use an unambiguous
- * \xNN spelling. This prevents the OLED renderer from discarding leading
- * spaces or interpreting newlines while preserving readable printable text.
- *
- * \returns the number of input bytes represented in out, or zero on error.
- */
 /// Escape every byte of `data` into `out`, exactly as confirm_bytes() renders
 /// it, but without paging: bytes outside 0x21..0x7E, and '\\' itself, become a
 /// four-glyph \\xNN escape.
@@ -79,6 +70,15 @@ bool confirm_sign_identity(const IdentityType* identity, const char* challenge,
 bool confirm_bytes_escape(const uint8_t* data, size_t size, char* out,
                           size_t out_len);
 
+/**
+ * Render the largest screen-sized prefix of a byte string.
+ *
+ * Whitespace, backslashes, controls, and non-ASCII bytes use an unambiguous
+ * \xNN spelling. This prevents the OLED renderer from discarding leading
+ * spaces or interpreting newlines while preserving readable printable text.
+ *
+ * \returns the number of input bytes represented in out, or zero on error.
+ */
 size_t confirm_bytes_format_page(const uint8_t* data, size_t size, char* out,
                                  size_t out_len);
 
