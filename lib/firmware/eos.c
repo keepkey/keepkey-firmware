@@ -477,8 +477,15 @@ bool eos_compileActionUnknown(const EosActionCommon* common,
   }
 
   if (!eos_unknownActionPolicyAllows(storage_isPolicyEnabled("AdvancedMode"))) {
-    fsm_sendFailure(FailureType_Failure_Other,
-                    "Enable AdvancedMode to sign arbitrary EOS actions");
+    // The refusal below is unconditional: review()'s return value is
+    // discarded on purpose, so the gate never depends on it. The screen is
+    // the on-device disclosure of *why* signing stopped, mirroring
+    // ethereum.c / fsm_msgSolanaSignMessage / fsm_msgTonSignTx.
+    (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                 "Arbitrary EOS actions require AdvancedMode. "
+                 "Enable in device settings.");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    "Arbitrary EOS action signing disabled by policy");
     eos_signingAbort();
     layoutHome();
     return false;
@@ -632,7 +639,13 @@ bool eos_signTx(EosSignedTx* tx) {
 
   time_t expiry = header.expiration;
   char expiry_str[26];
+#ifdef _WIN32
+  // asctime_s is the bounds-checked Windows variant; output truncated below.
+  // cppcheck-suppress asctime_sCalled
+  asctime_s(expiry_str, sizeof(expiry_str), gmtime(&expiry));
+#else
   asctime_r(gmtime(&expiry), expiry_str);
+#endif
   expiry_str[24] = 0;  // cut off the '\n'
   uint32_t delay = header.delay_sec;
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Sign Transaction",

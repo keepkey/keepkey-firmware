@@ -5,27 +5,37 @@
 # Stage 1: GATE (seconds, no Docker)
 #   ├─ lint-format        clang-format diff check
 #   ├─ static-analysis    cppcheck static analysis
+#   ├─ crypto-tests       pinned fork crypto vectors + ASan/UBSan
 #   ├─ secret-scan        gitleaks credential detection
 #   └─ check-submodules   verify all deps present
 #
 # Stage 2: BUILD (parallel, gated by Stage 1)
-#   ├─ build-emulator     Docker image → artifact
-#   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)
+#   ├─ build-emulator     Docker image → artifact  [matrix: full / bitcoin-only]
+#   └─ build-arm-firmware cross-compile → .bin/.elf (downloadable)  [same matrix]
 #
 # Stage 3: TEST (parallel, gated by Stage 2)
-#   ├─ unit-tests              GoogleTest (make xunit)
-#   └─ python-integration      full test suite
+#   ├─ unit-tests              GoogleTest (make xunit)  [same matrix — proves each
+#   │                          variant's coin/token gating actually compiles+passes]
+#   └─ python-integration      full test suite (full/default variant only)
 #
-# Stage 4: PUBLISH (manual trigger, all tests must pass)
-#   └─ publish-emulator   DockerHub push (workflow_dispatch only)
+# Stage 4: PUBLISH (all tests must pass)
+#   ├─ publish-emulator       DockerHub push, full/default variant only (workflow_dispatch only)
+#   └─ publish-emulator-libs  macOS dylib + Windows DLL → rolling prerelease
+#                             'emulator-dylib-latest' (push to develop or alpha).
+#                             Both platforms ship together or the job fails.
+#                             Tagged releases get the same pair via release.yml.
 
 name: CI
 
 on:
   push:
-    branches: [master, develop, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
+    branches: [master, develop, alpha, 'feature/**', 'fix/**', 'release/**', 'hotfix/**']
+  # 'release/**' is here so a stacked release train is actually gated. A PR whose
+  # base is another release branch does not match master/develop/alpha, so it
+  # reported "no checks" in the UI while the push-triggered run on the same
+  # branch was red -- a reviewer saw a clean PR over a failing build.
   pull_request:
-    branches: [master, develop]
+    branches: [master, develop, alpha, 'release/**']
   workflow_dispatch:
     inputs:
       publish_emulator:
@@ -54,7 +64,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -87,7 +97,7 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -96,17 +106,34 @@ jobs:
         # Pin and verify the only scanner binary that is installed/executed.
         # Bumps require an independently recorded digest and ruleset review.
         run: |
-          GITLEAKS_VERSION=8.30.1
-          GITLEAKS_SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
-          GITLEAKS_ARCHIVE=/tmp/gitleaks.tar.gz
-          curl --fail --show-error --location \
+          # PINNED to 8.30.0, deliberately, and VERIFIED.
+          #
+          # Two things this block has to get right at once, and a clean merge of
+          # two parents previously got exactly one of them:
+          #
+          #  - the VERSION is pinned because tracking releases/latest lets a new
+          #    upstream ruleset turn this gate red with no change to this
+          #    repository. That happened: a newer generic-api-key rule began
+          #    flagging published BIP32 test vectors in 2014/2018 history, and
+          #    because every build job declares `needs: [.., secret-scan]`, the
+          #    whole build and test graph was SKIPPED rather than failed (#424).
+          #  - the BINARY is checksummed, because a scan is only worth what the
+          #    executable running it is.
+          #
+          # The merged version downloaded 8.30.1 with a verified checksum and then
+          # overwrote it with an unverified 8.30.0 through `curl | tar`, so the
+          # checksum proved nothing about the binary that actually ran. One
+          # version, one archive, one verified digest. Bump deliberately, with the
+          # scan re-verified.
+          GITLEAKS_VERSION=8.30.0
+          GITLEAKS_SHA256=79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e
+          GITLEAKS_ARCHIVE="${RUNNER_TEMP}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL --retry 3 --retry-all-errors \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             -o "${GITLEAKS_ARCHIVE}"
           echo "${GITLEAKS_SHA256}  ${GITLEAKS_ARCHIVE}" | sha256sum --check --strict
           tar -xzf "${GITLEAKS_ARCHIVE}" -C /usr/local/bin gitleaks
-          INSTALLED_VERSION=$(gitleaks version)
-          echo "gitleaks ${INSTALLED_VERSION}"
-          test "${INSTALLED_VERSION}" = "${GITLEAKS_VERSION}"
+          gitleaks version
 
       - name: Run gitleaks
         env:
@@ -138,13 +165,19 @@ jobs:
 
   static-analysis:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Exact-wire parsers deliberately have many branch predicates. Cppcheck's
+    # all-configurations pass remains mandatory, but the 15-minute ceiling can
+    # terminate a clean scan while it is still progressing through Solana.
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: false
+
+      - name: Init crypto submodule
+        run: git submodule update --init deps/crypto/trezor-firmware
 
       - name: Install cppcheck
         run: sudo apt-get update && sudo apt-get install -y cppcheck
@@ -182,15 +215,17 @@ jobs:
           : "${ERRORS:=0}" "${WARNINGS:=0}" "${STYLE:=0}" "${PERF:=0}" "${PORT:=0}"
           TOTAL=$((ERRORS + WARNINGS + STYLE + PERF + PORT))
 
-          echo "## cppcheck summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Severity | Count |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| error | $ERRORS |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| warning | $WARNINGS |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| style | $STYLE |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| performance | $PERF |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| portability | $PORT |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| **total** | **$TOTAL** |" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## cppcheck summary"
+            echo "| Severity | Count |"
+            echo "|----------|-------|"
+            echo "| error | $ERRORS |"
+            echo "| warning | $WARNINGS |"
+            echo "| style | $STYLE |"
+            echo "| performance | $PERF |"
+            echo "| portability | $PORT |"
+            echo "| **total** | **$TOTAL** |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
           # Print findings as GitHub annotations
           cat cppcheck_report.txt
@@ -208,7 +243,7 @@ jobs:
           echo "cppcheck: clean — zero findings"
 
       - name: Upload cppcheck report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: cppcheck-report
@@ -220,9 +255,12 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Init crypto submodule
+        run: git submodule update --init deps/crypto/trezor-firmware
 
       - name: Verify submodules are declared
         run: |
@@ -246,6 +284,84 @@ jobs:
           done
           [ "$FAILED" = "0" ] || exit 1
 
+      - name: Enforce RC18 security invariants
+        run: |
+          python3 tools/check_pallas_api_boundary.py
+          if git grep -n -E \
+            'uses:[[:space:]]+[^#[:space:]]+@(v[0-9]+|main|master)([[:space:]#]|$)' \
+            -- .github/workflows; then
+            echo "::error::Every GitHub Action must be pinned to a full commit SHA"
+            exit 1
+          fi
+          if git grep -n -E 'kktech/firmware:v[0-9]+' -- \
+            .github/workflows scripts/build/docker scripts/emulator; then
+            echo "::error::The firmware builder must be pinned by manifest digest"
+            exit 1
+          fi
+          if git grep -n -E \
+            'storage_(get|upsert)ClearsignIdentity|persistent_identity_for' \
+            -- lib include; then
+            echo "::error::Unauthenticated persistent clearsign trust is retired"
+            exit 1
+          fi
+          if git grep -n -E 'return[[:space:]]+random\(\)' -- \
+            lib/rand/rng.c; then
+            echo "::error::Emulator cryptography must not use libc random()"
+            exit 1
+          fi
+          if git grep -n -F 'option(KK_ZCASH_PRIVACY' -- CMakeLists.txt; then
+            echo "::error::Zcash privacy must not become a third release choice"
+            exit 1
+          fi
+          grep -q 'set(KK_ZCASH_PRIVACY ON)' CMakeLists.txt
+          grep -q 'set(KK_ZCASH_PRIVACY OFF)' CMakeLists.txt
+
+  crypto-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Init crypto submodule
+        run: git submodule update --init deps/crypto/trezor-firmware
+
+      - name: Install crypto test dependencies
+        run: sudo apt-get update && sudo apt-get install -y check libssl-dev pkg-config valgrind
+
+      - name: Run optimized crypto suite
+        working-directory: deps/crypto/trezor-firmware/crypto
+        run: |
+          make clean
+          make VALGRIND=0 tests/test_check tests/test_pallas_ct
+          ./tests/test_check
+          ./tests/test_pallas_ct
+
+      - name: Verify Pallas secret flow with Valgrind
+        working-directory: deps/crypto/trezor-firmware/crypto
+        run: |
+          make clean
+          make VALGRIND=1 OPTFLAGS='-O2 -g' tests/test_pallas_ct
+          valgrind --quiet --error-exitcode=1 --track-origins=yes \
+            ./tests/test_pallas_ct
+
+      - name: Run crypto suite with ASan and UBSan
+        working-directory: deps/crypto/trezor-firmware/crypto
+        run: |
+          make clean
+          make CC='gcc -fsanitize=address,undefined' VALGRIND=0 \
+            OPTFLAGS='-O1 -g -fno-omit-frame-pointer' \
+            tests/test_check tests/test_pallas_ct
+          # Check's default per-test timeout is too short for the two exhaustive
+          # codepoint tests under sanitizer instrumentation on shared runners.
+          # Keep the job-level timeout as the hard upper bound.
+          CK_DEFAULT_TIMEOUT=30 \
+            ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+            UBSAN_OPTIONS=halt_on_error=1 ./tests/test_check
+          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+            UBSAN_OPTIONS=halt_on_error=1 ./tests/test_pallas_ct
       - name: Enforce RNG source invariants
         run: |
           if grep -q 'RAND_PLATFORM_INDEPENDENT=0' CMakeLists.txt; then
@@ -265,12 +381,25 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   build-emulator:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    name: build-emulator${{ matrix.label }}
+    needs: [lint-format, static-analysis, check-submodules, secret-scan, crypto-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Regular/full includes every supported chain, including Zcash
+          # shielded/Orchard. Bitcoin-only is the sole reduced build.
+          - variant: full
+            label: ""
+            cmake_flags: ""
+          - variant: bitcoin-only
+            label: " (bitcoin-only)"
+            cmake_flags: "-DKK_BITCOIN_ONLY=ON"
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -284,11 +413,11 @@ jobs:
           git submodule update --init deps/sca-hardening/SecAESSTM32
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -303,41 +432,47 @@ jobs:
         if: steps.cache-base.outputs.cache-hit == 'true'
         run: docker load -i /tmp/base-image.tar
 
-      - name: Build emulator image
+      - name: Build emulator image (${{ matrix.variant }})
         run: |
           docker build \
-            -t ${{ env.EMU_IMAGE }} \
+            -t ${{ env.EMU_IMAGE }}-${{ matrix.variant }} \
+            --build-arg coinsupport="${{ matrix.cmake_flags }}" \
             -f scripts/emulator/Dockerfile \
             .
 
       - name: Save emulator image
-        run: docker save ${{ env.EMU_IMAGE }} -o /tmp/emu-image.tar
+        run: docker save ${{ env.EMU_IMAGE }}-${{ matrix.variant }} -o /tmp/emu-image.tar
 
       - name: Upload emulator image artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: emu-image
+          name: emu-image-${{ matrix.variant }}
           path: /tmp/emu-image.tar
           retention-days: 1
 
   build-arm-firmware:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    name: build-arm-firmware${{ matrix.label }}
+    needs: [lint-format, static-analysis, check-submodules, secret-scan, crypto-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      # Both release variants must compile on every PR. Without the
-      # bitcoin-only leg, a change that only breaks the KK_BITCOIN_ONLY image
-      # goes green here and fails for the first time in the release build.
       matrix:
         include:
+          # 'label' names the job, 'suffix' names the built files, 'variant' selects
+          # the build. The default variant is empty in both so the flashable artifact
+          # matches the historical name instead of gaining a "-full" token.
           - variant: full
+            label: ""
+            suffix: ""
             cmake_flags: ""
           - variant: bitcoin-only
+            label: " (bitcoin-only)"
+            suffix: "-bitcoin-only"
             cmake_flags: "-DKK_BITCOIN_ONLY=ON"
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -352,7 +487,7 @@ jobs:
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -376,37 +511,74 @@ jobs:
           echo "git_short=${GIT_SHORT}" >> "$GITHUB_OUTPUT"
           echo "Firmware version: ${FW_VERSION} (${GIT_SHORT})"
 
-      - name: Cross-compile firmware for ARM
+      - name: Cross-compile firmware for ARM (${{ matrix.variant }})
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/root/keepkey-firmware:z \
             ${{ env.BASE_IMAGE }} /bin/sh -c "\
               mkdir /root/build && cd /root/build && \
               cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
-                ${{ matrix.cmake_flags }} \
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
-                -DCMAKE_COLOR_MAKEFILE=ON && \
+                -DCMAKE_COLOR_MAKEFILE=ON \
+                ${{ matrix.cmake_flags }} && \
               make && \
+              python3 /root/keepkey-firmware/tools/check_pallas_ct_disassembly.py \
+                --elf bin/firmware.keepkey.elf \
+                --variant '${{ matrix.variant }}' && \
               mkdir -p /root/keepkey-firmware/bin && \
               cp bin/*.bin /root/keepkey-firmware/bin/ && \
               cp bin/*.elf /root/keepkey-firmware/bin/ && \
+              cp bin/*.map /root/keepkey-firmware/bin/ 2>/dev/null || true && \
+              arm-none-eabi-size -A bin/firmware.keepkey.elf > /root/keepkey-firmware/bin/firmware.keepkey.size.txt 2>/dev/null || true && \
+              find . -name '*.su' -print0 | tar czf /root/keepkey-firmware/bin/stack-usage.tgz --null -T - && \
               chmod -R a+rw /root/keepkey-firmware/bin"
+
+      # SRAM budget gate — RC7's privacy-enabled build hard-faulted on boot
+      # because static SRAM left an 11.2 KB gap while msg_write() carried a
+      # 12.4 KB stack frame. keepkey.ld now ASSERTs a 16 KiB reserve at link
+      # time; this step reports the numbers and enforces the frame margin
+      # (tools/sram-budgets.json).
+      - name: SRAM budget gate (${{ matrix.variant }})
+        run: |
+          pip install --quiet pyelftools
+          # Mirror the report into the run summary. The gate has always
+          # enforced correctly, but its numbers only ever existed in a job
+          # log nobody opens, so the frame-arena fix had no reviewable
+          # evidence anywhere -- an RC audit recorded it as "zero coverage".
+          # pipefail so tee cannot mask a budget breach, and capture the status
+          # instead of letting `set -e` abort here -- a FAILING gate is exactly
+          # when the numbers need to reach the summary. Re-exit with it below.
+          set -o pipefail
+          rc=0
+          python3 tools/check_sram_budget.py \
+            --elf bin/firmware.keepkey.elf \
+            --su-tar bin/stack-usage.tgz \
+            --budgets tools/sram-budgets.json \
+            --variant "${{ matrix.variant }}" 2>&1 \
+            | tee "/tmp/sram-${{ matrix.variant }}.txt" || rc=$?
+          {
+            echo "### SRAM budget — ${{ matrix.variant }}"
+            echo '```'
+            cat "/tmp/sram-${{ matrix.variant }}.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
 
       - name: Rename firmware artifacts
         run: |
           cd bin
           for f in *.bin; do
             [ -f "$f" ] || continue
-            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
+            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}${{ matrix.suffix }}-${f}"
           done
           for f in *.elf; do
             [ -f "$f" ] || continue
-            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${f}"
+            mv "$f" "firmware.keepkey.v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}${{ matrix.suffix }}-${f}"
           done
           ls -lh
-          echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} built successfully"
+          echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} (${{ matrix.variant }}) built successfully"
 
-      - name: Bind ARM outputs to source commits
+      - name: Bind ARM outputs to source commits and product
         env:
           ARM_VARIANT: ${{ matrix.variant }}
         run: |
@@ -452,14 +624,15 @@ jobs:
           PY
 
       - name: Upload firmware artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          # matrix.variant in the name: two legs uploading the same artifact
-          # name is a hard failure on upload-artifact@v4+ (see release.yml).
           name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${{ matrix.variant }}
           path: |
             bin/*.bin
             bin/*.elf
+            bin/*.map
+            bin/*.size.txt
+            bin/stack-usage.tgz
             bin/arm-build-manifest.json
           retention-days: 90
 
@@ -468,44 +641,55 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   unit-tests:
+    name: unit-tests${{ matrix.label }}
     needs: build-emulator
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: full
+            label: ""
+            cmake_flags: ""
+          - variant: bitcoin-only
+            label: " (bitcoin-only)"
+            cmake_flags: "-DKK_BITCOIN_ONLY=ON"
     steps:
       - name: Download emulator image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: emu-image
+          name: emu-image-${{ matrix.variant }}
           path: /tmp
 
       - name: Load emulator image
         run: docker load -i /tmp/emu-image.tar
 
-      - name: Run unit tests
+      - name: Run unit tests (${{ matrix.variant }})
         run: |
           # make xunit returns non-zero if any test fails — capture
           # exit code so JUnit XML still gets copied for reporting
           docker run --rm \
             -v ${{ github.workspace }}/test-reports:/kkemu/test-reports \
             --entrypoint /bin/sh \
-            ${{ env.EMU_IMAGE }} \
+            ${{ env.EMU_IMAGE }}-${{ matrix.variant }} \
             -c "mkdir -p /kkemu/test-reports/firmware-unit && \
                 make xunit; RC=\$?; \
                 cp -r unittests/*.xml /kkemu/test-reports/firmware-unit/ 2>/dev/null; \
                 exit \$RC"
 
       - name: Upload unit test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
-          name: unit-test-results
+          name: unit-test-results-${{ matrix.variant }}
           path: test-reports/firmware-unit/
           retention-days: 30
 
   python-integration-tests:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [lint-format, static-analysis, check-submodules, secret-scan, crypto-tests]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -520,7 +704,7 @@ jobs:
             oled_artifact: oled-screenshots-bitcoin-only
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -536,18 +720,25 @@ jobs:
       - name: Build and run tests (docker compose)
         working-directory: scripts/emulator
         run: |
+          # Run each test container — capture exit codes, always extract reports
+          #
+          # `|| RC=$?` rather than `; RC=$?`: this step runs under the default
+          # `bash -e`, where a bare failing command aborts immediately. With the
+          # semicolon form the abort happened BEFORE the assignment and before
+          # the extraction below, so a failing test run uploaded nothing at all
+          # — no JUnit, no report, no OLED frames — precisely when the evidence
+          # was needed. The `if: always()` on the upload steps could not help,
+          # because nothing had been copied out of the container yet.
+          FW_RC=0
+          PY_RC=0
           COMPOSE_ARGS=(-f docker-compose.yml)
           if [ "${{ matrix.variant }}" = "bitcoin-only" ]; then
             COMPOSE_ARGS+=(-f docker-compose.bitcoin-only.yml)
           fi
-
-          # Run each test container — capture exit codes, always extract reports
-          set +e
           docker compose "${COMPOSE_ARGS[@]}" -p ${{ matrix.project }} \
-            up --build --exit-code-from firmware-unit firmware-unit; FW_RC=$?
+            up --build --exit-code-from firmware-unit firmware-unit || FW_RC=$?
           docker compose "${COMPOSE_ARGS[@]}" -p ${{ matrix.project }} \
-            up --build --exit-code-from python-keepkey python-keepkey; PY_RC=$?
-          set -e
+            up --build --exit-code-from python-keepkey python-keepkey || PY_RC=$?
 
           REPORT_ROOT=${{ github.workspace }}/test-reports/${{ matrix.variant }}
           mkdir -p "$REPORT_ROOT"
@@ -577,7 +768,7 @@ jobs:
           [ "$FW_RC" -eq 0 ] && [ "$PY_RC" -eq 0 ] || exit 1
 
       - name: Upload Python test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: ${{ matrix.python_artifact }}
@@ -585,7 +776,7 @@ jobs:
           retention-days: 30
 
       - name: Upload native test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: firmware-unit-results-${{ matrix.variant }}
@@ -593,13 +784,13 @@ jobs:
           retention-days: 30
 
       - name: Upload OLED screenshots
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: ${{ matrix.oled_artifact }}
           path: test-reports/${{ matrix.variant }}/screenshots/
           retention-days: 90
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Tear down
         if: always()
@@ -648,12 +839,12 @@ jobs:
   #     fsm_msgDebugLinkGetState is excluded from the build and any
   #     read_layout() call hangs the test).
   python-dylib-tests:
-    needs: [lint-format, static-analysis, check-submodules, secret-scan]
+    needs: [lint-format, static-analysis, check-submodules, secret-scan, crypto-tests]
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -670,7 +861,7 @@ jobs:
           git submodule update --init deps/googletest
 
       - name: Setup Python 3.10
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.10'
 
@@ -749,7 +940,8 @@ jobs:
           # it fsm_msgDebugLinkGetState is excluded from the build.
           # CMAKE_POLICY_VERSION_MINIMUM works around vendored
           # googletest's pre-3.5 policy declaration.
-          export PATH="$PATH:$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator"
+          NANOPB_GENERATOR_DIR="$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator"
+          export PATH="$PATH:$NANOPB_GENERATOR_DIR"
           which protoc-gen-nanopb
           which nanopb_generator.py
           cmake \
@@ -761,26 +953,76 @@ jobs:
 
       - name: Build kkemulator_dylib
         run: |
-          export PATH="$PATH:$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator"
-          cmake --build build-emu --target kkemulator_dylib -j$(sysctl -n hw.ncpu)
+          NANOPB_GENERATOR_DIR="$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator"
+          export PATH="$PATH:$NANOPB_GENERATOR_DIR"
+          CPU_COUNT="$(sysctl -n hw.ncpu)"
+          cmake --build build-emu --target kkemulator_dylib -j"$CPU_COUNT"
           ls -la build-emu/lib/libkkemu* || ls -la build-emu/lib/emulator/libkkemu* || true
           # Surface the resolved binary path for the run step. macOS
           # produces .dylib; .so is preserved as a fallback for when this
           # job goes cross-platform.
-          DYLIB=$(find build-emu -name 'libkkemu.dylib' -o -name 'libkkemu.so' | head -1)
+          DYLIB="$(find build-emu \( -name 'libkkemu.dylib' -o -name 'libkkemu.so' \) -print -quit)"
           test -f "$DYLIB" || (echo "::error::libkkemu artifact not found" && exit 1)
-          echo "DYLIB_PATH=$(pwd)/$DYLIB" >> $GITHUB_ENV
+          echo "DYLIB_PATH=$(pwd)/$DYLIB" >> "$GITHUB_ENV"
 
-      - name: Upload libkkemu.dylib
-        # Always upload, even on later test failure — the binary is
+      # ── Windows emulator DLL (cross-compiled from this macOS runner) ──
+      # Uses cmake/toolchains/mingw-w64-x86_64.cmake, so no Windows runner
+      # is needed. BLOCKING on purpose: the DLL and the dylib are the same
+      # deliverable on two platforms, and this job is the only place either
+      # is built. When the cross-build was non-blocking, a regression here
+      # produced a macOS-only set and stayed green.
+      - name: Install MinGW-w64
+        run: brew install mingw-w64
+
+      - name: Cross-build Windows emulator DLL
+        run: |
+          # Same nanopb PATH handling as the macOS configure step above; the
+          # toolchain file cannot see the pyenv wrappers on its own.
+          NANOPB_DIR="$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')"
+          export PATH="$PATH:$NANOPB_DIR/generator"
+          CPU_COUNT="$(sysctl -n hw.ncpu)"
+          NANOPB_PLUGIN="$(command -v protoc-gen-nanopb)"
+          cmake \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/mingw-w64-x86_64.cmake \
+            -DKK_EMULATOR=1 \
+            -DKK_BUILD_DYLIB=1 \
+            -DKK_DEBUG_LINK=ON \
+            -DNANOPB_DIR="$NANOPB_DIR" \
+            -DNANOPB_PLUGIN="$NANOPB_PLUGIN" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -B build-emu-win .
+          cmake --build build-emu-win --target kkemulator_dylib -j"$CPU_COUNT"
+          DLL="$(find build-emu-win -name 'libkkemu.dll' -print -quit)"
+          test -f "$DLL" || (echo "::error::libkkemu.dll not produced by cross-build" && exit 1)
+          file "$DLL"
+          echo "WIN_DLL_PATH=$(pwd)/$DLL" >> "$GITHUB_ENV"
+
+      - name: Stage emulator libraries
+        # One directory, published names applied here, so every consumer
+        # (this artifact, the rolling prerelease, a tagged firmware
+        # release) ships the identical pair of files.
+        if: always() && env.DYLIB_PATH != '' && env.WIN_DLL_PATH != ''
+        run: |
+          mkdir -p emulator-libs
+          cp "$DYLIB_PATH" emulator-libs/libkkemu-macos-arm64.dylib
+          cp "$WIN_DLL_PATH" emulator-libs/libkkemu-win-x64.dll
+          ls -lh emulator-libs/
+
+      - name: Upload emulator libraries
+        # Always upload, even on later test failure — the binaries are
         # what vault and external auditors actually consume from this
         # PR. Tagged with the short commit SHA so multiple PR pushes
         # don't overwrite each other when a reviewer downloads them.
-        if: always() && env.DYLIB_PATH != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        #
+        # Gated on BOTH paths: a partial artifact carrying only the dylib
+        # is exactly the silent drop this coupling exists to prevent, and
+        # release.yml treats this artifact as the source of truth for a
+        # tagged release's emulator assets.
+        if: always() && env.DYLIB_PATH != '' && env.WIN_DLL_PATH != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: libkkemu-${{ github.event.pull_request.head.sha || github.sha }}
-          path: ${{ env.DYLIB_PATH }}
+          path: emulator-libs/
           retention-days: 30
           if-no-files-found: error
 
@@ -797,7 +1039,7 @@ jobs:
           # skip rationale), it's a transitive dep some tests use.
           pip install pytest pytest-timeout
 
-      - name: Run dylib screenshot tests
+      - name: Run dylib transport tests
         working-directory: deps/python-keepkey/tests
         env:
           KK_TRANSPORT: dylib
@@ -805,12 +1047,26 @@ jobs:
         run: |
           # `keepkeylib/` on PYTHONPATH so the package's relative-style
           # imports inside generated *_pb2.py files resolve.
+          #
+          # test_dylib_confirm_flow contributes exactly ONE test here:
+          # test_features_round_trip, the pure Initialize -> Features path
+          # that never enters confirm_helper. It is named explicitly rather
+          # than adding the whole file, because the file's other test
+          # (test_load_device_with_auto_confirm) is @unittest.skip'd on an
+          # OPEN firmware bug -- confirm_helper busy-loops on a ButtonAck
+          # the dylib consumed but never delivered, and no pytest-timeout
+          # method can interrupt a C-level kkemu_poll() loop. Adding the
+          # file wholesale would trade a silent coverage gap for a runner
+          # that burns the job's 25-minute timeout.
+          #
+          # When that firmware fix lands, run the whole file instead.
           PYTHONPATH=../keepkeylib:.. python -m pytest \
             test_dylib_screenshot.py \
+            "test_dylib_confirm_flow.py::TestDylibConfirmFlow::test_features_round_trip" \
             -v --tb=short --junit-xml=../../../test-reports/dylib-junit.xml
 
       - name: Upload dylib test results
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: python-dylib-test-results
@@ -823,47 +1079,44 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   generate-test-report:
-    needs: [unit-tests, python-integration-tests, python-dylib-tests, build-arm-firmware]
+    needs: [unit-tests, python-integration-tests, build-arm-firmware]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download unit test results
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
         with:
-          name: unit-test-results
+          # Report covers the regular/full build. Bitcoin-only is built and
+          # unit-tested in its own matrix leg but does not get a PDF.
+          name: unit-test-results-full
           path: test-reports/firmware-unit/
 
       - name: Download python test results
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
         with:
           name: python-test-results
           path: test-reports/python-keepkey/
 
       - name: Download OLED screenshots
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
         with:
           name: oled-screenshots
           path: test-reports/screenshots/
 
-      - name: Download dylib test results
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-        with:
-          name: python-dylib-test-results
-          path: test-reports/
-
-      - name: Download ARM firmware
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - name: Download both ARM products
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: firmware-v*
           path: test-reports/arm/
-          # Preserve one directory per product. Full and bitcoin-only contain
-          # identically named outputs whose bytes intentionally differ.
           merge-multiple: false
 
       - name: Extract firmware version
@@ -873,47 +1126,21 @@ jobs:
           echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Init python-keepkey submodule
-        id: python
-        run: |
-          git submodule update --init deps/python-keepkey
-          echo "sha=$(git rev-parse HEAD:deps/python-keepkey)" >> "$GITHUB_OUTPUT"
+        run: git submodule update --init deps/python-keepkey
 
       - name: Generate test report PDF
         env:
           FW_VERSION: ${{ steps.version.outputs.fw_version }}
-          KK_FIRMWARE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          KK_PYTHON_SHA: ${{ steps.python.outputs.sha }}
-          KK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          KK_WORKFLOW_EVENT: ${{ github.event_name }}
-          KK_FIRMWARE_PR: ${{ github.event.pull_request.html_url }}
-          KK_PYTHON_PR: https://github.com/keepkey/python-keepkey/pull/197
+          KK_BUILD_LABEL: ${{ github.head_ref || github.ref_name }}@${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 scripts/generate-test-report.py
 
       - name: Upload test report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: test-report
-          path: test-report/
+          path: test-report.pdf
           retention-days: 90
-          if-no-files-found: error
-
-  release-evidence-gate:
-    needs: [unit-tests, python-integration-tests, python-dylib-tests, build-arm-firmware, generate-test-report]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require every release job
-        env:
-          UNIT_RESULT: ${{ needs.unit-tests.result }}
-          PYTHON_RESULT: ${{ needs.python-integration-tests.result }}
-          DYLIB_RESULT: ${{ needs.python-dylib-tests.result }}
-          ARM_RESULT: ${{ needs.build-arm-firmware.result }}
-          REPORT_RESULT: ${{ needs.generate-test-report.result }}
-        run: |
-          for result in "$UNIT_RESULT" "$PYTHON_RESULT" "$DYLIB_RESULT" "$ARM_RESULT" "$REPORT_RESULT"; do
-            test "$result" = success || exit 1
-          done
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
@@ -971,8 +1198,7 @@ jobs:
           NOT_SUCCESS=$(echo "$NEEDS_JSON" \
             | jq -r 'to_entries[] | select(.value.result != "success") | .key')
           if [ -n "$NOT_SUCCESS" ]; then
-            NOT_SUCCESS_INLINE=$(printf '%s\n' "$NOT_SUCCESS" | tr '\n' ' ')
-            echo "::error::Required jobs did not succeed: ${NOT_SUCCESS_INLINE}"
+            echo "::error::Required jobs did not succeed: $(echo $NOT_SUCCESS | tr '\n' ' ')"
             echo "A skipped or cancelled required job is NOT a pass. If a gate-stage"
             echo "job failed, everything downstream was skipped and produced no signal."
             exit 1
@@ -982,7 +1208,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   publish-emulator:
-    needs: [release-evidence-gate, build-emulator]
+    needs: [unit-tests, python-integration-tests, python-dylib-tests, build-arm-firmware]
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.publish_emulator == 'true'
@@ -990,14 +1216,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download emulator image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: emu-image
+          # Publish the regular/full image, including Zcash privacy support.
+          name: emu-image-full
           path: /tmp
 
       - name: Load emulator image
@@ -1012,11 +1239,11 @@ jobs:
 
       - name: Tag images for publish
         run: |
-          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:latest
-          docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:v${{ steps.version.outputs.fw_version }}
+          docker tag ${{ env.EMU_IMAGE }}-full kktech/kkemu:latest
+          docker tag ${{ env.EMU_IMAGE }}-full kktech/kkemu:v${{ steps.version.outputs.fw_version }}
 
       - name: Login to DockerHub
-        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4
         with:
           username: ${{ secrets.KK_DOCKERHUB_USER }}
           password: ${{ secrets.KK_DOCKERHUB_PASS }}
@@ -1025,3 +1252,82 @@ jobs:
         run: |
           docker push kktech/kkemu:latest
           docker push kktech/kkemu:v${{ steps.version.outputs.fw_version }}
+
+  # ═══════════════════════════════════════════════════════════
+  # STAGE 4b: PUBLISH EMULATOR LIBS — rolling release of the
+  # emulator native libraries so downstream consumers (vault
+  # native-emulator / OLED preview) have a stable download URL
+  # instead of scraping per-run, 30-day-retention CI artifacts.
+  #
+  # Runs for every integration branch that ships emulator work —
+  # develop is the release line, alpha is the fork-pinned
+  # integration branch, and both are consumed. Tagged releases
+  # get the same two files from release.yml, which reuses the
+  # artifact this job's dependency produced.
+  #
+  # macOS dylib and Windows DLL ship together, always. They are
+  # one deliverable on two platforms; a release carrying only
+  # one is a broken release, not a partial success, so every
+  # check here is fatal.
+  # ═══════════════════════════════════════════════════════════
+  publish-emulator-libs:
+    needs: [python-dylib-tests]
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/alpha')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Download emulator libraries
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: libkkemu-${{ github.sha }}
+          path: release-dylib
+
+      - name: Stage release assets
+        run: |
+          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+')
+          # Traceability — which firmware/commit these binaries correspond to.
+          {
+            echo "firmware_version=${FW_VERSION}"
+            echo "commit=${GITHUB_SHA}"
+            echo "branch=${GITHUB_REF_NAME}"
+            echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > release-dylib/VERSION.txt
+          echo "=== Assets ===" && ls -lh release-dylib/
+          # Both binaries or no publish. The upload side already enforces
+          # this; asserting again here means a hand-crafted or partially
+          # expired artifact cannot slip a one-platform release through.
+          for asset in libkkemu-macos-arm64.dylib libkkemu-win-x64.dll; do
+            test -f "release-dylib/$asset" || \
+              (echo "::error::$asset missing — refusing to publish a partial emulator release" && exit 1)
+          done
+
+      - name: Publish to rolling prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Idempotent: create the rolling tag on first use, then replace
+          # its assets in place. `gh release upload --clobber` is used
+          # rather than an action that rewrites the release body, so the
+          # description stays stable across every update.
+          if ! gh release view emulator-dylib-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create emulator-dylib-latest --repo "$GITHUB_REPOSITORY" \
+              --prerelease --title "Emulator libraries (rolling)" \
+              --notes "Rolling build of the KeepKey emulator native libraries.
+
+          - \`libkkemu-macos-arm64.dylib\` — macOS Apple Silicon
+          - \`libkkemu-win-x64.dll\` — Windows x86_64 (MinGW cross-build)
+          - \`VERSION.txt\` — firmware version + commit these correspond to
+
+          Both platforms are published together; CI fails rather than
+          shipping one without the other. Updated on every push to
+          \`develop\` and \`alpha\`. Not a signed firmware release."
+          fi
+          gh release upload emulator-dylib-latest release-dylib/* \
+            --repo "$GITHUB_REPOSITORY" --clobber

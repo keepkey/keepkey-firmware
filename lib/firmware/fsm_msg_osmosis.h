@@ -1,47 +1,15 @@
-#include <math.h>
-#include "keepkey/board/util.h" /* base_to_precision for osmosis_format_amount */
-#define OSMOSIS_PRECISION 6
+#include "keepkey/board/util.h" /* base_to_precision for the LP share amounts */
 #define OSMOSIS_LP_ASSET_PRECISION 18
 
-/* Render an Osmosis amount (host-supplied base-10 integer string) as a
- * fixed-precision decimal for the confirmation screen, without going through
- * float. The prior code did: float amount = atof(str); amount /= pow(10, PREC);
- * ... "%.6f", which loses precision past ~7 significant digits while the
- * signed JSON keeps the exact integer string (display-vs-signed divergence,
- * GH #438). This helper uses base_to_precision (integer-string decimal
- * insertion) so the rendered value is always faithful to the signed string. */
-static void osmosis_format_amount(char* out, size_t out_len,
-                                  const char* amount_str, const char* denom) {
-  if (!out || out_len == 0) return;
-  out[0] = '\0';
-  const char* d = denom ? denom : "";
+static bool osmosis_formatAmountOrFail(char* out, size_t out_len,
+                                       const char* value, const char* denom) {
+  if (osmosis_formatAmount(out, out_len, value, denom)) return true;
 
-  if (!amount_str || amount_str[0] == '\0') {
-    snprintf(out, out_len, "0 %s", d);
-    return;
-  }
-
-  /* Only the native denom has an exponent this firmware knows. An IBC hash or
-     a factory denom carries an exponent we cannot determine, so scaling it by
-     10^6 would put a number on screen that is not the number being signed.
-     Those are shown as the exact integer with the exact denom. */
-  if (strcmp(d, "uosmo") != 0) {
-    snprintf(out, out_len, "%s %s", amount_str, d);
-    return;
-  }
-
-  const size_t amt_len = strlen(amount_str);
-  char decimal_buf[80];
-  if (amt_len > 64 ||
-      base_to_precision((uint8_t*)decimal_buf, (const uint8_t*)amount_str,
-                        (uint8_t)sizeof(decimal_buf), (uint8_t)amt_len,
-                        OSMOSIS_PRECISION) != 0) {
-    /* Cannot render faithfully: show the exact signed integer rather than a
-       rounded or truncated decimal. */
-    snprintf(out, out_len, "%s uosmo", amount_str);
-    return;
-  }
-  snprintf(out, out_len, "%s OSMO", decimal_buf);
+  osmosis_signAbort();
+  fsm_sendFailure(FailureType_Failure_SyntaxError,
+                  "Invalid Osmosis amount or denomination");
+  layoutHome();
+  return false;
 }
 
 void fsm_msgOsmosisGetAddress(const OsmosisGetAddress* msg) {
@@ -125,19 +93,16 @@ void fsm_msgOsmosisGetAddress(const OsmosisGetAddress* msg) {
 
 void fsm_msgOsmosisSignTx(const OsmosisSignTx* msg) {
   CHECK_INITIALIZED
+  CHECK_PIN
 
   if (!msg->has_account_number || !msg->has_chain_id || !msg->has_fee_amount ||
-      !msg->has_gas || !msg->has_sequence || !msg->has_msg_count ||
-      msg->msg_count == 0 || !tendermint_validateSafeText(msg->chain_id)) {
+      !msg->has_gas || !msg->has_sequence) {
     osmosis_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    "Missing or Invalid Fields On Message");
+                    "Missing Fields On Message");
     layoutHome();
     return;
   }
-
-  /* Reject malformed envelopes before authentication or key derivation. */
-  CHECK_PIN
 
   HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
@@ -190,7 +155,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
   if (msg->has_send) {
     if (!osmosis_validate_account_address(msg->send.has_to_address,
                                           msg->send.to_address) ||
-        !osmosis_validate_amount(msg->send.has_amount, msg->send.amount) ||
+        !msg->send.has_amount ||
         !osmosis_validate_required_text(msg->send.has_denom, msg->send.denom)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
@@ -199,15 +164,20 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    const char* denom = msg->send.denom;
-    char amount_str[128];
-    osmosis_format_amount(amount_str, sizeof(amount_str), msg->send.amount,
-                          denom);
+    char amount_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(amount_str, sizeof(amount_str),
+                                    msg->send.amount, msg->send.denom)) {
+      return;
+    }
 
-    /** Confirm transaction parameters on screen */
-    if (!confirm_transaction_output(
-            ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
-            msg->send.to_address)) {
+    // Amount and destination are independent renderer-measured disclosures.
+    // A single wrapped "Send ... to ..." body could hide the destination.
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                       "Send Amount", (const uint8_t*)amount_str,
+                       strlen(amount_str)) ||
+        !confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput, "Send To",
+                       (const uint8_t*)msg->send.to_address,
+                       strlen(msg->send.to_address))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -240,10 +210,12 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    const char* denom = msg->delegate.denom;
-    char amount_str[128];
-    osmosis_format_amount(amount_str, sizeof(amount_str), msg->delegate.amount,
-                          denom);
+    char amount_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(amount_str, sizeof(amount_str),
+                                    msg->delegate.amount,
+                                    msg->delegate.denom)) {
+      return;
+    }
 
     /** Confirm transaction parameters on-screen */
     if (!confirm_osmosis_address("Confirm Delegator Address",
@@ -262,8 +234,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Amount", "%s",
-                 amount_str)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Confirm Amount",
+                       (const uint8_t*)amount_str, strlen(amount_str))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -297,10 +269,12 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    const char* denom = msg->undelegate.denom;
-    char amount_str[128];
-    osmosis_format_amount(amount_str, sizeof(amount_str),
-                          msg->undelegate.amount, denom);
+    char amount_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(amount_str, sizeof(amount_str),
+                                    msg->undelegate.amount,
+                                    msg->undelegate.denom)) {
+      return;
+    }
 
     /** Confirm transaction parameters on-screen */
     if (!confirm_osmosis_address("Confirm Delegator Address",
@@ -319,8 +293,8 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Amount", "%s",
-                 amount_str)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Confirm Amount",
+                       (const uint8_t*)amount_str, strlen(amount_str))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -357,39 +331,45 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    char insoamt[33] = {0};
-    uint8_t outsoamt[34] = {0};
-    strlcpy(insoamt, msg->lp_add.share_out_amount,
-            sizeof(msg->lp_add.share_out_amount));
-
-    if (base_to_precision(outsoamt, (uint8_t*)insoamt, sizeof(outsoamt),
-                          strlen(insoamt), OSMOSIS_LP_ASSET_PRECISION) < 0) {
+    char outsoamt[34] = {0};
+    if (base_to_precision(
+            (uint8_t*)outsoamt, (const uint8_t*)msg->lp_add.share_out_amount,
+            sizeof(outsoamt), strlen(msg->lp_add.share_out_amount),
+            OSMOSIS_LP_ASSET_PRECISION) < 0) {
       osmosis_signAbort();
-      fsm_sendFailure(FailureType_Failure_Other, NULL);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid LP share amount");
       layoutHome();
       return;
     }
 
-    const char* denom_in_max_b = msg->lp_add.denom_in_max_b;
-    const char* denom_in_max_a = msg->lp_add.denom_in_max_a;
-    char amt_b_str[128];
-    osmosis_format_amount(amt_b_str, sizeof(amt_b_str),
-                          msg->lp_add.amount_in_max_b, denom_in_max_b);
-    char amt_a_str[128];
-    osmosis_format_amount(amt_a_str, sizeof(amt_a_str),
-                          msg->lp_add.amount_in_max_a, denom_in_max_a);
+    char amount_in_max_b_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(
+            amount_in_max_b_str, sizeof(amount_in_max_b_str),
+            msg->lp_add.amount_in_max_b, msg->lp_add.denom_in_max_b)) {
+      return;
+    }
+
+    char amount_in_max_a_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(
+            amount_in_max_a_str, sizeof(amount_in_max_a_str),
+            msg->lp_add.amount_in_max_a, msg->lp_add.denom_in_max_a)) {
+      return;
+    }
 
     /** Confirm transaction parameters on-screen */
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Add Liquidity",
-                 "Deposit %s and...", amt_b_str)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Max Deposit A",
+                       (const uint8_t*)amount_in_max_a_str,
+                       strlen(amount_in_max_a_str))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Add Liquidity",
-                 "... %s?", amt_a_str)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Max Deposit B",
+                       (const uint8_t*)amount_in_max_b_str,
+                       strlen(amount_in_max_b_str))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -404,10 +384,11 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other,
-                 "Confirm Share Out Amount",
-                 "Receive %s GAMM-%" PRIu64 " shares?", outsoamt,
-                 msg->lp_add.pool_id)) {
+    // shareOutAmount is the exact share count MsgJoinPool mints, not a floor,
+    // so this screen must not label it as a minimum.
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       "Confirm Share Out Amount", (const uint8_t*)outsoamt,
+                       strlen(outsoamt))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -447,39 +428,45 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    char insoamt[33] = {0};
-    uint8_t outsoamt[34] = {0};
-    strlcpy(insoamt, msg->lp_remove.share_in_amount,
-            sizeof(msg->lp_remove.share_in_amount));
-
-    if (base_to_precision(outsoamt, (uint8_t*)insoamt, sizeof(outsoamt),
-                          strlen(insoamt), OSMOSIS_LP_ASSET_PRECISION) < 0) {
+    char outsoamt[34] = {0};
+    if (base_to_precision(
+            (uint8_t*)outsoamt, (const uint8_t*)msg->lp_remove.share_in_amount,
+            sizeof(outsoamt), strlen(msg->lp_remove.share_in_amount),
+            OSMOSIS_LP_ASSET_PRECISION) < 0) {
       osmosis_signAbort();
-      fsm_sendFailure(FailureType_Failure_Other, NULL);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid LP share amount");
       layoutHome();
       return;
     }
 
-    const char* denom_out_min_b = msg->lp_remove.denom_out_min_b;
-    const char* denom_out_min_a = msg->lp_remove.denom_out_min_a;
-    char out_b_str[128];
-    osmosis_format_amount(out_b_str, sizeof(out_b_str),
-                          msg->lp_remove.amount_out_min_b, denom_out_min_b);
-    char out_a_str[128];
-    osmosis_format_amount(out_a_str, sizeof(out_a_str),
-                          msg->lp_remove.amount_out_min_a, denom_out_min_a);
+    char amount_out_min_b_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(
+            amount_out_min_b_str, sizeof(amount_out_min_b_str),
+            msg->lp_remove.amount_out_min_b, msg->lp_remove.denom_out_min_b)) {
+      return;
+    }
+
+    char amount_out_min_a_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(
+            amount_out_min_a_str, sizeof(amount_out_min_a_str),
+            msg->lp_remove.amount_out_min_a, msg->lp_remove.denom_out_min_a)) {
+      return;
+    }
 
     /** Confirm transaction parameters on-screen */
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Remove Liquidity",
-                 "Withdraw %s and...", out_b_str)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       "Minimum Output A", (const uint8_t*)amount_out_min_a_str,
+                       strlen(amount_out_min_a_str))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
       return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Remove Liquidity",
-                 "... %s ?", out_a_str)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       "Minimum Output B", (const uint8_t*)amount_out_min_b_str,
+                       strlen(amount_out_min_b_str))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -494,9 +481,9 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Pool share amount",
-                 "Redeem %s GAMM-%" PRIu64 " shares?", outsoamt,
-                 msg->lp_remove.pool_id)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       "LP Shares to Redeem", (const uint8_t*)outsoamt,
+                       strlen(outsoamt))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -535,13 +522,24 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    char redelegate_str[128];
-    osmosis_format_amount(redelegate_str, sizeof(redelegate_str),
-                          msg->redelegate.amount, msg->redelegate.denom);
+    if (strcmp(msg->redelegate.denom, "uosmo") != 0) {
+      osmosis_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Only uosmo is supported for Osmosis redelegation");
+      layoutHome();
+      return;
+    }
+
+    char amount_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(amount_str, sizeof(amount_str),
+                                    msg->redelegate.amount,
+                                    msg->redelegate.denom)) {
+      return;
+    }
 
     /** Confirm transaction parameters on-screen */
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Redelegate",
-                 "Redelegate %s?", redelegate_str)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Redelegate",
+                       (const uint8_t*)amount_str, strlen(amount_str))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -647,18 +645,27 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    const char* token_in_denom = msg->swap.token_in_denom;
-    const char* token_out_denom = msg->swap.token_out_denom;
-    char swap_in_str[128];
-    osmosis_format_amount(swap_in_str, sizeof(swap_in_str),
-                          msg->swap.token_in_amount, token_in_denom);
-    char swap_out_str[128];
-    osmosis_format_amount(swap_out_str, sizeof(swap_out_str),
-                          msg->swap.token_out_min_amount, token_out_denom);
+    char token_in_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(token_in_str, sizeof(token_in_str),
+                                    msg->swap.token_in_amount,
+                                    msg->swap.token_in_denom)) {
+      return;
+    }
 
-    /** Confirm transaction parameters on-screen */
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Swap",
-                 "Swap %s for at least %s?", swap_in_str, swap_out_str)) {
+    char token_out_min_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(
+            token_out_min_str, sizeof(token_out_min_str),
+            msg->swap.token_out_min_amount, msg->swap.token_out_denom)) {
+      return;
+    }
+
+    // Each signed asset is paged independently so neither the input denom nor
+    // the minimum output can fall below the OLED's three visible body rows.
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Swap Input",
+                       (const uint8_t*)token_in_str, strlen(token_in_str)) ||
+        !confirm_bytes(ButtonRequestType_ButtonRequest_Other, "Minimum Output",
+                       (const uint8_t*)token_out_min_str,
+                       strlen(token_out_min_str))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();
@@ -716,14 +723,16 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    const char* denom = msg->ibc_transfer.denom;
-    char ibc_amount_str[128];
-    osmosis_format_amount(ibc_amount_str, sizeof(ibc_amount_str),
-                          msg->ibc_transfer.amount, denom);
+    char amount_str[OSMOSIS_AMOUNT_STR_LEN];
+    if (!osmosis_formatAmountOrFail(amount_str, sizeof(amount_str),
+                                    msg->ibc_transfer.amount,
+                                    msg->ibc_transfer.denom)) {
+      return;
+    }
 
     /** Confirm transaction parameters on-screen */
-    if (!confirm(ButtonRequestType_ButtonRequest_Other, "IBC Transfer",
-                 "Transfer %s?", ibc_amount_str)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other, "IBC Transfer",
+                       (const uint8_t*)amount_str, strlen(amount_str))) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
       layoutHome();

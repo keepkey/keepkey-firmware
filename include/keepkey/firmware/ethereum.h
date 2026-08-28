@@ -35,6 +35,7 @@ typedef struct _CoinType CoinType;
 
 void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
                            bool needs_confirm);
+bool ethereum_signing_isInProgress(void);
 void ethereum_signing_abort(void);
 void ethereum_signing_txack(EthereumTxAck* tx);
 void format_ethereum_address(const uint8_t* to, char* destination_str,
@@ -80,6 +81,9 @@ void ethereum_typed_hash_sign(const EthereumSignTypedHash* msg,
                               EthereumTypedDataSignature* resp);
 bool ethereum_typed_hash_policy_allows(bool advanced_mode);
 bool ethereum_structured_eip712_enabled(void);
+/* True only for the exact string "EIP712Domain" -- the primaryType whose
+   signature legitimately carries no message hash. Never a prefix match. */
+bool ethereum_eip712_is_domain_primary_type(const char* primary_type);
 bool ethereum_path_check(uint32_t address_n_count, const uint32_t* address_n,
                          bool pubkey_export, uint64_t chain);
 void e712_types_values(Ethereum712TypesValues* msg,

@@ -167,6 +167,50 @@ bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
   return true;
 }
 
+static bool osmosis_isCanonicalAmount(const char* value) {
+  if (!value) return false;
+  const size_t len = strlen(value);
+  if (len == 0 || len > OSMOSIS_MAX_AMOUNT_DIGITS ||
+      (len > 1 && value[0] == '0')) {
+    return false;
+  }
+  for (size_t i = 0; i < len; i++) {
+    if (value[i] < '0' || value[i] > '9') return false;
+  }
+  return true;
+}
+
+static bool osmosis_isCanonicalUint64(const char* value) {
+  if (!osmosis_isCanonicalAmount(value)) return false;
+
+  uint64_t parsed = 0;
+  for (size_t i = 0; value[i]; i++) {
+    const uint8_t digit = (uint8_t)(value[i] - '0');
+    if (parsed > (UINT64_MAX - digit) / 10) return false;
+    parsed = parsed * 10 + digit;
+  }
+  return true;
+}
+
+static bool osmosis_isValidDenom(const char* denom) {
+  if (!denom) return false;
+  const size_t len = strlen(denom);
+  if (len == 0 || len > OSMOSIS_MAX_DENOM_LEN) return false;
+
+  // Cosmos/Osmosis denominations are printable identifiers, not arbitrary
+  // JSON. This includes native, IBC and factory-style paths while excluding
+  // whitespace, quotes, backslashes and control bytes.
+  for (size_t i = 0; i < len; i++) {
+    const char c = denom[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') || c == '/' || c == ':' || c == '.' ||
+          c == '_' || c == '-')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
                                  const char* denom) {
   if (!initialized || msgs_remaining == 0) return false;
@@ -183,7 +227,8 @@ bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
      network nor the payload length was checked, so a wrong-chain address, a
      module or operator address, or a punctuation-bearing HRP passed through
      into the signed document. */
-  if (!tendermint_validateBech32Address(to_address,
+  if (!osmosis_isCanonicalUint64(amount) || !osmosis_isValidDenom(denom) ||
+      !tendermint_validateBech32Address(to_address,
                                         testnet ? testnetp : mainnetp)) {
     return false;
   }
@@ -828,6 +873,42 @@ bool osmosis_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
   sha256_Final(&ctx, hash);
   return ecdsa_sign_digest(&secp256k1, node.private_key, hash, signature, NULL,
                            NULL) == 0;
+}
+
+/*
+ * Cosmos amounts arrive as integer base-unit strings. These screens used to
+ * render them with atof() + "%.6f", which rounds anything past ~7 significant
+ * digits — on the very screen the user approves — and linked newlib's floating
+ * point engine into a ROM budget with no room for it. bn_format_uint64 places
+ * the decimal point in integer math, the same way the Hive and Ethereum
+ * confirm screens do.
+ */
+bool osmosis_formatAmount(char* out, size_t out_len, const char* value,
+                          const char* denom) {
+  if (!out || out_len == 0) return false;
+  out[0] = '\0';
+  if (!osmosis_isCanonicalAmount(value) || !osmosis_isValidDenom(denom) ||
+      (strcmp(denom, "uosmo") == 0 && !osmosis_isCanonicalUint64(value))) {
+    return false;
+  }
+
+  int written;
+  if (strcmp(denom, "uosmo") == 0) {
+    char scaled[OSMOSIS_MAX_AMOUNT_DIGITS + 2];
+    if (base_to_precision((uint8_t*)scaled, (const uint8_t*)value,
+                          sizeof(scaled), strlen(value),
+                          OSMOSIS_PRECISION) < 0) {
+      return false;
+    }
+    written = snprintf(out, out_len, "%s OSMO", scaled);
+  } else {
+    written = snprintf(out, out_len, "%s %s", value, denom);
+  }
+  if (written < 0 || (size_t)written >= out_len) {
+    out[0] = '\0';
+    return false;
+  }
+  return true;
 }
 
 bool osmosis_signingIsInited(void) { return initialized; }

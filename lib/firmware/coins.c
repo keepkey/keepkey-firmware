@@ -85,7 +85,7 @@ const CoinType coins[COINS_COUNT] = {
    TAPROOT},
 #include "keepkey/firmware/coins.def"
 
-#if !BITCOIN_ONLY
+#if !BITCOIN_ONLY  // ERC-20 tokens excluded from the bitcoin-only image
 #define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS)                    \
   {                                                                           \
       true,                                                                   \
@@ -132,7 +132,7 @@ const CoinType coins[COINS_COUNT] = {
       false, /* has_taproot, taproot*/                                        \
   },
 #include "keepkey/firmware/tokens.def"
-#endif
+#endif  // !BITCOIN_ONLY
 };
 
 _Static_assert(sizeof(coins) / sizeof(coins[0]) == COINS_COUNT,

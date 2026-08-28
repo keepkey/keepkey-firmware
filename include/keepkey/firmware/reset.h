@@ -33,6 +33,16 @@
   MAX_WORDS*(MAX_WORD_LEN + ADDITIONAL_WORD_PAD) + 1
 #define MNEMONIC_BY_SCREEN_BUF WORDS_PER_SCREEN*(MAX_WORD_LEN + 1) + 1
 
+/* Paginated-mnemonic display scratch, shared between the backup flow here and
+ * the BIP-85 display flow (fsm_msg_bip85.h) — one ~2.8 KB set instead of two.
+ * Both flows are modal and single-threaded: each formats and displays inside
+ * its own handler call. Every user MUST memzero the set at entry AND on every
+ * exit path. Defined in reset.c (.confidential). */
+extern char mnemonic_scratch_tokened[TOKENED_MNEMONIC_BUF];
+extern char mnemonic_scratch_formatted[MAX_PAGES][FORMATTED_MNEMONIC_BUF];
+extern char mnemonic_scratch_display[FORMATTED_MNEMONIC_BUF];
+extern char mnemonic_scratch_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
+
 /* ---- setup ceremony -------------------------------------------------
  *
  * ResetDevice and RecoveryDevice are transactions. The settings the host
@@ -83,16 +93,15 @@ void setup_arm(SetupKind kind);
 /// mnemonic, disarms, then commits to flash.
 void setup_commit(const char* mnemonic, bool imported);
 
-/* \a dice_entropy runs the on-device dice collection, which folds into the
- * device half BEFORE the EntropyRequest and entirely before setup_arm().
- * Mutually exclusive with \a display_random: the entropy screen shows the
- * post-mix value, which would be the seed pre-image once ext_entropy is
- * known, so requesting both is refused. */
-void reset_init(bool display_random, uint32_t _strength,
-                bool passphrase_protection, bool pin_protection,
-                const char* language, const char* label, bool _no_backup,
-                uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter,
-                bool dice_entropy);
+/* No display_random parameter: ResetDevice.display_random remains on the wire
+ * for host compatibility but is ignored, because internal entropy is seed
+ * pre-image material and must never be rendered. \a dice_entropy runs the
+ * on-device dice collection, which folds into the device half BEFORE the
+ * EntropyRequest and entirely before setup_arm(). */
+void reset_init(uint32_t _strength, bool passphrase_protection,
+                bool pin_protection, const char* language, const char* label,
+                bool _no_backup, uint32_t _auto_lock_delay_ms,
+                uint32_t _u2f_counter, bool dice_entropy);
 void reset_entropy(const uint8_t* ext_entropy, uint32_t len);
 uint32_t reset_get_int_entropy(uint8_t* entropy);
 const char* reset_get_word(void);

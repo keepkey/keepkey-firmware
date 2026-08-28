@@ -22,27 +22,28 @@ TEST(Transaction, TaprootInputWeightIncludesWitness) {
   ASSERT_EQ(230U, tx_input_weight(&coin, &input));
 }
 
-TEST(Transaction, UnsupportedOmniDisclosesTheCompleteRawPayload) {
-  std::vector<uint8_t> payload(220, 0x00);
-  memcpy(payload.data(), "omni", 4);
-  payload[7] = 1;  // unsupported transaction type, not Simple Send
+TEST(Transaction, MultisigQuorumRejectsUnsatisfiableScripts) {
+  MultisigRedeemScriptType multisig = MultisigRedeemScriptType_init_zero;
+  CoinType coin = CoinType_init_zero;
+  uint8_t output[512] = {0};
+  uint8_t hash[32] = {0};
 
-  size_t pages = 0;
-  size_t offset = 0;
-  while (offset < payload.size()) {
-    char page[BODY_CHAR_MAX];
-    const size_t take = confirm_bytes_format_page(
-        payload.data() + offset, payload.size() - offset, page, sizeof(page));
-    ASSERT_GT(take, 0u);
-    offset += take;
-    pages++;
-  }
-  ASSERT_GT(pages, 1u);
+  multisig.has_m = true;
+  multisig.m = 2;
+  multisig.pubkeys_count = 1;
+  EXPECT_FALSE(transaction_multisig_quorum_is_valid(&multisig));
+  EXPECT_EQ(compile_script_multisig(&coin, &multisig, output), 0U);
+  EXPECT_EQ(compile_script_multisig_hash(&coin, &multisig, hash), 0U);
 
-  ASSERT_TRUE(kkconfirm_preload(static_cast<int>(pages), 0));
-  EXPECT_TRUE(confirm_omni(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                           "Confirm OMNI", payload.data(), payload.size()));
-  EXPECT_EQ(0, kkconfirm_drain());
+  multisig.m = 0;
+  EXPECT_FALSE(transaction_multisig_quorum_is_valid(&multisig));
+  multisig.m = 16;
+  multisig.pubkeys_count = 16;
+  EXPECT_FALSE(transaction_multisig_quorum_is_valid(&multisig));
+
+  multisig.m = 2;
+  multisig.pubkeys_count = 3;
+  EXPECT_TRUE(transaction_multisig_quorum_is_valid(&multisig));
 }
 
 TEST(Transaction, MultisigCompilersRejectUnsatisfiableQuorums) {

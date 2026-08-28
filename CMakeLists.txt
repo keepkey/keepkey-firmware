@@ -9,7 +9,7 @@ endif()
 
 project(
   KeepKeyFirmware
-  VERSION 7.14.3
+  VERSION 7.15.0
   LANGUAGES C CXX ASM)
 
 set(BOOTLOADER_MAJOR_VERSION 2)
@@ -22,6 +22,16 @@ option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
 option(KK_BUILD_FUZZERS "Build the fuzzers?" OFF)
 option(KK_BITCOIN_ONLY "Build Bitcoin-only firmware (strip all non-BTC coins)"
        OFF)
+# Zcash shielded/Orchard support is part of the regular firmware. It is an
+# internal compile selection, not a third release variant: bitcoin-only strips
+# the Zcash coin and privacy engine; every regular device/emulator build ships
+# both. The open constant-time Pallas audit finding remains a release gate for
+# RC18, but it must not silently change the product being audited.
+if(KK_BITCOIN_ONLY)
+  set(KK_ZCASH_PRIVACY OFF)
+else()
+  set(KK_ZCASH_PRIVACY ON)
+endif()
 
 # When building the dylib, every static lib it links (kkfirmware, kkboard,
 # trezorcrypto, kkrand, kktransport, qrcodegenerator, SecAESSTM32, ...) must
@@ -64,7 +74,7 @@ endif()
 if(NOT EXISTS ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto/Makefile)
   message(
     FATAL_ERROR
-      " trezor-crypto missing. Need to 'git submodule update --init --recursive"
+      "trezor-crypto fork missing. Run 'git submodule update --init deps/crypto/trezor-firmware'"
   )
 endif()
 
@@ -79,13 +89,20 @@ find_program(NANOPB_GENERATOR nanopb_generator.py)
 if(${KK_EMULATOR} AND NOT NANOPB_GENERATOR)
   message(
     FATAL_ERROR
-      "Must install nanopb 0.3.9.4, and put nanopb-nanopb-0.3.9.4/generator on your PATH"
+      "Must install nanopb 0.3.9.8, and put nanopb-nanopb-0.3.9.8/generator on your PATH"
   )
 endif()
 
 if(${KK_EMULATOR})
   add_definitions(-DEMULATOR)
   add_definitions(-DCONFIDENTIAL=)
+  # macOS/BSD declare strlcpy/strlcat in <string.h>; glibc (Linux) and MinGW
+  # (Windows) do not. Force-include the prototypes so the ~20 call sites build
+  # without -Werror=implicit-function-declaration (definitions come from
+  # lib/board/strlcpy.c + strlcat.c). Apple already has them in <string.h>.
+  if(NOT APPLE)
+    add_compile_options(-include ${CMAKE_SOURCE_DIR}/include/keepkey/board/bsd_compat.h)
+  endif()
 else()
   add_definitions(-DCONFIDENTIAL=__attribute__\(\(section\("confidential"\)\)\))
 endif()
@@ -115,6 +132,13 @@ add_definitions(-DUSE_CARDANO=0)
 add_definitions(-DUSE_MONERO=0)
 add_definitions(-DUSE_NEM=0)
 
+# NOT a USE_* style on/off toggle despite sitting next to them: trezor-crypto's
+# rand.c tests this macro with #ifndef, so only its *definedness* matters. The
+# old -D...=0 spelling read as "off" while actually meaning "on", and the
+# insecure LCG random32() stayed out of the build purely by that double
+# negation. Define it bare, matching upstream trezor-core's SConscript.firmware,
+# so a future cleanup of an apparent "=0 means unused" define cannot silently
+# compile in the LCG. lib/rand/rng.c #errors if this ever goes missing.
 # trezor-crypto's rand.c tests only whether this macro is defined.  A value of
 # zero therefore did not disable anything; it excluded the library's insecure
 # test LCG by definedness.  Use the upstream spelling so that intent is clear,
@@ -137,20 +161,35 @@ add_definitions(-DBIP39_WORDLIST_PADDED=1)
 
 add_definitions(-DAES_128=1)
 
+# NOTE: AES table size is selected per release product below. The regular
+# image includes Zcash and its Pallas curve arithmetic, so it uses the smaller
+# AES tables to preserve flash headroom. Bitcoin-only keeps FOUR_TABLES AES.
+
 if(${KK_DEBUG_LINK})
   add_definitions(-DDEBUG_LINK=1)
 else()
   add_definitions(-DDEBUG_LINK=0)
 endif()
 
-# Always defined, 0 or 1, and always tested with `#if BITCOIN_ONLY`. Device
-# builds compile with -Wundef -Werror, so an undefined identifier inside `#if`
-# is a hard error rather than a silent zero -- which is what we want, because
-# a silently-zero guard would ship the coin engines into the stripped image.
+# Value macros: always defined, 0 or 1, and always tested with `#if FLAG`.
+# Device builds compile with -Wundef -Werror, so an undefined identifier inside
+# `#if` is a hard error rather than a silent zero -- which is what we want,
+# because a silently-zero guard would ship the coin engines into the stripped
+# image.
 if(${KK_BITCOIN_ONLY})
   add_definitions(-DBITCOIN_ONLY=1)
 else()
   add_definitions(-DBITCOIN_ONLY=0)
+endif()
+
+if(${KK_ZCASH_PRIVACY})
+  add_definitions(-DZCASH_PRIVACY=1)
+  # The Orchard engine leaves the regular image tightest on flash; shrink the
+  # Gladman AES lookup tables from 4KB to 1KB each (-15,360 bytes ROM,
+  # slightly slower AES). Bitcoin-only keeps the fast FOUR_TABLES.
+  add_definitions(-DAES_SMALL_TABLES)
+else()
+  add_definitions(-DZCASH_PRIVACY=0)
 endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -185,6 +224,12 @@ if(NOT ${KK_EMULATOR})
   link_directories(${LIBOPENCM3_PATH}/lib)
   include_directories(${LIBOPENCM3_PATH}/include)
 
+  # Emit per-function stack-frame sizes (.su files) on device builds. CI's
+  # SRAM budget gate (tools/check_sram_budget.py) reports the largest frames
+  # and fails when the linker-asserted stack reserve minus the largest frame
+  # leaves less than the configured margin. See tools/firmware/keepkey.ld.
+  add_compile_options(-fstack-usage)
+
   # Dummy empty libraries for stack smashing protection support, since we
   # implement __stack_chk_guard and __stack_chk_fail ourselves.
   file(WRITE ${CMAKE_BINARY_DIR}/ssp.c "")
@@ -213,6 +258,10 @@ if(${KK_EMULATOR})
   add_test(test-firmware ${CMAKE_BINARY_DIR}/bin/firmware-unit)
   add_test(test-board ${CMAKE_BINARY_DIR}/bin/board-unit)
   add_test(test-crypto ${CMAKE_BINARY_DIR}/bin/crypto-unit)
+  if(${KK_ZCASH_PRIVACY})
+    add_test(test-pallas-ct ${CMAKE_BINARY_DIR}/bin/pallas-ct-unit)
+    add_test(test-zcash-crypto ${CMAKE_BINARY_DIR}/bin/zcash-crypto-unit)
+  endif()
 
   add_custom_target(
     xunit
@@ -222,5 +271,11 @@ if(${KK_EMULATOR})
             --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/board.xml
     COMMAND ${CMAKE_BINARY_DIR}/bin/crypto-unit
             --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/crypto.xml)
+
+  if(${KK_ZCASH_PRIVACY})
+    add_custom_command(TARGET xunit POST_BUILD
+      COMMAND ${CMAKE_BINARY_DIR}/bin/pallas-ct-unit
+              --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/pallas-ct.xml)
+  endif()
 
 endif()

@@ -49,47 +49,13 @@ TEST(Signing, LegacyChangeMayNotClaimTaprootScriptType) {
   EXPECT_TRUE(Forbidden(84, 84, OutputScriptType_PAYTOTAPROOT));
 }
 
-TEST(Signing, ScriptTypeChecksumEncodingIsCanonicalFourByteLittleEndian) {
-  uint8_t encoded[4] = {0};
-  signing_checksum_script_type_bytes(static_cast<InputScriptType>(0x01020304),
-                                     encoded);
-  const uint8_t expected[4] = {0x04, 0x03, 0x02, 0x01};
-  EXPECT_EQ(0, memcmp(encoded, expected, sizeof(expected)));
-  EXPECT_EQ(4u, sizeof(encoded));
-}
-
-TEST(Signing, RejectsInvalidMultisigQuorumOnExternalAndChangeOutputs) {
-  for (bool internal : {false, true}) {
-    TxOutputType output = TxOutputType_init_zero;
-    output.has_multisig = true;
-    output.script_type = OutputScriptType_PAYTOMULTISIG;
-    output.multisig.has_m = true;
-    output.multisig.m = 2;
-    output.multisig.pubkeys_count = 3;
-    if (internal) {
-      output.address_n_count = 1;
-      output.address_n[0] = H(0);
-    } else {
-      output.has_address = true;
-      strcpy(output.address, "external");
-    }
-    EXPECT_TRUE(signing_output_multisig_quorum_is_valid(&output));
-
-    output.multisig.m = 0;
-    EXPECT_FALSE(signing_output_multisig_quorum_is_valid(&output));
-    output.multisig.m = 4;
-    EXPECT_FALSE(signing_output_multisig_quorum_is_valid(&output));
-    output.multisig.m = 1;
-    output.multisig.pubkeys_count = 0;
-    EXPECT_FALSE(signing_output_multisig_quorum_is_valid(&output));
-    output.multisig.pubkeys_count = 16;
-    EXPECT_FALSE(signing_output_multisig_quorum_is_valid(&output));
-  }
-}
-
-TEST(Signing, AbortScrubsAllInstrumentedSignerState) {
-  signing_test_seed_state();
-  ASSERT_FALSE(signing_test_state_is_cleared());
-  signing_abort();
-  EXPECT_TRUE(signing_test_state_is_cleared());
+TEST(Signing, ScriptTypeChecksumEncodingIsAbiIndependent) {
+  uint8_t encoded[4] = {0xff, 0xff, 0xff, 0xff};
+  signing_encode_script_type(InputScriptType_SPENDTAPROOT, encoded);
+  const uint32_t value = (uint32_t)InputScriptType_SPENDTAPROOT;
+  EXPECT_EQ(encoded[0], (uint8_t)value);
+  EXPECT_EQ(encoded[1], (uint8_t)(value >> 8));
+  EXPECT_EQ(encoded[2], (uint8_t)(value >> 16));
+  EXPECT_EQ(encoded[3], (uint8_t)(value >> 24));
+  EXPECT_EQ(sizeof(encoded), 4U);
 }

@@ -61,6 +61,31 @@ void draw_char_simple(Canvas* canvas, const Font* font, char c, uint8_t color,
 void draw_box(Canvas* canvas, BoxDrawableParams* p);
 void draw_box_simple(Canvas* canvas, uint8_t color, uint16_t x, uint16_t y,
                      uint16_t width, uint16_t height);
+/*
+ * draw_bitmap_mono_rle_valid() - Validate an RLE stream against a geometry.
+ *
+ * Pure and side-effect-free: decodes nothing, writes nothing, touches no
+ * canvas. Returns true iff the stream is EXACTLY well-formed for a w*h image:
+ *   - every packet count is valid (never 0, never 0x80/-128 — the decoder's
+ *     counter is int8_t and cannot represent a 128 literal),
+ *   - no run straddles the end of the image,
+ *   - exactly w*h pixels are produced, and
+ *   - the whole input is consumed (no trailing packets).
+ *
+ * The drawing path is lenient by construction (it stops once the canvas is
+ * full), so callers that accept host-supplied streams MUST validate here at
+ * the trust boundary rather than infer validity from a successful draw.
+ *
+ * INPUT
+ *     - data: RLE stream
+ *     - length: stream length in bytes
+ *     - w, h: target image geometry
+ * OUTPUT
+ *     true iff the stream decodes exactly to w*h pixels
+ */
+bool draw_bitmap_mono_rle_valid(const uint8_t* data, uint32_t length,
+                                uint16_t w, uint16_t h);
+
 bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
                           bool erase);
 

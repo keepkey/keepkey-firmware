@@ -389,6 +389,18 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
            in->op_return_data.size);
     r += in->op_return_data.size;
     out->script_pubkey.size = r;
+    /* signing.c calls txin_dgst_final() once per output, and the pay-to-address
+       path below re-arms the context via txin_dgst_save_and_reset(). This path
+       returns before that, so a transaction whose LAST output is OP_RETURN used
+       to leave the hash finalised and never re-initialised -- the NEXT
+       transaction's inputs were then hashed into a finalised context, its
+       digest no longer matched while the amount and address still did, and the
+       device falsely reported "WARNING: Duplicate Transaction!" and aborted
+       until the user replugged. Every THORChain/Maya swap from Bitcoin is an
+       OP_RETURN memo, so an ordinary send right after a swap hit this.
+       Reset only: an OP_RETURN has no amount/address worth saving as a
+       comparison key. */
+    txin_dgst_reset_only();
     return r;
   }
 
@@ -616,6 +628,14 @@ uint32_t compile_script_sig(uint32_t address_type, const uint8_t* pubkeyhash,
   }
 }
 
+bool transaction_multisig_quorum_is_valid(
+    const MultisigRedeemScriptType* multisig) {
+  if (multisig == NULL || !multisig->has_m) return false;
+  const uint32_t m = multisig->m;
+  const uint32_t n = multisig->pubkeys_count;
+  return m >= 1 && m <= 15 && n >= 1 && n <= 15 && m <= n;
+}
+
 // if out == NULL just compute the length
 bool multisig_quorum_is_valid(const MultisigRedeemScriptType* multisig) {
   if (multisig == NULL || !multisig->has_m) return false;
@@ -627,7 +647,7 @@ bool multisig_quorum_is_valid(const MultisigRedeemScriptType* multisig) {
 uint32_t compile_script_multisig(const CoinType* coin,
                                  const MultisigRedeemScriptType* multisig,
                                  uint8_t* out) {
-  if (!multisig_quorum_is_valid(multisig)) return 0;
+  if (!transaction_multisig_quorum_is_valid(multisig)) return 0;
   const uint32_t m = multisig->m;
   const uint32_t n = multisig->pubkeys_count;
   uint32_t r = 0;
@@ -656,7 +676,7 @@ uint32_t compile_script_multisig(const CoinType* coin,
 uint32_t compile_script_multisig_hash(const CoinType* coin,
                                       const MultisigRedeemScriptType* multisig,
                                       uint8_t* hash) {
-  if (!multisig_quorum_is_valid(multisig)) return 0;
+  if (!transaction_multisig_quorum_is_valid(multisig)) return 0;
   const uint32_t m = multisig->m;
   const uint32_t n = multisig->pubkeys_count;
 

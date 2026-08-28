@@ -459,6 +459,131 @@ static bool solana_signerInTx(const uint8_t* pubkey, const SolanaParsedTx* tx) {
   return false;
 }
 
+typedef enum {
+  SOL_SCHEMA_REVIEW_NONE = 0,
+  SOL_SCHEMA_REVIEW_APPROVED,
+  SOL_SCHEMA_REVIEW_CANCELLED,
+} SolanaSchemaReviewResult;
+
+/* Review an opaque instruction through a signed KKSOLSC1 descriptor. This is
+ * annotation only: invalid or inapplicable metadata produces no screens, and
+ * the caller still presents the ordinary blind-sign warning after an approved
+ * schema review. */
+static SolanaSchemaReviewResult solana_confirmAttestedSchema(
+    const SolanaSignTx* msg, const SolanaParsedTx* tx) {
+  if (!msg->has_schema_payload || msg->schema_payload.size == 0 ||
+      !msg->has_schema_signature || msg->schema_signature.size != 64 ||
+      !msg->has_schema_signer_key_id ||
+      msg->schema_signer_key_id >= METADATA_MAX_KEYS) {
+    return SOL_SCHEMA_REVIEW_NONE;
+  }
+
+  const uint8_t key_id = (uint8_t)msg->schema_signer_key_id;
+  if (!signed_metadata_verify_attestation(
+          key_id, msg->schema_payload.bytes, msg->schema_payload.size,
+          msg->schema_signature.bytes, msg->schema_signature.size)) {
+    return SOL_SCHEMA_REVIEW_NONE;
+  }
+
+  SolanaInstrSchema schema;
+  uint8_t instruction_index = 0;
+  if (!solana_parseInstrSchema(msg->schema_payload.bytes,
+                               msg->schema_payload.size, &schema) ||
+      !solana_schemaApplies(&schema, tx, &instruction_index)) {
+    memzero(&schema, sizeof(schema));
+    return SOL_SCHEMA_REVIEW_NONE;
+  }
+
+  const SolanaParsedInstruction* ix = &tx->instructions[instruction_index];
+  for (uint8_t i = 0; i < schema.num_accounts; i++) {
+    const uint8_t instruction_account = schema.accounts[i].index;
+    if (!ix->acct_indices || instruction_account >= ix->num_acct_indices ||
+        ix->acct_indices[instruction_account] >= tx->num_accounts) {
+      memzero(&schema, sizeof(schema));
+      return SOL_SCHEMA_REVIEW_NONE;
+    }
+  }
+
+  char fingerprint[METADATA_FINGERPRINT_LEN];
+  if (!signed_metadata_signer_fingerprint(key_id, fingerprint)) {
+    fingerprint[0] = '\0';
+  }
+  const char* alias = signed_metadata_signer_alias(key_id);
+  bool approved =
+      confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Schema Source",
+              "%s (%s) describes this instruction.\nNOT verified by KeepKey.",
+              alias ? alias : "Unknown signer", fingerprint);
+
+  if (approved) {
+    approved =
+        confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Instruction",
+                "%s\n%s", schema.program_name, schema.instruction_name);
+  }
+
+  char program_id[45];
+  solana_pubkeyToStr(schema.program_id, program_id, sizeof(program_id));
+  if (approved) {
+    approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                       "Program ID", "%s", program_id);
+  }
+
+  char discriminator[2 * SOL_SCHEMA_DISC_MAX + 1] = {0};
+  for (uint8_t i = 0; i < schema.disc_len; i++) {
+    snprintf(discriminator + 2 * i, sizeof(discriminator) - 2 * i, "%02x",
+             schema.disc[i]);
+  }
+  if (approved) {
+    approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                       "Discriminator", "%s", discriminator);
+  }
+
+  const uint8_t* arg = ix->data + schema.disc_len;
+  for (uint8_t i = 0; approved && i < schema.num_args; i++) {
+    switch (schema.args[i].type) {
+      case SOL_SCHEMA_ARG_U64: {
+        uint64_t value = 0;
+        for (uint8_t j = 0; j < 8; j++) {
+          value |= ((uint64_t)arg[j]) << (8 * j);
+        }
+        approved =
+            confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                    schema.args[i].label, "%llu", (unsigned long long)value);
+        arg += 8;
+        break;
+      }
+      case SOL_SCHEMA_ARG_U8:
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           schema.args[i].label, "%u", (unsigned)*arg);
+        arg++;
+        break;
+      case SOL_SCHEMA_ARG_PUBKEY: {
+        char pubkey[45];
+        solana_pubkeyToStr(arg, pubkey, sizeof(pubkey));
+        approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           schema.args[i].label, "%s", pubkey);
+        arg += SOL_PUBKEY_SIZE;
+        break;
+      }
+      case SOL_SCHEMA_ARG_OPAQUE32:
+        approved = confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                                 schema.args[i].label, arg, 32);
+        arg += 32;
+        break;
+    }
+  }
+
+  for (uint8_t i = 0; approved && i < schema.num_accounts; i++) {
+    const uint8_t account_index = ix->acct_indices[schema.accounts[i].index];
+    char account[45];
+    solana_pubkeyToStr(tx->accounts[account_index], account, sizeof(account));
+    approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                       schema.accounts[i].label, "%s", account);
+  }
+
+  memzero(&schema, sizeof(schema));
+  return approved ? SOL_SCHEMA_REVIEW_APPROVED : SOL_SCHEMA_REVIEW_CANCELLED;
+}
+
 void fsm_msgSolanaGetAddress(const SolanaGetAddress* msg) {
   RESP_INIT(SolanaAddress);
 
@@ -598,6 +723,91 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
                       _("Enable AdvancedMode to blind-sign"));
       layoutHome();
       return;
+    }
+
+    const SolanaSchemaReviewResult schema_review =
+        solana_confirmAttestedSchema(msg, &parsed);
+    if (schema_review == SOL_SCHEMA_REVIEW_CANCELLED) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
+    }
+
+    /* KKSOLSW1: a provider may attest the accounts this message resolves
+       through a lookup table -- the ones the device cannot derive, and the
+       reason it went opaque at all. Showing them turns a blind sign into a
+       described one.
+
+       Strictly additive, and deliberately BEFORE the blind-sign warning rather
+       than instead of it: a runtime signer is annotation, never authority, so
+       the user still sees "the device cannot fully verify the contents" and
+       still has to approve it. If the attestation is absent, malformed, or
+       fails to verify, nothing extra is drawn and the flow is byte-for-byte
+       what it was. */
+    /* nanopb gives each repeated `bytes` element as a {size, bytes[32]}
+       struct, NOT a bare 32-byte array -- casting the array to
+       (uint8_t(*)[32]) would hash the size word plus 28 bytes of the first
+       key. Flatten explicitly, and require every element to be a full
+       SOL_PUBKEY_SIZE key so a short one cannot silently hash as zero-padded.
+     */
+    uint8_t lut_keys[SOL_MAX_LUT_ACCOUNTS][SOL_PUBKEY_SIZE];
+    size_t lut_n = 0;
+    bool lut_well_formed = msg->lut_account_count > 0 &&
+                           msg->lut_account_count <= SOL_MAX_LUT_ACCOUNTS;
+    for (size_t li = 0; lut_well_formed && li < msg->lut_account_count; li++) {
+      if (msg->lut_account[li].size != SOL_PUBKEY_SIZE) {
+        lut_well_formed = false;
+        break;
+      }
+      memcpy(lut_keys[lut_n++], msg->lut_account[li].bytes, SOL_PUBKEY_SIZE);
+    }
+
+    if (lut_well_formed && msg->has_lut_signature &&
+        msg->has_lut_signer_key_id &&
+        solana_lut_accounts_trusted(
+            msg->raw_tx.bytes, msg->raw_tx.size,
+            (const uint8_t (*)[32])lut_keys, lut_n, msg->lut_signer_key_id,
+            msg->lut_signature.bytes, msg->lut_signature.size)) {
+      char fp[METADATA_FINGERPRINT_LEN];
+      const char* alias =
+          signed_metadata_signer_alias((uint8_t)msg->lut_signer_key_id);
+      if (!signed_metadata_signer_fingerprint((uint8_t)msg->lut_signer_key_id,
+                                              fp)) {
+        fp[0] = '\0';
+      }
+      /* Name WHO is describing these accounts before showing what they say.
+         The user is being asked to trust a third party, and the tier never
+         claims KeepKey verified it. */
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "Lookup Accounts",
+                   "%s (%s) describes %u account(s).\nNOT verified by KeepKey.",
+                   alias ? alias : "Unknown signer", fp,
+                   (unsigned)msg->lut_account_count)) {
+        memzero(node, sizeof(*node));
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        _("Signing cancelled"));
+        layoutHome();
+        return;
+      }
+      for (size_t li = 0; li < lut_n; li++) {
+        char b58[64];
+        size_t b58_len = sizeof(b58);
+        if (!solana_base58_encode(lut_keys[li], SOL_PUBKEY_SIZE, b58,
+                                  &b58_len)) {
+          continue;
+        }
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                     "Lookup Account", "%u/%u\n%s", (unsigned)(li + 1),
+                     (unsigned)lut_n, b58)) {
+          memzero(node, sizeof(*node));
+          fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                          _("Signing cancelled"));
+          layoutHome();
+          return;
+        }
+      }
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Blind Sign",

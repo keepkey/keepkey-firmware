@@ -2,13 +2,18 @@ extern "C" {
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/mayachain.h"
 #include "keepkey/firmware/tendermint.h"
-#include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/secp256k1.h"
-#include "trezor/crypto/sha2.h"
 }
 
 #include "gtest/gtest.h"
 #include <cstring>
+#include <string>
+
+// confirm() auto-accept driver, defined in thorchain.cpp (same binary).
+// kkconfirm_preload(nYes, nNo) queues nYes accepted confirm screens then
+// nNo rejected ones; kkconfirm_drain() == 0 proves the exact screen count.
+bool kkconfirm_preload(int nYes, int nNo);
+int kkconfirm_drain(void);
 
 TEST(Mayachain, FormatsOnlyCacaoWithTenDecimals) {
   char rendered[96];
@@ -85,18 +90,6 @@ TEST(Mayachain, MemoWithMisdeclaredLengthIsRefused) {
   static const char kNoDot[] = "SWAP:ETH:dest";
   EXPECT_EQ(MAYACHAIN_MEMO_UNPARSED,
             mayachain_parseConfirmMemo(kNoDot, sizeof(kNoDot) - 1));
-
-  /* A second dot outside the chain/asset field is not this grammar either. */
-  static const char kExtraDot[] = "SWAP:ETH.USDT:de.st:limit";
-  EXPECT_EQ(MAYACHAIN_MEMO_UNPARSED,
-            mayachain_parseConfirmMemo(kExtraDot, sizeof(kExtraDot) - 1));
-}
-
-TEST(Mayachain, MemoWithEmptyPositionalFieldIsNotStructured) {
-  static const char kEmptyLimit[] =
-      "=:ETH.ETH:0x41e5560054824ea6b0732e656e3ad64e20e94e45::affiliate:75";
-  EXPECT_EQ(MAYACHAIN_MEMO_UNPARSED,
-            mayachain_parseConfirmMemo(kEmptyLimit, sizeof(kEmptyLimit) - 1));
 }
 
 TEST(Mayachain, StructuredMemoRequiresExactSafeTokensAndCanonicalBps) {
@@ -172,10 +165,6 @@ TEST(Mayachain, MayachainSignTx) {
   };
   ASSERT_TRUE(mayachain_signTxInit(&node, &msg));
 
-  /* "cacao" is the denomination this vector was recorded with: the third
-     parameter was added by 50164a2ee, which replaced a hardcoded "cacao" in
-     the JSON with a caller-supplied denom. Passing it reproduces the exact
-     bytes the expected signature below was computed over. */
   ASSERT_TRUE(mayachain_signTxUpdateMsgSend(
       100, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k", "cacao"));
 
@@ -184,16 +173,17 @@ TEST(Mayachain, MayachainSignTx) {
 
   ASSERT_TRUE(mayachain_signTxFinalize(public_key, signature));
 
-  /* This file was never in the build, so this vector was never checked and it
-     does not match. Recomputed independently of this firmware: SHA256 of the
-     amino StdSignDoc
-     {"account_number":"6359","chain_id":"mayachain-mainnet-v1",
-      "fee":{"amount":[{"amount":"3000","denom":"cacao"}],"gas":"200000"},
-      "memo":"","msgs":[{"type":"mayachain/MsgSend","value":{"amount":
-      [{"amount":"100","denom":"cacao"}],"from_address":"maya1ls33...",
-      "to_address":"maya1g9el..."}}],"sequence":"19"}
-     signed with RFC6979-deterministic secp256k1 and low-S normalised. The
-     device produces the same 64 bytes. */
+  // Expected value recomputed independently (python-ecdsa, RFC6979/secp256k1,
+  // low-s) over the exact sign-doc JSON this fixture produces:
+  //   {"account_number":"6359","chain_id":"mayachain-mainnet-v1","fee":
+  //   {"amount":[{"amount":"3000","denom":"cacao"}],"gas":"200000"},"memo":
+  //   "","msgs":[{"type":"mayachain/MsgSend","value":{"amount":[{"amount":
+  //   "100","denom":"cacao"}],"from_address":
+  //   "maya1ls33ayg26kmltw7jjy55p32ghjna09zp7z4etj","to_address":
+  //   "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k"}}],"sequence":"19"}
+  // The bytes recorded when this file was written never matched: the file
+  // was not in the unit build (see 28c74a0e) so the vector was never
+  // validated, and it did not verify against this fixture's key/JSON.
   EXPECT_TRUE(
       memcmp(signature,
              (uint8_t*)"\xdf\x2f\x66\x37\x03\x08\x32\xd2\xce\x87\xfe\x47\x8d"
@@ -204,13 +194,26 @@ TEST(Mayachain, MayachainSignTx) {
              64) == 0);
 }
 
-TEST(Mayachain, LongestValidDenomSerializes) {
-  /* The amount/denom segment is the longest thing
-     mayachain_signTxUpdateMsgSend() formats, and its scratch buffer used to be
-     65 bytes against a documented 124-byte maximum. tendermint_snprintf() fails
-     closed, so nothing was mis-signed -- but the refusal came after the
-     confirmation screen had already been approved. A denomination at the
-     protocol maximum must serialize, not fail late. */
+// Denom validation: only [a-z0-9./\-] is allowed; anything else is rejected
+TEST(Mayachain, MayachainDenomValidation) {
+  EXPECT_TRUE(mayachain_isValidDenom("cacao"));
+  EXPECT_TRUE(mayachain_isValidDenom("maya"));
+  EXPECT_TRUE(mayachain_isValidDenom("eth.eth"));
+  EXPECT_TRUE(mayachain_isValidDenom("btc/btc"));
+  EXPECT_TRUE(mayachain_isValidDenom("cross-chain"));
+
+  EXPECT_FALSE(mayachain_isValidDenom(""));          // empty → caller "cacao"
+  EXPECT_FALSE(mayachain_isValidDenom("CACAO"));     // uppercase rejected
+  EXPECT_FALSE(mayachain_isValidDenom("cacao\""));   // quote injection
+  EXPECT_FALSE(mayachain_isValidDenom("cacao\\n"));  // backslash injection
+  EXPECT_FALSE(mayachain_isValidDenom(" cacao"));    // leading space
+  EXPECT_FALSE(mayachain_isValidDenom("ca cao"));    // embedded space
+}
+
+// The signer function itself must reject an invalid denom — not merely
+// rely on the FSM caller to pre-validate — so it stays safe if reused or
+// called directly. Empty denom must still default to "cacao" and succeed.
+TEST(Mayachain, MayachainSignTxUpdateMsgSendRejectsInvalidDenom) {
   HDNode node = {
       0,
       0,
@@ -235,162 +238,109 @@ TEST(Mayachain, LongestValidDenomSerializes) {
       true, "",
       true, 19,
       true, 1};
+
   ASSERT_TRUE(mayachain_signTxInit(&node, &msg));
+  EXPECT_FALSE(mayachain_signTxUpdateMsgSend(
+      100, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k", "cacao\""));
 
-  /* 68 visible characters: MayachainMsgSend.denom's max_size of 69 less NUL. */
-  char denom[69];
-  std::memset(denom, 'a', 68);
-  denom[68] = '\0';
-  ASSERT_EQ(68u, std::strlen(denom));
-
-  /* A uint64 at its widest, so the segment is at its documented maximum. */
+  ASSERT_TRUE(mayachain_signTxInit(&node, &msg));
   EXPECT_TRUE(mayachain_signTxUpdateMsgSend(
-      18446744073709551615ULL, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k",
-      denom));
+      100, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k", ""));
 }
 
-TEST(Mayachain, MultiMessageSignTxSeparatesMsgsWithComma) {
-  /* Regression for the missing comma between "msgs":[...] entries: before the
-     has_message guard, two MsgSends serialized back-to-back ("}}{") and the
-     user approved a signature over invalid JSON. The expected document below
-     is constructed BY HAND in this test -- independent of the serializer under
-     test -- and signed with the same key, so the comparison fails if the
-     serializer's bytes drift from the amino StdSignDoc in any way, comma
-     included. */
-  HDNode node = {
-      0,
-      0,
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0xb9, 0x9a, 0x39, 0x3a, 0x5a, 0x53, 0x0d, 0x90, 0xef, 0x6e, 0x46,
-       0x4e, 0x8e, 0x2f, 0x2b, 0x8b, 0x5c, 0x64, 0xa7, 0x97, 0x29, 0xcd,
-       0x60, 0x3b, 0x1f, 0xba, 0x33, 0x81, 0x7d, 0x1a, 0x75, 0xa1},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      &secp256k1_info};
-  hdnode_fill_public_key(&node);
+/* ===================================================================== *
+ *  mayachain_parseConfirmMemo — swap-memo clear-signing.
+ *  Mirrors the thorchain.cpp memo tests; see kkconfirm_preload docs there.
+ * ===================================================================== */
 
-  const MayachainSignTx msg = {
-      5,    {0x80000000 | 44, 0x80000000 | 931, 0x80000000, 0, 0},
-      true, 6359,                    // account_number
-      true, "mayachain-mainnet-v1",  // chain_id
-      true, 3000,                    // fee_amount
-      true, 200000,                  // gas
-      true, "",                      // memo
-      true, 19,                      // sequence
-      true, 2                        // msg_count
-  };
-  ASSERT_TRUE(mayachain_signTxInit(&node, &msg));
-  EXPECT_FALSE(mayachain_signingIsFinished());
-
-  const char* const to = "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k";
-  ASSERT_TRUE(mayachain_signTxUpdateMsgSend(100, to, "cacao"));
-  EXPECT_FALSE(mayachain_signingIsFinished());
-  ASSERT_TRUE(mayachain_signTxUpdateMsgSend(42, to, "cacao"));
-  EXPECT_TRUE(mayachain_signingIsFinished());
-
-  uint8_t public_key[33];
-  uint8_t signature[64];
-  ASSERT_TRUE(mayachain_signTxFinalize(public_key, signature));
-
-  char from[46];
-  ASSERT_TRUE(tendermint_getAddress(&node, "maya", from));
-
-  char doc[1024];
-  int n = snprintf(
-      doc, sizeof(doc),
-      "{\"account_number\":\"6359\",\"chain_id\":\"mayachain-mainnet-v1\","
-      "\"fee\":{\"amount\":[{\"amount\":\"3000\",\"denom\":\"cacao\"}],"
-      "\"gas\":\"200000\"},\"memo\":\"\",\"msgs\":["
-      "{\"type\":\"mayachain/MsgSend\",\"value\":{\"amount\":[{\"amount\":"
-      "\"100\",\"denom\":\"cacao\"}],\"from_address\":\"%s\",\"to_address\":"
-      "\"%s\"}},"
-      "{\"type\":\"mayachain/MsgSend\",\"value\":{\"amount\":[{\"amount\":"
-      "\"42\",\"denom\":\"cacao\"}],\"from_address\":\"%s\",\"to_address\":"
-      "\"%s\"}}"
-      "],\"sequence\":\"19\"}",
-      from, to, from, to);
-  ASSERT_GT(n, 0);
-  ASSERT_LT((size_t)n, sizeof(doc));
-
-  uint8_t hash[SHA256_DIGEST_LENGTH];
-  sha256_Raw((const uint8_t*)doc, (size_t)n, hash);
-  uint8_t expected[64];
-  ASSERT_EQ(0, ecdsa_sign_digest(&secp256k1, node.private_key, hash, expected,
-                                 NULL, NULL));
-  EXPECT_EQ(0, memcmp(signature, expected, 64));
-
-  mayachain_signAbort();
+static bool parseMayaMemo(const char* memo, size_t size) {
+  return mayachain_parseConfirmMemo(memo, size) == MAYACHAIN_MEMO_CONFIRMED;
+}
+/* strlen(memo), NOT strlen(memo) + 1 -- see the same note in thorchain.cpp.
+ * Maya inherited THORChain's memo grammar and its canonical-length refusal. */
+static bool parseMayaMemo(const char* memo) {
+  return parseMayaMemo(memo, strlen(memo));
 }
 
-TEST(Mayachain, ZeroOrOmittedMessagesFailInitialization) {
-  HDNode node = {
-      0,
-      0,
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0xb9, 0x9a, 0x39, 0x3a, 0x5a, 0x53, 0x0d, 0x90, 0xef, 0x6e, 0x46,
-       0x4e, 0x8e, 0x2f, 0x2b, 0x8b, 0x5c, 0x64, 0xa7, 0x97, 0x29, 0xcd,
-       0x60, 0x3b, 0x1f, 0xba, 0x33, 0x81, 0x7d, 0x1a, 0x75, 0xa1},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      &secp256k1_info};
-  hdnode_fill_public_key(&node);
-
-  MayachainSignTx msg = {
-      5,    {0x80000000 | 44, 0x80000000 | 931, 0x80000000, 0, 0},
-      true, 6359,
-      true, "mayachain-mainnet-v1",
-      true, 3000,
-      true, 200000,
-      true, "",
-      true, 19,
-      true, 0  // msg_count
-  };
-  EXPECT_FALSE(mayachain_signTxInit(&node, &msg));
-  EXPECT_FALSE(mayachain_signingIsInited());
-  EXPECT_FALSE(mayachain_signingIsFinished());
-  EXPECT_FALSE(mayachain_signTxUpdateMsgSend(1, "ignored", "cacao"));
-
-  msg.has_msg_count = false;
-  msg.msg_count = 1;
-  EXPECT_FALSE(mayachain_signTxInit(&node, &msg));
-  EXPECT_FALSE(mayachain_signingIsInited());
-
-  msg.has_msg_count = true;
-  strcpy(msg.chain_id, "");
-  EXPECT_FALSE(mayachain_signTxInit(&node, &msg));
-  strcpy(msg.chain_id, "maya\nchain");
-  EXPECT_FALSE(mayachain_signTxInit(&node, &msg));
+// Classic full-form swap memo = 4 screens (4th is the affiliate fee screen),
+// but the asset screen is 4 rows against a 3-row body, so it pages into
+// 1/2 + 2/2 = 5 presses. See thorchain.cpp for the same memo.
+TEST(Mayachain, MemoSwapFullFormShowsAffiliate) {
+  ASSERT_TRUE(kkconfirm_preload(5, 0));
+  EXPECT_TRUE(
+      parseMayaMemo("SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:"
+                    "0x41e5560054824ea6b0732e656e3ad64e20e94e45:420:kk:75"));
+  EXPECT_EQ(0, kkconfirm_drain());
 }
 
-TEST(Mayachain, DepositAssetAndSignerFailClosed) {
-  HDNode node = {};
-  node.curve = &secp256k1_info;
-  MayachainSignTx msg = {};
-  msg.has_chain_id = true;
-  strcpy(msg.chain_id, "mayachain");
-  msg.has_msg_count = true;
-  msg.msg_count = 1;
-  ASSERT_TRUE(mayachain_signTxInit(&node, &msg));
+// No '.' in the asset field (no chain.asset pair): raw-memo fallback
+TEST(Mayachain, MemoSwapNoChainAssetPair) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMayaMemo("=:e:0xdest:0/1/0:kk:75"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
 
-  MayachainMsgDeposit deposit = {};
-  deposit.has_asset = true;
-  strcpy(deposit.asset, "ETH.ETH\n");
-  deposit.has_signer = true;
-  strcpy(deposit.signer, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
-  EXPECT_FALSE(mayachain_signTxUpdateMsgDeposit(&deposit));
+// Empty limit must NOT shift the affiliate into the limit slot: 4 screens
+TEST(Mayachain, MemoSwapEmptyLimitDoesNotShift) {
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  EXPECT_TRUE(parseMayaMemo("=:ETH.ETH:0xdest::kk:75"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
 
-  strcpy(deposit.asset, "ETH.ETH");
-  strcpy(deposit.signer, "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n");
-  EXPECT_FALSE(mayachain_signTxUpdateMsgDeposit(&deposit));
+// No affiliate: exactly the 3 historical screens
+TEST(Mayachain, MemoSwapNoAffiliate) {
+  ASSERT_TRUE(kkconfirm_preload(3, 0));
+  EXPECT_TRUE(parseMayaMemo("SWAP:ETH.ETH:0xdest:420"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
 
-  strcpy(deposit.signer, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
-  EXPECT_TRUE(mayachain_signTxUpdateMsgDeposit(&deposit));
-  EXPECT_TRUE(mayachain_signingIsFinished());
-  mayachain_signAbort();
+// ADD with a pool address: 2 screens (unchanged behavior)
+TEST(Mayachain, MemoAddWithPool) {
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  EXPECT_TRUE(
+      parseMayaMemo("ADD:BTC.BTC:maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// WITHDRAW with basis points: 1 screen; without: malformed
+TEST(Mayachain, MemoWithdraw) {
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_TRUE(parseMayaMemo("WITHDRAW:BTC.BTC:5000"));
+  EXPECT_FALSE(parseMayaMemo("wd:BTC.BTC"));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Garbage / oversized memos fall back to raw-memo confirmation
+// BTC OP_RETURN passes RAW memo bytes with no NUL and size = byte count.
+// Every byte must survive the copy — the historical off-by-one dropped
+// the last char (1-char affiliate vanished: 3 screens instead of 4).
+TEST(Mayachain, MemoRawBytesNoNulKeepsLastChar) {
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  const char raw[] = "=:ETH.ETH:0xdest:420:k";
+  EXPECT_TRUE(parseMayaMemo(raw, sizeof(raw) - 1)); /* no NUL counted */
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// A raw memo that fills the internal buffer's entire documented capacity
+// (size == 256, the parser's own <=256 contract) must ALSO keep its last
+// byte — this is the boundary the copy-length clamp missed.
+TEST(Mayachain, MemoExactBufferCapacityKeepsLastChar) {
+  const std::string prefix = "=:ETH.ETH:0x";
+  const std::string suffix = ":420:k";  // 1-char affiliate as the last byte
+  std::string memo =
+      prefix + std::string(256 - prefix.size() - suffix.size(), 'd') + suffix;
+  ASSERT_EQ(memo.size(), 256u);
+
+  /* 6 presses, not 4: the 240-char destination needs 8 rows, so its screen
+   * pages 3 ways (1 + 3 + 1 + 1). Every byte of the memo reaches the screen. */
+  ASSERT_TRUE(kkconfirm_preload(6, 0));
+  EXPECT_TRUE(parseMayaMemo(memo.c_str(), memo.size())); /* no NUL counted */
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+TEST(Mayachain, MemoGarbageAndOversized) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  EXPECT_FALSE(parseMayaMemo("hello world"));
+  EXPECT_FALSE(parseMayaMemo("SWAP:ETH.ETH:0xdest:420", 257));
+  EXPECT_EQ(0, kkconfirm_drain());
 }

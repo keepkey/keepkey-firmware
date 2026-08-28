@@ -34,5 +34,11 @@ bool txin_dgst_compare(const char* amt_str, const char* addr_str);
 void txin_dgst_final(void);
 void txin_dgst_getstrs(char* prev, char* cur, size_t len);
 void txin_dgst_save_and_reset(const char* amt_str, const char* addr_str);
+/* Re-arm the rolling hash WITHOUT recording a comparison key. For an output
+   that carries no amount/address to compare -- OP_RETURN -- saving would
+   pollute last_amount_str/last_addr_str and could manufacture a false
+   duplicate later, but skipping the reset leaves the context finalised for
+   the next transaction. This does the reset half only. */
+void txin_dgst_reset_only(void);
 
 #endif

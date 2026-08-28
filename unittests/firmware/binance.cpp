@@ -7,6 +7,7 @@ extern "C" {
 #include "gtest/gtest.h"
 
 #include <cstring>
+#include "trezor/crypto/secp256k1.h"
 
 static BinanceTransferMsg transfer(const char* denom, int64_t amount) {
   BinanceTransferMsg msg = {};
@@ -32,6 +33,7 @@ static BinanceTransferMsg transfer(const char* denom, int64_t amount) {
 TEST(Binance, DenomBoundsAndGrammar) {
   EXPECT_TRUE(binance_isValidDenom("BNB"));
   EXPECT_TRUE(binance_isValidDenom("RUNE-B1A"));
+  EXPECT_TRUE(binance_isValidDenom("ABCDEFGH-123"));
   EXPECT_TRUE(binance_isValidDenom("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
   EXPECT_FALSE(binance_isValidDenom("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
   EXPECT_FALSE(binance_isValidDenom("bnb"));
@@ -44,6 +46,8 @@ TEST(Binance, TransferValidationFailsClosed) {
   BinanceTransferMsg msg = transfer("RUNE-B1A", 1000000000);
   EXPECT_TRUE(binance_validateTransfer(&msg));
 
+  msg = transfer("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 1000000000);
+  EXPECT_TRUE(binance_validateTransfer(&msg));
   msg = transfer("BNB", 0);
   EXPECT_FALSE(binance_validateTransfer(&msg));
   msg = transfer("BNB", -1);
