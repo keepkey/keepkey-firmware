@@ -1,14 +1,7 @@
 # Dice Entropy
 
 On-device dice rolls, folded into the seed at creation time. Available from
-firmware v7.14.3 (bitcoin-only line) and v7.15.0 (`ResetDevice.dice_entropy`).
-
-One difference from 7.15 in this line: the legacy `display_random` entropy
-screen still exists here, because already-shipped 7.14 hosts request it. The
-two are mutually exclusive — `ResetDevice` with both `display_random` and
-`dice_entropy` set is refused with a SyntaxError, since the screen shows the
-POST-mix internal entropy and honoring both would hand a host the seed
-pre-image and make the dice fold-in worthless.
+firmware v7.15.0 (`ResetDevice.dice_entropy`).
 
 ## What happens
 
@@ -53,8 +46,7 @@ described it as a verifiable commitment; that was strictly worse. A host that
 supplies `ext_entropy` and reads that screen once computes
 `SHA256(shown || ext_entropy)` — the seed pre-image. Dice change nothing about
 that attack, because the displayed value is already post-mix. Unverifiable
-mixing beats a verifiable seed pre-image. See the comment above the
-`dice_entropy` block in `reset.c:reset_init()`.
+mixing beats a verifiable seed pre-image. See the comment at `reset.c:136`.
 
 The roll digest is safe by contrast because it hashes the user's own input, not
 seed material.

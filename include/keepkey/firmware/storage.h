@@ -28,13 +28,22 @@
 #define STORAGE_VERSION \
   17 /* Must add case fallthrough in storage_fromFlash after increment*/
 
-/* The highest storage version that has actually SHIPPED to users. A signed
- * upgrade must never wipe, and the way that breaks is a release whose
- * STORAGE_VERSION sits BELOW a version already in the field: every such device
- * then reads its blob as an unknown future format and resets. Lowering this
- * number is the exact edit that turns every upgrade in the field into a silent
- * wipe, so it must be an explicit, reviewed act rather than a side effect.
- * v7.14.1 shipped storage V17. */
+/* The highest storage version written by any firmware that has SHIPPED in a
+ * signed release. v7.14.1 shipped storage V17.
+ *
+ * A signed UPGRADE MUST NEVER WIPE. An upgrading device arrives carrying a blob
+ * written by the release it is leaving; if the incoming firmware does not
+ * recognise that version, version_from_int() returns StorageVersion_NONE,
+ * storage_fromFlash() returns SUS_Invalid, and storage_init() calls
+ * storage_reset() + storage_commit() -- the wallet is gone with no prompt. A
+ * DOWNGRADE hitting that path is intended and normal: older firmware cannot be
+ * expected to read a newer blob.
+ *
+ * So STORAGE_VERSION may only ever go UP. Bump this baseline when a release
+ * ships, in the release commit, never to make a build compile: lowering it is
+ * the exact edit that turns every upgrade in the field into a silent wipe, and
+ * it must be an explicit, reviewed act rather than a side effect. See
+ * docs/Release.md "Storage version gate". */
 #define STORAGE_VERSION_LAST_SHIPPED 17
 
 /* A seed CREATED under bitcoin-only firmware is stamped with a version in a
@@ -78,6 +87,10 @@ void storage_wipe(void);
 /// storage_isInitialized() is false), and storage_commit() silently declines to
 /// write, so a ceremony allowed to run would report success while persisting
 /// nothing -- and a seed the user funded would vanish on the next boot.
+///
+/// The seed itself stays intact in flash -- nothing is committed while locked
+/// -- so reflashing bitcoin-only firmware recovers the wallet. Using the device
+/// under multi-chain firmware requires an explicit wipe first.
 ///
 /// Cleared only by storage_wipe().
 bool storage_isBitcoinOnlyLocked(void);

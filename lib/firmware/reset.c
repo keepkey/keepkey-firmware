@@ -193,35 +193,21 @@ void setup_commit(const char* mnemonic, bool imported) {
   storage_commit();
 }
 
-void reset_init(bool display_random, uint32_t _strength,
-                bool passphrase_protection, bool pin_protection,
-                const char* language, const char* label, bool _no_backup,
-                uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter,
-                bool dice_entropy) {
+/* Shared paginated-mnemonic display scratch — see reset.h for the contract
+ * (also used by the BIP-85 flow; each user zeroes at entry and exit). */
+char CONFIDENTIAL mnemonic_scratch_tokened[TOKENED_MNEMONIC_BUF];
+char CONFIDENTIAL mnemonic_scratch_formatted[MAX_PAGES][FORMATTED_MNEMONIC_BUF];
+char CONFIDENTIAL mnemonic_scratch_display[FORMATTED_MNEMONIC_BUF];
+char CONFIDENTIAL mnemonic_scratch_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
+
+void reset_init(uint32_t _strength, bool passphrase_protection,
+                bool pin_protection, const char* language, const char* label,
+                bool _no_backup, uint32_t _auto_lock_delay_ms,
+                uint32_t _u2f_counter, bool dice_entropy) {
   if (_strength != 128 && _strength != 192 && _strength != 256) {
     fsm_sendFailure(
         FailureType_Failure_SyntaxError,
         _("Invalid mnemonic strength (has to be 128, 192 or 256 bits)"));
-    layoutHome();
-    return;
-  }
-
-  if (display_random && _no_backup) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Can't show internal entropy when backup is skipped"));
-    layoutHome();
-    return;
-  }
-
-  /* Refused, not silently ignored: the entropy screen renders the POST-mix
-   * internal entropy, so honoring both would hand a host that reads that
-   * screen the seed pre-image and make the dice fold-in worthless. 7.15
-   * removes the entropy screen outright; this release keeps it because
-   * already-shipped hosts of the 7.14 line legitimately request it, but it
-   * must never coexist with dice. */
-  if (display_random && dice_entropy) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Can't show internal entropy when dice entropy is used"));
     layoutHome();
     return;
   }
@@ -300,12 +286,19 @@ void reset_init(bool display_random, uint32_t _strength,
   /* Dice fold in before EntropyRequest, so the host contribution arrives
    * strictly after the device has committed to its own.
    *
-   * The mixed value is deliberately NOT displayable: display_random is
-   * refused above whenever dice are in use, because the entropy screen shows
-   * the POST-mix value, and a host that supplies ext_entropy and reads that
-   * screen once computes SHA256(shown || ext_entropy) -- the seed pre-image
-   * -- making the dice fold-in worthless. The roll digest below is safe by
-   * contrast: it is a hash of the user's own input, not of seed material.
+   * They are deliberately NOT displayed. An earlier version of this code
+   * showed the mixed internal entropy on the OLED and called it a
+   * verifiable commitment; that was wrong. A host that supplies
+   * ext_entropy and reads that screen once computes
+   * SHA256(shown || ext_entropy) -- the seed pre-image -- and dice change
+   * nothing about it, because the displayed value is already post-mix. The
+   * roll digest below is safe by contrast: it is a hash of the user's own
+   * input, not of seed material.
+   *
+   * ResetDevice.display_random stays in the wire schema and is ignored by
+   * fsm_msgResetDevice(), which is why the old "Can't show internal entropy
+   * when backup is skipped" syntax check is gone: there is no longer an
+   * entropy screen for it to be inconsistent with.
    *
    * The digest needs no clear here -- setup_stage() above ran setup_abort(),
    * which zeroes it. */
@@ -347,26 +340,6 @@ void reset_init(bool display_random, uint32_t _strength,
 
     dice_mix(int_entropy, dice_rolls, rolls_needed);
     memzero(dice_rolls, sizeof(dice_rolls));
-  }
-
-  if (display_random) {
-    static char CONFIDENTIAL ent_str[4][17];
-    data2hex(int_entropy, 8, ent_str[0]);
-    data2hex(int_entropy + 8, 8, ent_str[1]);
-    data2hex(int_entropy + 16, 8, ent_str[2]);
-    data2hex(int_entropy + 24, 8, ent_str[3]);
-
-    if (!confirm(ButtonRequestType_ButtonRequest_ResetDevice,
-                 _("Internal Entropy"), "%s %s %s %s", ent_str[0], ent_str[1],
-                 ent_str[2], ent_str[3])) {
-      memzero(ent_str, sizeof(ent_str));
-      setup_abort();
-      fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                      _("Reset cancelled"));
-      layoutHome();
-      return;
-    }
-    memzero(ent_str, sizeof(ent_str));
   }
 
   if (!setup_stagePin(pin_protection)) {
@@ -424,16 +397,23 @@ void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
   }
 
   /*
-   * Format mnemonic for user review
+   * Format mnemonic for user review. Display scratch is the set shared with
+   * the BIP-85 flow (see reset.h) — zero it at entry: the format loop below
+   * depends on empty page strings, and a prior user may have aborted.
    */
   uint32_t word_count = 0, page_count = 0;
-  static char CONFIDENTIAL tokened_mnemonic[TOKENED_MNEMONIC_BUF];
   static char CONFIDENTIAL
       mnemonic_by_screen[MAX_PAGES][MNEMONIC_BY_SCREEN_BUF];
-  static char CONFIDENTIAL
-      formatted_mnemonic[MAX_PAGES][FORMATTED_MNEMONIC_BUF];
-  static char CONFIDENTIAL mnemonic_display[FORMATTED_MNEMONIC_BUF];
-  static char CONFIDENTIAL formatted_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
+  char* tokened_mnemonic = mnemonic_scratch_tokened;
+  char (*formatted_mnemonic)[FORMATTED_MNEMONIC_BUF] =
+      mnemonic_scratch_formatted;
+  char* mnemonic_display = mnemonic_scratch_display;
+  char* formatted_word = mnemonic_scratch_word;
+  memzero(mnemonic_scratch_tokened, sizeof(mnemonic_scratch_tokened));
+  memzero(mnemonic_scratch_formatted, sizeof(mnemonic_scratch_formatted));
+  memzero(mnemonic_scratch_display, sizeof(mnemonic_scratch_display));
+  memzero(mnemonic_scratch_word, sizeof(mnemonic_scratch_word));
+  memzero(mnemonic_by_screen, sizeof(mnemonic_by_screen));
 
   strlcpy(tokened_mnemonic, temp_mnemonic, TOKENED_MNEMONIC_BUF);
 
@@ -518,12 +498,11 @@ exit:
   /* The roll digest is cleared by setup_abort(); every path that reaches
    * here has already run it, directly or through setup_commit(). */
   memzero(&ctx, sizeof(ctx));
-  memzero(tokened_mnemonic, sizeof(tokened_mnemonic));
+  memzero(mnemonic_scratch_tokened, sizeof(mnemonic_scratch_tokened));
   memzero(mnemonic_by_screen, sizeof(mnemonic_by_screen));
-  memzero(formatted_mnemonic, sizeof(formatted_mnemonic));
-  memzero(mnemonic_display, sizeof(mnemonic_display));
-  memzero(formatted_word, sizeof(formatted_word));
-  mnemonic_clear();
+  memzero(mnemonic_scratch_formatted, sizeof(mnemonic_scratch_formatted));
+  memzero(mnemonic_scratch_display, sizeof(mnemonic_scratch_display));
+  memzero(mnemonic_scratch_word, sizeof(mnemonic_scratch_word));
   layoutHome();
 }
 

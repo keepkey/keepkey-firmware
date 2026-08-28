@@ -104,14 +104,29 @@ bool is_valid_ascii(const uint8_t* data, uint32_t size) {
 
 /* convert number in base units to specified decimal precision */
 int base_to_precision(uint8_t* dest, const uint8_t* value,
-                      const uint8_t dest_len, const uint8_t value_len,
+                      const size_t dest_len, const size_t value_len,
                       const uint8_t precision) {
   if (!(dest && value)) {
     // invalid pointer
     return -1;
   }
-  if (dest_len == 0) {
+  if (dest_len == 0 || value_len == 0) {
     return -1;
+  }
+
+  /* Decimal inputs are signed as strings. Accept only their unique canonical
+     representation so the value shown on the OLED is byte-for-byte bound to
+     the value placed in the transaction: no leading zeros ("01" and "1" would
+     otherwise render identically) and no non-digit bytes (a "1x" would render
+     as the digits around whatever the host smuggled in). Rejecting here is
+     what makes the callers' negative-return refusal paths reachable. */
+  if (value_len > 1 && value[0] == '0') {
+    return -1;
+  }
+  for (size_t i = 0; i < value_len; i++) {
+    if (value[i] < '0' || value[i] > '9') {
+      return -1;
+    }
   }
 
   /* Rewritten with explicit index arithmetic. The previous implementation had

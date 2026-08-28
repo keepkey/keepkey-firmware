@@ -64,9 +64,9 @@ static volatile bool rng_seed_error_seen = false;
 
 bool rng_seed_error_latched(void) { return rng_seed_error_seen; }
 
+#ifdef EMULATOR
 static void rng_latch_seed_error(void) { rng_seed_error_seen = true; }
 
-#ifdef EMULATOR
 void rng_test_power_on_reset(void) { rng_seed_error_seen = false; }
 void rng_test_observe_transient_error(void) { rng_latch_seed_error(); }
 void rng_test_observe_persistent_error(void) {
@@ -74,6 +74,17 @@ void rng_test_observe_persistent_error(void) {
   reset_rng();
 }
 #endif
+
+bool rng_persistent_error_step(uint32_t* samples) {
+  if (samples == NULL) return false;
+  if (++(*samples) < 100) return false;
+
+  /* reset_rng() clears SEIS/CEIS. Preserve the fault before the caller takes
+   * that recovery action, exactly as the transient-error branch does. */
+  rng_seed_error_seen = true;
+  *samples = 0;
+  return true;
+}
 
 void reset_rng(void) {
 #ifndef EMULATOR
@@ -114,18 +125,14 @@ uint32_t random32(void) {
       /* Reset RNG interrupt status bits (SECS, CECS errors no longer
        * exist). Record it FIRST: clearing the hardware latch is exactly
        * what makes this fault invisible to a later self-test. */
-      rng_latch_seed_error();
+      rng_seed_error_seen = true;
       RNG_SR &= ~(RNG_SR_SEIS | RNG_SR_CEIS);
     } else {
       /* RNG is not ready.  Allow few more samples for RNG to come back alive
        * before resetting */
-      if (++rng_samples >= 100) {
-        /* Resetting clears SEIS/CEIS, so preserve the evidence first. The
-         * software latch is boot-lifetime and reset_rng() must never clear it.
-         */
-        rng_latch_seed_error();
+      if (rng_persistent_error_step(&rng_samples)) {
+        /* RNG in hang state.  Reset RNG */
         reset_rng();
-        rng_samples = 0;
       }
     }
   }

@@ -22,6 +22,7 @@ set(sources
 # Non-Bitcoin coin families -- excluded from the bitcoin-only image.
 if(NOT ${KK_BITCOIN_ONLY})
   list(APPEND sources
+      bip85.c
       binance.c
       eip712.c
       eos.c
@@ -37,6 +38,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       ethereum_contracts/zxtransERC20.c
       ethereum_contracts/zxswap.c
       ethereum_tokens.c
+      signed_metadata.c
       mayachain.c
       nano.c
       osmosis.c
@@ -44,10 +46,16 @@ if(NOT ${KK_BITCOIN_ONLY})
       ripple_base58.c
       signtx_tendermint.c
       solana.c
+      hive.c
       tron.c
       ton.c
       tendermint.c
       thorchain.c)
+endif()
+
+# Zcash shielded/Orchard engine -- transparent Zcash needs none of this.
+if(${KK_ZCASH_PRIVACY})
+  list(APPEND sources zcash.c)
 endif()
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scm_revision.h.in"
@@ -55,7 +63,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scm_revision.h.in"
 
 include_directories(
   ${CMAKE_BINARY_DIR}/include
-  ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto
+  ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto
   ${CMAKE_SOURCE_DIR}/lib/firmware
   ${CMAKE_CURRENT_BINARY_DIR})
 

@@ -75,7 +75,6 @@ typedef struct json_s {
   jsonType_t type;
 } json_t;
 
-extern int errno;
 /** Parse a string to get a json.
  * @param str String pointer with a JSON object. It will be modified.
  * @param mem Array of json properties to allocate.

@@ -17,7 +17,11 @@ FROM ${BASE_IMAGE} AS deps
 # compiles a C extension at install time and needs Python.h + a C toolchain
 # linked against musl. Verified locally against the pinned image.
 RUN apk add --no-cache python3-dev gcc musl-dev
-RUN python3 -m pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome
+# Per-test timeouts turn protocol/UI deadlocks into named failures and keep the
+# rest of the release evidence measurable. python-keepkey-tests.sh passes the
+# plugin's --timeout options in both phases, so omitting it makes pytest reject
+# the entire invocation before collecting a single test.
+RUN python3 -m pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome pytest-timeout
 
 FROM deps
 

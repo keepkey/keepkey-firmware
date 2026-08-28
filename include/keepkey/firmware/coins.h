@@ -44,7 +44,7 @@ enum {
   CONCAT(CoinIndex, __COUNTER__),
 #include "keepkey/firmware/coins.def"
 
-#if !BITCOIN_ONLY
+#if !BITCOIN_ONLY  // ERC-20 tokens excluded from the bitcoin-only image
 #define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS) \
   CONCAT(CoinIndex, __COUNTER__),
 #include "keepkey/firmware/tokens.def"

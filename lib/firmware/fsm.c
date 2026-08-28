@@ -35,6 +35,8 @@
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/authenticator.h"
+#include "keepkey/firmware/bip85.h"
+#include "keepkey/rand/rng_health.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/binance.h"
@@ -44,6 +46,7 @@
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
+#include "keepkey/firmware/hive.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/mayachain.h"
 #include "keepkey/firmware/nano.h"
@@ -54,6 +57,7 @@
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/ripple.h"
+#include "keepkey/firmware/signed_metadata.h"
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/solana.h"
@@ -63,6 +67,7 @@
 #include "keepkey/firmware/tron.h"
 #include "keepkey/firmware/ton.h"
 #include "keepkey/firmware/transaction.h"
+#include "keepkey/firmware/zcash.h"
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
@@ -80,6 +85,8 @@
 
 #include "messages.pb.h"
 #include "messages-ethereum.pb.h"
+#include "messages-hive.pb.h"
+#include "messages-zcash.pb.h"
 #include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
 #include "messages-osmosis.pb.h"
@@ -128,6 +135,25 @@ bool fsm_test_derivedNodeIsZero(void) {
     fsm_sendFailure(FailureType_Failure_NotInitialized, \
                     "Device not initialized");          \
     return;                                             \
+  }
+
+/* A locked bitcoin-only wallet leaves the RAM shadow reset, so handlers that
+ * merely PERSIST settings look perfectly ordinary: storage_setPin(),
+ * storage_setLabel() and friends update the shadow, storage_commit() then
+ * returns without writing (the btc_only_locked backstop in storage.c), and the
+ * handler answers Success. The change appears to take effect for the rest of
+ * the session and is gone at the next boot.
+ *
+ * CHECK_NOT_INITIALIZED already refuses this for the ceremonies that CREATE a
+ * seed. The same reasoning applies to every handler that expects its write to
+ * survive a reboot, and those were missed. Refuse before doing the work rather
+ * than reporting a success that did not happen. */
+#define CHECK_NOT_BITCOIN_ONLY_LOCKED                                \
+  if (storage_isBitcoinOnlyLocked()) {                               \
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,           \
+                    "Bitcoin-only wallet present. Use Wipe first."); \
+    layoutHome();                                                    \
+    return;                                                          \
   }
 
 #define CHECK_NOT_INITIALIZED                                              \
@@ -382,6 +408,11 @@ void fsm_msgClearSession(ClearSession* msg) {
 #include "fsm_msg_crypto.h"
 #include "fsm_msg_debug.h"
 #if !BITCOIN_ONLY
+// BIP-85 derives child mnemonics for OTHER wallets -- a multi-chain feature.
+// It must be gated in step with messagemap.def: a handler compiled with no
+// entry referencing it is an unused function, which -Werror turns into a
+// build failure.
+#include "fsm_msg_bip85.h"
 #include "fsm_msg_ethereum.h"
 #include "fsm_msg_nano.h"
 #include "fsm_msg_eos.h"
@@ -395,12 +426,26 @@ void fsm_msgClearSession(ClearSession* msg) {
 #include "fsm_msg_tron.h"
 #include "fsm_msg_ton.h"
 #include "fsm_msg_solana.h"
+#include "fsm_msg_hive.h"
+/* After fsm_msg_solana.h: reuses its base58 helper and the KKSOLSC1 parser. */
+#include "fsm_msg_clearsign_attestor.h"
 #else
-// The coin engines above are compiled out, but the always-on
-// Initialize/Cancel handlers still call each engine's abort hook. With no
-// engine state to roll back, no-ops are the correct definitions -- and
-// defining them here keeps those handlers free of build-variant branches.
+// Bitcoin-only: the coin engines above are compiled out, but the always-on
+// Initialize/ClearSession/Cancel handlers still call their *_abort() hooks,
+// and factory-reset calls signed_metadata_clear_signers() (EVM clearsign).
+// With no state to reset, no-ops are the correct definitions -- and defining
+// them here keeps those handlers free of build-variant branches.
 void ethereum_signing_abort(void) {}
 void tendermint_signAbort(void) {}
 void eos_signingAbort(void) {}
+void signed_metadata_clear_signers(void) {}
 #endif  // !BITCOIN_ONLY
+#if ZCASH_PRIVACY
+#include "fsm_msg_zcash.h"
+#else
+// Zcash shielded/Orchard engine compiled out. The always-on
+// Initialize/ClearSession/Cancel handlers still call zcash_signing_abort();
+// with no privacy state to reset, a no-op is correct. (Bitcoin-only forces
+// privacy off, so this stub also covers the bitcoin-only image.)
+void zcash_signing_abort(void) {}
+#endif

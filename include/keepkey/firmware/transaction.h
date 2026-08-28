@@ -28,6 +28,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/// Shared input/output/compiler invariant for Bitcoin multisig scripts.
+bool transaction_multisig_quorum_is_valid(
+    const MultisigRedeemScriptType* multisig);
+
 #define TX_OVERWINTERED 0x80000000
 
 /* Transaction output compilation errors */

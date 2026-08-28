@@ -21,6 +21,7 @@
 #include "keepkey/board/font.h"
 
 #include <stddef.h>
+#include <string.h> /* strlen, for calc_str_line over calc_str_line_n */
 
 /* --- Image Font ------------------------------------------------------------
  */
@@ -2598,32 +2599,40 @@ uint32_t calc_str_width(const Font* font, const char* str) {
  * OUTPUT
  *     line count
  */
-uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width) {
-  /* Must not be uint8_t: confirm_body_fits() treats this count as a security
-   * boundary, and a body carrying 255 newlines would wrap an 8-bit counter
-   * back to 0 and be reported as fitting on screen. */
+/* Length-bounded form. Hive needs to measure a prefix of a buffer that is not
+ * NUL-terminated at the point of interest, so the walk takes an explicit
+ * length; calc_str_line() is this function over strlen().
+ *
+ * line_count must not be uint8_t: confirm_body_fits() treats this count as a
+ * security boundary, and a body carrying 255 newlines would wrap an 8-bit
+ * counter back to 0 and be reported as fitting on screen. The alpha-side
+ * version of this function used uint8_t; that is the bug 0b2f08185 fixed and it
+ * is not reintroduced here. */
+uint32_t calc_str_line_n(const Font* font, const char* str, size_t str_len,
+                         uint16_t line_width) {
   uint32_t line_count = 1;
   uint16_t x_offset = 0;
+  size_t offset = 0;
 
-  while (*str) {
-    uint8_t character_width = font_get_char(font, str[0])->width;
+  while (offset < str_len && str[offset]) {
+    uint8_t character_width = font_get_char(font, str[offset])->width;
     uint16_t word_width = character_width;
-    const char* next_character = str + 1;
+    size_t next_offset = offset + 1;
 
     /* Allow line breaks */
-    if (*str == '\n') {
+    if (str[offset] == '\n') {
       line_count++;
       x_offset = 0;
-      str++;
+      offset++;
       continue;
     }
 
     /* Calculate next work width */
-    if (*str == ' ') {
-      while (*next_character && *next_character != ' ' &&
-             *next_character != '\n') {
-        word_width += font_get_char(font, *next_character)->width;
-        next_character++;
+    if (str[offset] == ' ') {
+      while (next_offset < str_len && str[next_offset] &&
+             str[next_offset] != ' ' && str[next_offset] != '\n') {
+        word_width += font_get_char(font, str[next_offset])->width;
+        next_offset++;
       }
     }
 
@@ -2634,14 +2643,33 @@ uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width) {
     }
 
     /* Remove leading spaces */
-    if (x_offset == 0 && *str == ' ') {
-      str++;
+    if (x_offset == 0 && str[offset] == ' ') {
+      offset++;
       continue;
     }
 
     x_offset += character_width;
-    str++;
+    offset++;
   }
 
   return line_count;
+}
+
+uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width) {
+  return calc_str_line_n(font, str, strlen(str), line_width);
+}
+
+/* How many characters of `str` fit within max_lines. Used by Hive to page a
+ * long body; the confirm layer measures with the renderer instead (see
+ * confirm_body_fits), so this is not on a consent path. */
+size_t calc_str_page(const Font* font, const char* str, size_t str_len,
+                     uint16_t line_width, uint32_t max_lines) {
+  size_t best = 0;
+  for (size_t take = 1; take <= str_len; take++) {
+    /* A longer prefix never needs fewer lines, so the first prefix that does
+     * not fit settles it. */
+    if (calc_str_line_n(font, str, take, line_width) > max_lines) break;
+    best = take;
+  }
+  return best;
 }

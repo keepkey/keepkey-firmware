@@ -258,6 +258,25 @@ bool ripple_serialize(uint8_t** buf, const uint8_t* end, const RippleSignTx* tx,
   if (tx->payment.has_destination)
     ripple_serializeAddress(&ok, buf, end, &RFM_destination,
                             tx->payment.destination);
+  // Memos array (ARRAY type=15 key=9) comes last per XRPL canonical ordering.
+  // Layout: 0xF9 [Memos start] 0xEA [Memo object start]
+  //         0x7D [MemoData VL] <varint len> <bytes>
+  //         0xE1 [object end] 0xF1 [array end]
+  if (tx->has_memo && tx->memo[0] != '\0') {
+    size_t memo_len = strlen(tx->memo);
+    append_u8(&ok, buf, end, 0xF9);  // STArray[9] = Memos
+    append_u8(&ok, buf, end, 0xEA);  // STObject[10] = Memo
+    append_u8(&ok, buf, end, 0x7D);  // VL[13] = MemoData
+    ripple_serializeVarint(&ok, buf, end, (int)memo_len);
+    if (ok && *buf + memo_len <= end) {
+      memcpy(*buf, tx->memo, memo_len);
+      *buf += memo_len;
+    } else {
+      ok = false;
+    }
+    append_u8(&ok, buf, end, 0xE1);  // end STObject
+    append_u8(&ok, buf, end, 0xF1);  // end STArray
+  }
   return ok;
 }
 

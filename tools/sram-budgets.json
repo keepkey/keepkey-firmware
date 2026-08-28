@@ -1,0 +1,9 @@
+{
+  "_comment": "Per-product SRAM budgets enforced by tools/check_sram_budget.py in CI (and a 16 KiB linker ASSERT in tools/firmware/keepkey.ld). reserve_min = minimum bytes between _ebss and _stack; frame_margin = minimum bytes left after subtracting the largest -fstack-usage frame from the reserve. Initial limits chosen after the RC7 privacy-enabled overflow (11,232 B gap vs a 12,416 B msg_write frame); replace with measured worst-case high-water + margin once hardware instrumentation reports real numbers. Any change to these budgets, and any single-commit SRAM increase above 256 B, needs explicit review.",
+  "reserve_min": 16384,
+  "frame_margin": 4096,
+  "variants": {
+    "full": {},
+    "bitcoin-only": {}
+  }
+}

@@ -45,7 +45,14 @@ set(WARN_FLAGS
     -Werror")
 
 
-set(KK_C_FLAGS "${ARCH_FLAGS} -std=gnu99 ${WARN_FLAGS}" CACHE STRING "")
+# Newlib's snprintf unconditionally links the float engine (_svfprintf_r,
+# _dtoa_r, soft-double libgcc, malloc) — ~22 KB of ROM with zero %f users in
+# the firmware. Route all callers to the integer-only siprintf family instead.
+# %lld/%llu still work (this toolchain's libc.a compiles the integer engine
+# with long-long support). Device builds only; host/emulator keep libc printf.
+set(PRINTF_FLAGS "-Dsnprintf=sniprintf -Dvsnprintf=vsniprintf")
+
+set(KK_C_FLAGS "${ARCH_FLAGS} -std=gnu99 ${WARN_FLAGS} ${PRINTF_FLAGS}" CACHE STRING "")
 set(KK_CXX_FLAGS "${ARCH_FLAGS} -std=gnu++11 ${WARN_FLAGS} \
     -fno-exceptions \
     -fno-rtti \

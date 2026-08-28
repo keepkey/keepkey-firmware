@@ -854,6 +854,14 @@ static bool is_segwit_input_script_type(const TxInputType* txinput) {
   return false;
 }
 
+void signing_encode_script_type(InputScriptType script_type, uint8_t out[4]) {
+  const uint32_t value = (uint32_t)script_type;
+  out[0] = (uint8_t)value;
+  out[1] = (uint8_t)(value >> 8);
+  out[2] = (uint8_t)(value >> 16);
+  out[3] = (uint8_t)(value >> 24);
+}
+
 static bool signing_validate_input(const TxInputType* txinput) {
   if (txinput->prev_hash.size != 32) {
     fsm_sendFailure(FailureType_Failure_Other,
@@ -868,21 +876,16 @@ static bool signing_validate_input(const TxInputType* txinput) {
     return false;
   }
   if (txinput->has_multisig) {
-    /* Validate before tx_input_script_size() uses m for fee accounting. The
-     * mixed single-sig/multisig path can stop comparing a common fingerprint,
-     * so the later fingerprint validation is not a sufficient boundary. */
-    if (!multisig_quorum_is_valid(&txinput->multisig)) {
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Invalid multisig quorum"));
-      signing_abort();
-      return false;
-    }
-
-    /* DER-encoded secp256k1 signatures are at most 72 bytes. The generated
-     * field is bytes[73], but the legacy nanopb decoder can accept size 74
-     * because its static repeated-element stride includes padding. Bound the
-     * host-controlled length before any copy, append, hash, or serialization.
-     */
+    /* A DER-encoded ECDSA signature is at most 72 bytes: 0x30 len, then two
+     * 0x02-tagged integers of at most 33 bytes each. The wire field is sized
+     * max_size:73, so the decoder accepts 73 -- and the witness path writes
+     * the sighash byte AT signatures[i].size, which at 73 is one past the end
+     * of bytes[73]. For i < 14 that lands on signatures[i+1].size and can
+     * revive a slot the host left empty, changing the witness stack after the
+     * user has reviewed it; at i == 14 it lands on has_m.
+     *
+     * The declared max_size is a DECODER bound, never a runtime one. Bound it
+     * here, once, before anything indexes with it. */
     for (uint32_t i = 0; i < txinput->multisig.signatures_count; i++) {
       if (txinput->multisig.signatures[i].size > 72) {
         fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -950,6 +953,13 @@ static bool signing_validate_output(const TxOutputType* txoutput) {
   if (txoutput->has_multisig && !is_multisig_output_script_type(txoutput)) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     _("Multisig field provided but not expected."));
+    signing_abort();
+    return false;
+  }
+  if (txoutput->has_multisig &&
+      !transaction_multisig_quorum_is_valid(&txoutput->multisig)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid multisig quorum"));
     signing_abort();
     return false;
   }
@@ -1100,9 +1110,8 @@ static bool signing_check_input(TxInputType* txinput) {
   // computation)
   tx_prevout_hash(&hasher_check, txinput);
   uint8_t script_type_bytes[4];
-  signing_checksum_script_type_bytes(txinput->script_type, script_type_bytes);
+  signing_encode_script_type(txinput->script_type, script_type_bytes);
   hasher_Update(&hasher_check, script_type_bytes, sizeof(script_type_bytes));
-  memzero(script_type_bytes, sizeof(script_type_bytes));
   return true;
 }
 
@@ -1560,8 +1569,14 @@ static bool signing_sign_segwit_input(TxInputType* txinput) {
           continue;
         }
         nwitnesses++;
-        /* Never append the sighash inside the decoded protobuf field. Even a
-         * nominal 73-byte value has no spare byte there. */
+        /* Build the witness element in a local rather than appending the
+         * sighash byte in place. The wire field is bytes[73] and the write
+         * went to bytes[size], so a host-supplied size of 73 wrote one past
+         * the end -- landing on signatures[i+1].size for i < 14, which can
+         * revive a slot the host deliberately left empty and change the
+         * witness stack after the user reviewed it, or on has_m at i == 14.
+         * signing_validate_input() now caps size at 72; this removes the
+         * out-of-bounds write itself rather than relying on that cap. */
         uint8_t sig_with_hashtype[73];
         const size_t sig_len = txinput->multisig.signatures[i].size;
         memcpy(sig_with_hashtype, txinput->multisig.signatures[i].bytes,
@@ -1569,7 +1584,6 @@ static bool signing_sign_segwit_input(TxInputType* txinput) {
         sig_with_hashtype[sig_len] = sighash;
         r += tx_serialize_script(sig_len + 1, sig_with_hashtype,
                                  resp.serialized.serialized_tx.bytes + r);
-        memzero(sig_with_hashtype, sizeof(sig_with_hashtype));
       }
       uint32_t script_len =
           compile_script_multisig(coin, &txinput->multisig, 0);
@@ -1581,22 +1595,10 @@ static bool signing_sign_segwit_input(TxInputType* txinput) {
     } else {  // single signature
       uint32_t r = 0;
       r += ser_length(2, resp.serialized.serialized_tx.bytes + r);
-      /* The protobuf signature field has no guaranteed spare byte. Serialize
-       * the wire-only sighash suffix from bounded scratch instead of writing
-       * one byte past bytes[size]. */
-      uint8_t sig_with_hashtype[73];
-      const size_t sig_len = resp.serialized.signature.size;
-      if (sig_len > 72) {
-        fsm_sendFailure(FailureType_Failure_Other,
-                        _("Invalid signature length"));
-        signing_abort();
-        return false;
-      }
-      memcpy(sig_with_hashtype, resp.serialized.signature.bytes, sig_len);
-      sig_with_hashtype[sig_len] = sighash;
-      r += tx_serialize_script(sig_len + 1, sig_with_hashtype,
+      resp.serialized.signature.bytes[resp.serialized.signature.size] = sighash;
+      r += tx_serialize_script(resp.serialized.signature.size + 1,
+                               resp.serialized.signature.bytes,
                                resp.serialized.serialized_tx.bytes + r);
-      memzero(sig_with_hashtype, sizeof(sig_with_hashtype));
       r += tx_serialize_script(33, node.public_key,
                                resp.serialized.serialized_tx.bytes + r);
       resp.serialized.serialized_tx.size = r;
@@ -1906,11 +1908,9 @@ void signing_txack(TransactionType* tx) {
       // check prevouts and script type
       tx_prevout_hash(&hasher_check, tx->inputs);
       uint8_t script_type_bytes[4];
-      signing_checksum_script_type_bytes(tx->inputs[0].script_type,
-                                         script_type_bytes);
+      signing_encode_script_type(tx->inputs[0].script_type, script_type_bytes);
       hasher_Update(&hasher_check, script_type_bytes,
                     sizeof(script_type_bytes));
-      memzero(script_type_bytes, sizeof(script_type_bytes));
       if (idx2 == idx1) {
         if (!compile_input_script_sig(&tx->inputs[0])) {
           fsm_sendFailure(FailureType_Failure_Other,
@@ -2286,8 +2286,6 @@ void signing_abort(void) {
   memzero(&tx_weight, sizeof(tx_weight));
   memzero(&signing_update_ctr, sizeof(signing_update_ctr));
 }
-
-bool signing_is_active(void) { return signing; }
 
 #if DEBUG_LINK
 static CoinType signing_test_coin;

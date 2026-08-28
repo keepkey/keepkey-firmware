@@ -32,6 +32,31 @@
 #define V16_ENCSEC_SIZE 512  // for reading old encrypted sec size
 #define V17_ENCSEC_SIZE 1024
 
+/* Retired V18 clear-sign identity record. The fixed-size fields remain in the
+ * in-memory/storage layout for backward compatibility, but RC18 never trusts,
+ * returns, or writes their contents: this public section lacks authenticated
+ * integrity against physical flash modification.
+ *   pubkey  : 33-byte compressed secp256k1 (matches signed_metadata slots)
+ *   alias   : METADATA_ALIAS_MAX_LEN(31)+1, printable [A-Za-z0-9 _-]
+ *   icon    : 1bpp mono row-major bitmap, <= CLEARSIGN_ICON_MAX bytes,
+ *             icon_len==0 => text-only identity (no logo)
+ * Serialized size is fixed (CLEARSIGN_IDENTITY_SERIALIZED_LEN) — appended after
+ * encrypted_sec in the V18 storage layout; never reorder existing fields. */
+#define CLEARSIGN_ICON_MAX 384
+#define CLEARSIGN_IDENTITY_ALIAS_SIZE 32 /* METADATA_ALIAS_MAX_LEN(31) + 1 */
+#define PERSISTENT_IDENTITY_COUNT 2
+typedef struct _ClearsignIdentity {
+  bool present;
+  uint8_t key_id;  // the signer slot (1..METADATA_MAX_KEYS-1) this identity
+                   // reloads into; the per-tx blob's key_id selects it
+  uint8_t pubkey[33];
+  char alias[CLEARSIGN_IDENTITY_ALIAS_SIZE];
+  uint8_t icon_w;
+  uint8_t icon_h;
+  uint16_t icon_len;
+  uint8_t icon[CLEARSIGN_ICON_MAX];
+} ClearsignIdentity;
+
 typedef struct _authBlockType {
   authType authData[AUTHDATA_SIZE];                          // 450
   uint8_t reserved[512 - sizeof(authType) * AUTHDATA_SIZE];  // 62
@@ -66,10 +91,13 @@ typedef struct _Storage {
     bool no_backup;
     bool sca_hardened;
     bool v15_16_trans;
+    bool pin_kdf_v2;
     bool authdata_initialized;
     bool authdata_encrypted;
     uint8_t random_salt[32];
     uint8_t authdata_fingerprint[32];
+    /* V18 legacy clear-sign records. Always scrubbed on read and write. */
+    ClearsignIdentity clearsign_identities[PERSISTENT_IDENTITY_COUNT];
   } pub;
 
   bool has_sec;
@@ -112,13 +140,43 @@ typedef enum {
   PIN_REWRAP  // PIN correct but storage key rewrapped, requires storage update
 } pintest_t;
 
+typedef enum {
+  PIN_KDF_V15,
+  PIN_KDF_V16,
+  PIN_KDF_V19,
+} pin_kdf_version_t;
+
+/* Gate for the storage-version-19 PIN KDF.
+ *
+ * 0 = implemented, tested, and NOT reachable from flash. This firmware writes
+ * storage version 17, and the flag that records a v19 wrap only round-trips in
+ * version 19, so persisting a v19 wrap here would lock the wallet out on the
+ * next boot.
+ *
+ * Do not flip this to 1 on its own. Version 19 is a one-way migration: any
+ * device that boots firmware writing it can no longer be downgraded without
+ * being wiped, and the wipe is the correct anti-rollback behaviour, not a bug
+ * to work around. Enable it only in a release whose bootloader enforces a
+ * minimum security epoch that refuses firmware unable to read version 19 --
+ * so the downgrade is rejected up front rather than costing a user their
+ * wallet. The full gate list is in docs/security/pin-kdf-v19-migration.md. */
+#define STORAGE_PIN_KDF_V19 0
+
+/* Single source of truth for KDF selection, so tests cannot drift from
+ * production by reimplementing the choice. Both the unlock path and the unit
+ * tests must call these rather than naming a PIN_KDF_* constant directly. */
+pin_kdf_version_t storage_activePinKdfVersion(bool v15_16_trans,
+                                              bool pin_kdf_v2);
+pin_kdf_version_t storage_rewrapPinKdfVersion(void);
+
 #define MAX_MNEMONIC_LEN 240
 
 void storage_loadNode(HDNode* dst, const HDNodeType* src);
 
 /// Derive the wrapping key from the user's pin.
 void storage_deriveWrappingKey(const char* pin, uint8_t wrapping_key[64],
-                               bool sca_hardened, bool v15_16_trans,
+                               bool sca_hardened,
+                               pin_kdf_version_t pin_kdf_version,
                                const uint8_t random_salt[RANDOM_SALT_LEN],
                                const char* message);
 
@@ -145,7 +203,7 @@ void storage_keyFingerprint(const uint8_t key[64], uint8_t fingerprint[32]);
 pintest_t storage_isPinCorrect_impl(const char* pin, uint8_t wrapped_key[64],
                                     const uint8_t fingerprint[32],
                                     bool* sca_hardened, bool* v15_16_trans,
-                                    uint8_t key[64],
+                                    bool* pin_kdf_v2, uint8_t key[64],
                                     uint8_t random_salt[RANDOM_SALT_LEN]);
 
 pintest_t storage_isWipeCodeCorrect_impl(const char* wipe_code,
@@ -206,8 +264,14 @@ void storage_readV2(SessionState* ss, ConfigFlash* dst, const char* flash,
                     size_t len);
 void storage_readV11(ConfigFlash* dst, const char* flash, size_t len);
 void storage_readV16(ConfigFlash* dst, const char* flash, size_t len);
+void storage_readV17(ConfigFlash* dst, const char* flash, size_t len);
+void storage_readV18(ConfigFlash* dst, const char* flash, size_t len);
+void storage_readV19(ConfigFlash* dst, const char* flash, size_t len);
 void storage_writeV11(char* flash, size_t len, const ConfigFlash* src);
 void storage_writeV16(char* flash, size_t len, const ConfigFlash* src);
+void storage_writeV17(char* flash, size_t len, const ConfigFlash* src);
+void storage_writeV18(char* flash, size_t len, const ConfigFlash* src);
+void storage_writeV19(char* flash, size_t len, const ConfigFlash* src);
 
 void storage_readMeta(Metadata* meta, const char* ptr, size_t len);
 void storage_readPolicyV1(PolicyType* policy, const char* ptr, size_t len);

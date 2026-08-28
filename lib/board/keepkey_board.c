@@ -111,22 +111,11 @@ void kk_board_init(void) {
   layout_init(display_canvas_init());
 }
 
-#ifdef EMULATOR
-/// Reverses (reflects) bits in a 32-bit word.
-/// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
-static uint32_t reverse(unsigned x) {
-  x = ((x & 0x55555555) << 1) | ((x >> 1) & 0x55555555);
-  x = ((x & 0x33333333) << 2) | ((x >> 2) & 0x33333333);
-  x = ((x & 0x0F0F0F0F) << 4) | ((x >> 4) & 0x0F0F0F0F);
-  x = (x << 24) | ((x & 0xFF00) << 8) | ((x >> 8) & 0xFF00) | (x >> 24);
-  return x;
-}
-#endif
-
 /* calc_crc32() - Calculate crc32 for block of memory
  *
  * INPUT
- *     none
+ *     data     - word-aligned block of memory
+ *     word_len - length in 32-bit WORDS, not bytes
  * OUTPUT
  *     crc32 of data
  */
@@ -137,20 +126,23 @@ uint32_t calc_crc32(const void* data, int word_len) {
   crc_reset();
   crc32 = crc_calculate_block((uint32_t*)data, word_len);
 #else
-  /// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
+  /* Model the STM32 CRC peripheral the hardware path above uses: CRC-32/MPEG-2
+   * -- poly 0x04C11DB7, init 0xFFFFFFFF, no input or output reflection, no
+   * final XOR -- consuming one 32-bit word per iteration, MSB first.
+   *
+   * The previous implementation disagreed with hardware on both counts. It
+   * consumed word_len *bytes* of a reflected zlib CRC-32, so a 643-word buffer
+   * was covered as 643 bytes: no emulator test could demonstrate that the tail
+   * of storage_commit()'s 2572-byte record is protected, which is exactly the
+   * property the V17 CRC fix needed to prove. */
+  const uint32_t* words = (const uint32_t*)data;
   crc32 = 0xFFFFFFFF;
   for (int i = 0; i < word_len; i++) {
-    uint32_t byte = ((const char*)data)[i];  // Get next byte.
-    byte = reverse(byte);                    // 32-bit reversal.
-    for (int j = 0; j <= 7; j++) {           // Do eight times.
-      if ((int)(crc32 ^ byte) < 0)
-        crc32 = (crc32 << 1) ^ 0x04C11DB7;
-      else
-        crc32 = crc32 << 1;
-      byte = byte << 1;  // Ready next msg bit.
+    crc32 ^= words[i];
+    for (int j = 0; j < 32; j++) {
+      crc32 = (crc32 & 0x80000000u) ? (crc32 << 1) ^ 0x04C11DB7 : (crc32 << 1);
     }
   }
-  crc32 = reverse(~crc32);
 #endif
 
   return crc32;

@@ -89,6 +89,8 @@ void board_init(void);
 void kk_board_init(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
+/// CRC-32/MPEG-2 over \p word_len 32-bit WORDS (not bytes). \p data must be
+/// 4-byte aligned: the hardware path casts it to uint32_t*.
 uint32_t calc_crc32(const void* data, int word_len);
 
 void __attribute__((noreturn)) shutdown(void);

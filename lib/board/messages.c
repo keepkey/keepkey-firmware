@@ -44,6 +44,66 @@ static msg_debug_link_get_state_t msg_debug_link_get_state;
  */
 bool reset_msg_stack = false;
 
+/* ── Shared frame arena ──────────────────────────────────────────────────
+ * One MAX_FRAME_SIZE-class buffer shared by three mutually-exclusive users:
+ *
+ *   1. Inbound frame reassembly (usb_rx_helper writes frame_arena.rx).
+ *   2. Outbound wire encode (msg_write / msg_debug_write encode into
+ *      frame_arena.tx via frame_arena_tx()) — previously a 12 KB automatic
+ *      TrezorFrameBuffer on the msg_write stack, which is what overflowed
+ *      the zcash-privacy variant's 11 KB stack gap on the STM32F205.
+ *   3. Large transient in-handler scratch (frame_arena_scratch2049 for the
+ *      recovery-cipher wordlist permutation).
+ *
+ * Why this is safe: the transport is strictly cooperative/single-threaded.
+ * usbd_poll() runs only from explicit usbPoll() call sites (main loop, the
+ *  tiny-message pump, u2f) — there is no USB ISR — so RX can never preempt
+ * a TX encode or an executing handler. Tiny-mode RX (button/pin/cancel
+ * during a handler wait) goes through msg_read_tiny's own 64-byte buffer
+ * and never touches this arena. RAW dispatch hands handlers the 64-byte
+ * packet buffer, not the arena.
+ *
+ * Contract: acquiring the arena for TX or scratch DROPS any partially
+ * reassembled inbound frame. Only a host that pipelines a second request
+ * before reading the first response can hit this; it gets a Failure on its
+ * next continuation frame instead of silent corruption (the protocol is
+ * strict request-response).
+ */
+typedef union {
+  uint8_t rx[MAX_FRAME_SIZE];
+  TrezorFrameBuffer tx;
+  uint16_t scratch_u16[2049];
+} FrameArena;
+
+static FrameArena frame_arena;
+
+/* Inbound reassembly state — file scope so arena acquisition can reset it. */
+static bool rxFirstFrame = true;
+static uint16_t rxMsgId = 0xffff;
+static uint32_t rxMsgSize = 0;
+static size_t
+    rxCursor;  //< Index into frame_arena.rx where the next frame lands.
+static const MessagesMap_t* rxEntry = NULL;
+
+static void frame_arena_rx_reset(void) {
+  rxMsgId = 0xffff;
+  rxMsgSize = 0;
+  memset(frame_arena.rx, 0, sizeof(frame_arena.rx));
+  rxCursor = 0;
+  rxFirstFrame = true;
+  rxEntry = NULL;
+}
+
+TrezorFrameBuffer* frame_arena_tx(void) {
+  frame_arena_rx_reset();
+  return &frame_arena.tx;
+}
+
+uint16_t* frame_arena_scratch2049(void) {
+  frame_arena_rx_reset();
+  return frame_arena.scratch_u16;
+}
+
 /*
  * message_map_entry() - Finds a requested message map entry
  *
@@ -200,21 +260,15 @@ static void raw_dispatch(const MessagesMap_t* entry, const uint8_t* msg,
 
 /// Common helper that handles USB messages from host
 void usb_rx_helper(const uint8_t* buf, size_t length, MessageMapType type) {
-  static bool firstFrame = true;
-
-  static uint16_t msgId;
-  static uint32_t msgSize;
-  static uint8_t msg[MAX_FRAME_SIZE];
-  static size_t
-      cursor;  //< Index into msg where the current frame is to be written.
-  static const MessagesMap_t* entry;
-
-  if (firstFrame) {
-    msgId = 0xffff;
-    msgSize = 0;
-    memset(msg, 0, sizeof(msg));
-    cursor = 0;
-    entry = NULL;
+  /* Reassembly state + buffer live at file scope (frame_arena.rx) so that
+   * frame_arena_tx()/frame_arena_scratch2049() can invalidate a partial
+   * inbound frame — see the FrameArena contract above. */
+  if (rxFirstFrame) {
+    rxMsgId = 0xffff;
+    rxMsgSize = 0;
+    memset(frame_arena.rx, 0, sizeof(frame_arena.rx));
+    rxCursor = 0;
+    rxEntry = NULL;
   }
 
   assert(buf != NULL);
@@ -229,7 +283,7 @@ void usb_rx_helper(const uint8_t* buf, size_t length, MessageMapType type) {
     goto reset;
   }
 
-  if (firstFrame && (buf[1] != '#' || buf[2] != '#')) {
+  if (rxFirstFrame && (buf[1] != '#' || buf[2] != '#')) {
     (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Malformed packet");
     goto reset;
   }
@@ -238,25 +292,25 @@ void usb_rx_helper(const uint8_t* buf, size_t length, MessageMapType type) {
   const uint8_t* frame;
   size_t frameSize;
 
-  if (firstFrame) {
+  if (rxFirstFrame) {
     // Reset the buffer that we're writing fragments into.
-    memset(msg, 0, sizeof(msg));
+    memset(frame_arena.rx, 0, sizeof(frame_arena.rx));
 
     // Then fish out the id / size, which are big-endian uint16 /
     // uint32's respectively.
-    msgId = buf[4] | ((uint16_t)buf[3]) << 8;
-    msgSize = buf[8] | ((uint32_t)buf[7]) << 8 | ((uint32_t)buf[6]) << 16 |
-              ((uint32_t)buf[5]) << 24;
+    rxMsgId = buf[4] | ((uint16_t)buf[3]) << 8;
+    rxMsgSize = buf[8] | ((uint32_t)buf[7]) << 8 | ((uint32_t)buf[6]) << 16 |
+                ((uint32_t)buf[5]) << 24;
 
     // Determine callback handler and message map type.
-    entry = message_map_entry(type, msgId, IN_MSG);
+    rxEntry = message_map_entry(type, rxMsgId, IN_MSG);
 
     // And reset the cursor.
-    cursor = 0;
+    rxCursor = 0;
 
     // Then take note of the fragment boundaries.
     frame = &buf[9];
-    frameSize = MIN(length - 9, msgSize);
+    frameSize = MIN(length - 9, rxMsgSize);
   } else {
     // Otherwise it's a continuation/fragment.
     frame = &buf[1];
@@ -264,49 +318,45 @@ void usb_rx_helper(const uint8_t* buf, size_t length, MessageMapType type) {
   }
 
   // If the msgId wasn't in our map, bail.
-  if (!entry) {
+  if (!rxEntry) {
     (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
     goto reset;
   }
 
-  if (entry->dispatch == RAW) {
+  if (rxEntry->dispatch == RAW) {
     /* Call dispatch for every segment since we are not buffering and parsing,
      * and assume the raw dispatched callbacks will handle their own state and
      * buffering internally
      */
-    raw_dispatch(entry, frame, frameSize, msgSize);
-    firstFrame = false;
+    raw_dispatch(rxEntry, frame, frameSize, rxMsgSize);
+    rxFirstFrame = false;
     return;
   }
 
   size_t end;
-  if (check_uadd_overflow(cursor, frameSize, &end) || sizeof(msg) < end) {
+  if (check_uadd_overflow(rxCursor, frameSize, &end) ||
+      sizeof(frame_arena.rx) < end) {
     (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Malformed message");
     goto reset;
   }
 
   // Copy content to frame buffer.
-  memcpy(&msg[cursor], frame, frameSize);
+  memcpy(&frame_arena.rx[rxCursor], frame, frameSize);
 
   // Advance the cursor.
-  cursor = end;
+  rxCursor = end;
 
   // Only parse and message map if all segments have been buffered.
-  bool last_segment = cursor >= msgSize;
+  bool last_segment = rxCursor >= rxMsgSize;
   if (!last_segment) {
-    firstFrame = false;
+    rxFirstFrame = false;
     return;
   }
 
-  dispatch(entry, msg, msgSize);
+  dispatch(rxEntry, frame_arena.rx, rxMsgSize);
 
 reset:
-  msgId = 0xffff;
-  msgSize = 0;
-  memset(msg, 0, sizeof(msg));
-  cursor = 0;
-  firstFrame = true;
-  entry = NULL;
+  frame_arena_rx_reset();
 }
 
 /* Tiny messages */

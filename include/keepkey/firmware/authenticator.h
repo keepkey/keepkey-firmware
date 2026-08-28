@@ -28,6 +28,7 @@
 #define ACCOUNT_SIZE 12  // allow 11 chars for account string
 #define AUTHSECRET_SIZE_MAX \
   20  // 128-bit key len is the recommended minimum, this is room for 160-bit
+#define AUTHSECRET_SIZE_MIN 16  // reject brute-forceable TOTP secrets
 #define AUTHDATA_SIZE \
   10  // WARNING: This value must be coordinated with the size of uint8_t
       // encrypted_sec[] in in lib/firmware/storage.h and the storage version
@@ -43,7 +44,8 @@ enum AUTH_ERR_TYPE {
   LARGESEED,
   BADPASS,
   UNKERR,
-  CANCELED,
+  DUPLICATE,
+  AUTH_CANCELLED,
   NUM_AUTHERRS
 };
 
