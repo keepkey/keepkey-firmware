@@ -49,6 +49,10 @@ typedef struct _EthereumSignTx EthereumSignTx;
 /// incomplete list costs display quality rather than safety.
 bool zx_isExchangeProxyChain(uint32_t chain_id);
 
+/// Require token metadata to name an asset on the transaction's chain.
+/// \returns false for NULL, UnknownToken, or metadata from another chain.
+bool zx_tokenLabelsThisChain(uint32_t chain_id, const TokenType* token);
+
 /// \returns true iff there is custom support for this ETH signing request
 bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,
                               const HDNode* node);

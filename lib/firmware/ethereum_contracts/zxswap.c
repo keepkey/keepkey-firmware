@@ -22,6 +22,7 @@
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/ethereum.h"
+#include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/ethereum_contracts.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
@@ -52,6 +53,7 @@ static bool isSellToUniswapCall(const EthereumSignTx* msg) {
  */
 static bool zxswap_resolveBothTokens(const EthereumSignTx* msg,
                                      const TokenType** from,
+                                     const TokenType** via,
                                      const TokenType** to,
                                      const char** exchange) {
   /* Everything read before the token count is known lives in the selector plus
@@ -90,9 +92,21 @@ static bool zxswap_resolveBothTokens(const EthereumSignTx* msg,
       return false;
   }
 
-  /* The toAddress word ends at 4 + (7 + adder) * 32. Re-bound now that the
-   * token count is known, so a legitimate 2-token swap (228 bytes of calldata)
-   * is not rejected by an over-tight fixed floor. */
+  /* The toAddress word ends at 4 + (7 + adder) * 32, which is also the end of
+   * the ABI encoding of sellToUniswap(address[],uint256,uint256,bool):
+   * 4 + 4 head words + the array length word + numOfTokens address words.
+   * 228 bytes for a two-token swap, 260 for three.
+   *
+   * A lower bound and not an equality, deliberately. Real 0x quotes append 68
+   * bytes past the ABI extent -- a `869584cd` tag, an affiliate address and a
+   * nonce word -- and both pinned integration vectors carry it (296 bytes for
+   * a 228-byte call). Requiring equality here would drop every genuine 0x swap
+   * to the blind-sign path, which trains users into AdvancedMode and is a worse
+   * outcome than the thing it fixes.
+   *
+   * That suffix is still signed, so it is not ignored either: it cannot be
+   * silently dropped, and zx_confirmZxSwap() below discloses whatever lies past
+   * this point on its own screen before the trade is approved. */
   const size_t tokens_end = (size_t)(4 + (7 + adder) * 32);
   if (msg->data_initial_chunk.size < tokens_end) return false;
 
@@ -101,10 +115,34 @@ static bool zxswap_resolveBothTokens(const EthereumSignTx* msg,
   const TokenType* t = tokenByChainAddress(
       msg->chain_id, msg->data_initial_chunk.bytes + 4 + (6 + adder) * 32 + 12);
 
-  if (f == NULL || t == NULL || f == UnknownToken || t == UnknownToken)
+  /* The MIDDLE token of a three-token route, which the screen used to omit.
+   *
+   * sellToUniswap() executes one swap per adjacent pair, so tokens[1] selects
+   * the pair contracts the trade actually routes through. Reading only
+   * tokens[0] and tokens[last] meant every tokens[1] produced the same
+   * "Sell X / Buy at least Y" screen while the route underneath it changed --
+   * a different set of pools, a different counterparty, the same approval.
+   *
+   * Resolve it on the same terms as the endpoints, and hold it to the same
+   * chain-scoped check: an unresolvable hop makes the whole call
+   * undisplayable, so it falls through to the AdvancedMode raw-calldata path
+   * rather than being shown as a two-token trade it is not. */
+  const TokenType* v = NULL;
+  if (adder) {
+    v = tokenByChainAddress(msg->chain_id,
+                            msg->data_initial_chunk.bytes + 4 + 6 * 32 + 12);
+    if (!zx_tokenLabelsThisChain(msg->chain_id, v)) return false;
+  }
+
+  /* Not just "resolved" -- resolved to metadata for this exact chain.  The
+   * lookup is chain-scoped, and this second check keeps the decoder fail-closed
+   * if a future caller ever supplies metadata directly. */
+  if (!zx_tokenLabelsThisChain(msg->chain_id, f) ||
+      !zx_tokenLabelsThisChain(msg->chain_id, t))
     return false;
 
   if (from) *from = f;
+  if (via) *via = v;
   if (to) *to = t;
   if (exchange) *exchange = (isSushi == 0) ? "Uniswap" : "Sushiswap";
   return true;
@@ -128,7 +166,7 @@ bool zx_isZxSwap(const EthereumSignTx* msg) {
      here is what makes it fall through to the raw-calldata path, which is
      AdvancedMode-gated and shows the bytes; refusing in the confirm would be
      read as a user cancel (see ethereum.c, ethereum_contractConfirmed). */
-  return zxswap_resolveBothTokens(msg, NULL, NULL, NULL);
+  return zxswap_resolveBothTokens(msg, NULL, NULL, NULL, NULL);
 }
 
 bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
@@ -153,9 +191,9 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
     return false;
   }
 
-  const TokenType *from, *to;
+  const TokenType *from, *via, *to;
   const char* exchange;
-  if (!zxswap_resolveBothTokens(msg, &from, &to, &exchange)) return false;
+  if (!zxswap_resolveBothTokens(msg, &from, &via, &to, &exchange)) return false;
 
   char constr1[40], constr2[40];
 
@@ -167,14 +205,61 @@ bool zx_confirmZxSwap(uint32_t data_total, const EthereumSignTx* msg) {
 
   char sellToken[32];
   char minBuyToken[32];
-  ethereumFormatAmount(&sellTokenAmount, from, msg->chain_id, sellToken,
-                       sizeof(sellToken));
-  ethereumFormatAmount(&minBuyTokenAmount, to, msg->chain_id, minBuyToken,
-                       sizeof(minBuyToken));
+  if (!ethereumFormatAmount(&sellTokenAmount, from, msg->chain_id, sellToken,
+                            sizeof(sellToken)))
+    return false;
+  if (!ethereumFormatAmount(&minBuyTokenAmount, to, msg->chain_id, minBuyToken,
+                            sizeof(minBuyToken)))
+    return false;
 
   snprintf(constr1, 32, "%s", sellToken);
   snprintf(constr2, 32, "%s", minBuyToken);
 
-  return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, exchange,
-                 "Sell %s\nBuy at least %s", constr1, constr2);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, exchange,
+               "Sell %s\nBuy at least %s", constr1, constr2)) {
+    return false;
+  }
+
+  /* Name the intermediate hop on its own screen. The amounts above bound only
+     the ends of the route; this is the asset the trade passes through, and it
+     is as much a part of what is being signed as they are.
+
+     Tickers in the generated table lead with a space (" USDC") because
+     ethereumFormatAmount() appends them straight after a number. Step over it
+     rather than emitting "Route via  USDC". */
+  if (via) {
+    const char* via_ticker = via->ticker ? via->ticker : "";
+    while (*via_ticker == ' ') via_ticker++;
+    if (*via_ticker == '\0') return false;
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, exchange,
+                 "Route via %s", via_ticker)) {
+      return false;
+    }
+  }
+
+  /* Anything past the ABI encoding is signed but describes nothing this screen
+   * asserted. In practice it is 0x's 68-byte affiliate suffix, present on every
+   * quote their API returns, which is why refusing it outright is not an option
+   * -- see zxswap_resolveBothTokens(). It is host-supplied all the same, so
+   * show it rather than vouch for it: confirm_bytes() takes an explicit length
+   * and escapes every non-printable byte, so nothing hides behind a NUL.
+   *
+   * Recompute the extent from the token count rather than threading it out of
+   * the resolver, so this bound and the one that gated the reads above cannot
+   * drift apart. */
+  {
+    const uint32_t numOfTokens =
+        read_be(msg->data_initial_chunk.bytes + 4 + 5 * 32 - 4);
+    const size_t abi_end = (size_t)(4 + (7 + (numOfTokens == 3 ? 1 : 0)) * 32);
+    if (msg->data_initial_chunk.size > abi_end) {
+      if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                         "Extra calldata",
+                         msg->data_initial_chunk.bytes + abi_end,
+                         msg->data_initial_chunk.size - abi_end)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }

@@ -530,8 +530,9 @@ static void MakeTransformErc20(EthereumSignTx* msg, const char* in_token,
   msg->has_chain_id = true;
   msg->chain_id = 1;
   msg->has_data_initial_chunk = true;
-  msg->data_initial_chunk.size = 4 + 4 * 32;
+  msg->data_initial_chunk.size = ZX_TRANSFORM_ERC20_MIN_LEN;
   std::memcpy(msg->data_initial_chunk.bytes, "\x41\x55\x65\xb0", 4);
+  msg->data_initial_chunk.bytes[ZX_TRANSFORM_ERC20_HEAD_LEN - 1] = 0xa0;
   if (in_token)
     std::memcpy(msg->data_initial_chunk.bytes + 4 + 12, in_token, 20);
   if (out_token)
@@ -548,11 +549,9 @@ TEST(Ethereum, TransformErc20RequiresCompleteCalldataForClearSigning) {
       ethereum_contractHandled(msg.data_initial_chunk.size + 1, &msg, nullptr));
 }
 
-// The decoder shows four values and hides the transformations[] body. That is
-// only defensible because the input amount and minimum output amount bound the
-// outcome — and ethereumFormatAmount() renders the literal "Unknown token
-// value" whenever tokenByChainAddress() misses, so an unresolved token turns
-// the bound into nothing while the calldata still executes.
+// The decoder shows the input and minimum output bounds and the complete
+// transformations[] body. The token lookup must resolve on the signing chain;
+// otherwise a structured screen cannot name the traded assets.
 //
 // Gating on the lookup rather than on a chain allowlist keeps this correct
 // however the tables change. It matters in practice: the generated table

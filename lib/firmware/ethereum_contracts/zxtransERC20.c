@@ -83,7 +83,8 @@ static bool resolveBothTokens(const EthereumSignTx* msg, const TokenType** in,
   const TokenType* o = tokenByChainAddress(
       msg->chain_id, msg->data_initial_chunk.bytes + 4 + 32 + 12);
 
-  if (i == NULL || o == NULL || i == UnknownToken || o == UnknownToken)
+  if (!zx_tokenLabelsThisChain(msg->chain_id, i) ||
+      !zx_tokenLabelsThisChain(msg->chain_id, o))
     return false;
 
   if (in) *in = i;
@@ -139,9 +140,11 @@ bool zx_confirmZxTransERC20(uint32_t data_total, const EthereumSignTx* msg) {
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32, &inAmount);
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 3 * 32, 32, &outAmount);
 
-  ethereumFormatAmount(&inAmount, in, msg->chain_id, inToken, sizeof(inToken));
-  ethereumFormatAmount(&outAmount, out, msg->chain_id, outToken,
-                       sizeof(outToken));
+  if (!ethereumFormatAmount(&inAmount, in, msg->chain_id, inToken,
+                            sizeof(inToken)) ||
+      !ethereumFormatAmount(&outAmount, out, msg->chain_id, outToken,
+                            sizeof(outToken)))
+    return false;
   snprintf(constr1, 32, "%s", inToken);
   snprintf(constr2, 32, "%s", outToken);
 
