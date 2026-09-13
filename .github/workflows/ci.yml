@@ -523,7 +523,12 @@ jobs:
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
                 -DCMAKE_COLOR_MAKEFILE=ON \
                 ${{ matrix.cmake_flags }} && \
-              make && \
+              if ! make; then \
+                mkdir -p /root/keepkey-firmware/bin; \
+                cp bin/*.map /root/keepkey-firmware/bin/ 2>/dev/null || true; \
+                chmod -R a+rw /root/keepkey-firmware/bin; \
+                exit 1; \
+              fi && \
               python3 /root/keepkey-firmware/tools/check_pallas_ct_disassembly.py \
                 --elf bin/firmware.keepkey.elf \
                 --variant '${{ matrix.variant }}' && \
@@ -538,6 +543,15 @@ jobs:
               arm-none-eabi-size -A bin/firmware.keepkey.elf > /root/keepkey-firmware/bin/firmware.keepkey.size.txt 2>/dev/null || true && \
               find . -name '*.su' -print0 | tar czf /root/keepkey-firmware/bin/stack-usage.tgz --null -T - && \
               chmod -R a+rw /root/keepkey-firmware/bin"
+
+      - name: Upload ARM link map (${{ matrix.variant }})
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: arm-link-map-${{ matrix.variant }}
+          path: bin/firmware.keepkey.map
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Assert alpha ClearSign root product boundary
         run: |
