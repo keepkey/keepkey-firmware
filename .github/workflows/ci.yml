@@ -975,10 +975,12 @@ jobs:
           export PATH="$PATH:$NANOPB_GENERATOR_DIR"
           which protoc-gen-nanopb
           which nanopb_generator.py
+          NANOPB_PLUGIN="$(command -v protoc-gen-nanopb)"
           cmake \
             -DKK_EMULATOR=1 \
             -DKK_BUILD_DYLIB=1 \
             -DKK_DEBUG_LINK=ON \
+            -DPROTOC_GEN_NANOPB_EXECUTABLE="$NANOPB_PLUGIN" \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             -B build-emu .
 
@@ -1019,7 +1021,7 @@ jobs:
             -DKK_BUILD_DYLIB=1 \
             -DKK_DEBUG_LINK=ON \
             -DNANOPB_DIR="$NANOPB_DIR" \
-            -DNANOPB_PLUGIN="$NANOPB_PLUGIN" \
+            -DPROTOC_GEN_NANOPB_EXECUTABLE="$NANOPB_PLUGIN" \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             -B build-emu-win .
           cmake --build build-emu-win --target kkemulator_dylib -j"$CPU_COUNT"

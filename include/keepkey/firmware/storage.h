@@ -75,12 +75,6 @@
 /// \brief Validate storage content and copy data to shadow memory.
 void storage_init(void);
 
-/// \brief True iff flash holds storage written by bitcoin-only firmware that
-///        this (multi-chain) firmware refuses to load. The device must be
-///        wiped before it can be used; the seed stays intact in flash so
-///        reflashing bitcoin-only firmware recovers the wallet.
-bool storage_isBitcoinOnlyLocked(void);
-
 /// \brief Reset configuration UUID with random numbers.
 void storage_resetUuid(void);
 
