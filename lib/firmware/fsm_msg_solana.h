@@ -89,6 +89,30 @@ static bool solana_confirmPriorityFee(const SolanaParsedTx* tx) {
                  "Max priority fee\n%s", fee_str);
 }
 
+/* Reject ambiguous compute budgets and fees that cannot be represented before
+ * showing any consent screen. The runtime rejects duplicate price/limit fields;
+ * displaying only the last one would describe a transaction it cannot run. */
+static bool solana_validatePriorityFee(const SolanaParsedTx* tx) {
+  uint64_t price = 0;
+  uint64_t limit = 1400000u;
+  bool seen_price = false;
+  bool seen_limit = false;
+  for (uint8_t i = 0; i < tx->num_instructions; i++) {
+    const SolanaParsedInstruction* pi = &tx->instructions[i];
+    if (pi->type == SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE) {
+      if (seen_price) return false;
+      seen_price = true;
+      price = pi->extra_value;
+    } else if (pi->type == SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT) {
+      if (seen_limit) return false;
+      seen_limit = true;
+      limit = pi->extra_value;
+    }
+  }
+  uint64_t fee = 0;
+  return !seen_price || solana_priority_fee_lamports(price, limit, &fee);
+}
+
 /* Confirm a single parsed instruction.
  *
  * Takes no SolanaSignTx on purpose: every value on these screens is decoded
@@ -981,6 +1005,15 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
       layoutHome();
       return;
     }
+  }
+
+  if (tx_review == SOL_TX_REVIEW_VERIFIED &&
+      !solana_validatePriorityFee(&parsed)) {
+    memzero(node, sizeof(*node));
+    memzero(&schema, sizeof(schema));
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Invalid priority fee"));
+    layoutHome();
+    return;
   }
 
   if (certified) {
