@@ -110,14 +110,60 @@ TEST(Authenticator, RejectsWeakAndDuplicateSecrets) {
   EXPECT_EQ(NOACC, getAuthAccount("0", account));
 }
 
+/* A refusal inside an authenticator flow never reaches fsm_msgCancel(), so the
+ * refusing function is the only thing that can revoke the decrypted account
+ * table. If it does not, authData[] keeps every account's plaintext TOTP
+ * secret resident in SRAM and localAuthdataUpdate stays false, so the NEXT
+ * authenticator request short-circuits getAuthData() and serves those secrets
+ * without re-running the storage fingerprint/passphrase check. */
+TEST(Authenticator, CancellationRevokesDecryptedCache) {
+  ensure_auth_storage_initialized();
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_EQ(NOERR, wipeAuthData());
+  EXPECT_EQ(0, kkconfirm_drain());
+
+  char accepted_add[] = "example:alice:JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  EXPECT_EQ(NOERR, addAuthAccount(accepted_add));
+  EXPECT_EQ(0, kkconfirm_drain());
+  // Control: the accepted path really does leave the table decrypted, so the
+  // assertions below are testing revocation and not an already-empty cache.
+  ASSERT_FALSE(authenticator_cache_is_empty());
+
+  char cancelled_add[] = "example:bob:KRSXG5DSNFXGOIDBKRSXG5DSNFXGOIDB";
+  ASSERT_TRUE(kkconfirm_preload(0, 1));
+  EXPECT_EQ(AUTH_CANCELLED, addAuthAccount(cancelled_add));
+  EXPECT_EQ(0, kkconfirm_drain());
+  EXPECT_TRUE(authenticator_cache_is_empty());
+
+  // removeAuthAccount() decrypts the table to find the account, then asks.
+  char cancelled_remove[] = "example:alice";
+  ASSERT_TRUE(kkconfirm_preload(0, 1));
+  EXPECT_EQ(AUTH_CANCELLED, removeAuthAccount(cancelled_remove));
+  EXPECT_EQ(0, kkconfirm_drain());
+  EXPECT_TRUE(authenticator_cache_is_empty());
+
+  // wipeAuthData() asks before it touches the table, so populate it first.
+  char account[DOMAIN_SIZE + ACCOUNT_SIZE + 2] = {0};
+  EXPECT_EQ(NOERR, getAuthAccount("0", account));
+  ASSERT_FALSE(authenticator_cache_is_empty());
+  ASSERT_TRUE(kkconfirm_preload(0, 1));
+  EXPECT_EQ(AUTH_CANCELLED, wipeAuthData());
+  EXPECT_EQ(0, kkconfirm_drain());
+  EXPECT_TRUE(authenticator_cache_is_empty());
+
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_EQ(NOERR, wipeAuthData());
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
 TEST(Authenticator, CacheClearReloadsPersistentAccounts) {
   ensure_auth_storage_initialized();
   ASSERT_TRUE(kkconfirm_preload(1, 0));
   ASSERT_EQ(NOERR, wipeAuthData());
   ASSERT_EQ(0, kkconfirm_drain());
 
-  char account_seed[] =
-      "example:alice:JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+  char account_seed[] = "example:alice:JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
   ASSERT_TRUE(kkconfirm_preload(2, 0));
   ASSERT_EQ(NOERR, addAuthAccount(account_seed));
   ASSERT_EQ(0, kkconfirm_drain());

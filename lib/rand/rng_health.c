@@ -302,6 +302,17 @@ bool random_buffer_checked(uint8_t* buf, size_t len) {
 
   random_buffer(buf, len);
 
+  /* Re-read the hardware fault mirror AFTER the draw. rng_health_check() above
+   * only proves the source was sound when the draw started; a seed or clock
+   * fault that latches while these very bytes are being produced would
+   * otherwise be noticed on the NEXT call, having already handed this one out.
+   * rng_health_gate() re-reads SEIS/CEIS on every sampling iteration for the
+   * same reason -- this is that rule applied to the consumer path. */
+  if (rng_seed_error_latched()) {
+    memzero(buf, len);
+    return false;
+  }
+
   /* Observe THESE bytes and refuse them if they are what tripped the test. The
    * triggering draw is part of the degenerate run, so returning it and failing
    * only on the next call would hand the caller exactly the output the test

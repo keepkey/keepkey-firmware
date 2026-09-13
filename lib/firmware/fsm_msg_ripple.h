@@ -47,9 +47,6 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
     return;
   }
 
-  strlcpy(resp->address, ripple_addr, sizeof(resp->address));
-  resp->has_address = true;
-
   if (msg->has_show_display && msg->show_display) {
     char node_str[NODE_STRING_LENGTH];
     if (!(bip32_node_to_string(node_str, sizeof(node_str), coin, msg->address_n,
@@ -61,7 +58,7 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
       memset(node_str, 0, sizeof(node_str));
     }
 
-    if (!confirm_ethereum_address(node_str, resp->address)) {
+    if (!confirm_ethereum_address(node_str, ripple_addr)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Show address cancelled"));
@@ -70,6 +67,9 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
     }
   }
 
+  /* Debug state requests during confirmation reuse the response arena. */
+  strlcpy(resp->address, ripple_addr, sizeof(resp->address));
+  resp->has_address = true;
   memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_RippleAddress, resp);
   layoutHome();
@@ -91,34 +91,58 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
   if (!node) return;
   hdnode_fill_public_key(node);
 
+  /* Absent fields are not zero-valued fields. Without these, an omitted
+     payment/amount/destination reached the screens as 0 XRP to an empty
+     address, and ripple_serialize() simply omitted what was missing -- so the
+     owner approved one transaction and the device signed another. The
+     destination is checked here too: ripple_serializeAddress() enforces the
+     21-byte decode with assert(), which is compiled out of release builds, and
+     runs only after both confirmations. */
+  if (!msg->has_payment || !msg->payment.has_amount ||
+      !msg->payment.has_destination ||
+      !ripple_validateAddress(msg->payment.destination)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Payment amount and destination are required"));
+    layoutHome();
+    return;
+  }
+
   if (!msg->has_fee || msg->fee < RIPPLE_MIN_FEE || msg->fee > RIPPLE_MAX_FEE) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Fee must be between 10 and 1,000,000 drops"));
+    layoutHome();
     return;
   }
 
-  /* ripple_serializeAmount() forces bits 62-63 of the signed 64-bit amount to
-     fixed XRP/sign flags, so only values below 2^61 round-trip exactly
-     between what's displayed here and what's embedded in the signed bytes.
-     Auditor-caught unit error in an earlier version of this fix: XRPL's real
-     ceiling is 100,000,000,000 XRP = 1e17 DROPS (payment.amount is drops, not
-     XRP) -- 1e11 would have rejected any payment over 100,000 XRP. 1e17 is
-     comfortably under 2^61 (~2.3e18). Enforce the shared serializer/FSM
-     constant here so a violation is reported before confirmation. */
-  if (msg->payment.amount > RIPPLE_MAX_AMOUNT_DROPS) {
+  /* Above RIPPLE_MAX_DROPS the serializer's own bound is exceeded; it guarded
+     that with assert(), which is compiled out of release builds, so the amount
+     would be encoded differently from the one supplied. Refuse here instead,
+     before anything is shown. */
+  if (msg->payment.amount > RIPPLE_MAX_DROPS) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Amount exceeds the maximum supported"));
+                    _("Amount exceeds the largest XRP value this device can "
+                      "sign"));
+    layoutHome();
     return;
   }
 
+  /* Both renders must succeed BEFORE any confirmation. These used to be void
+     calls, so an unrenderable amount put "AMOUNT TOO LARGE TO DISPLAY" on the
+     screen and the numeric amount into the signature. */
   char amount_string[20 + 4 + 1];
-  ripple_formatAmount(amount_string, sizeof(amount_string),
-                      msg->payment.amount);
-
   char fee_string[20 + 4 + 1];
-  ripple_formatAmount(fee_string, sizeof(fee_string), msg->fee);
+  if (!ripple_formatAmount(amount_string, sizeof(amount_string),
+                           msg->payment.amount) ||
+      !ripple_formatAmount(fee_string, sizeof(fee_string), msg->fee)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Cannot display this XRP amount"));
+    layoutHome();
+    return;
+  }
 
   if (needs_confirm) {
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Send",
@@ -158,13 +182,16 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
     return;
   }
 
-  ripple_signTx(node, msg, resp);
-  memzero(node, sizeof(*node));
-  if (!resp->has_signature) {
-    fsm_sendFailure(FailureType_Failure_FirmwareError, _("Signing failed"));
+  /* A failed sign left has_signature/has_serialized_tx false, and the response
+     went out anyway -- the host saw an empty success where an error belonged.
+   */
+  if (!ripple_signTx(node, msg, resp)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other, _("Ripple signing failed"));
     layoutHome();
     return;
   }
+  memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_RippleSignedTx, resp);
   layoutHome();
 }

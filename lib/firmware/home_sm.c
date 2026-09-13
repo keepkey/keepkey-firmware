@@ -22,6 +22,7 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/firmware/app_layout.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 
@@ -117,14 +118,27 @@ void leave_home(void) {
  *     none
  */
 void toggle_screensaver(void) {
+  /* Auto-lock is a session boundary even while the device is waiting for the
+   * host between streamed signing messages.  Confirmation handlers block the
+   * main loop, so this check cannot interrupt a button hold; AWAY_FROM_HOME
+   * here means firmware has returned to the main loop and is idle, and
+   * note_host_activity() has cleared the timer for every frame the host sent,
+   * so reaching the delay means the host really did stall. */
+  if (home_state != SCREENSAVER && idle_time >= storage_getAutoLockDelayMs()) {
+    /* signing_abort() and ethereum_signing_abort() draw the home screen, and
+     * layoutHomeForced() resets the idle timer. Restore it, or the screensaver
+     * drawn below is replaced by the home screen on the very next tick. */
+    const uint32_t locked_at = idle_time;
+    fsm_abort_workflows();
+    session_clear(/*clear_pin=*/true);
+    idle_time = locked_at;
+    layout_screensaver();
+    home_state = SCREENSAVER;
+    return;
+  }
+
   switch (home_state) {
     case AT_HOME:
-      if (idle_time >= storage_getAutoLockDelayMs()) {
-        session_clear(/*clear_pin=*/true);
-        layout_screensaver();
-        home_state = SCREENSAVER;
-      }
-
       break;
 
     case SCREENSAVER:
@@ -162,3 +176,32 @@ void increment_idle_time(uint32_t increment_ms) { idle_time += increment_ms; }
  *     none
  */
 void reset_idle_time(void) { idle_time = 0; }
+
+/*
+ * note_host_activity() - Counts a received host frame as activity
+ *
+ * A streamed ceremony (recovery characters, TxAck, EntropyAck) can outlast the
+ * auto-lock delay while the user is working, and nothing else resets the timer
+ * once the device has left the home screen. Only AWAY_FROM_HOME is reset:
+ * polling a device sitting at the home screen must never hold it unlocked.
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     none
+ */
+void note_host_activity(void) {
+  if (home_state == AWAY_FROM_HOME) {
+    reset_idle_time();
+  }
+}
+
+/*
+ * home_get_state() - Current home-screen state, for tests
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     the state toggle_screensaver() last settled on
+ */
+HomeState home_get_state(void) { return home_state; }

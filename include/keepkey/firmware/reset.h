@@ -90,18 +90,21 @@ bool setup_stagePin(bool pin_protection);
 void setup_arm(SetupKind kind);
 
 /// The ONE place staged settings reach storage. Applies them, stores \a
-/// mnemonic, disarms, then commits to flash.
-void setup_commit(const char* mnemonic, bool imported);
+/// mnemonic, disarms, then commits to flash. Refuses an aborted or different
+/// ceremony before modifying storage, reports Failure, and returns false.
+bool setup_commit(SetupKind kind, const char* mnemonic, bool imported);
 
 /* No display_random parameter: ResetDevice.display_random remains on the wire
  * for host compatibility but is ignored, because internal entropy is seed
  * pre-image material and must never be rendered. \a dice_entropy runs the
- * on-device dice collection, which folds into the device half BEFORE the
- * EntropyRequest and entirely before setup_arm(). */
+ * on-device dice ceremony -- MIXED: the device draw is shown as 24 words, then
+ * seed = SHA256d(tag || draw || SHA256(tag || rolls)); with \a dice_only the
+ * seed is SHA256(rolls) alone. Both are confirmed on-device before anything
+ * runs, complete before setup_arm(), and drop the host's EntropyAck bytes. */
 void reset_init(uint32_t _strength, bool passphrase_protection,
                 bool pin_protection, const char* language, const char* label,
                 bool _no_backup, uint32_t _auto_lock_delay_ms,
-                uint32_t _u2f_counter, bool dice_entropy);
+                uint32_t _u2f_counter, bool dice_entropy, bool dice_only);
 void reset_entropy(const uint8_t* ext_entropy, uint32_t len);
 uint32_t reset_get_int_entropy(uint8_t* entropy);
 const char* reset_get_word(void);

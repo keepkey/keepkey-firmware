@@ -41,6 +41,19 @@ bool thor_is_expiry_variant(const EthereumSignTx* msg) {
                 THOR_SELECTOR_DEPOSIT_WITH_EXPIRY, 4) == 0;
 }
 
+static bool thor_assetIsNative(const uint8_t asset_address[20]) {
+  return asset_address != NULL && memcmp(asset_address, ETH_ADDRESS, 20) == 0;
+}
+
+static bool thor_formatUnknownAssetAmount(const uint8_t word[32], char* out,
+                                          size_t out_len) {
+  if (!word || !out || out_len == 0) return false;
+  bignum256 amount;
+  bn_from_bytes(word, 32, &amount);
+  return bn_format(&amount, NULL, " unformatted", 0, 0, false, out, out_len) !=
+         0;
+}
+
 /* Format msg->to as lowercase hex string (40 chars + NUL) */
 static void thor_format_to_addr(const EthereumSignTx* msg, char out[41]) {
   for (uint32_t i = 0; i < 20; i++) {
@@ -152,21 +165,120 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
                    */
   }
 
+  /* The equality above bounds the calldata but says nothing about what is IN
+   * the ABI tail padding. Only memo_len bytes are handed to the parser and
+   * drawn, while all memo_padded bytes are signed, so a host can carry up to
+   * 31 arbitrary bytes per transaction in a region no screen ever shows. The
+   * router ignores them - abi.decode reads memo_len - which is exactly why
+   * they are attractive: they cost the sender nothing and the device vouches
+   * for them. Canonical ABI pads with zeroes; anything else is a non-canonical
+   * encoding this path already refuses elsewhere (dirty high bytes in the
+   * length word, a non-canonical offset pointer). Refuse it here too rather
+   * than sign bytes that were never displayed. */
+  for (size_t i = memo_off + memo_len; i < memo_off + memo_padded; i++) {
+    if (msg->data_initial_chunk.bytes[i] != 0) return false;
+  }
+
   char confStr[41];
   const char* conf;
+  const TokenType* assetToken;
   uint8_t* thorchainData;
   const uint8_t* contractAssetAddress;
-  const uint8_t* vaultAddress;
+  const uint8_t *vaultAddress, *assetAddress;
   uint32_t ctr;
-  bignum256 Amount;
+  bignum256 Amount, Value;
 
   vaultAddress = (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 12);
   contractAssetAddress =
       (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32, &Amount);
+  bn_from_bytes(msg->value.bytes, msg->value.size, &Value);
   /* deposit(): memo at 4 + 5*32; depositWithExpiry(): memo at 4 + 6*32 */
   thorchainData =
       (uint8_t*)(msg->data_initial_chunk.bytes + 4 + (is_expiry ? 6 : 5) * 32);
+
+  /* Everything non-interactive FIRST, so an unrenderable call fails before any
+   * approval is taken.
+   *
+   * The amount used to be formatted after the router, vault and asset screens
+   * had been approved, and the expiry word validated after that. bn_format()
+   * refuses a value it cannot render, and ethereum.c turns a false return from
+   * this decoder into ActionCancelled -- so a large but valid amount, or a
+   * non-canonical expiry, told the owner they had cancelled a transaction they
+   * had already approved three screens of. Resolve the asset, render the
+   * amount, and check the expiry up here; the confirmations below then only
+   * display what is already known to be displayable. */
+  assetAddress = contractAssetAddress;
+  /* The THORChain ABI uses the zero address to mean this signing chain's
+   * native asset.  Resolve that router-specific meaning directly instead of
+   * routing it through the Ethereum-only 0xeeee..eeee token sentinel.  A NULL
+   * token makes ethereumFormatAmount() select the native ticker from chain_id.
+   */
+  const bool is_native = thor_assetIsNative(contractAssetAddress);
+  if (is_native) {
+    assetToken = NULL;
+  } else {
+    /* Token deposits pull through transferFrom; any native value would be
+     * swept without being represented by the ABI amount screen. */
+    if (!bn_is_zero(&Value)) return false;
+    assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
+  }
+
+  char amountStr[41];
+  if (assetToken == UnknownToken) {
+    /* We don't know what the exponent should be, so confirm the raw
+     * unformatted number. */
+    if (!thor_formatUnknownAssetAmount(
+            msg->data_initial_chunk.bytes + 4 + 2 * 32, amountStr,
+            sizeof(amountStr)))
+      return false;
+  } else {
+    /* Native deposits forward msg.value; the ABI amount word is only a router
+     * hint and may legitimately differ. Token deposits use the ABI amount. */
+    const bignum256* displayed_amount = is_native ? &Value : &Amount;
+    if (!ethereumFormatAmount(displayed_amount, assetToken, msg->chain_id,
+                              amountStr, sizeof(amountStr)))
+      return false;
+  }
+
+  /* depositWithExpiry() carries a fifth head word the deposit() variant does
+   * not: the expiry. It was validated into the length arithmetic and signed,
+   * but no screen ever named it, so a host could pick any 256-bit value while
+   * this decoder suppressed the raw-calldata review that would have shown it.
+   * An expiry is a deadline -- it decides whether the swap can still execute
+   * -- so it has to be on screen.
+   *
+   * Rendered as a decimal epoch for the same reason as the Uniswap deadline
+   * (zxliquidtx.c): ctime() on this target reads only the low 4 bytes of a
+   * 64-bit time_t. Words above 2^64 are refused rather than shown truncated,
+   * because a far-future expiry displayed as a small epoch is worse than no
+   * screen at all -- it reads as "already expired" when it means the
+   * opposite. */
+  char expiry_str[21] = {0};
+  if (is_expiry) {
+    const uint8_t* expiry_word = msg->data_initial_chunk.bytes + 4 + 4 * 32;
+    for (size_t i = 0; i < 24; i++) {
+      if (expiry_word[i] != 0) return false;
+    }
+    uint64_t expiry = 0;
+    for (size_t i = 24; i < 32; i++) {
+      expiry = (expiry << 8) | expiry_word[i];
+    }
+
+    char tmp[21];
+    int len = 0;
+    if (expiry == 0) {
+      tmp[len++] = '0';
+    } else {
+      while (expiry > 0 && len < (int)sizeof(tmp)) {
+        tmp[len++] = (char)('0' + (int)(expiry % 10));
+        expiry /= 10;
+      }
+    }
+    for (int i = 0; i < len; i++) {
+      expiry_str[i] = tmp[len - 1 - i];
+    }
+  }
 
   // Start confirmations
   thor_format_to_addr(msg, confStr);
@@ -192,73 +304,31 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     return false;
   }
 
-  /* Both pinned routers treat ONLY address(0) as native (and require
-   * msg.value == 0 for any other asset), so the 0xEeee..Ee sentinel is NOT
-   * native here — accepting it would clear-sign a tx that reverts on-chain and
-   * burns gas. Match address(0) exactly (20 bytes, not sizeof, whose literal
-   * NUL would over-read into the amount word). */
-  const bool is_native = memcmp(contractAssetAddress, ETH_ADDRESS, 20) == 0;
-  bignum256 Value;
-  bn_from_bytes(msg->value.bytes, msg->value.size, &Value);
-  if (is_native) {
-    /* Display msg.value — the amount the router actually forwards — not the ABI
-     * amount word it ignores. That alone closes the "display 0.01 while sending
-     * 100" gap; we do NOT additionally require amount == value, since the ABI
-     * amount is a router-ignored hint that legitimately differs. Format with a
-     * NULL token so the ticker is the CHAIN's native asset (ETH on mainnet,
-     * AVAX on Avalanche); the 0xEE pseudo-token entry is pinned to " ETH" and
-     * would mislabel every other chain's native deposit. */
-    ethereumFormatAmount(&Value, NULL, msg->chain_id, confStr, sizeof(confStr));
+  if (assetToken == UnknownToken) {
+    // just display token address and amount as string
+    for (ctr = 0; ctr < 20; ctr++) {
+      snprintf(&confStr[ctr * 2], 3, "%02x", assetAddress[ctr]);
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
+                 "from asset %s", confStr)) {
+      return false;
+    }
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
-                 "Confirm sending %s", confStr)) {
+                 "amount %s", amountStr)) {
       return false;
     }
+
   } else {
-    /* A token deposit must not also carry native value (the router pulls tokens
-     * via transferFrom); nonzero msg.value would be swept and never shown. */
-    if (!bn_is_zero(&Value)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
+                 "Confirm sending %s", amountStr)) {
       return false;
     }
-    const uint8_t* assetAddress = contractAssetAddress;
+  }
 
-    const TokenType* assetToken =
-        tokenByChainAddress(msg->chain_id, assetAddress);
-
-    if (strncmp(assetToken->ticker, " UNKN", 5) == 0) {
-      // just display token address and amount as string
-      for (ctr = 0; ctr < 20; ctr++) {
-        snprintf(&confStr[ctr * 2], 3, "%02x", assetAddress[ctr]);
-      }
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   protocol_label, "from asset %s", confStr)) {
-        return false;
-      }
-      // We don't know what the exponent should be so just confirm raw
-      // unformatted number
-      /* bn_format() BLANKS its output buffer and returns 0 when the value
-       * does not fit -- ignoring the return renders an EMPTY amount on the
-       * confirmation screen, the one rendering a user cannot read as wrong.
-       * Never leave the caller a blank amount. */
-      if (bn_format(&Amount, NULL, " unformatted", 0, 0, false, confStr,
-                    sizeof(confStr)) == 0) {
-        strlcpy(confStr, "AMOUNT TOO LARGE TO DISPLAY", sizeof(confStr));
-      }
-
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   protocol_label, "amount %s", confStr)) {
-        return false;
-      }
-
-    } else {
-      ethereumFormatAmount(&Amount, assetToken, msg->chain_id, confStr,
-                           sizeof(confStr));
-
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   protocol_label, "Confirm sending %s", confStr)) {
-        return false;
-      }
-    }
+  if (is_expiry && !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                            protocol_label, "Expiry epoch %s", expiry_str)) {
+    return false;
   }
 
   /* Pass the memo's true ABI length, not a fixed 64. There is no raw-memo

@@ -1,11 +1,7 @@
 void fsm_msgInitialize(Initialize* msg) {
   (void)msg;
-  /* Ends a setup ceremony of either kind, staged settings and all. */
-  setup_abort();
-  signing_abort();
-  ethereum_signing_abort();
-  tendermint_signAbort();
-  eos_signingAbort();
+  /* Initialize ends every in-flight workflow while preserving cached PIN. */
+  fsm_abort_workflows();
   session_clear(false);  // do not clear PIN, and clears the Zcash session
   layoutHome();
   fsm_msgGetFeatures(0);
@@ -41,10 +37,41 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
   resp->has_model = true;
   strlcpy(resp->model, model(), sizeof(resp->model));
 
+  /* Taproot capability. signing.c handles SPENDTAPROOT inputs and PAYTOTAPROOT
+     outputs, and coins.def carries the BIP-86 entries, but the bit that tells a
+     host so was never set -- so hosts could not detect support and six
+     catalogued Bitcoin tests skipped with "Firmware does not report
+     supports_taproot", making a shipped feature invisible in the report.
+     Reported directly so a host does not have to infer P2TR support from a
+     firmware version -- that inference breaks whenever the feature is
+     retargeted to a different release. */
+  resp->has_supports_taproot = true;
+  resp->supports_taproot = true;
+
+  /* Verifiable dice modes: the on-device consent screen, ResetDevice.dice_only
+     and the tagged MIXED derivation. Reported as a capability because older
+     firmware skips the unknown dice_only field and would derive a different
+     wallet without complaint; a host must fail closed on this bit. */
+  resp->has_supports_dice_modes = true;
+  resp->supports_dice_modes = true;
+
   /* Variant Name */
   resp->has_firmware_variant = true;
+#if BITCOIN_ONLY
+  /* Report the established KeepKeyBTC / EmulatorBTC names rather than the
+     board variant, so that existing hosts recognise a bitcoin-only image and
+     skip multi-chain-only behaviour instead of offering it features this
+     firmware does not implement. */
+#ifdef EMULATOR
+  strlcpy(resp->firmware_variant, "EmulatorBTC",
+          sizeof(resp->firmware_variant));
+#else
+  strlcpy(resp->firmware_variant, "KeepKeyBTC", sizeof(resp->firmware_variant));
+#endif
+#else
   strlcpy(resp->firmware_variant, variant_getName(),
           sizeof(resp->firmware_variant));
+#endif
 
   /* Taproot capability. signing.c handles SPENDTAPROOT inputs and PAYTOTAPROOT
      outputs, and coins.def carries the BIP-86 entries, but the bit that tells a
@@ -211,17 +238,28 @@ void fsm_msgPing(Ping* msg) {
     flash_setModel(&message);
   }
 
+  /* Indexed directly by the AUTH_ERR_TYPE value the authenticator returns, so
+     it is designated per enumerator rather than positional: the table was
+     written positionally when the enum had nine values, and DUPLICATE /
+     AUTH_CANCELLED were later added without a matching string. That shifted
+     every message from DUPLICATE on by one (a duplicate account reported
+     "Action cancelled") and left the last slot NULL, so a real refusal sent a
+     Failure with no reason at all. A designated entry per enumerator cannot
+     shift, and a future enumerator added without one is a NULL the compiler
+     will not hide -- keep one line here for every AUTH_ERR_TYPE value. */
   const char* errMsgStr[NUM_AUTHERRS] = {
-      "noerr",
-      "Authenticator secret storage full",
-      "Authenticator secret can't be decoded",
-      "Account name missing or too long, or seed/message string missing",
-      "Account not found",
-      "Slot request out of range",
-      "Authenticator secret seed too large",
-      "passphrase incorrect for authdata",
-      "Auth secret unknown error",
-      "Action cancelled",
+      [NOERR] = "noerr",
+      [STORFULL] = "Authenticator secret storage full",
+      [BADSECRET] = "Authenticator secret can't be decoded",
+      [TOKERR] =
+          "Account name missing or too long, or seed/message string missing",
+      [NOACC] = "Account not found",
+      [NOSLOT] = "Slot request out of range",
+      [LARGESEED] = "Authenticator secret seed too large",
+      [BADPASS] = "passphrase incorrect for authdata",
+      [UNKERR] = "Auth secret unknown error",
+      [DUPLICATE] = "Account already exists",
+      [AUTH_CANCELLED] = "Action cancelled",
   };
 
   typedef enum _AUTH_MSG_TYPE {
@@ -337,6 +375,8 @@ void fsm_msgPing(Ping* msg) {
         return;
       }
     }
+    /* Confirmation may service DebugLink through the shared response arena. */
+    memset(resp, 0, sizeof(*resp));
     if (msg->has_message) {
       resp->has_message = true;
       memcpy(&(resp->message), &(msg->message), sizeof(resp->message));
@@ -497,6 +537,18 @@ static void fsm_entropyAuditBudgetReset(void) {
 void fsm_msgWipeDevice(WipeDevice* msg) {
   (void)msg;
 
+  /* Supersede active work when the request ARRIVES, not when it succeeds.
+   *
+   * Aborting only on the wipe path left the cancel path resumable: a
+   * WipeDevice that interrupts a streamed signing session puts its own screen
+   * up, and if the owner declines the wipe the handler returns with the old
+   * session still live. The host then sends the TxAck it was already holding
+   * and the interrupted signing continues -- across a screen that said nothing
+   * about that transaction. A new top-level ceremony ends whatever preceded
+   * it, exactly as the Bitcoin and Ethereum signing starts do; whether the
+   * owner then approves the wipe is a separate question. */
+  fsm_abort_workflows();
+
   if (!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
                "Do you want to erase your private keys and settings?")) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
@@ -606,7 +658,8 @@ void fsm_msgResetDevice(ResetDevice* msg) {
              msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms
                                          : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
              msg->has_u2f_counter ? msg->u2f_counter : 0,
-             msg->has_dice_entropy && msg->dice_entropy);
+             msg->has_dice_entropy && msg->dice_entropy,
+             msg->has_dice_only && msg->dice_only);
 }
 
 void fsm_msgEntropyAck(EntropyAck* msg) {
@@ -619,14 +672,11 @@ void fsm_msgEntropyAck(EntropyAck* msg) {
 
 void fsm_msgCancel(Cancel* msg) {
   (void)msg;
-  /* Cancellation rolls the ceremony back: one memzero, no storage touched. */
-  setup_abort();
-  signing_abort();
-  authenticator_clear_cache();
-  ethereum_signing_abort();
-  tendermint_signAbort();
-  eos_signingAbort();
-  zcash_signing_abort();
+  fsm_abort_workflows();
+  /* See fsm_msgClearSession(): the abort routines for Binance, Tendermint,
+     Osmosis, THORChain, MAYAChain, EOS and Nano have no layout side effect, so
+     the cancelled transaction's approval screen would otherwise stay up. */
+  layoutHome();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
@@ -730,6 +780,16 @@ void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
   } else {
     CHECK_NOT_INITIALIZED
   }
+
+  /* CHECK_NO_CEREMONY above refuses a recovery that would collide with an
+   * armed setup ceremony, but setup_isArmed() knows nothing about signing. A
+   * dry run is permitted on an initialized device, so it can start while a
+   * streamed signing session is waiting on its next ACK -- and run to
+   * completion with that session still resumable afterwards. Abort here rather
+   * than inside the macro so the refusal keeps its meaning, and abort only
+   * after both init-state checks have passed: a recovery that is about to be
+   * rejected must not tear down work it never replaces. */
+  fsm_abort_workflows();
 
   recovery_cipher_init(
       msg->has_word_count ? msg->word_count : 0,

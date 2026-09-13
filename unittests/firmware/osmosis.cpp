@@ -146,6 +146,7 @@ TEST(Osmosis, MsgSendSignsCanonicalNonNativeDenomination) {
   msg.gas = 290000;
   msg.has_memo = true;
   msg.sequence = 0;
+  msg.has_msg_count = true;
   msg.msg_count = 1;
   ASSERT_TRUE(osmosis_signTxInit(&node, &msg));
 
@@ -194,6 +195,7 @@ TEST(Osmosis, MsgSendSignsTwoMessages) {
   msg.gas = 200000;
   msg.has_memo = true;
   msg.sequence = 19;
+  msg.has_msg_count = true;
   msg.msg_count = 2;
   ASSERT_TRUE(osmosis_signTxInit(&node, &msg));
 
@@ -227,4 +229,32 @@ TEST(Osmosis, MsgSendSignsTwoMessages) {
                         "\xca\xdb\x5b\x1a\xea\x91\x77\x79\xb7\x7a\x0e\xf2\x88"
                         "\x72\xfe\x6e\x6a\xa0\x82\xf0\x80\x10\xcb\xdd\x2f",
              64) == 0);
+}
+
+TEST(Osmosis, RequiredValuesRejectEmptyAndNonDecimalAmounts) {
+  EXPECT_FALSE(osmosis_validate_required_text(false, "uosmo"));
+  EXPECT_FALSE(osmosis_validate_required_text(true, ""));
+  EXPECT_TRUE(osmosis_validate_required_text(true, "uosmo"));
+  EXPECT_TRUE(osmosis_validate_required_text(true, "ibc/0123456789ABCDEF"));
+  EXPECT_FALSE(osmosis_validate_required_text(true, "u osmo"));
+  EXPECT_FALSE(osmosis_validate_required_text(true, "u\"osmo"));
+  EXPECT_FALSE(osmosis_validate_required_text(true, "u\\osmo"));
+  EXPECT_FALSE(osmosis_validate_required_text(true, "u\nosmo"));
+
+  EXPECT_FALSE(osmosis_validate_amount(false, "1"));
+  EXPECT_FALSE(osmosis_validate_amount(true, ""));
+  EXPECT_FALSE(osmosis_validate_amount(true, "1.0"));
+  EXPECT_FALSE(osmosis_validate_amount(true, "-1"));
+  EXPECT_FALSE(osmosis_validate_amount(true, "1e6"));
+  EXPECT_TRUE(osmosis_validate_amount(true, "0"));
+  EXPECT_TRUE(osmosis_validate_amount(true, "1000000"));
+
+  /* Noncanonical padding renders differently for the same value --
+     "00000001" reaches the screen as "00.000001 OSMO" -- so one amount would
+     have several spellings and the host would pick which one the owner sees. */
+  EXPECT_FALSE(osmosis_validate_amount(true, "01"));
+  EXPECT_FALSE(osmosis_validate_amount(true, "0000001"));
+  EXPECT_FALSE(osmosis_validate_amount(true, "00000001"));
+  EXPECT_FALSE(osmosis_validate_amount(true, "0001000000"));
+  EXPECT_FALSE(osmosis_validate_amount(true, "00"));
 }

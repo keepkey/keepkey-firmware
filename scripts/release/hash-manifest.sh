@@ -60,9 +60,9 @@ sig_present() {
 #
 # The five signing public keys are in include/keepkey/board/pubkeys.h, so real
 # verification is not blocked on obtaining them -- it needs a host-side
-# secp256k1 verifier over sha256 of the image, which nobody has written. Until
-# that exists, do not let this check be described as proof the release is
-# correctly signed.
+# secp256k1 verifier over the declared code payload. Run verify-signatures.py for that
+# cryptographic check; do not describe this structural check as proof the
+# release is correctly signed.
 has_quorum() {
   _i1=$(u8 "$1" 8); _i2=$(u8 "$1" 9); _i3=$(u8 "$1" 10)
   for _i in "$_i1" "$_i2" "$_i3"; do
@@ -120,12 +120,29 @@ self_test() {
   printf '\001\001\004' | dd of="$d/f.bin" bs=1 seek=8 conv=notrunc 2>/dev/null
   has_quorum "$d/f.bin" && fail "duplicate slots passed quorum"
 
-  # And --require-signed must refuse a directory with no application image
-  # rather than reporting success over nothing.
+  # Neither mode may publish a firmware manifest without its application.
   e=$(mktemp -d)
-  if sh "$0" --require-signed "$e" 0.0.0 full "" >/dev/null 2>&1; then
-    rm -rf "$e"; fail "--require-signed passed an empty directory"
-  fi
+  for mode in unsigned signed; do
+    if [ "$mode" = signed ]; then set -- --require-signed; else set --; fi
+    if sh "$0" "$@" "$e" 0.0.0 full "" >/dev/null 2>&1; then
+      rm -rf "$e"; fail "$mode mode passed an empty directory"
+    fi
+    printf 'not an application image' > "$e/firmware.keepkey.v0.0.0.bin"
+    if sh "$0" "$@" "$e" 0.0.0 full "" >/dev/null 2>&1; then
+      rm -rf "$e"; fail "$mode mode passed an invalid application descriptor"
+    fi
+    rm "$e/firmware.keepkey.v0.0.0.bin"
+  done
+  # A normal unsigned application still produces an explicitly unsigned manifest.
+  printf 'KPKY\004\000\000\000' > "$e/firmware.keepkey.v0.0.0.bin"
+  dd if=/dev/zero bs=1 count=248 >> "$e/firmware.keepkey.v0.0.0.bin" 2>/dev/null
+  printf 'code' >> "$e/firmware.keepkey.v0.0.0.bin"
+  sh "$0" "$e" 0.0.0 full "" >/dev/null || {
+    rm -rf "$e"; fail "unsigned application refused"
+  }
+  grep -q 'THESE ARE THE UNSIGNED BUILD ARTIFACTS' "$e/HASHES.txt" || {
+    rm -rf "$e"; fail "unsigned application mislabeled"
+  }
   rm -rf "$e"
 
   echo "self-test: ok"
@@ -169,7 +186,7 @@ for f in *.bin; do
   has_quorum "$f" || UNSIGNED=1
 done
 
-if [ "$REQUIRE_SIGNED" -eq 1 ] && [ "$APPS" -eq 0 ]; then
+if [ "$APPS" -ne 1 ]; then
   echo "ERROR: no application image '${EXPECTED_APP}' in $(pwd) —" >&2
   echo "       nothing to publish." >&2
   exit 1

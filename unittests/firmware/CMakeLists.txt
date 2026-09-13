@@ -9,6 +9,7 @@ set(sources
     ctap2_cbor.cpp
     confirm_test_utils.cpp
     dice.cpp
+    fsm.cpp
     nanopb_bounds.cpp
     recovery.cpp
     seed_display.cpp
@@ -17,6 +18,8 @@ set(sources
     signing.cpp
     setup_ceremony.cpp
     storage.cpp
+    storage_cipher_probe.c
+    storage_passphrase.cpp
     test_board.cpp
     transaction.cpp
     usb_rx.cpp
@@ -33,6 +36,8 @@ if(NOT ${KK_BITCOIN_ONLY})
       cosmos.cpp
       eip712.cpp
       eos.cpp
+      eos_authorization.cpp
+      eos_authorization_probe.c
       clearsign_root.cpp
       ethereum.cpp
       eip712_stream.cpp

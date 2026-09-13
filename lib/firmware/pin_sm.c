@@ -83,6 +83,7 @@ static void check_for_pin_ack(PINInfo* pin_info) {
     default:
       break;
   }
+  memzero(msg_tiny_buf, sizeof(msg_tiny_buf));
 }
 
 /// Request and receive PIN from user over USB port
@@ -259,6 +260,7 @@ bool pin_protect(const char* prompt) {
 
   // Check if PIN entered is wipe code
   if (storage_isWipeCodeCorrect(pin_info.pin)) {
+    fsm_abort_workflows();
     session_clear(false);
     storage_clearKeys();
     fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");

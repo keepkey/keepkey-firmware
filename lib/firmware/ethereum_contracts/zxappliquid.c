@@ -36,14 +36,6 @@ static const uint8_t WETH_MAINNET_ADDRESS[20] = {
     0xc0, 0x2a, 0xaa, 0x39, 0xb2, 0x23, 0xfe, 0x8d, 0x0a, 0x0e,
     0x5c, 0x4f, 0x27, 0xea, 0xd9, 0x08, 0x3c, 0x75, 0x6c, 0xc2};
 
-static bool tx_value_is_zero(const EthereumSignTx* msg) {
-  if (!msg->has_value && msg->value.size != 0) return false;
-  for (size_t i = 0; i < msg->value.size; i++) {
-    if (msg->value.bytes[i] != 0) return false;
-  }
-  return true;
-}
-
 static bool spender_word_is_router(const EthereumSignTx* msg) {
   const uint8_t* word = msg->data_initial_chunk.bytes + 4;
   for (size_t i = 0; i < 12; i++) {
@@ -105,12 +97,29 @@ static bool approve_shape_is_clear_signable(const EthereumSignTx* msg,
                                             const TokenType** token_out) {
   /* UNISWAP_ROUTER_ADDRESS (as ERC20 approve spender) is an Ethereum-mainnet
    * identity. See GH #431. */
+  /* value.size == 0 is the CANONICAL zero, not merely a zero: by the time this
+   * runs ethereum_signing_init() has already normalized an absent value to
+   * size 0. Accepting any all-zero value of length <= 32 instead let a host
+   * pad `value` with 32 zero bytes and send a byte-identical transaction (RLP
+   * strips leading zeros) that this path claimed while
+   * ethereum_isStandardERC20Approve() -- which requires size 0 -- did not, so
+   * the unlimited-approval refusal there never ran. The two shape checks must
+   * agree on what an ERC-20 approve looks like. */
   if (!msg->has_chain_id || msg->chain_id != 1 || !msg->has_to ||
       msg->to.size != 20 || !msg->has_data_initial_chunk ||
       msg->data_initial_chunk.size != UNISWAP_APPROVE_CALL_SIZE ||
       memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4) != 0 ||
-      msg->value.size > 32 || !tx_value_is_zero(msg) ||
-      !spender_word_is_router(msg))
+      msg->value.size != 0 || !spender_word_is_router(msg))
+    return false;
+
+  /* An unlimited (2^256-1) allowance is refused for every ERC-20 approve by
+   * ethereum_signing_init(), AFTER ethereum_contractConfirmed() has already
+   * taken both holds here. Refusing it before this path claims the tx keeps
+   * the policy in one place: the user is never asked to consent to an approval
+   * the firmware was always going to reject, and the LP screens never render
+   * an infinite allowance as "full LP balance". */
+  if (memcmp(msg->data_initial_chunk.bytes + 4 + 32,
+             (const uint8_t*)MAX_ALLOWANCE, 32) == 0)
     return false;
 
   const TokenType* token = pool_underlying_token(msg);
@@ -126,21 +135,19 @@ bool zx_confirmApproveLiquidity(uint32_t data_total,
       !approve_shape_is_clear_signable(msg, &token))
     return false;
 
+  /* MAX_ALLOWANCE was excluded by approve_shape_is_clear_signable() above, so
+   * every allowance reaching here is a finite amount with a real figure. */
   const uint8_t* allowance = msg->data_initial_chunk.bytes + 4 + 32;
   char amount_text[UNISWAP_AMOUNT_TEXT_SIZE];
-  if (memcmp(allowance, (const uint8_t*)MAX_ALLOWANCE, 32) == 0) {
-    strlcpy(amount_text, "full LP balance", sizeof(amount_text));
-  } else {
-    bignum256 amount;
-    bn_from_bytes(allowance, 32, &amount);
-    /* No calc_str_line()/BODY_ROWS guard here on purpose: confirm() now runs
-     * every body through confirm_body_fits()/page_body_confirm(), so an
-     * over-long amount is paginated behind its own hold rather than silently
-     * clipped. See the comment at lib/board/confirm_sm.c:313. */
-    if (bn_format(&amount, NULL, " LP", 18, 0, false, amount_text,
-                  sizeof(amount_text)) == 0)
-      return false;
-  }
+  bignum256 amount;
+  bn_from_bytes(allowance, 32, &amount);
+  /* No calc_str_line()/BODY_ROWS guard here on purpose: confirm() now runs
+   * every body through confirm_body_fits()/page_body_confirm(), so an
+   * over-long amount is paginated behind its own hold rather than silently
+   * clipped. See the comment at lib/board/confirm_sm.c:313. */
+  if (bn_format(&amount, NULL, " LP", 18, 0, false, amount_text,
+                sizeof(amount_text)) == 0)
+    return false;
 
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                "Uniswap LP Approval", "%s", amount_text))

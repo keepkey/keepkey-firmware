@@ -55,9 +55,16 @@ client.wipe_device()
 client.auto_button = False
 
 ret = client.call_raw(proto.ResetDevice(
-    display_random=True, strength=256, passphrase_protection=False,
+    strength=256, passphrase_protection=False,
     pin_protection=False, language='english', label='dice evidence',
-    dice_entropy=True))
+    dice_entropy=True, dice_only=True))
+assert isinstance(ret, proto.ButtonRequest), ret
+
+# The consent screen names the mode the host selected. DICE ONLY is the
+# shortest verifiable flow; MIXED would add the 24 device-entropy word pages.
+snap("00-mode-consent.png")
+client.debug.press_yes()
+ret = client.call_raw(proto.ButtonAck())
 assert isinstance(ret, proto.ButtonRequest), ret
 
 client.transport.write(proto.ButtonAck())
@@ -80,13 +87,16 @@ resp = client.transport.read_blocking()
 assert isinstance(resp, proto.ButtonRequest), resp
 snap("04-digest-confirm.png")
 
-client.debug.press_yes()
-ret = client.call_raw(proto.ButtonAck())
-assert isinstance(ret, proto.ButtonRequest), ret  # post-mix entropy display
-snap("05-postmix-internal-entropy.png")
-
-client.debug.press_yes()
-ret = client.call_raw(proto.ButtonAck())
+# The full digest spans constant-power subpages; under DEBUG_LINK each one
+# after the first raises its own ButtonRequest. Hold through all of them.
+ret = resp
+page = 1
+while isinstance(ret, proto.ButtonRequest):
+    if page > 1:
+        snap("04-digest-confirm-page%d.png" % page)
+    client.debug.press_yes()
+    ret = client.call_raw(proto.ButtonAck())
+    page += 1
 assert isinstance(ret, proto.EntropyRequest), ret
 ret = client.call_raw(proto.EntropyAck(entropy=b'E' * 32))
 

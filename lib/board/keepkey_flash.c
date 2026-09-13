@@ -97,23 +97,17 @@ bool flash_chk_status(void) {
  *     none
  */
 void flash_erase_word(Allocation group) {
+  const FlashSector* s = flash_sector_map;
+  while (s->use != FLASH_INVALID) {
+    if (s->use == group) {
 #ifndef EMULATOR
-  const FlashSector* s = flash_sector_map;
-  while (s->use != FLASH_INVALID) {
-    if (s->use == group) {
       svc_flash_erase_sector((uint32_t)s->sector);
-    }
-    ++s;
-  }
 #else
-  const FlashSector* s = flash_sector_map;
-  while (s->use != FLASH_INVALID) {
-    if (s->use == group) {
-      memset((void*)FLASH_PTR(s->start), 0xFF, s->len);
+      memset((void*)FLASH_PTR(s->start), 0xff, s->len);
+#endif
     }
     ++s;
   }
-#endif
 }
 
 /*

@@ -73,7 +73,18 @@ bool ethereum_eip712_is_domain_primary_type(const char* primary_type) {
   return primary_type && strcmp(primary_type, "EIP712Domain") == 0;
 }
 
-#define MAX_CHAIN_ID 2147483630
+/* The EIP-155 legacy recovery id is v + 2 * chain_id + 35, computed below in
+ * a uint32_t, where v is 0 or 1. The bound is the largest chain id whose
+ * WORST case still fits:
+ *
+ *     2 * 2147483629 + 35 + 1 == 4294967294   <= UINT32_MAX, fits
+ *     2 * 2147483630 + 35 + 1 == 4294967296   wraps to 0
+ *
+ * The old bound of 2147483630 sat exactly on that wrap: with v == 0 it lands
+ * on UINT32_MAX, and with v == 1 it reports a recovery id of 0 for a signature
+ * the device really made. A verifier recovers the wrong address from that, so
+ * the signature is silently unverifiable rather than refused. */
+#define MAX_CHAIN_ID 2147483629
 
 #define ETHEREUM_TX_TYPE_LEGACY 0UL
 #define ETHEREUM_TX_TYPE_EIP_2930 1UL
@@ -94,6 +105,11 @@ static uint32_t wanchain_tx_type;  // Wanchain only
 static uint32_t
     ethereum_tx_type;  // Ethereum tx type (0=Legacy, 1=EIP-2930, 2=EIP-1559)
 struct SHA3_CTX keccak_ctx;
+
+bool ethereum_chainIdIsValid(const EthereumSignTx* msg) {
+  return msg && msg->has_chain_id && msg->chain_id >= 1 &&
+         msg->chain_id <= MAX_CHAIN_ID;
+}
 
 bool ethereum_isStandardERC20Transfer(const EthereumSignTx* msg) {
   if (msg->has_to && msg->to.size == 20 && msg->value.size == 0 &&
@@ -147,6 +163,41 @@ void bn_from_bytes(const uint8_t* value, size_t value_len, bignum256* val) {
   memcpy(pad_val + (32 - value_len), value, value_len);
   bn_read_be(pad_val, val);
   memzero(pad_val, sizeof(pad_val));
+}
+
+bool ethereumFormatTransferAmount(const EthereumSignTx* msg, char* buf,
+                                  int buflen) {
+  if (!msg || !buf || buflen <= 0 || !ethereum_chainIdIsValid(msg)) {
+    return false;
+  }
+
+  const uint8_t* value_bytes;
+  size_t value_size;
+  const TokenType* token;
+
+  /* ethereumFormatAmount() keys the " WAN" ticker off the module's
+   * wanchain_tx_type, which ethereum_signing_init() sets -- and on the
+   * transfer path that has not run yet. Set it from THIS message, or a
+   * previous Wanchain transaction's type names the asset on this one's amount
+   * screen. signing_init() assigns the same value again later. */
+  wanchain_tx_type =
+      (msg->has_tx_type && (msg->tx_type == 1 || msg->tx_type == 6))
+          ? msg->tx_type
+          : 0;
+
+  if (ethereum_isStandardERC20Transfer(msg)) {
+    value_bytes = msg->data_initial_chunk.bytes + 4 + 32;
+    value_size = 32;
+    token = tokenByChainAddress(msg->chain_id, msg->to.bytes);
+  } else {
+    value_bytes = msg->value.bytes;
+    value_size = msg->value.size;
+    token = NULL;
+  }
+
+  bignum256 value;
+  bn_from_bytes(value_bytes, value_size, &value);
+  return ethereumFormatAmount(&value, token, msg->chain_id, buf, buflen);
 }
 
 static inline void hash_data(const uint8_t* buf, size_t size) {
@@ -401,7 +452,7 @@ static void finalize_eip1559_and_send_signature(void) {
  * using standard ethereum units.
  * The buffer must be at least 25 bytes.
  */
-void ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
+bool ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
                           uint32_t cid, char* buf, int buflen) {
   bignum256 bn1e9;
   bn_read_uint32(1000000000, &bn1e9);
@@ -409,7 +460,7 @@ void ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
   int decimals = 18;
   if (token == UnknownToken) {
     strlcpy(buf, "Unknown token value", buflen);
-    return;
+    return true;
   } else if (token != NULL) {
     suffix = token->ticker;
     decimals = token->decimals;
@@ -432,7 +483,7 @@ void ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
           suffix = " UBQ";
           break;  // UBIQ
         case 10:
-          suffix = " OP";
+          suffix = " ETH";
           break;  // Optimism
         case 20:
           suffix = " EOSC";
@@ -461,9 +512,38 @@ void ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
         case 137:
           suffix = " MATIC";
           break;  //  Polygon Mainnet
+        case 8453:
+          suffix = " ETH";
+          break;  // Base
+        case 42161:
+          suffix = " ETH";
+          break;  // Arbitrum One
         case 43114:
           suffix = " AVAX";
           break;  //  Avalanche C-Chain
+      }
+
+      /* No case matched: this chain's native asset has no name here.
+       *
+       * Falling through with suffix == NULL made bn_format() render a bare
+       * 18-decimal number -- "Send 0.05 to 0xABC" -- which names no asset and
+       * no network, on a screen that is the whole basis for the signature.
+       * Both the value and the gas fee go through this function with
+       * token == NULL, so an unmapped chain got two unlabelled numbers.
+       *
+       * Adding more cases does not fix this; the fallback has to stop being
+       * silent. Refusing is not right either: every caller treats false as a
+       * hard refusal, so a chain merely missing from this list -- a new L2,
+       * say -- would become unsignable, including its gas.
+       *
+       * So state exactly what is known. Wei is the base unit of every EVM
+       * chain regardless of what its native asset is called, so the amount
+       * stays exact and carries a correct unit; what is dropped is the claim
+       * to know the asset's name. This is the same rendering sub-gwei amounts
+       * already get a few lines above. */
+      if (!suffix) {
+        suffix = " Wei";
+        decimals = 0;
       }
     }
   }
@@ -479,10 +559,12 @@ void ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
    * so the screen is refusable rather than silently empty. */
   if (bn_format(amnt, NULL, suffix, decimals, 0, false, buf, buflen) == 0) {
     strlcpy(buf, _("AMOUNT TOO LARGE TO DISPLAY"), buflen);
+    return false;
   }
+  return true;
 }
 
-static void layoutEthereumConfirmTx(const uint8_t* to, uint32_t to_len,
+static bool layoutEthereumConfirmTx(const uint8_t* to, uint32_t to_len,
                                     const uint8_t* value, uint32_t value_len,
                                     const TokenType* token, char* out_str,
                                     size_t out_str_len, bool approve) {
@@ -501,10 +583,12 @@ static void layoutEthereumConfirmTx(const uint8_t* to, uint32_t to_len,
     if (bn_is_zero(&val)) {
       strcpy(amount, _("message"));
     } else {
-      ethereumFormatAmount(&val, NULL, chain_id, amount, sizeof(amount));
+      if (!ethereumFormatAmount(&val, NULL, chain_id, amount, sizeof(amount)))
+        return false;
     }
   } else {
-    ethereumFormatAmount(&val, token, chain_id, amount, sizeof(amount));
+    if (!ethereumFormatAmount(&val, token, chain_id, amount, sizeof(amount)))
+      return false;
   }
 
   char addr[43] = "0x";
@@ -543,7 +627,9 @@ static void layoutEthereumConfirmTx(const uint8_t* to, uint32_t to_len,
   if (out_str_len <= (size_t)cx) {
     /*error detected. Clear the buffer */
     memset(out_str, 0, out_str_len);
+    return false;
   }
+  return true;
 }
 
 static bool confirm_ethereum_data_hash(void) {
@@ -591,7 +677,7 @@ static void formatEthereumFeeEIP1559(bignum256* fee,
   bn_add(fee, &max_fee);
 }
 
-static void layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
+static bool layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
                               char* out_str, size_t out_str_len) {
   bignum256 val, gas;
   char gas_value[32];
@@ -613,7 +699,8 @@ static void layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
          msg->gas_limit.size);
   bn_read_be(pad_val, &gas);
   bn_multiply(&val, &gas, &secp256k1.prime);
-  ethereumFormatAmount(&gas, NULL, chain_id, gas_value, sizeof(gas_value));
+  if (!ethereumFormatAmount(&gas, NULL, chain_id, gas_value, sizeof(gas_value)))
+    return false;
 
   memset(pad_val, 0, sizeof(pad_val));
   memcpy(pad_val + (32 - msg->value.size), msg->value.bytes, msg->value.size);
@@ -622,7 +709,8 @@ static void layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
   if (bn_is_zero(&val)) {
     strcpy(tx_value, is_token ? _("the tokens") : _("the message"));
   } else {
-    ethereumFormatAmount(&val, NULL, chain_id, tx_value, sizeof(tx_value));
+    if (!ethereumFormatAmount(&val, NULL, chain_id, tx_value, sizeof(tx_value)))
+      return false;
   }
 
   if ((uint32_t)snprintf(
@@ -631,7 +719,9 @@ static void layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
           gas_value) >= out_str_len) {
     /*error detected.  Clear the buffer */
     memset(out_str, 0, out_str_len);
+    return false;
   }
+  return true;
 }
 
 /*
@@ -670,6 +760,21 @@ static bool ethereum_signing_check(const EthereumSignTx* msg) {
   size_t fee_per_gas_size = msg->has_max_fee_per_gas ? msg->max_fee_per_gas.size
                                                      : msg->gas_price.size;
   if (fee_per_gas_size + msg->gas_limit.size > 30) {
+    return false;
+  }
+
+  /* The same sanity check, for the field the EIP-1559 fee screen actually
+     multiplies. confirmEthereumTx() feeds max_fee_per_gas into
+     bn_multiply(&val, &gas, &secp256k1.prime), which reduces its product
+     modulo the curve prime. The legacy bound above never reaches it: a 1559
+     transaction carries no gas_price, so gas_price.size is 0 and a 32-byte
+     max_fee_per_gas paired with a 32-byte gas_limit passes untouched. The
+     product then wraps and the approval screen names a gas cost that is not
+     the one being signed -- the display diverges from the signature, which is
+     the one thing this release line exists to prevent. Hold the 1559 pair to
+     the same 30-byte budget. */
+  if (msg->has_max_fee_per_gas &&
+      msg->max_fee_per_gas.size + msg->gas_limit.size > 30) {
     return false;
   }
 
@@ -905,18 +1010,43 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   if (data_total == 68 && ethereum_isStandardERC20Approve(msg)) {
     token = tokenByChainAddress(chain_id, msg->to.bytes);
     is_approve = true;
+
+    /* An unlimited allowance transfers open-ended authority to the spender.
+     * This release line deliberately refuses it instead of presenting it as a
+     * bounded token withdrawal.  Zero and finite approvals remain supported. */
+    const uint8_t* allowance = msg->data_initial_chunk.bytes + 36;
+    bool unlimited = true;
+    for (size_t i = 0; i < 32; i++) unlimited &= allowance[i] == 0xff;
+    if (unlimited) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Unlimited ERC20 approval is disabled"));
+      ethereum_signing_abort();
+      return;
+    }
   }
 
   if (needs_confirm) {
     if (token != NULL) {
-      layoutEthereumConfirmTx(
-          msg->data_initial_chunk.bytes + 16, 20,
-          msg->data_initial_chunk.bytes + 36, 32, token, confirm_body_message,
-          sizeof(confirm_body_message), /*approve=*/is_approve);
+      if (!layoutEthereumConfirmTx(msg->data_initial_chunk.bytes + 16, 20,
+                                   msg->data_initial_chunk.bytes + 36, 32,
+                                   token, confirm_body_message,
+                                   sizeof(confirm_body_message),
+                                   /*approve=*/is_approve)) {
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Ethereum amount too large"));
+        ethereum_signing_abort();
+        return;
+      }
     } else {
-      layoutEthereumConfirmTx(msg->to.bytes, msg->to.size, msg->value.bytes,
-                              msg->value.size, NULL, confirm_body_message,
-                              sizeof(confirm_body_message), /*approve=*/false);
+      if (!layoutEthereumConfirmTx(
+              msg->to.bytes, msg->to.size, msg->value.bytes, msg->value.size,
+              NULL, confirm_body_message, sizeof(confirm_body_message),
+              /*approve=*/false)) {
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Ethereum amount too large"));
+        ethereum_signing_abort();
+        return;
+      }
     }
     bool is_transfer = msg->address_type == OutputAddressType_TRANSFER;
     const char* title;
@@ -981,8 +1111,13 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   }
 
   memset(confirm_body_message, 0, sizeof(confirm_body_message));
-  layoutEthereumFee(msg, token != NULL, confirm_body_message,
-                    sizeof(confirm_body_message));
+  if (!layoutEthereumFee(msg, token != NULL, confirm_body_message,
+                         sizeof(confirm_body_message))) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Ethereum fee too large"));
+    ethereum_signing_abort();
+    return;
+  }
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction", "%s",
                confirm_body_message)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,

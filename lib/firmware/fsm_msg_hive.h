@@ -68,7 +68,18 @@ void fsm_msgHiveGetPublicKey(const HiveGetPublicKey* msg) {
           break;
       }
     }
-    if (!confirm_ethereum_address(role_label, resp->public_key)) {
+    // NOT confirm_ethereum_address(): that layout draws its body at y = 27
+    // with a 14-pixel line height and a 140-pixel wrap, so only the rows at
+    // y = 27 and y = 41 land inside the 64-pixel canvas — draw_string() drops
+    // the first glyph that would start at y = 55 and every character after it,
+    // silently. An STM key is "STM" + base58check(37) = 53-54 characters,
+    // ~321 pixels of body-font glyphs against the 280 those two rows hold, so
+    // the tail the user is meant to be checking is the part that never gets
+    // drawn. confirm() measures the body and pages it, and unlike a receive
+    // address there is nothing lost by dropping the QR: an STM public key is
+    // read back into a host wallet, never scanned to be paid.
+    if (!confirm(ButtonRequestType_ButtonRequest_Address, role_label, "%s",
+                 resp->public_key)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Cancelled"));
       layoutHome();
@@ -189,20 +200,25 @@ void fsm_msgHiveSignTx(const HiveSignTx* msg) {
   if (!node) return;
   hdnode_fill_public_key(node);
 
-  // Display precision MUST match the precision the serializer signs
-  // (append_asset uses msg->decimals), otherwise the user approves an
-  // amount that differs from what is signed. Reject implausible precision.
-  uint8_t prec = msg->has_decimals ? (uint8_t)msg->decimals : HIVE_DECIMALS;
-  if (prec > 18) {
+  // One resolver for the screen and for the signed bytes: hive_transferAsset()
+  // pins the precision and returns both spellings, so the serializer writes
+  // the wire symbol ("STEEM"/"SBD") while the user approves the rebranded one
+  // ("HIVE"/"HBD"). Computing the display suffix from msg->asset_symbol here
+  // and letting append_asset() copy the same string is what let the device
+  // sign a symbol hived cannot validate, and it is also the only thing that
+  // kept the two in agreement — so they now share one source of truth.
+  const char* wire_symbol;
+  const char* display_symbol;
+  uint8_t prec;
+  if (!hive_transferAsset(msg, &wire_symbol, &display_symbol, &prec)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Invalid Hive asset precision"));
+                    _("Unsupported Hive asset symbol or precision"));
     layoutHome();
     return;
   }
-  const char* symbol = msg->has_asset_symbol ? msg->asset_symbol : "HIVE";
   char suffix[sizeof(msg->asset_symbol) + 2];  // leading space + symbol + NUL
-  snprintf(suffix, sizeof(suffix), " %s", symbol);
+  snprintf(suffix, sizeof(suffix), " %s", display_symbol);
   char amount_str[32];
   bn_format_uint64(msg->amount, NULL, suffix, prec, 0, false, amount_str,
                    sizeof(amount_str));

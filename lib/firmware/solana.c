@@ -236,17 +236,14 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           pi->lamports = read_le64(instr_data + 4);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
-        } else if (instr_type == SOL_SYS_CREATE_ACCOUNT && data_len >= 12) {
+        } else if (instr_type == SOL_SYS_CREATE_ACCOUNT && data_len == 52 &&
+                   num_acct_indices >= 2) {
           pi->type = SOL_INSTR_SYSTEM_CREATE_ACCOUNT;
           pi->lamports = read_le64(instr_data + 4);
+          pi->extra_value = read_le64(instr_data + 12);
+          memcpy(pi->extra, instr_data + 20, SOL_PUBKEY_SIZE);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
-          /* CreateAccount also assigns the new account's space and OWNER
-           * program (bytes not parsed here); the owner controls the account, so
-           * a partial "amount only" screen is unsafe. Require AdvancedMode
-           * until a full screen (destination + amount + owner + space) exists.
-           */
-          *force_opaque = true;
         } else if (instr_type == SOL_SYS_ADVANCE_NONCE && data_len == 4 &&
                    num_acct_indices >= 3) {
           pi->type = SOL_INSTR_SYSTEM_ADVANCE_NONCE;
@@ -298,9 +295,11 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
        * rather than clear-sign only source/mint/dest/amount. */
       const bool is_token2022 =
           memcmp(pi->program_id, SOL_TOKEN_2022_PROGRAM, SOL_PUBKEY_SIZE) == 0;
+      if (is_token2022) *force_opaque = true;
       if (data_len >= 1) {
         uint8_t token_instr = instr_data[0];
-        if (token_instr == SOL_TOKEN_TRANSFER_IX && data_len >= 9) {
+        if (token_instr == SOL_TOKEN_TRANSFER_IX && data_len == 9 &&
+            num_acct_indices >= 3) {
           pi->type = SOL_INSTR_TOKEN_TRANSFER;
           pi->amount = read_le64(instr_data + 1);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -344,7 +343,8 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           if (is_token2022) {
             *force_opaque = true;
           }
-        } else if (token_instr == SOL_TOKEN_APPROVE_IX && data_len >= 9) {
+        } else if (token_instr == SOL_TOKEN_APPROVE_IX && data_len == 9 &&
+                   num_acct_indices >= 3) {
           pi->type = SOL_INSTR_TOKEN_APPROVE;
           pi->amount = read_le64(instr_data + 1);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -358,12 +358,15 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           pi->type = SOL_INSTR_TOKEN_REVOKE;
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 1);
-        } else if (token_instr == SOL_TOKEN_SET_AUTHORITY_IX && data_len >= 2) {
+        } else if (token_instr == SOL_TOKEN_SET_AUTHORITY_IX &&
+                   num_acct_indices >= 2 &&
+                   ((data_len == 3 && instr_data[2] == 0) ||
+                    (data_len == 35 && instr_data[2] == 1))) {
           pi->type = SOL_INSTR_TOKEN_SET_AUTHORITY;
           pi->extra_u8 = instr_data[1];
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 1);
-          if (data_len >= 35 && instr_data[2] == 1) {
+          if (instr_data[2] == 1) {
             memcpy(pi->extra, instr_data + 3, SOL_PUBKEY_SIZE);
           }
           /* Authority handover (owner/close/mint/freeze) is an account-takeover
@@ -384,6 +387,8 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
           pi->has_token_decimals = token_instr == SOL_TOKEN_MINT_TO_CHECKED_IX;
           if (pi->has_token_decimals) pi->extra_u8 = instr_data[9];
+          /* The authority and checked/unchecked opcode are not fully shown. */
+          *force_opaque = true;
         } else if (((token_instr == SOL_TOKEN_BURN_IX && data_len == 9) ||
                     (token_instr == SOL_TOKEN_BURN_CHECKED_IX &&
                      data_len == 10)) &&
@@ -396,6 +401,7 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
           pi->has_token_decimals = token_instr == SOL_TOKEN_BURN_CHECKED_IX;
           if (pi->has_token_decimals) pi->extra_u8 = instr_data[9];
+          *force_opaque = true;
         } else if (token_instr == SOL_TOKEN_CLOSE_ACCOUNT_IX && data_len == 1 &&
                    num_acct_indices >= 3) {
           pi->type = SOL_INSTR_TOKEN_CLOSE_ACCOUNT;
@@ -447,15 +453,17 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 4);
         } else if (stake_instr == SOL_STAKE_AUTHORIZE_IX && data_len == 40 &&
                    num_acct_indices >= 3) {
-          /* new_authority(32) at +4 then authorize_type(le32) at +36, so the
-           * instruction needs >= 40 bytes — reading extra_u8 at +36 with only
-           * 36 bytes was a 4-byte over-read. */
-          pi->type = SOL_INSTR_STAKE_AUTHORIZE;
-          memcpy(pi->extra, instr_data + 4, SOL_PUBKEY_SIZE);
-          copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
-          /* [stake, clock sysvar, current authority, optional custodian]. */
-          copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
-          pi->extra_u8 = (uint8_t)read_le32(instr_data + 36);
+          uint32_t role = read_le32(instr_data + 36);
+          if (role <= 1) {
+            pi->type = SOL_INSTR_STAKE_AUTHORIZE;
+            memcpy(pi->extra, instr_data + 4, SOL_PUBKEY_SIZE);
+            copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
+            copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
+            pi->extra_u8 = (uint8_t)role;
+          } else {
+            pi->type = SOL_INSTR_UNKNOWN;
+            *has_unknown = true;
+          }
         } else if (stake_instr == SOL_STAKE_SPLIT_IX && data_len == 12 &&
                    num_acct_indices >= 3) {
           pi->type = SOL_INSTR_STAKE_SPLIT;
@@ -487,12 +495,17 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
         uint32_t vote_instr = read_le32(instr_data);
         if (vote_instr == SOL_VOTE_AUTHORIZE_IX && data_len == 40 &&
             num_acct_indices >= 3) {
-          pi->type = SOL_INSTR_VOTE_AUTHORIZE;
-          memcpy(pi->extra, instr_data + 4, SOL_PUBKEY_SIZE);
-          copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
-          /* [vote account, clock sysvar, current authority]. */
-          copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
-          pi->extra_u8 = (uint8_t)read_le32(instr_data + 36);
+          uint32_t role = read_le32(instr_data + 36);
+          if (role <= 1) {
+            pi->type = SOL_INSTR_VOTE_AUTHORIZE;
+            memcpy(pi->extra, instr_data + 4, SOL_PUBKEY_SIZE);
+            copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
+            copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
+            pi->extra_u8 = (uint8_t)role;
+          } else {
+            pi->type = SOL_INSTR_UNKNOWN;
+            *has_unknown = true;
+          }
         } else if (vote_instr == SOL_VOTE_WITHDRAW_IX && data_len == 12 &&
                    num_acct_indices >= 3) {
           pi->type = SOL_INSTR_VOTE_WITHDRAW;
@@ -535,13 +548,19 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
        * that is otherwise fully decodable would blind-sign. */
       if ((data_len == 0 ||
            (data_len == 1 && (instr_data[0] == 0 || instr_data[0] == 1))) &&
-          num_acct_indices >= 4) {
+          num_acct_indices >= 6) {
         pi->type = SOL_INSTR_ATA_CREATE;
         copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
         copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
         copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
         copy_account(pi->mint, tx, acct_indices, num_acct_indices, 3);
         pi->has_mint = true;
+        if (memcmp(tx->accounts[acct_indices[4]], SOL_SYSTEM_PROGRAM,
+                   SOL_PUBKEY_SIZE) != 0 ||
+            memcmp(tx->accounts[acct_indices[5]], SOL_TOKEN_PROGRAM,
+                   SOL_PUBKEY_SIZE) != 0) {
+          *force_opaque = true;
+        }
       } else {
         pi->type = SOL_INSTR_UNKNOWN;
         *has_unknown = true;
@@ -550,17 +569,17 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
                       SOL_PUBKEY_SIZE) == 0) {
       if (data_len >= 1) {
         uint8_t cb_instr = instr_data[0];
-        if (cb_instr == SOL_CB_REQUEST_HEAP_FRAME && data_len >= 5) {
+        if (cb_instr == SOL_CB_REQUEST_HEAP_FRAME && data_len == 5) {
           pi->type = SOL_INSTR_COMPUTE_BUDGET_HEAP_FRAME;
           pi->extra_value = read_le32(instr_data + 1);
-        } else if (cb_instr == SOL_CB_SET_COMPUTE_UNIT_LIMIT && data_len >= 5) {
+        } else if (cb_instr == SOL_CB_SET_COMPUTE_UNIT_LIMIT && data_len == 5) {
           pi->type = SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT;
           pi->extra_value = read_le32(instr_data + 1);
-        } else if (cb_instr == SOL_CB_SET_COMPUTE_UNIT_PRICE && data_len >= 9) {
+        } else if (cb_instr == SOL_CB_SET_COMPUTE_UNIT_PRICE && data_len == 9) {
           pi->type = SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE;
           pi->extra_value = read_le64(instr_data + 1);
         } else if (cb_instr == SOL_CB_SET_LOADED_ACCOUNTS_SIZE &&
-                   data_len >= 5) {
+                   data_len == 5) {
           pi->type = SOL_INSTR_COMPUTE_BUDGET_LOADED_ACCOUNTS_SIZE;
           pi->extra_value = read_le32(instr_data + 1);
         } else {
@@ -930,6 +949,27 @@ bool solana_parseInstrSchema(const uint8_t* payload, size_t payload_len,
   return cur == end; /* no trailing bytes */
 }
 
+/* Instructions that may ride along unscreened next to a schema-described one.
+ * The schema review runs only in the SOL_TX_REVIEW_OPAQUE branch of
+ * fsm_msgSolanaSignTx, and that branch never calls solana_confirmInstruction()
+ * for anything -- it goes from the schema screens straight to the blind-sign
+ * warning. So "firmware recognises it" is not enough: a recognised
+ * SystemProgram Transfer beside the described instruction would be signed
+ * without one screen naming its amount or destination. Only instructions that
+ * move no value and grant no authority qualify. */
+static bool solana_schemaCompanionIsInert(SolanaInstrType type) {
+  switch (type) {
+    case SOL_INSTR_COMPUTE_BUDGET_HEAP_FRAME:
+    case SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT:
+    case SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE:
+    case SOL_INSTR_COMPUTE_BUDGET_LOADED_ACCOUNTS_SIZE:
+    case SOL_INSTR_MEMO:
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool solana_schemaApplies(const SolanaInstrSchema* schema,
                           const SolanaParsedTx* tx, uint8_t* out_index) {
   if (!schema || !tx || !out_index) return false;
@@ -976,13 +1016,14 @@ bool solana_schemaApplies(const SolanaInstrSchema* schema,
   }
   if (!found) return false;
 
-  /* A schema explains ONE instruction. Every other instruction must be one
-   * firmware already decodes, or the message could move funds through a path
-   * no screen described. */
+  /* A schema explains ONE instruction, and nothing in the schema path draws a
+   * screen for any other, so every other instruction must be inert. Requiring
+   * only that they be RECOGNISED was not enough: a SystemProgram Transfer is
+   * recognised, and it would have been signed unscreened. */
   for (uint8_t i = 0; i < tx->num_instructions; i++) {
     if (i == match) continue;
     if (tx->instructions[i].external ||
-        tx->instructions[i].type == SOL_INSTR_UNKNOWN) {
+        !solana_schemaCompanionIsInert(tx->instructions[i].type)) {
       return false;
     }
   }

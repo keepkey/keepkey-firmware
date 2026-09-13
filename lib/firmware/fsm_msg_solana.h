@@ -89,13 +89,44 @@ static bool solana_confirmPriorityFee(const SolanaParsedTx* tx) {
                  "Max priority fee\n%s", fee_str);
 }
 
+/* Reject ambiguous compute budgets and fees that cannot be represented before
+ * showing any consent screen. The runtime rejects duplicate price/limit fields;
+ * displaying only the last one would describe a transaction it cannot run. */
+static bool solana_validatePriorityFee(const SolanaParsedTx* tx) {
+  uint64_t price = 0;
+  uint64_t limit = 1400000u;
+  bool seen_price = false;
+  bool seen_limit = false;
+  for (uint8_t i = 0; i < tx->num_instructions; i++) {
+    const SolanaParsedInstruction* pi = &tx->instructions[i];
+    if (pi->type == SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE) {
+      if (seen_price) return false;
+      seen_price = true;
+      price = pi->extra_value;
+    } else if (pi->type == SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT) {
+      if (seen_limit) return false;
+      seen_limit = true;
+      limit = pi->extra_value;
+    }
+  }
+  uint64_t fee = 0;
+  return !seen_price || solana_priority_fee_lamports(price, limit, &fee);
+}
+
 /* Confirm a single parsed instruction.
  *
  * Takes no SolanaSignTx on purpose: every value on these screens is decoded
  * from the bytes being signed. Nothing the host merely asserts is displayed,
- * so there is no untrusted string left to sanitise. */
+ * so there is no untrusted string left to sanitise.
+ *
+ * recipient_owner is the one exception, and it is not an exception to the
+ * rule: the caller accepts it only after re-deriving the associated-token
+ * address from it ON DEVICE and finding that it equals the destination in the
+ * signed bytes. A wrong owner cannot survive that derivation, so what is shown
+ * is proven, not asserted. NULL when the host supplied nothing that matches. */
 static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
-                                      uint8_t idx, uint8_t total) {
+                                      uint8_t idx, uint8_t total,
+                                      const uint8_t* recipient_owner) {
   char title[32];
   snprintf(title, sizeof(title), "Instr %d/%d", idx + 1, total);
 
@@ -113,10 +144,20 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_SYSTEM_CREATE_ACCOUNT: {
+      if (!solana_confirmPubkey(title, "Fund from", pi->from)) return false;
       char amount_str[32];
       solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
+      char account_str[45];
+      solana_pubkeyToStr(pi->to, account_str, sizeof(account_str));
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                   "Create %s with %s?", account_str, amount_str)) {
+        return false;
+      }
+      char owner_str[45];
+      solana_pubkeyToStr(pi->extra, owner_str, sizeof(owner_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Create account with %s?", amount_str);
+                     "Owner %s\nSpace %llu bytes?", owner_str,
+                     (unsigned long long)pi->extra_value);
     }
 
     case SOL_INSTR_SYSTEM_ADVANCE_NONCE:
@@ -206,6 +247,20 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
        * honestly assert. */
       /* UINT64_MAX with a three-digit decimals count needs 54 bytes including
        * the terminator in the exact base-unit fallback. */
+      /* The destination in the signed bytes is a program-derived token
+       * account, which the owner cannot recognise. When the host supplies the
+       * wallet it belongs to AND that wallet re-derives to this exact account
+       * on device, name it: the screen then carries the address the user
+       * actually knows, beside the one being signed. */
+      if (recipient_owner) {
+        char owner_str[45];
+        solana_pubkeyToStr(recipient_owner, owner_str, sizeof(owner_str));
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                     "Token account of\n%s", owner_str)) {
+          return false;
+        }
+      }
+
       char amount_str[64];
       solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
                                "tokens", pi->extra_u8);
@@ -503,11 +558,12 @@ static bool solana_confirmSchemaInstruction(
         break;
       }
       case SOL_SCHEMA_ARG_OPAQUE32:
-        snprintf(value, sizeof(value), "%02x%02x%02x%02x...%02x%02x%02x%02x",
-                 ix->data[off], ix->data[off + 1], ix->data[off + 2],
-                 ix->data[off + 3], ix->data[off + 28], ix->data[off + 29],
-                 ix->data[off + 30], ix->data[off + 31]);
-        break;
+        if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           arg->label, ix->data + off, 32)) {
+          return false;
+        }
+        off += 32;
+        continue;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arg->label,
                  "%s", value)) {
@@ -537,11 +593,11 @@ static bool solana_confirmSchemaTransaction(
     uint8_t schema_ix, const char* alias,
     const char fingerprint[METADATA_FINGERPRINT_LEN]) {
   for (uint8_t i = 0; i < parsed->num_instructions; i++) {
-    const bool ok = i == schema_ix
-                        ? solana_confirmSchemaInstruction(schema, parsed, i,
-                                                          alias, fingerprint)
-                        : solana_confirmInstruction(&parsed->instructions[i], i,
-                                                    parsed->num_instructions);
+    const bool ok = i == schema_ix ? solana_confirmSchemaInstruction(
+                                         schema, parsed, i, alias, fingerprint)
+                                   : solana_confirmInstruction(
+                                         &parsed->instructions[i], i,
+                                         parsed->num_instructions, NULL);
     if (!ok) return false;
   }
   return true;
@@ -952,6 +1008,15 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
     }
   }
 
+  if (tx_review == SOL_TX_REVIEW_VERIFIED &&
+      !solana_validatePriorityFee(&parsed)) {
+    memzero(node, sizeof(*node));
+    memzero(&schema, sizeof(schema));
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Invalid priority fee"));
+    layoutHome();
+    return;
+  }
+
   if (certified) {
     if (!solana_confirmSchemaTransaction(&schema, &parsed, schema_ix,
                                          signer_alias, signer_fp)) {
@@ -965,8 +1030,23 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
   } else if (tx_review == SOL_TX_REVIEW_VERIFIED) {
     /* Per-instruction confirmation for fully verified messages */
     for (uint8_t i = 0; i < parsed.num_instructions; i++) {
+      /* Resolve the recipient's wallet for token transfers, by re-deriving the
+       * associated-token address from each owner the host offered and keeping
+       * the one that equals the destination being signed. Nothing is displayed
+       * unless that derivation matches, so a wrong or invented owner is
+       * dropped rather than shown. */
+      const SolanaParsedInstruction* pi = &parsed.instructions[i];
+      uint8_t owner[SOL_PUBKEY_SIZE];
+      const uint8_t* owner_ptr = NULL;
+      if ((pi->type == SOL_INSTR_TOKEN_TRANSFER_CHECKED ||
+           pi->type == SOL_INSTR_TOKEN_TRANSFER) &&
+          pi->has_mint &&
+          solana_findTokenRecipientOwner(msg, pi->program_id, pi->mint, pi->to,
+                                         owner)) {
+        owner_ptr = owner;
+      }
       if (!solana_confirmInstruction(&parsed.instructions[i], i,
-                                     parsed.num_instructions)) {
+                                     parsed.num_instructions, owner_ptr)) {
         memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
                         _("Signing cancelled"));

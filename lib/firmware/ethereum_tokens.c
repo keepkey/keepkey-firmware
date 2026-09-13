@@ -51,7 +51,11 @@ const TokenType* tokenByChainAddress(uint32_t chain_id,
       return &(tokens[i]);
     }
   }
-  if (memcmp(address, Ethtest.address, 20) == 0) {
+  /* 0xeeee..eeee is an Ethereum-mainnet token-table sentinel, not a
+   * chain-independent contract identity.  Routers that use the same bytes to
+   * mean a chain's native asset must resolve that meaning themselves. */
+  if (chain_id == Ethtest.chain_id &&
+      memcmp(address, Ethtest.address, 20) == 0) {
     return EthTestToken;
   }
 
@@ -62,16 +66,19 @@ bool tokenByTicker(uint32_t chain_id, const char* ticker,
                    const TokenType** token) {
   *token = NULL;
 
-  // First look in the legacy table, confirming that the entry also exists in
-  // the new table:
-  for (int i = 0; i < COINS_COUNT; i++) {
-    if (!coins[i].has_contract_address) {
-      continue;
-    }
-    if (strcmp(ticker, coins[i].coin_shortcut) == 0) {
-      *token = tokenByChainAddress(1, coins[i].contract_address.bytes);
-      if (*token == UnknownToken) return false;
-      return true;
+  // The legacy coin table contains Ethereum-mainnet contracts only. Do not
+  // let a caller on another chain borrow one merely because its ticker
+  // matches.
+  if (chain_id == 1) {
+    for (int i = 0; i < COINS_COUNT; i++) {
+      if (!coins[i].has_contract_address) {
+        continue;
+      }
+      if (strcmp(ticker, coins[i].coin_shortcut) == 0) {
+        *token = tokenByChainAddress(1, coins[i].contract_address.bytes);
+        if (*token == UnknownToken) return false;
+        return true;
+      }
     }
   }
 

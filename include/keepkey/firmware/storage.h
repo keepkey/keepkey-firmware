@@ -75,12 +75,6 @@
 /// \brief Validate storage content and copy data to shadow memory.
 void storage_init(void);
 
-/// \brief True iff flash holds storage written by bitcoin-only firmware that
-///        this (multi-chain) firmware refuses to load. The device must be
-///        wiped before it can be used; the seed stays intact in flash so
-///        reflashing bitcoin-only firmware recovers the wallet.
-bool storage_isBitcoinOnlyLocked(void);
-
 /// \brief Reset configuration UUID with random numbers.
 void storage_resetUuid(void);
 
@@ -89,6 +83,23 @@ void storage_reset(void);
 
 /// \brief Clear storage.
 void storage_wipe(void);
+
+/// \brief True when flash holds storage this build must refuse to load or
+/// overwrite -- a bitcoin-only wallet seen by multi-chain firmware, or a newer
+/// in-band wallet than this build understands.
+///
+/// Handlers that CREATE a seed must check this and refuse. The device looks
+/// uninitialized while locked (the RAM shadow was reset, so
+/// storage_isInitialized() is false), and storage_commit() silently declines to
+/// write, so a ceremony allowed to run would report success while persisting
+/// nothing -- and a seed the user funded would vanish on the next boot.
+///
+/// The seed itself stays intact in flash -- nothing is committed while locked
+/// -- so reflashing bitcoin-only firmware recovers the wallet. Using the device
+/// under multi-chain firmware requires an explicit wipe first.
+///
+/// Cleared only by storage_wipe().
+bool storage_isBitcoinOnlyLocked(void);
 
 /// \brief Clear storage key and storage key fingerprint.
 void storage_clearKeys(void);
@@ -118,6 +129,9 @@ bool storage_getU2FRoot(HDNode* node);
 
 /// \brief Increment and return the next value for the U2F counter.
 uint32_t storage_nextU2FCounter(void);
+
+/// \brief Stage a new value for the U2F counter without writing flash.
+void storage_stageU2FCounter(uint32_t u2f_counter);
 
 /// \brief Assign a new value for the U2F Counter in shadow storage.
 /// The caller must commit after all related settings have been staged.

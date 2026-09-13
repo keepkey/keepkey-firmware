@@ -1,21 +1,121 @@
 extern "C" {
+#include "keepkey/board/messages.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/ethereum_contracts/thortx.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/tendermint.h"
 #include "messages-ethereum.pb.h"
+#include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/secp256k1.h"
+#include "trezor/crypto/sha2.h"
 }
+
+// Share the one-time bootstrap with the restored FSM tests.
+void kk_test_board_init(void);
 
 #include "gtest/gtest.h"
 #include <cstring>
 #include <string>
 #include <vector>
 
-// Shared by every confirmation regression, including unconditional suites in
-// the bitcoin-only binary. The implementation lives in confirm_test_utils.cpp.
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+extern "C" {
+#include "keepkey/board/confirm_sm.h"
+}
+
+// Mirrors the bound inside thorchain_parseConfirmMemo().
+static const size_t THORCHAIN_MEMO_MAX_FOR_TEST = 256;
+
+/*
+ * confirm() auto-accept driver for unit tests.
+ *
+ * In the emulator/unittest build (always DEBUG_LINK), confirm_helper()
+ * busy-polls the emulator's UDP "usb" port for tiny messages and returns
+ * once it has seen a ButtonAck plus a DebugLinkDecision. Each confirm
+ * screen therefore consumes exactly one ButtonAck + one DebugLinkDecision
+ * from the socket queue. Preloading exactly N accept pairs before invoking
+ * the code under test auto-accepts exactly N screens, and
+ * kkconfirm_drain() == 0 afterwards proves exactly N screens were shown
+ * (fewer screens leave packets queued; more screens HANG the test until the
+ * CI job hits its timeout and reports "cancelled", which reads like flake
+ * rather than a wrong expectation — so get the count right).
+ *
+ * Screen counts are value-dependent now that confirm() pages a body too long
+ * for BODY_ROWS: the same format string is one screen for a 3-row body and
+ * two for a 4-row one. Long test vectors are the ones to check.
+ *
+ * These helpers have external linkage so mayachain.cpp can share the
+ * one-time board/usb initialization.
+ */
+
+static bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload,
+                               uint8_t len) {
+  static int fd = -1;
+  if (fd < 0) fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (fd < 0) return false;
+
+  uint8_t frame[64] = {0};
+  frame[0] = '?';
+  frame[1] = '#';
+  frame[2] = '#';
+  frame[3] = msgId >> 8;
+  frame[4] = msgId & 0xff;
+  frame[8] = len;  // bytes 5..7 are the high bits of the big-endian size
+  if (len) memcpy(&frame[9], payload, len);
+
+  struct sockaddr_in addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(11044);  // emulator main "usb" port
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  return sendto(fd, frame, sizeof(frame), 0, (struct sockaddr*)&addr,
+                sizeof(addr)) == (ssize_t)sizeof(frame);
+}
+
+/* One ButtonAck + one DebugLinkDecision, i.e. what a single screen eats. */
+#define KKCONFIRM_MSGS_PER_SCREEN 2
+
+// Queue nYes accepted screens followed by nNo rejected screens, plus one
+// trailing rejection as a sentinel.
+//
+// The sentinel is what keeps a wrong count cheap. A screen the test did not
+// budget for consumes it, is rejected, and the code under test returns false
+// immediately, so the test FAILS in milliseconds. Without it that extra
+// screen blocks forever on an answer nobody queued and the only symptom is a
+// CI job burning its whole timeout and reporting "cancelled" — which reads
+// like infrastructure flake rather than a wrong expectation. confirm() paging
+// long bodies makes screen counts value-dependent, so this is a mistake worth
+// catching in the harness instead of in a 30-minute timeout.
 bool kkconfirm_preload(int nYes, int nNo);
+
+// Consume and count any tiny messages left in the queue, discounting the
+// sentinel kkconfirm_preload() always queues. 0 keeps meaning exactly what it
+// meant before — every preloaded screen was shown and no more. A NEGATIVE
+// count means the sentinel was consumed: more screens than the test expected.
+//
+// An empty read is NOT proof the queue is empty. The emulator reads its UDP
+// socket with MSG_DONTWAIT, and loopback delivery is asynchronous (the
+// datagram is handed to the network input thread by sendto(), not deposited
+// in the receiving socket's buffer by it). A test whose code under test shows
+// ZERO screens never blocks anywhere, so it can poll microseconds after
+// preload() and see nothing yet: the old "break on the first empty read"
+// counted 0 packets and reported -2 — "you showed one screen too many" — for
+// a refusal that in fact showed no screen at all. That misreads a harness
+// race as a disclosure bug, and pointed at the one direction this file must
+// never be edited in. So wait out a grace period after the last packet before
+// declaring the queue drained.
+//
+// This can only ever count MORE packets, never fewer, so it cannot hide an
+// extra screen: a screen that really ran consumed its two packets, and no
+// amount of waiting brings those back.
+#define KKCONFIRM_DRAIN_GRACE_US 200000 /* 200ms after the last packet seen */
 int kkconfirm_drain(void);
 
 // Vectors computed with the trezor-crypto library directly (see
@@ -76,6 +176,60 @@ TEST(Thorchain, MemoWithEmbeddedNulIsNotParsed) {
   EXPECT_EQ(THORCHAIN_MEMO_CONFIRMED,
             thorchain_parseConfirmMemo(kTrailingNul, sizeof(kTrailingNul) - 2));
   EXPECT_EQ(0, kkconfirm_drain());
+
+  /* Over-long memos are refused rather than truncated. */
+  static const char kOversize[THORCHAIN_MEMO_MAX_FOR_TEST + 1] = {'=', ':', 'E',
+                                                                  'T'};
+  EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+            thorchain_parseConfirmMemo(kOversize, sizeof(kOversize)));
+
+  /* Fewer than three tokens is UNPARSED, not CANCELLED: nothing was shown, so
+     the caller must still disclose the raw bytes itself. That distinction is
+     the whole point of the tri-state return. */
+  static const char kTooFewFields[] = "SWAP";
+  EXPECT_EQ(
+      THORCHAIN_MEMO_UNPARSED,
+      thorchain_parseConfirmMemo(kTooFewFields, sizeof(kTooFewFields) - 1));
+
+  /* A colon where the chain/asset dot belongs shifts every later field. The
+     tokenizer splits on ":." interchangeably, so this yields the same three
+     tokens as "SWAP:ETH.USDT:dest:limit" and would be reviewed as asset USDT
+     on chain ETH -- while the protocol reads USDT as the DESTINATION. It has
+     to reach the raw-byte path instead. */
+  static const char kColonForDot[] = "SWAP:ETH:USDT:dest:limit";
+  EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+            thorchain_parseConfirmMemo(kColonForDot, sizeof(kColonForDot) - 1));
+
+  /* No dot at all is the same defect. */
+  static const char kNoDot[] = "SWAP:ETH:dest";
+  EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+            thorchain_parseConfirmMemo(kNoDot, sizeof(kNoDot) - 1));
+}
+
+TEST(Thorchain, StructuredMemoRequiresExactSafeTokensAndCanonicalBps) {
+  static const char* const kUnparsed[] = {
+      "SWAP-extra:ETH.ETH:destination:100",
+      "swap:ETH.ETH:destination:100",
+      "ADDITION:ETH.ETH:destination",
+      "WITHDRAWAL:ETH.ETH:100",
+      "WITHDRAW:ETH.ETH:01",
+      "WITHDRAW:ETH.ETH:100x",
+      "WITHDRAW:ETH.ETH:10001",
+      "WITHDRAW:ETH.ETH:4294967296",
+      "WITHDRAW:ETH.ETH:-1",
+      "SWAP:ETH.ETH:destination with space:100",
+      "SWAP:ETH.ETH:destination\nnext:100",
+  };
+
+  for (const char* memo : kUnparsed) {
+    EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+              thorchain_parseConfirmMemo(memo, std::strlen(memo)))
+        << memo;
+  }
+
+  static const char kNonAscii[] = "SWAP:ETH.ETH:dest\x80:100";
+  EXPECT_EQ(THORCHAIN_MEMO_UNPARSED,
+            thorchain_parseConfirmMemo(kNonAscii, sizeof(kNonAscii) - 1));
 }
 
 TEST(Thorchain, ThorchainGetAddress) {
@@ -122,7 +276,10 @@ static const ThorchainSignTx kSignTx = {
     true, 0,
     true, 1};
 
-static const char* kToAddr = "thor18vhdczjut44gpsy804crfhnd5nq003nz0nf20v";
+/* A VALID thor address: the previous constant failed its own bech32
+   checksum, so every test using it exercised the address check rather
+   than the property it was named for. */
+static const char* kToAddr = "thor1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5e949nr";
 
 // Denom validation: only [a-z0-9./\-] is allowed; anything else is rejected
 TEST(Thorchain, ThorchainDenomValidation) {
@@ -150,6 +307,102 @@ TEST(Thorchain, ThorchainSignTxInvalidDenom) {
   // Quote-injection attempt must be rejected at the signing layer
   EXPECT_FALSE(thorchain_signTxUpdateMsgSend(100000, kToAddr,
                                              "rune\",\"from_address\":\"evil"));
+  thorchain_signAbort();
+}
+
+/* The envelope has to be refused before anything is hashed. msg_count is the
+   message budget, so an absent or zero count leaves the session with nothing
+   to spend; chain_id is serialized into the sign doc and printed on the final
+   approval sentence, so host-chosen control bytes must never get that far. */
+TEST(Thorchain, SignTxInitRefusesMalformedEnvelope) {
+  HDNode node = kSignNode;
+  hdnode_fill_public_key(&node);
+
+  ThorchainSignTx tx = kSignTx;
+  tx.has_msg_count = false;
+  EXPECT_FALSE(thorchain_signTxInit(&node, &tx));
+  EXPECT_FALSE(thorchain_signingIsInited());
+
+  tx = kSignTx;
+  tx.msg_count = 0;
+  EXPECT_FALSE(thorchain_signTxInit(&node, &tx));
+  EXPECT_FALSE(thorchain_signingIsInited());
+
+  tx = kSignTx;
+  // Newlines re-flow confirm()'s body, letting the host choose which part of
+  // the approval sentence the owner actually reads.
+  strcpy(tx.chain_id, "thorchain\n\n\n");
+  EXPECT_FALSE(thorchain_signTxInit(&node, &tx));
+  EXPECT_FALSE(thorchain_signingIsInited());
+
+  thorchain_signAbort();
+}
+
+/* msgs_remaining is unsigned: one message past the declared budget used to
+   wrap it to 0xFFFFFFFF, so thorchain_signingIsFinished() never came true and
+   the FSM looped issuing ThorchainMsgRequest with the session left armed. */
+TEST(Thorchain, SignTxUpdateRefusesAfterMsgBudgetIsSpent) {
+  HDNode node = kSignNode;
+  hdnode_fill_public_key(&node);
+
+  ASSERT_TRUE(thorchain_signTxInit(&node, &kSignTx));  // msg_count == 1
+  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, kToAddr, "rune"));
+  EXPECT_TRUE(thorchain_signingIsFinished());
+
+  EXPECT_FALSE(thorchain_signTxUpdateMsgSend(100000, kToAddr, "rune"));
+  EXPECT_TRUE(thorchain_signingIsFinished());
+
+  thorchain_signAbort();
+}
+
+/* msgs[] is a JSON array, so its elements are comma-separated. The expected
+   document is assembled here rather than captured from the code under test:
+   without the separator the device hashes "...}{..." -- not JSON -- and the
+   signature can never match what the network canonicalizes, so the owner
+   approves two transfers and gets an unusable signature. */
+TEST(Thorchain, TwoMessagesAreCommaSeparatedInTheSignedDocument) {
+  HDNode node = kSignNode;
+  hdnode_fill_public_key(&node);
+
+  char from_address[46];
+  ASSERT_TRUE(tendermint_getAddress(&node, "thor", from_address));
+
+  ThorchainSignTx tx = kSignTx;
+  tx.msg_count = 2;
+
+  ASSERT_TRUE(thorchain_signTxInit(&node, &tx));
+  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, kToAddr, "rune"));
+  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(200000, kToAddr, "rune"));
+  EXPECT_TRUE(thorchain_signingIsFinished());
+
+  uint8_t public_key[33];
+  uint8_t signature[64];
+  ASSERT_TRUE(thorchain_signTxFinalize(public_key, signature));
+
+  const std::string msg1 =
+      std::string(
+          "{\"type\":\"thorchain/MsgSend\",\"value\":{\"amount\":"
+          "[{\"amount\":\"100000\",\"denom\":\"rune\"}],"
+          "\"from_address\":\"") +
+      from_address + "\",\"to_address\":\"" + kToAddr + "\"}}";
+  const std::string msg2 =
+      std::string(
+          "{\"type\":\"thorchain/MsgSend\",\"value\":{\"amount\":"
+          "[{\"amount\":\"200000\",\"denom\":\"rune\"}],"
+          "\"from_address\":\"") +
+      from_address + "\",\"to_address\":\"" + kToAddr + "\"}}";
+  const std::string doc =
+      std::string(
+          "{\"account_number\":\"0\",\"chain_id\":\"thorchain\","
+          "\"fee\":{\"amount\":[{\"amount\":\"5000\",\"denom\":"
+          "\"rune\"}],\"gas\":\"200000\"},\"memo\":\"\","
+          "\"msgs\":[") +
+      msg1 + "," + msg2 + "],\"sequence\":\"0\"}";
+
+  uint8_t digest[SHA256_DIGEST_LENGTH];
+  sha256_Raw((const uint8_t*)doc.data(), doc.size(), digest);
+  EXPECT_EQ(0, ecdsa_verify_digest(&secp256k1, public_key, signature, digest));
+
   thorchain_signAbort();
 }
 
@@ -509,6 +762,34 @@ TEST(Confirmation, ExactLengthPagerMeasuresRenderedRows) {
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
+TEST(Confirmation, BackupSubpagesConsumeTheirOwnAcknowledgements) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  ASSERT_EQ(0, kkconfirm_drain());
+  const char body[] = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n";
+  size_t pages = 0;
+  for (const char* cursor = body; *cursor;) {
+    const size_t take = confirm_constant_power_subpage_take(cursor);
+    ASSERT_GT(take, 0u);
+    cursor += take;
+    pages++;
+  }
+  ASSERT_GT(pages, 1u);
+  const uint8_t yes[] = {0x08, 0x01};
+  const uint8_t no[] = {0x08, 0x00};
+  // Decisions can arrive before acknowledgements on the separate debug link.
+  for (size_t page = 0; page < pages; page++) {
+    ASSERT_TRUE(kkconfirm_sendTiny(MessageType_MessageType_DebugLinkDecision,
+                                   yes, sizeof(yes)));
+    ASSERT_TRUE(kkconfirm_sendTiny(MessageType_MessageType_ButtonAck, NULL, 0));
+  }
+  ASSERT_TRUE(kkconfirm_sendTiny(MessageType_MessageType_ButtonAck, NULL, 0));
+  ASSERT_TRUE(kkconfirm_sendTiny(MessageType_MessageType_DebugLinkDecision, no,
+                                 sizeof(no)));
+  EXPECT_TRUE(confirm_constant_power_paged(
+      ButtonRequestType_ButtonRequest_ConfirmWord, "Backup", body));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
 TEST(Confirmation, ExactLengthPagerRejectPropagates) {
   const char payload[] =
       "%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%"
@@ -667,9 +948,17 @@ TEST(Thorchain, ConfirmThorTxAvaxLongMemoDecodesFully) {
   EthereumSignTx msg;
   make_deposit_msg(&msg, avax, data.data(), data.size(), 43114, true);
 
-  ASSERT_TRUE(kkconfirm_preload(12, 0));  // generous; extras drain below
+  // 9 screens, and the count is the evidence — see the harness contract at the
+  // top of this file. Deposit path: router, Asgard vault, amount, expiry. Memo
+  // parse: asset+chain, dest, limit, affiliate fee. Raw memo: one page (67
+  // escaped bytes still fit BODY_ROWS, so confirm_bytes pages it once). A bare
+  // kkconfirm_drain() here proved only that the call returned true: deleting
+  // thorchain_confirm_full_memo() or the affiliate screen drops the count to
+  // 8, which an over-budget preload silently swallows — exactly the
+  // display-vs-execute regression this test is named for.
+  ASSERT_TRUE(kkconfirm_preload(9, 0));
   EXPECT_TRUE(thor_confirmThorTx((uint32_t)data.size(), &msg));
-  kkconfirm_drain();
+  EXPECT_EQ(0, kkconfirm_drain());
 }
 
 // A memo-length word claiming more bytes than are present must be REJECTED —
@@ -687,7 +976,11 @@ TEST(Thorchain, ConfirmThorTxRejectsOverlongDeclaredMemo) {
   EthereumSignTx msg;
   make_deposit_msg(&msg, avax, data.data(), data.size(), 43114, true);
 
-  ASSERT_TRUE(kkconfirm_preload(12, 0));
+  // Zero screens: the ABI memo bounds are checked before the first confirm(),
+  // so budgeting 0 accepts (the sentinel pair alone) asserts the refusal shows
+  // NOTHING. An over-budget preload could not tell a clean refusal apart from
+  // one that had already taken the router and vault holds.
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
   EXPECT_FALSE(thor_confirmThorTx((uint32_t)data.size(), &msg));
-  kkconfirm_drain();
+  EXPECT_EQ(0, kkconfirm_drain());
 }

@@ -41,6 +41,7 @@ void ethereum_signing_txack(EthereumTxAck* tx);
 void format_ethereum_address(const uint8_t* to, char* destination_str,
                              uint32_t destination_str_len);
 bool ethereum_isStandardERC20Transfer(const EthereumSignTx* msg);
+bool ethereum_chainIdIsValid(const EthereumSignTx* msg);
 
 /// \pre requires that `ethereum_isStandardERC20Transfer(msg)`
 /// \returns true iff successful
@@ -63,8 +64,15 @@ void ethereum_message_sign(const EthereumSignMessage* msg, const HDNode* node,
                            EthereumMessageSignature* resp);
 int ethereum_message_verify(const EthereumVerifyMessage* msg);
 
-void ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
-                          uint32_t cid, char* buf, int buflen);
+bool ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
+                          uint32_t cid, char* buf, int buflen)
+    __attribute__((warn_unused_result));
+
+/// Format the amount shown by OutputAddressType_TRANSFER from the same
+/// chain_id and payload that ethereum_signing_init() will sign.
+bool ethereumFormatTransferAmount(const EthereumSignTx* msg, char* buf,
+                                  int buflen)
+    __attribute__((warn_unused_result));
 
 void bn_from_bytes(const uint8_t* value, size_t value_len, bignum256* val);
 

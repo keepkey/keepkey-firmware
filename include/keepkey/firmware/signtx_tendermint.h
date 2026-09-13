@@ -49,6 +49,10 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
     const char* chainstr, const char* denom, const char* msgTypePrefix);
 bool tendermint_signTxFinalize(uint8_t* public_key, uint8_t* signature);
 bool tendermint_signingIsInited(TendermintSigningType type);
+
+/// True iff `address` is the account this session signs as under
+/// `chain_prefix`. Use for `sender` fields, which are signed verbatim.
+bool tendermint_addressIsSigner(const char* address, const char* chain_prefix);
 bool tendermint_signingConfigMatches(const char* chain_name, const char* denom,
                                      const char* message_type_prefix);
 bool tendermint_signingIsFinished(void);

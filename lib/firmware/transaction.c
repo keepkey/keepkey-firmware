@@ -370,7 +370,9 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
           }
         }
 #else
-        // bitcoin-only: no THORChain memo decoding, confirm raw OP_RETURN
+        // Bitcoin-only decodes no THORChain memo, so there is no friendly
+        // screen to show. Fall back to confirming the raw OP_RETURN payload:
+        // the bytes still have to be approved, they are just not interpreted.
         if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
                           _("Confirm OP_RETURN"), in->op_return_data.bytes,
                           in->op_return_data.size)) {
@@ -387,18 +389,8 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
            in->op_return_data.size);
     r += in->op_return_data.size;
     out->script_pubkey.size = r;
-    /* signing.c calls txin_dgst_final() once per output, and the pay-to-address
-       path below re-arms the context via txin_dgst_save_and_reset(). This path
-       returns before that, so a transaction whose LAST output is OP_RETURN used
-       to leave the hash finalised and never re-initialised -- the NEXT
-       transaction's inputs were then hashed into a finalised context, its
-       digest no longer matched while the amount and address still did, and the
-       device falsely reported "WARNING: Duplicate Transaction!" and aborted
-       until the user replugged. Every THORChain/Maya swap from Bitcoin is an
-       OP_RETURN memo, so an ordinary send right after a swap hit this.
-       Reset only: an OP_RETURN has no amount/address worth saving as a
-       comparison key. */
-    txin_dgst_reset_only();
+    // OP_RETURN has no payment comparison key. Preserve the transaction's
+    // input hash for any following outputs.
     return r;
   }
 
@@ -551,7 +543,7 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
       case OutputScriptType_PAYTOTAPROOT: {
         char amount_str[32];
         // ADDR_STR_LEN, not NODE_STRING_LENGTH: this buffer is passed to
-        // txin_dgst_compare()/txin_dgst_save_and_reset(), which unconditionally
+        // txin_dgst_compare()/txin_dgst_save(), which unconditionally
         // memcpy/strncmp ADDR_STR_LEN (130) bytes -- their real contract, per
         // the other call site below which passes a 130-byte protobuf address
         // field. A 50-byte NODE_STRING_LENGTH buffer here was an 80-byte OOB
@@ -568,14 +560,11 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
                 ButtonRequestType_ButtonRequest_ConfirmTransferToAccount,
                 amount_str, node_str))
           return TXOUT_CANCEL;
-        /* Same digest-reset requirement as the OP_RETURN path above: signing.c
-           already called txin_dgst_final() for this output, and returning
-           without re-arming leaves txin_hash_ctx finalized-but-never-
-           reinitialized, corrupting the NEXT SignTx's duplicate-transaction
-           digest. Unlike OP_RETURN, this output has a real amount+destination
-           worth comparing, so run it through the same
-           compare-then-save-and-reset the generic needs_confirm path below
-           uses, rather than a bare reset. */
+        /* A transfer to the device's own account has a real amount and
+           destination, so it runs the same duplicate-output comparison as the
+           generic needs_confirm path below. txin_dgst_final() hashes a
+           snapshot, so no reset is needed here, and a refused output must not
+           replace the comparison key for the next retry. */
         if (txin_dgst_compare(amount_str, node_str)) {
           char prev[DIGEST_STR_LEN], cur[DIGEST_STR_LEN];
           txin_dgst_getstrs(prev, cur, DIGEST_STR_LEN);
@@ -583,10 +572,9 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
                  "WARNING: Duplicate Transaction!",
                  "Already signed a tx with the same outputs\n"
                  "To try again, unplug/replug KeepKey.");
-          txin_dgst_save_and_reset(amount_str, node_str);
           return TXOUT_CANCEL;
         }
-        txin_dgst_save_and_reset(amount_str, node_str);
+        txin_dgst_save(amount_str, node_str);
         return out->script_pubkey.size;
       }
     }
@@ -627,11 +615,11 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
              "To try again, unplug/replug KeepKey.");
       retval = -1;  // abort
     }
-    txin_dgst_save_and_reset(amount_str, prefix_len + in->address);
-
     if (retval == -1) {
       return retval;
     }
+    // A refused output must not replace the comparison key for the next retry.
+    txin_dgst_save(amount_str, prefix_len + in->address);
   }
 
   return out->script_pubkey.size;
@@ -747,7 +735,28 @@ uint32_t serialize_script_sig(const uint8_t* signature, uint32_t signature_len,
 
 uint32_t serialize_script_multisig(const CoinType* coin,
                                    const MultisigRedeemScriptType* multisig,
-                                   uint8_t sighash, uint8_t* out) {
+                                   uint8_t sighash, uint8_t* out,
+                                   size_t out_len) {
+  if (!coin || !multisig || !out) return 0;
+
+  /* Prove the complete write fits before touching the destination. Nanopb's
+   * static bytes decoder can accept one byte beyond the declared max_size due
+   * to structure padding, so the protobuf declaration is not a serializer
+   * bound. Runtime validation rejects non-DER sizes too, but this function
+   * remains safe independently of its caller. */
+  uint32_t required = coin->decred ? 0 : 1;
+  for (uint32_t i = 0; i < multisig->signatures_count; i++) {
+    const uint32_t sig_len = multisig->signatures[i].size;
+    if (sig_len == 0) continue;
+    if (sig_len > 72) return 0;
+    const uint32_t item_len = sig_len + 1; /* DER plus sighash */
+    required += op_push_size(item_len) + item_len;
+  }
+  const uint32_t script_len = compile_script_multisig(coin, multisig, 0);
+  if (script_len == 0) return 0;
+  required += op_push_size(script_len) + script_len;
+  if (required > out_len) return 0;
+
   uint32_t r = 0;
   if (!coin->decred) {
     // Decred fixed the off-by-one bug
@@ -764,10 +773,6 @@ uint32_t serialize_script_multisig(const CoinType* coin,
     r += multisig->signatures[i].size;
     out[r] = sighash;
     r++;
-  }
-  uint32_t script_len = compile_script_multisig(coin, multisig, 0);
-  if (script_len == 0) {
-    return 0;
   }
   r += op_push(script_len, out + r);
   r += compile_script_multisig(coin, multisig, out + r);

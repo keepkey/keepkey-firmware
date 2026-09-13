@@ -71,11 +71,6 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
     snprintf(mnemonic_scratch_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
              mnemonic_scratch_formatted[page_count], mnemonic_scratch_word);
 
-    /* Group at BODY_WIDTH, exactly as before. The GROUPING is the host
-     * protocol boundary -- reset.c emits one ButtonRequest per group and
-     * the host reads one word set per request -- so it must not change.
-     * Fitting the real 124 px draw width is handled INSIDE the
-     * confirmation by local subpaging, which emits no extra requests. */
     if (calc_str_line(get_body_font(), mnemonic_scratch_display, BODY_WIDTH) >
         3) {
       page_count++;
@@ -118,10 +113,13 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
       snprintf(title, MEDIUM_STR_BUF, "BIP-85 Seed");
     }
 
-    /* Local subpaging: ONE ButtonRequest per group, any extra OLED
-     * screens navigated inside it. The group count is the host
-     * protocol boundary and does not change -- only the number of
-     * screens within a group does. */
+    /* Paged, exactly as reset.c's backup pager is: these pages are packed
+     * against BODY_WIDTH (225 px) but drawn on the constant-power half-canvas
+     * (124 px), and the unpaged renderer stops at the first glyph that will not
+     * fit and drops everything after it -- silently, including whole words. A
+     * BIP-85 child seed exists only on the paper the user is writing, so a
+     * dropped word is an unrecoverable wallet. The paged variant splits inside
+     * this one ButtonRequest, so the host protocol is unchanged. */
     if (!confirm_constant_power_paged(
             ButtonRequestType_ButtonRequest_ConfirmWord, title,
             mnemonic_scratch_formatted[current_page])) {

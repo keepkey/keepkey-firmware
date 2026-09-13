@@ -42,6 +42,27 @@ bool tendermint_pathMismatched(const CoinType* coin, const uint32_t* address_n,
 bool tendermint_getAddress(const HDNode* node, const char* prefix,
                            char* address);
 
+/** Reject empty or display-ambiguous host-provided JSON text. */
+bool tendermint_validateSafeText(const char* value);
+
+/** Validate a Bech32 address and bind it to the expected human-readable part.
+ */
+/// Well-formed bech32 (charset, length, checksum) with ANY human-readable
+/// part. Use only where an arbitrary HRP is intended -- an IBC receiver on a
+/// counterparty chain. Where the network is known, use
+/// tendermint_validateBech32Address(), which also pins the prefix and the
+/// 20-byte account length.
+bool tendermint_bech32IsWellFormed(const char* address);
+
+/// A validator operator address: a 20-byte account payload under the
+/// "<chain_prefix>valoper" HRP. Use for every validator_address,
+/// validator_src_address and validator_dst_address before it is serialized.
+bool tendermint_validateValidatorAddress(const char* address,
+                                         const char* chain_prefix);
+
+bool tendermint_validateBech32Address(const char* address,
+                                      const char* expected_prefix);
+
 bool tendermint_isValidDenom(const char* denom);
 
 bool tendermint_isValidAsset(const char* asset);

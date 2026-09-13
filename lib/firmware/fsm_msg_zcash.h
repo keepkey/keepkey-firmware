@@ -24,10 +24,7 @@
 #include "keepkey/firmware/zcash.h"
 /* The is_spend path draws T through random_buffer_checked() behind
  * rng_health_check(). Declared here, in the file that USES them, rather than
- * relying on fsm.c's include order: alpha's fsm.c lacks the rng_health.h that
- * release/7.15's carries, and the emulator and unit builds only compiled
- * because a different ordering happened to supply the declarations. The full
- * ARM and dylib builds did not. */
+ * relying on fsm.c's include order. */
 #include "keepkey/rand/rng_health.h"
 #include "trezor/crypto/blake2b.h"
 #include "trezor/crypto/pallas.h"
@@ -152,12 +149,6 @@ static bool zcash_script_is_p2sh(const uint8_t* script, size_t script_size) {
          script[1] == 0x14 && script[22] == 0x87;
 }
 
-static bool zcash_script_is_standard_transparent(const uint8_t* script,
-                                                 size_t script_size) {
-  return zcash_script_is_p2pkh(script, script_size) ||
-         zcash_script_is_p2sh(script, script_size);
-}
-
 static bool zcash_transparent_script_to_address(const uint8_t* script,
                                                 size_t script_size, char* out,
                                                 size_t out_size) {
@@ -204,6 +195,13 @@ static bool zcash_resolve_account(bool has_account, uint32_t account_field,
                                   uint32_t address_n_count,
                                   uint32_t* account_out) {
   if (has_account) {
+    /* ZIP-32 hardens this index; accepting the high bit aliases account zero.
+     */
+    if (account_field & 0x80000000u) {
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Zcash account must be below 0x80000000"));
+      return false;
+    }
     *account_out = account_field;
     return true;
   }
@@ -251,11 +249,26 @@ static bool zcash_check_seed_fingerprint(bool has_expected,
 static bool zcash_verify_and_confirm_orchard_output(
     const ZcashPCZTAction* msg, ZcashOrchardProgressCallback progress,
     void* progress_context) {
+  /* Every one of these is read as a fixed 32 bytes below. nanopb leaves an
+   * omitted or short `bytes` field zeroed rather than absent, so checking only
+   * three of the five let a host drop `nullifier` and have the device verify a
+   * commitment over an implicit rho of zero. */
   if (!msg->has_value || !msg->has_recipient ||
       msg->recipient.size != ZCASH_ORCHARD_RAW_RECEIVER_SIZE ||
-      !msg->has_rseed || msg->rseed.size != 32) {
+      !msg->has_rseed || msg->rseed.size != 32 || !msg->has_nullifier ||
+      msg->nullifier.size != 32 || !msg->has_cmx || msg->cmx.size != 32) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Missing Orchard output metadata"));
+    return false;
+  }
+
+  /* rho is I2LEBSP_255-encoded into the commitment message, so bit 255 is
+   * dropped. Masking it silently would map two distinct wire values onto one
+   * commitment; a value that does not fit 255 bits is malformed, not something
+   * to round off. */
+  if (msg->nullifier.bytes[31] & 0x80) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Orchard nullifier is not canonical"));
     return false;
   }
 
@@ -956,8 +969,8 @@ void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg) {
     return;
   }
 
-  if (msg->has_show_display && msg->show_display &&
-      !confirm(ButtonRequestType_ButtonRequest_ProtectCall,
+  /* Viewing keys disclose wallet activity; the host cannot waive consent. */
+  if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall,
                "Export Zcash View Key",
                "Export Orchard viewing key for account %u?\nReveals Zcash "
                "activity.",
@@ -1556,10 +1569,17 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
     return;
   }
 
-  if (!zcash_script_is_standard_transparent(msg->script_pubkey.bytes,
-                                            msg->script_pubkey.size)) {
+  /* P2PKH only. The path enforcement below derives a BIP-44 secp256k1 key and
+   * the sighash uses this scriptPubKey as the scriptCode, which is right for
+   * P2PKH and wrong for P2SH -- a P2SH input needs the redeem script as the
+   * scriptCode and a key that satisfies it. Accepting P2SH here produced a
+   * signature no node would accept, after showing the user a P2SH address the
+   * device cannot actually spend. zcash_transparent_script_to_address() still
+   * renders P2SH, which is what OUTPUTS legitimately need. */
+  if (!zcash_script_is_p2pkh(msg->script_pubkey.bytes,
+                             msg->script_pubkey.size)) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Unsupported transparent input script"));
+                    _("Transparent inputs must be P2PKH"));
     zcash_signing_abort();
     layoutHome();
     return;

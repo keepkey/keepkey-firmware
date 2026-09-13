@@ -260,6 +260,10 @@ def verify_full(disassembly):
 
 
 def verify_bitcoin_only(disassembly):
+    lines = disassembly.splitlines()
+    if (not any(SYMBOL_RE.match(line) for line in lines) or
+            not any(parse_instruction(line) is not None for line in lines)):
+        raise ValueError("bitcoin-only disassembly contains no decoded code")
     forbidden = ("pallas_ct_", "redpallas_", "pallas_point_")
     present = [name for name in forbidden if f"<{name}" in disassembly]
     if present:

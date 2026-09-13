@@ -4,3 +4,8 @@ build
 .vscode/
 
 build-btconly-check/
+.claude/
+
+# cppcheck output (static-analysis writes this at repo root in CI)
+cppcheck_report.txt
+cppcheck_annotations.txt

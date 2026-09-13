@@ -41,8 +41,73 @@ static bool testnet;
 
 const OsmosisSignTx* osmosis_getOsmosisSignTx(void) { return &msg; }
 
+bool osmosis_validate_required_text(bool has_value, const char* value) {
+  return has_value && tendermint_validateSafeText(value);
+}
+
+bool osmosis_validate_amount(bool has_value, const char* value) {
+  if (!osmosis_validate_required_text(has_value, value)) return false;
+  for (const char* p = value; *p; ++p) {
+    if (*p < '0' || *p > '9') return false;
+  }
+
+  /* Require the canonical decimal spelling: no leading zeros, except for the
+     single value "0" itself.
+
+     base_to_precision() places the decimal point a fixed `precision` digits
+     from the right, so a padded amount keeps its value -- "0000001" and "1"
+     both render 0.000001 OSMO. What it does not keep is its spelling: the
+     padding survives into the screen, so "00000001" shows as "00.000001 OSMO"
+     and "0001000000" as "0001.000000 OSMO". The signed JSON carries the
+     padded string verbatim, so a host can pick which of many renderings of
+     one amount the owner is shown, and two devices handed the same transfer
+     can display it differently. An amount screen must have exactly one
+     spelling. Nothing legitimate needs the padding: the Cosmos SDK emits
+     canonical integers. */
+  if (value[0] == '0' && value[1] != '\0') return false;
+
+  return true;
+}
+
+/* The network prefix this session signs under. */
+static const char* osmosis_sessionPrefix(void) {
+  return testnet ? "tosmo" : "osmo";
+}
+
+bool osmosis_validate_account_address(bool has_value, const char* value) {
+  return osmosis_validate_required_text(has_value, value) &&
+         tendermint_validateBech32Address(value, osmosis_sessionPrefix());
+}
+
+bool osmosis_validate_validator_address(bool has_value, const char* value) {
+  return osmosis_validate_required_text(has_value, value) &&
+         tendermint_validateValidatorAddress(value, osmosis_sessionPrefix());
+}
+
+/* A `sender` field is the AUTHORITY the message acts as, and it is copied into
+   the signed document verbatim. The LP, swap and IBC paths never showed it, so
+   the owner approved a document naming an account no screen mentioned.
+   Displaying it would add a screen to every one of those flows; binding it is
+   both stronger and free, because there is only one account this session can
+   legitimately act as -- the one whose key signs. A mismatch could never
+   produce a valid transaction anyway, so refusing it costs nothing. */
+bool osmosis_address_is_signer(const char* address) {
+  if (!initialized || !address) return false;
+
+  char expected[46] = {0};
+  if (!tendermint_getAddress(&node, osmosis_sessionPrefix(), expected)) {
+    return false;
+  }
+  return strcmp(address, expected) == 0;
+}
+
 bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
-  initialized = true;
+  osmosis_signAbort();
+  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0 ||
+      !_msg->has_chain_id || !tendermint_validateSafeText(_msg->chain_id)) {
+    return false;
+  }
+
   msgs_remaining = _msg->msg_count;
   testnet = false;
 
@@ -94,7 +159,12 @@ bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg) {
   // 10
   sha256_Update(&ctx, (uint8_t*)"\",\"msgs\":[", 10);
 
-  return success;
+  if (!success) {
+    osmosis_signAbort();
+    return false;
+  }
+  initialized = true;
+  return true;
 }
 
 static bool osmosis_isCanonicalAmount(const char* value) {
@@ -143,16 +213,23 @@ static bool osmosis_isValidDenom(const char* denom) {
 
 bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
                                  const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
   char buffer[64 + 1];
 
-  size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
+  /* Validate against THIS network's prefix and the 20-byte account length
+     before the address reaches the bare "%s" JSON serialization below. This
+     was a bare bech32_decode() into hrp[45]/decoded[38]: both undersized for
+     host-chosen input (see tendermint_bech32DecodeChecked()), and neither the
+     network nor the payload length was checked, so a wrong-chain address, a
+     module or operator address, or a punctuation-bearing HRP passed through
+     into the signed document. */
   if (!osmosis_isCanonicalUint64(amount) || !osmosis_isValidDenom(denom) ||
-      !bech32_decode(hrp, decoded, &decoded_len, to_address)) {
+      !tendermint_validateBech32Address(to_address,
+                                        testnet ? testnetp : mainnetp)) {
     return false;
   }
 
@@ -210,16 +287,28 @@ bool osmosis_signTxUpdateMsgDelegate(const char* amount,
                                      const char* delegator_address,
                                      const char* validator_address,
                                      const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
 
   char buffer[128] = {0};
-  size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against THIS network's prefix and the 20-byte account length
+     before the address reaches the bare "%s" JSON serialization below. This
+     was a bare bech32_decode() into hrp[45]/decoded[38]: both undersized for
+     host-chosen input (see tendermint_bech32DecodeChecked()), and neither the
+     network nor the payload length was checked, so a wrong-chain address, a
+     module or operator address, or a punctuation-bearing HRP passed through
+     into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address,
+                                        testnet ? testnetp : mainnetp)) {
+    return false;
+  }
+  /* The validator operator is interpolated into the signed document with the
+     same bare "%s" as the delegator above, so it needs the same gate. */
+  if (!tendermint_validateValidatorAddress(validator_address,
+                                           testnet ? testnetp : mainnetp)) {
     return false;
   }
 
@@ -263,12 +352,9 @@ bool osmosis_signTxUpdateMsgDelegate(const char* amount,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "validator_address\":\"");
 
-  // Escape as defense-in-depth, same as delegator_address/memo elsewhere in
-  // this file -- validator_address is host-supplied and, unlike
-  // delegator_address, was never format-validated (no bech32_decode) either.
-  tendermint_sha256UpdateEscaped(&ctx, validator_address,
-                                 strlen(validator_address));
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"}}");
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
+                                 validator_address);
 
   if (success) {
     has_message = true;
@@ -281,16 +367,28 @@ bool osmosis_signTxUpdateMsgUndelegate(const char* amount,
                                        const char* delegator_address,
                                        const char* validator_address,
                                        const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
 
   char buffer[128] = {0};
-  size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against THIS network's prefix and the 20-byte account length
+     before the address reaches the bare "%s" JSON serialization below. This
+     was a bare bech32_decode() into hrp[45]/decoded[38]: both undersized for
+     host-chosen input (see tendermint_bech32DecodeChecked()), and neither the
+     network nor the payload length was checked, so a wrong-chain address, a
+     module or operator address, or a punctuation-bearing HRP passed through
+     into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address,
+                                        testnet ? testnetp : mainnetp)) {
+    return false;
+  }
+  /* The validator operator is interpolated into the signed document with the
+     same bare "%s" as the delegator above, so it needs the same gate. */
+  if (!tendermint_validateValidatorAddress(validator_address,
+                                           testnet ? testnetp : mainnetp)) {
     return false;
   }
 
@@ -333,12 +431,9 @@ bool osmosis_signTxUpdateMsgUndelegate(const char* amount,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "validator_address\":\"");
 
-  // Escape as defense-in-depth, same as delegator_address/memo elsewhere in
-  // this file -- validator_address is host-supplied and, unlike
-  // delegator_address, was never format-validated (no bech32_decode) either.
-  tendermint_sha256UpdateEscaped(&ctx, validator_address,
-                                 strlen(validator_address));
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"}}");
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
+                                 validator_address);
 
   if (success) {
     has_message = true;
@@ -352,16 +447,30 @@ bool osmosis_signTxUpdateMsgRedelegate(const char* amount,
                                        const char* validator_src_address,
                                        const char* validator_dst_address,
                                        const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
 
   char buffer[128] = {0};
-  size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against THIS network's prefix and the 20-byte account length
+     before the address reaches the bare "%s" JSON serialization below. This
+     was a bare bech32_decode() into hrp[45]/decoded[38]: both undersized for
+     host-chosen input (see tendermint_bech32DecodeChecked()), and neither the
+     network nor the payload length was checked, so a wrong-chain address, a
+     module or operator address, or a punctuation-bearing HRP passed through
+     into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address,
+                                        testnet ? testnetp : mainnetp)) {
+    return false;
+  }
+  /* Both validator operators are interpolated with the same bare "%s" as the
+     delegator above; neither was checked. */
+  if (!tendermint_validateValidatorAddress(validator_src_address,
+                                           testnet ? testnetp : mainnetp) ||
+      !tendermint_validateValidatorAddress(validator_dst_address,
+                                           testnet ? testnetp : mainnetp)) {
     return false;
   }
 
@@ -403,19 +512,17 @@ bool osmosis_signTxUpdateMsgRedelegate(const char* amount,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "\",\"validator_dst_address\":\"");
 
-  // Escape as defense-in-depth, same as delegator_address/memo elsewhere in
-  // this file -- validator_dst_address/validator_src_address are
-  // host-supplied and, unlike delegator_address, never format-validated.
-  tendermint_sha256UpdateEscaped(&ctx, validator_dst_address,
-                                 strlen(validator_dst_address));
+  // ^53
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s",
+                                 validator_dst_address);
 
   // 27
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "\",\"validator_src_address\":\"");
 
-  tendermint_sha256UpdateEscaped(&ctx, validator_src_address,
-                                 strlen(validator_src_address));
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"}}");
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
+                                 validator_src_address);
 
   if (success) {
     has_message = true;
@@ -430,6 +537,8 @@ bool osmosis_signTxUpdateMsgLPAdd(const uint64_t pool_id, const char* sender,
                                   const char* denom_in_max_a,
                                   const char* amount_in_max_b,
                                   const char* denom_in_max_b) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   char buffer[96 + 1] = {0};
 
   if (has_message) {
@@ -484,6 +593,8 @@ bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char* sender,
                                      const char* denom_out_min_a,
                                      const char* amount_out_min_b,
                                      const char* denom_out_min_b) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   char buffer[96 + 1] = {0};
 
   if (has_message) {
@@ -534,16 +645,28 @@ bool osmosis_signTxUpdateMsgLPRemove(const uint64_t pool_id, const char* sender,
 
 bool osmosis_signTxUpdateMsgRewards(const char* delegator_address,
                                     const char* validator_address) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
 
   char buffer[128] = {0};
-  size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against THIS network's prefix and the 20-byte account length
+     before the address reaches the bare "%s" JSON serialization below. This
+     was a bare bech32_decode() into hrp[45]/decoded[38]: both undersized for
+     host-chosen input (see tendermint_bech32DecodeChecked()), and neither the
+     network nor the payload length was checked, so a wrong-chain address, a
+     module or operator address, or a punctuation-bearing HRP passed through
+     into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address,
+                                        testnet ? testnetp : mainnetp)) {
+    return false;
+  }
+  /* The validator operator is interpolated into the signed document with the
+     same bare "%s" as the delegator above, so it needs the same gate. */
+  if (!tendermint_validateValidatorAddress(validator_address,
+                                           testnet ? testnetp : mainnetp)) {
     return false;
   }
 
@@ -581,12 +704,9 @@ bool osmosis_signTxUpdateMsgRewards(const char* delegator_address,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "validator_address\":\"");
 
-  // Escape as defense-in-depth, same as delegator_address/memo elsewhere in
-  // this file -- validator_address is host-supplied and, unlike
-  // delegator_address, was never format-validated (no bech32_decode) either.
-  tendermint_sha256UpdateEscaped(&ctx, validator_address,
-                                 strlen(validator_address));
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "\"}}");
+  // ^53 + 3 = ^56
+  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
+                                 validator_address);
 
   if (success) {
     has_message = true;
@@ -602,16 +722,20 @@ bool osmosis_signTxUpdateMsgIBCTransfer(const char* amount, const char* sender,
                                         const char* revision_number,
                                         const char* revision_height,
                                         const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "osmo";
   const char testnetp[] = "tosmo";
   const char* pfix;
 
   char buffer[128] = {0};
-  size_t decoded_len;
-  char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  uint8_t decoded[BECH32_DECODED_MAX] = {0};
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, receiver)) {
+  /* An IBC receiver lives on the COUNTERPARTY chain, so its human-readable
+     part is deliberately not one of ours and cannot be pinned to a prefix.
+     What can be fixed is the decode itself: the previous bare bech32_decode()
+     wrote into hrp[45]/decoded[38], both of which a host can overrun (see
+     tendermint_bech32DecodeChecked()). Check well-formedness with bounded
+     buffers instead. */
+  if (!tendermint_bech32IsWellFormed(receiver)) {
     return false;
   }
 
@@ -688,6 +812,8 @@ bool osmosis_signTxUpdateMsgSwap(const uint64_t pool_id,
                                  const char* token_in_amount,
                                  const char* token_in_denom,
                                  const char* token_out_min_amount) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   char buffer[96 + 1] = {0};
 
   // TODO: add testnet support

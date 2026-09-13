@@ -523,7 +523,12 @@ jobs:
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
                 -DCMAKE_COLOR_MAKEFILE=ON \
                 ${{ matrix.cmake_flags }} && \
-              make && \
+              if ! make; then \
+                mkdir -p /root/keepkey-firmware/bin; \
+                cp bin/*.map /root/keepkey-firmware/bin/ 2>/dev/null || true; \
+                chmod -R a+rw /root/keepkey-firmware/bin; \
+                exit 1; \
+              fi && \
               python3 /root/keepkey-firmware/tools/check_pallas_ct_disassembly.py \
                 --elf bin/firmware.keepkey.elf \
                 --variant '${{ matrix.variant }}' && \
@@ -538,6 +543,15 @@ jobs:
               arm-none-eabi-size -A bin/firmware.keepkey.elf > /root/keepkey-firmware/bin/firmware.keepkey.size.txt 2>/dev/null || true && \
               find . -name '*.su' -print0 | tar czf /root/keepkey-firmware/bin/stack-usage.tgz --null -T - && \
               chmod -R a+rw /root/keepkey-firmware/bin"
+
+      - name: Upload ARM link map (${{ matrix.variant }})
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: arm-link-map-${{ matrix.variant }}
+          path: bin/firmware.keepkey.map
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Assert alpha ClearSign root product boundary
         run: |
@@ -606,16 +620,57 @@ jobs:
           ls -lh
           echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} (${{ matrix.variant }}) built successfully"
 
+      - name: Bind ARM artifacts to this checkout
+        env:
+          ARM_VARIANT: ${{ matrix.variant }}
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import hashlib
+          import json
+          import os
+          import subprocess
+
+          def digest(path):
+              with open(path, "rb") as handle:
+                  return hashlib.sha256(handle.read()).hexdigest()
+
+          files = []
+          for name in sorted(os.listdir("bin")):
+              path = os.path.join("bin", name)
+              if os.path.isfile(path) and name != "arm-build-manifest.json":
+                  files.append({"name": name, "sha256": digest(path),
+                                "size": os.path.getsize(path)})
+          if not files:
+              raise SystemExit("no ARM outputs found")
+          manifest = {
+              "schema": 1,
+              "generated_at": datetime.datetime.now(
+                  datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+              "firmware_sha": subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True).strip(),
+              "python_sha": subprocess.check_output(
+                  ["git", "rev-parse", "HEAD:deps/python-keepkey"],
+                  text=True).strip(),
+              "variant": os.environ["ARM_VARIANT"],
+              "files": files,
+          }
+          with open("bin/arm-build-manifest.json", "w", encoding="utf-8") as handle:
+              json.dump(manifest, handle, sort_keys=True, indent=2)
+              handle.write("\n")
+          PY
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}${{ matrix.suffix }}
+          name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}-${{ matrix.variant }}
           path: |
             bin/*.bin
             bin/*.elf
             bin/*.map
             bin/*.size.txt
             bin/stack-usage.tgz
+            bin/arm-build-manifest.json
           retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
@@ -934,10 +989,12 @@ jobs:
           export PATH="$PATH:$NANOPB_GENERATOR_DIR"
           which protoc-gen-nanopb
           which nanopb_generator.py
+          NANOPB_PLUGIN="$(command -v protoc-gen-nanopb)"
           cmake \
             -DKK_EMULATOR=1 \
             -DKK_BUILD_DYLIB=1 \
             -DKK_DEBUG_LINK=ON \
+            -DPROTOC_GEN_NANOPB_EXECUTABLE="$NANOPB_PLUGIN" \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             -B build-emu .
 
@@ -978,7 +1035,7 @@ jobs:
             -DKK_BUILD_DYLIB=1 \
             -DKK_DEBUG_LINK=ON \
             -DNANOPB_DIR="$NANOPB_DIR" \
-            -DNANOPB_PLUGIN="$NANOPB_PLUGIN" \
+            -DPROTOC_GEN_NANOPB_EXECUTABLE="$NANOPB_PLUGIN" \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             -B build-emu-win .
           cmake --build build-emu-win --target kkemulator_dylib -j"$CPU_COUNT"
@@ -1073,7 +1130,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
 
   generate-test-report:
-    needs: [unit-tests, python-integration-tests]
+    needs: [unit-tests, python-integration-tests, python-dylib-tests, build-arm-firmware]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -1085,7 +1142,6 @@ jobs:
 
       - name: Download unit test results
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        continue-on-error: true
         with:
           # Report covers the regular/full build. Bitcoin-only is built and
           # unit-tested in its own matrix leg but does not get a PDF.
@@ -1094,17 +1150,28 @@ jobs:
 
       - name: Download python test results
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        continue-on-error: true
         with:
           name: python-test-results
           path: test-reports/python-keepkey/
 
       - name: Download OLED screenshots
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        continue-on-error: true
         with:
           name: oled-screenshots
           path: test-reports/screenshots/
+
+      - name: Download dylib test results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: python-dylib-test-results
+          path: test-reports/
+
+      - name: Download both ARM products
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: firmware-v*
+          path: test-reports/arm/
+          merge-multiple: false
 
       - name: Extract firmware version
         id: version
@@ -1113,12 +1180,20 @@ jobs:
           echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Init python-keepkey submodule
-        run: git submodule update --init deps/python-keepkey
+        id: python
+        run: |
+          git submodule update --init deps/python-keepkey
+          echo "sha=$(git rev-parse HEAD:deps/python-keepkey)" >> "$GITHUB_OUTPUT"
 
       - name: Generate test report PDF
         env:
           FW_VERSION: ${{ steps.version.outputs.fw_version }}
-          KK_BUILD_LABEL: ${{ github.head_ref || github.ref_name }}@${{ github.event.pull_request.head.sha || github.sha }}
+          KK_FIRMWARE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          KK_PYTHON_SHA: ${{ steps.python.outputs.sha }}
+          KK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          KK_WORKFLOW_EVENT: ${{ github.event_name }}
+          KK_FIRMWARE_PR: ${{ github.event.pull_request.html_url }}
+          KK_PYTHON_PR: https://github.com/BitHighlander/python-keepkey/tree/merge/alpha-715
         run: python3 scripts/generate-test-report.py
 
       - name: Upload test report
@@ -1126,8 +1201,9 @@ jobs:
         if: always()
         with:
           name: test-report
-          path: test-report.pdf
+          path: test-report/
           retention-days: 90
+          if-no-files-found: error
 
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass

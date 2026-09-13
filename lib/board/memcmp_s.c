@@ -44,7 +44,10 @@ int memcmp_s(const void* lhs, const void* rhs, size_t len) {
     abort();
   }
 
-  static uint8_t decoys[DECOY_COUNT][255];
+  /* The decoys are needed only for this comparison. Keep them on the stack:
+   * a permanent 2040-byte allocation exhausts the ARM runtime SRAM reserve,
+   * while the linker enforces 16 KiB for the transient call stack. */
+  uint8_t decoys[DECOY_COUNT][255];
   random_buffer(&decoys[0][0], sizeof(decoys));
 
   static void* permuted[DECOY_COUNT + 2];

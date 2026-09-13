@@ -23,12 +23,14 @@
 #include "keepkey/board/timer.h"
 #include "keepkey/rand/rng.h"
 
+#include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/storage.h"
 #include "trezor/crypto/memzero.h"
 
 #include <stdbool.h>
+#include <string.h>
 
 extern bool reset_msg_stack;
 
@@ -81,6 +83,7 @@ static void wait_for_passphrase_ack(PassphraseInfo* passphrase_info) {
     default:
       break;
   }
+  memzero(msg_tiny_buf, sizeof(msg_tiny_buf));
 }
 
 /*
@@ -156,11 +159,45 @@ static bool passphrase_request(PassphraseInfo* passphrase_info) {
      * only for a host-sent Cancel/Initialize. So a false here is precisely
      * "the host took the screen away", and the passphrase must not be cached.
      * Every caller of passphrase_protect() already tests its result. */
+    /* Byte-exact, not "%51s".
+     *
+     * The old format right-padded the passphrase to 51 columns, and the
+     * renderer drops spaces at the start of a wrapped line. Host-supplied
+     * leading spaces were therefore indistinguishable from that padding:
+     * "secret" and " secret" could draw the same pixels while deriving
+     * DIFFERENT wallets, which is the one thing this screen exists to rule
+     * out. An empty passphrase was worse still -- 51 spaces render as nothing
+     * at all, so it looked identical to a whitespace-only one. Control bytes
+     * and backslashes were equally ambiguous.
+     *
+     * confirm_bytes_escape() renders every byte outside 0x21..0x7E, and '\\'
+     * itself, as a four-glyph \\xNN escape, so leading spaces are now visible
+     * as \\x20 and cannot be confused with layout. An empty passphrase says so
+     * in words.
+     *
+     * Escaped into the SAME screen rather than handed to confirm_bytes():
+     * confirm_bytes() owns the whole body, which would push the unplug/replug
+     * instruction onto a screen of its own and add a second ButtonRequest to
+     * every passphrase-protected session -- a host-visible protocol change
+     * (test_msg_ping.py and test_protection_levels.py both pin the exact
+     * sequence). One screen in, one screen out. A passphrase long or exotic
+     * enough to overflow the body still pages, through confirm_helper() like
+     * any other over-long body, and that is the honest outcome.
+     *
+     * strnlen against the buffer, not strlen: the field is filled by strlcpy
+     * from a protobuf string and the capacity is not the length. */
+    static char CONFIDENTIAL escaped[4 * (PASSPHRASE_BUF - 1) + 1];
+    const size_t pp_len = strnlen(passphrase_info->passphrase, PASSPHRASE_BUF);
+    if (!confirm_bytes_escape((const uint8_t*)passphrase_info->passphrase,
+                              pp_len, escaped, sizeof(escaped))) {
+      memzero(escaped, sizeof(escaped));
+      return false;
+    }
     ret =
         review(ButtonRequestType_ButtonRequest_Other, "passphrase confirmation",
-               "If this is wrong, unplug/replug Keepkey:"
-               "%51s",
-               passphrase_info->passphrase);
+               "If this is wrong, unplug/replug Keepkey:\n%s",
+               pp_len == 0 ? "(empty)" : escaped);
+    memzero(escaped, sizeof(escaped));
   } else {
     if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT) {
       reset_msg_stack = true;

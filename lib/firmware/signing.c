@@ -58,7 +58,16 @@ static uint32_t inputs_count;
 static uint32_t outputs_count;
 static const CoinType* coin;
 static const curve_info* curve;
-static const HDNode* root;
+/* The signer's OWN copy of the signing root, not the caller's node.
+ *
+ * signing_init() takes `const HDNode *`, so the node it is handed belongs to
+ * the caller. signing_abort() has to scrub the master private key, and it
+ * cannot do that through that pointer: casting away const to write through a
+ * genuinely read-only node is undefined behavior, and a caller whose node was
+ * automatic -- as unittests/firmware/fsm.cpp's stack `root` is -- would be
+ * written through after its lifetime ended. Copy on the way in and scrub what
+ * we own on the way out; the caller's node stays the caller's business. */
+static CONFIDENTIAL HDNode root;
 static CONFIDENTIAL HDNode node;
 static bool signing = false;
 enum {
@@ -513,6 +522,11 @@ static bool isCrossAccountSegwitChangeAllowed(const uint32_t* lhs_address_n,
 
   if (count != lhs_address_n_count) return false;
 
+  // Mixed script purposes may share an account only below the same leading
+  // path. Extended paths must not silently cross into another wallet branch.
+  if (memcmp(lhs_address_n, rhs_address_n, (count - 5) * sizeof(uint32_t)) != 0)
+    return false;
+
   // Only do this for coins that support segwit
   if (!coin->has_segwit || !coin->segwit) return false;
 
@@ -635,7 +649,7 @@ static bool prepare_input_node(TxInputType* tinput) {
       return false;
     }
   }
-  memcpy(&node, root, sizeof(HDNode));
+  memcpy(&node, &root, sizeof(HDNode));
   if (hdnode_private_ckd_cached(&node, tinput->address_n,
                                 tinput->address_n_count, NULL) == 0) {
     // Failed to derive private key
@@ -666,7 +680,8 @@ void signing_init(const SignTx* msg, const CoinType* _coin,
   inputs_count = msg->inputs_count;
   outputs_count = msg->outputs_count;
   coin = _coin;
-  root = _root;
+  memzero(&root, sizeof(root));
+  if (_root) memcpy(&root, _root, sizeof(root));
   version = msg->version;
   lock_time = msg->lock_time;
   expiry = msg->expiry;
@@ -718,10 +733,8 @@ void signing_init(const SignTx* msg, const CoinType* _coin,
   multisig_fp_mismatch = false;
   next_nonsegwit_input = 0xffffffff;
 
-  /* An OP_RETURN-only transaction never reaches the payment-output path that
-   * normally resets this context. Start each signing request with a fresh
-   * current digest while preserving the previous completed transaction used
-   * by the duplicate-output warning. */
+  /* All outputs share this request's input hash. Preserve the prior payment
+   * comparison key, but start a fresh current hash at the signing boundary. */
   txin_dgst_reset_current();
 
   curve = get_curve_by_name(coin->curve_name);
@@ -804,6 +817,13 @@ bool signing_output_multisig_quorum_is_valid(const TxOutputType* txoutput) {
                               multisig_quorum_is_valid(&txoutput->multisig));
 }
 
+/// Exposed for unit tests: pure predicate, no signing state involved.
+bool signing_input_multisig_quorum_is_valid(const TxInputType* txinput) {
+  return txinput != NULL &&
+         (!txinput->has_multisig ||
+          transaction_multisig_quorum_is_valid(&txinput->multisig));
+}
+
 void signing_checksum_script_type_bytes(InputScriptType script_type,
                                         uint8_t out[4]) {
   const uint32_t value = (uint32_t)script_type;
@@ -866,17 +886,20 @@ static bool signing_validate_input(const TxInputType* txinput) {
     return false;
   }
   if (txinput->has_multisig) {
-    /* Validate the quorum before tx_input_script_size() accounts for it.
-     * cryptoMultisigFingerprint() normally performs most of these checks, but
-     * the mixed single-sig/multisig path deliberately stops comparing a common
-     * fingerprint. That used to leave m as an unbounded host-controlled weight
-     * multiplier and could suppress the high-fee warning. */
-    if (!transaction_multisig_quorum_is_valid(&txinput->multisig)) {
+    /* Validate before tx_input_script_size() uses m for fee accounting: it
+     * computes m * (1 + TXSIZE_DER_SIGNATURE) from this uint32 with no bound
+     * of its own, so an absurd m inflates tx_weight and lifts the excessive-fee
+     * threshold out of reach, silently suppressing that confirmation screen.
+     * The mixed single-sig/multisig path can stop comparing a common
+     * fingerprint, so the later fingerprint validation is not a sufficient
+     * boundary. The outputs are already guarded the same way below. */
+    if (!signing_input_multisig_quorum_is_valid(txinput)) {
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       _("Invalid multisig quorum"));
       signing_abort();
       return false;
     }
+
     /* A DER-encoded ECDSA signature is at most 72 bytes: 0x30 len, then two
      * 0x02-tagged integers of at most 33 bytes each. The wire field is sized
      * max_size:73, so the decoder accepts 73 -- and the witness path writes
@@ -1070,7 +1093,7 @@ static bool signing_check_input(TxInputType* txinput) {
     missing_bip341_input_amount |= !txinput->has_amount;
     uint8_t script_pubkey[64];
     size_t script_pubkey_len = 0;
-    if (!fill_input_script_pubkey(coin, root, txinput, script_pubkey,
+    if (!fill_input_script_pubkey(coin, &root, txinput, script_pubkey,
                                   &script_pubkey_len, sizeof(script_pubkey))) {
       fsm_sendFailure(FailureType_Failure_Other,
                       _("Failed to derive input scriptPubKey"));
@@ -1174,7 +1197,7 @@ static bool signing_check_output(TxOutputType* txoutput) {
   }
   spending += txoutput->amount;
   int co =
-      run_policy_compile_output(coin, root, txoutput, &bin_output, !is_change);
+      run_policy_compile_output(coin, &root, txoutput, &bin_output, !is_change);
   if (!is_change) {
     layoutProgress(_("Signing transaction"), progress);
   }
@@ -1428,7 +1451,8 @@ static bool signing_sign_hash(TxInputType* txinput, const uint8_t* private_key,
     txinput->multisig.signatures[pubkey_idx].size =
         resp.serialized.signature.size;
     txinput->script_sig.size = serialize_script_multisig(
-        coin, &(txinput->multisig), sighash, txinput->script_sig.bytes);
+        coin, &(txinput->multisig), sighash, txinput->script_sig.bytes,
+        sizeof(txinput->script_sig.bytes));
     if (txinput->script_sig.size == 0) {
       fsm_sendFailure(FailureType_Failure_Other,
                       _("Failed to serialize multisig script"));
@@ -1577,7 +1601,13 @@ static bool signing_sign_segwit_input(TxInputType* txinput) {
          * witness stack after the user reviewed it, or on has_m at i == 14.
          * signing_validate_input() now caps size at 72; this removes the
          * out-of-bounds write itself rather than relying on that cap. */
-        uint8_t sig_with_hashtype[73];
+        /* One byte larger than the field it copies, so the sighash
+         * append below is in bounds for every size nanopb can decode
+         * (bytes[73]) -- the cap above is then a policy check, not the
+         * only thing standing between a host and a stack write. */
+        uint8_t
+            sig_with_hashtype[sizeof(txinput->multisig.signatures[0].bytes) +
+                              1];
         const size_t sig_len = txinput->multisig.signatures[i].size;
         memcpy(sig_with_hashtype, txinput->multisig.signatures[i].bytes,
                sig_len);
@@ -1595,10 +1625,22 @@ static bool signing_sign_segwit_input(TxInputType* txinput) {
     } else {  // single signature
       uint32_t r = 0;
       r += ser_length(2, resp.serialized.serialized_tx.bytes + r);
-      resp.serialized.signature.bytes[resp.serialized.signature.size] = sighash;
-      r += tx_serialize_script(resp.serialized.signature.size + 1,
-                               resp.serialized.signature.bytes,
+      /* The protobuf signature field has no guaranteed spare byte. Serialize
+       * the wire-only sighash suffix from bounded scratch instead of writing
+       * one byte past bytes[size]. */
+      uint8_t sig_with_hashtype[73];
+      const size_t sig_len = resp.serialized.signature.size;
+      if (sig_len > 72) {
+        fsm_sendFailure(FailureType_Failure_Other,
+                        _("Invalid signature length"));
+        signing_abort();
+        return false;
+      }
+      memcpy(sig_with_hashtype, resp.serialized.signature.bytes, sig_len);
+      sig_with_hashtype[sig_len] = sighash;
+      r += tx_serialize_script(sig_len + 1, sig_with_hashtype,
                                resp.serialized.serialized_tx.bytes + r);
+      memzero(sig_with_hashtype, sizeof(sig_with_hashtype));
       r += tx_serialize_script(33, node.public_key,
                                resp.serialized.serialized_tx.bytes + r);
       resp.serialized.serialized_tx.size = r;
@@ -1746,7 +1788,7 @@ void signing_txack(TransactionType* tx) {
         authorized_bip143_in += tx->inputs[0].amount;
 
         txin_dgst_addto(tx->inputs[0].prev_hash.bytes,
-                        sizeof(TxInputType_prev_hash_t));
+                        sizeof(tx->inputs[0].prev_hash.bytes));
 
         phase1_request_next_input();
       } else {
@@ -1840,7 +1882,7 @@ void signing_txack(TransactionType* tx) {
           uint8_t expected_script[64];
           size_t expected_script_len = 0;
           if (input.amount != tx->bin_outputs[0].amount ||
-              !fill_input_script_pubkey(coin, root, &input, expected_script,
+              !fill_input_script_pubkey(coin, &root, &input, expected_script,
                                         &expected_script_len,
                                         sizeof(expected_script)) ||
               expected_script_len != tx->bin_outputs[0].script_pubkey.size ||
@@ -1959,7 +2001,7 @@ void signing_txack(TransactionType* tx) {
       progress = 500 + ((signatures * progress_step +
                          (inputs_count + idx2) * progress_meta_step) >>
                         PROGRESS_PRECISION);
-      int co = run_policy_compile_output(coin, root, tx->outputs, &bin_output,
+      int co = run_policy_compile_output(coin, &root, tx->outputs, &bin_output,
                                          false);
       if (co <= TXOUT_COMPILE_ERROR) {
         send_fsm_co_error_message(co);
@@ -2106,7 +2148,7 @@ void signing_txack(TransactionType* tx) {
       if (!signing_validate_output(&tx->outputs[0])) {
         return;
       }
-      co = run_policy_compile_output(coin, root, tx->outputs, &bin_output,
+      co = run_policy_compile_output(coin, &root, tx->outputs, &bin_output,
                                      false);
       if (co <= TXOUT_COMPILE_ERROR) {
         send_fsm_co_error_message(co);
@@ -2213,6 +2255,8 @@ void signing_txack(TransactionType* tx) {
   signing_abort();
 }
 
+bool signing_is_active(void) { return signing; }
+
 void signing_abort(void) {
   if (signing) {
     layoutHome();
@@ -2223,6 +2267,8 @@ void signing_abort(void) {
   memzero(&outputs_count, sizeof(outputs_count));
   memzero(&coin, sizeof(coin));
   memzero(&curve, sizeof(curve));
+  /* Scrub the signer's own copy of the master key, so it does not stay
+   * resident across cancellation, ClearSession, lock, or wipe. */
   memzero(&root, sizeof(root));
   memzero(&node, sizeof(node));
   memzero(&signing, sizeof(signing));
@@ -2288,8 +2334,6 @@ void signing_abort(void) {
 #if DEBUG_LINK
 static CoinType signing_test_coin;
 static curve_info signing_test_curve;
-static HDNode signing_test_root;
-
 static bool signing_test_bytes_are_zero(const void* ptr, size_t len) {
   const uint8_t* bytes = (const uint8_t*)ptr;
   uint8_t aggregate = 0;
@@ -2300,7 +2344,7 @@ static bool signing_test_bytes_are_zero(const void* ptr, size_t len) {
 void signing_test_seed_state(void) {
   coin = &signing_test_coin;
   curve = &signing_test_curve;
-  root = &signing_test_root;
+  memset(&root, 0xA5, sizeof(root));
   signing = true;
   signing_stage = STAGE_REQUEST_5_OUTPUT;
   memset(&node, 0xA5, sizeof(node));
@@ -2351,7 +2395,7 @@ bool signing_test_state_is_cleared(void) {
 #define IS_ZERO(V) signing_test_bytes_are_zero(&(V), sizeof(V))
   return IS_ZERO(node) && IS_ZERO(resp) && IS_ZERO(input) &&
          IS_ZERO(bin_output) && IS_ZERO(to) && IS_ZERO(tp) && IS_ZERO(ti) &&
-         coin == NULL && curve == NULL && root == NULL && !signing &&
+         coin == NULL && curve == NULL && IS_ZERO(root) && !signing &&
          signing_stage == 0 && IS_ZERO(hasher_prevouts) &&
          IS_ZERO(hasher_sequence) && IS_ZERO(hasher_outputs) &&
          IS_ZERO(hasher_check) && IS_ZERO(ctx_amounts) &&

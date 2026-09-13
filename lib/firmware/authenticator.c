@@ -49,6 +49,17 @@ void authenticator_clear_cache(void) {
   localAuthdataUpdate = true;
 }
 
+static unsigned authenticator_cancel(void) {
+  /* A nested confirmation refusal does not pass through fsm_msgCancel(), so it
+   * must revoke the decrypted authenticator cache itself. Without this,
+   * authData[] keeps every account's plaintext TOTP secret resident and
+   * localAuthdataUpdate stays false, so the next request short-circuits
+   * getAuthData() and serves them without re-running the storage
+   * fingerprint/passphrase check. */
+  authenticator_clear_cache();
+  return AUTH_CANCELLED;
+}
+
 #if DEBUG_LINK
 bool authenticator_cache_is_empty(void) {
   const uint8_t* bytes = (const uint8_t*)authData;
@@ -110,7 +121,7 @@ void getAuthSlot(char* authSlotData) {
 unsigned wipeAuthData(void) {
   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Wipe Authdata",
                "Do you want to PERMANENTLY delete all authenticator accounts?"))
-    return AUTH_CANCELLED;
+    return authenticator_cancel();
 
   // wipe storage and reset authdata encryption flag
   storage_wipeAuthData();
@@ -120,6 +131,8 @@ unsigned wipeAuthData(void) {
 }
 
 unsigned addAuthAccount(char* accountWithSeed) {
+  if (accountWithSeed == NULL) return TOKERR;
+  const size_t sourceLen = strlen(accountWithSeed);
   char *domain, *account, *seedStr;
   unsigned slot = AUTHDATA_SIZE;
   char authSecret[AUTHSECRET_SIZE_MAX] = {
@@ -215,6 +228,8 @@ unsigned addAuthAccount(char* accountWithSeed) {
 
 cleanup:
   memzero(authSecret, sizeof(authSecret));
+  memzero(accountWithSeed, sourceLen);
+  if (result == AUTH_CANCELLED) authenticator_clear_cache();
   return result;
 }
 
@@ -351,6 +366,7 @@ cleanup:
   memzero(otp_candidate, sizeof(otp_candidate));
   memzero(otp_display, sizeof(otp_display));
   memzero(account_display, sizeof(account_display));
+  if (result == AUTH_CANCELLED) authenticator_clear_cache();
   return result;
 }
 
@@ -412,7 +428,7 @@ unsigned removeAuthAccount(char* domAcc) {
   if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
                "Do you want to PERMANENTLY delete account %.*s:%.*s?",
                DOMAIN_SIZE - 1, domain, ACCOUNT_SIZE - 1, account))
-    return AUTH_CANCELLED;
+    return authenticator_cancel();
 
   for (unsigned slot = 0; slot < AUTHDATA_SIZE; slot++) {
     if (authData[slot].secretSize != 0 &&

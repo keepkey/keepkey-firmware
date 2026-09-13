@@ -570,7 +570,7 @@ TEST(Solana, ParseAssociatedTokenAccountCreate) {
   raw[pos++] = 0;
   raw[pos++] = 1;
 
-  raw[pos++] = 5;
+  raw[pos++] = 7;
   memset(raw + pos, 0x11, 32);
   pos += 32; /* funder */
   memset(raw + pos, 0x22, 32);
@@ -579,6 +579,10 @@ TEST(Solana, ParseAssociatedTokenAccountCreate) {
   pos += 32; /* owner */
   memset(raw + pos, 0x44, 32);
   pos += 32; /* mint */
+  memcpy(raw + pos, SOL_SYSTEM_PROGRAM, 32);
+  pos += 32; /* required system program */
+  memcpy(raw + pos, SOL_TOKEN_PROGRAM, 32);
+  pos += 32; /* required token program */
   memcpy(raw + pos, SOL_ATA_PROGRAM, 32);
   pos += 32; /* program */
 
@@ -586,12 +590,14 @@ TEST(Solana, ParseAssociatedTokenAccountCreate) {
   pos += 32;
 
   raw[pos++] = 1;
-  raw[pos++] = 4; /* ata program */
-  raw[pos++] = 4; /* 4 account indices */
+  raw[pos++] = 6; /* ata program */
+  raw[pos++] = 6; /* canonical account indices */
   raw[pos++] = 0;
   raw[pos++] = 1;
   raw[pos++] = 2;
   raw[pos++] = 3;
+  raw[pos++] = 4;
+  raw[pos++] = 5;
   raw[pos++] = 0; /* empty data */
 
   SolanaParsedTx tx;
@@ -1261,7 +1267,14 @@ static size_t build_single_instr_tx(uint8_t* raw, const uint8_t* program,
   const int total_accts = n_accounts + 1 /* program */;
   raw[pos++] = (uint8_t)total_accts;     /* compact-u16 account count */
   for (int i = 0; i < n_accounts; i++) { /* instruction accounts */
-    memset(raw + pos, 0x11 + i, 32);
+    if (memcmp(program, SOL_ATA_PROGRAM, SOL_PUBKEY_SIZE) == 0 && i == 4) {
+      memcpy(raw + pos, SOL_SYSTEM_PROGRAM, SOL_PUBKEY_SIZE);
+    } else if (memcmp(program, SOL_ATA_PROGRAM, SOL_PUBKEY_SIZE) == 0 &&
+               i == 5) {
+      memcpy(raw + pos, SOL_TOKEN_PROGRAM, SOL_PUBKEY_SIZE);
+    } else {
+      memset(raw + pos, 0x11 + i, 32);
+    }
     pos += 32;
   }
   memcpy(raw + pos, program, 32); /* program account (last) */
@@ -1346,7 +1359,9 @@ TEST(Solana, SplAffectedIdentitiesAreCanonicalReviewMaterial) {
     const size_t len = build_single_instr_tx(
         raw, SOL_TOKEN_PROGRAM, test_case.account_count, data, data_len);
     SolanaParsedTx tx;
-    ASSERT_EQ(SOL_TX_REVIEW_VERIFIED, solana_inspectTx(raw, len, &tx));
+    ASSERT_EQ(test_case.opcode == SOL_TOKEN_BURN_IX ? SOL_TX_REVIEW_OPAQUE
+                                                    : SOL_TX_REVIEW_VERIFIED,
+              solana_inspectTx(raw, len, &tx));
     ASSERT_EQ(1, tx.num_instructions);
     const SolanaParsedInstruction& pi = tx.instructions[0];
     EXPECT_EQ(test_case.type, pi.type);
@@ -1420,7 +1435,7 @@ TEST(Solana, CheckedMintAndBurnPreserveSignedDecimalsAndCanonicalShape) {
       size_t len =
           build_single_instr_tx(raw, SOL_TOKEN_PROGRAM, 3, data, sizeof(data));
       SolanaParsedTx tx;
-      ASSERT_EQ(SOL_TX_REVIEW_VERIFIED, solana_inspectTx(raw, len, &tx));
+      ASSERT_EQ(SOL_TX_REVIEW_OPAQUE, solana_inspectTx(raw, len, &tx));
       const SolanaParsedInstruction& pi = tx.instructions[0];
       EXPECT_TRUE(pi.has_token_decimals);
       EXPECT_EQ(decimal, pi.extra_u8);
@@ -1454,7 +1469,7 @@ TEST(Solana, UncheckedMintAndBurnDoNotFabricateDecimals) {
     const size_t len =
         build_single_instr_tx(raw, SOL_TOKEN_PROGRAM, 3, data, sizeof(data));
     SolanaParsedTx tx;
-    ASSERT_EQ(SOL_TX_REVIEW_VERIFIED, solana_inspectTx(raw, len, &tx));
+    ASSERT_EQ(SOL_TX_REVIEW_OPAQUE, solana_inspectTx(raw, len, &tx));
     EXPECT_FALSE(tx.instructions[0].has_token_decimals);
     EXPECT_EQ(42, tx.instructions[0].amount);
   }
@@ -1576,7 +1591,7 @@ TEST(Solana, RevokeAndAtaReviewsRequireEveryDisplayedIdentity) {
   EXPECT_EQ(SOL_TX_REVIEW_OPAQUE, solana_inspectTx(raw, len, &tx));
 
   const uint8_t ata_create[] = {0};
-  len = build_single_instr_tx(raw, SOL_ATA_PROGRAM, 4, ata_create,
+  len = build_single_instr_tx(raw, SOL_ATA_PROGRAM, 6, ata_create,
                               sizeof(ata_create));
   ASSERT_EQ(SOL_TX_REVIEW_VERIFIED, solana_inspectTx(raw, len, &tx));
   const SolanaParsedInstruction& pi = tx.instructions[0];
@@ -1586,7 +1601,7 @@ TEST(Solana, RevokeAndAtaReviewsRequireEveryDisplayedIdentity) {
   expect_repeated_pubkey(pi.authority, 0x13);
   ASSERT_TRUE(pi.has_mint);
   expect_repeated_pubkey(pi.mint, 0x14);
-  len = build_single_instr_tx(raw, SOL_ATA_PROGRAM, 3, ata_create,
+  len = build_single_instr_tx(raw, SOL_ATA_PROGRAM, 5, ata_create,
                               sizeof(ata_create));
   EXPECT_EQ(SOL_TX_REVIEW_OPAQUE, solana_inspectTx(raw, len, &tx));
 }
@@ -2081,30 +2096,32 @@ TEST(Solana, SchemaParsesSdkSerializedPayloadNative) {
  */
 static size_t build_ata_then_transfer_tx(uint8_t* raw, uint8_t ata_ix_byte,
                                          bool include_ata_byte) {
-  /* accounts: 0..3 instruction accounts, 4 = ATA program, 5 = token program */
+  /* accounts: 0..3 acted-on, 4 = system, 5 = token, 6 = ATA program */
   const int n_accounts = 4;
   size_t pos = 0;
   raw[pos++] = 1; /* num_required_sigs */
   raw[pos++] = 0;
-  raw[pos++] = 2;                         /* two readonly unsigned (programs) */
-  raw[pos++] = (uint8_t)(n_accounts + 2); /* total accounts */
+  raw[pos++] = 3;                         /* three readonly unsigned programs */
+  raw[pos++] = (uint8_t)(n_accounts + 3); /* total accounts */
   for (int i = 0; i < n_accounts; i++) {
     memset(raw + pos, 0x11 + i, 32);
     pos += 32;
   }
-  memcpy(raw + pos, SOL_ATA_PROGRAM, 32);
+  memcpy(raw + pos, SOL_SYSTEM_PROGRAM, 32);
   pos += 32;
   memcpy(raw + pos, SOL_TOKEN_PROGRAM, 32);
+  pos += 32;
+  memcpy(raw + pos, SOL_ATA_PROGRAM, 32);
   pos += 32;
   memset(raw + pos, 0xBB, 32); /* recent blockhash */
   pos += 32;
 
   raw[pos++] = 2; /* two instructions */
 
-  /* 1) ATA create (idempotent or classic) — accounts 0..3 */
-  raw[pos++] = (uint8_t)n_accounts; /* ATA program index */
-  raw[pos++] = (uint8_t)n_accounts;
-  for (int i = 0; i < n_accounts; i++) raw[pos++] = (uint8_t)i;
+  /* 1) ATA create (idempotent or classic) — canonical accounts 0..5 */
+  raw[pos++] = (uint8_t)(n_accounts + 2); /* ATA program index */
+  raw[pos++] = (uint8_t)(n_accounts + 2);
+  for (int i = 0; i < n_accounts + 2; i++) raw[pos++] = (uint8_t)i;
   if (include_ata_byte) {
     raw[pos++] = 1; /* data_len */
     raw[pos++] = ata_ix_byte;
@@ -2153,4 +2170,109 @@ TEST(Solana, AtaUnknownInstructionStillOpaque) {
   size_t len = build_ata_then_transfer_tx(raw, 2, true); /* RecoverNested */
   SolanaParsedTx tx;
   EXPECT_EQ(solana_inspectTx(raw, len, &tx), SOL_TX_REVIEW_OPAQUE);
+}
+
+/* Build a two-instruction legacy message: ix0 is the schema-described call on
+ * `program` (unknown to the parser, so the message is OPAQUE and the schema
+ * review path runs), ix1 is a companion instruction on `companion_program`. */
+static size_t build_schema_plus_companion_tx(
+    uint8_t* raw, const uint8_t* program, const uint8_t* instr_data,
+    uint8_t data_len, const uint8_t* companion_program, uint8_t companion_accts,
+    const uint8_t* companion_data, uint8_t companion_len) {
+  size_t pos = 0;
+  raw[pos++] = 1; /* num_required_sigs */
+  raw[pos++] = 0; /* num_readonly_signed */
+  raw[pos++] = 2; /* num_readonly_unsigned: both programs */
+  raw[pos++] = 4; /* sender, vault, schema program, companion program */
+  memset(raw + pos, 0x11, 32);
+  pos += 32;
+  memset(raw + pos, 0x22, 32);
+  pos += 32;
+  memcpy(raw + pos, program, 32);
+  pos += 32;
+  memcpy(raw + pos, companion_program, 32);
+  pos += 32;
+  memset(raw + pos, 0xBB, 32); /* recent blockhash */
+  pos += 32;
+
+  raw[pos++] = 2; /* two instructions */
+
+  raw[pos++] = 2; /* ix0 program index */
+  raw[pos++] = 2; /* two account indices */
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = data_len;
+  memcpy(raw + pos, instr_data, data_len);
+  pos += data_len;
+
+  raw[pos++] = 3; /* ix1 program index */
+  raw[pos++] = companion_accts;
+  for (uint8_t i = 0; i < companion_accts; i++) raw[pos++] = i;
+  raw[pos++] = companion_len;
+  memcpy(raw + pos, companion_data, companion_len);
+  pos += companion_len;
+  return pos;
+}
+
+/* SystemProgram Transfer: u32 LE type 2 + u64 LE lamports (1 SOL). */
+static const uint8_t kSystemTransfer12[12] = {2,    0,    0,    0, 0x00, 0xCA,
+                                              0x9A, 0x3B, 0x00, 0, 0,    0};
+
+/* A schema describes ONE instruction, and the schema review path draws no
+ * screen for any other -- it goes from the schema screens straight to the
+ * blind-sign warning. So a recognised-but-undescribed instruction must not be
+ * allowed to ride along: this SystemProgram Transfer would otherwise be signed
+ * without a single screen naming its amount or destination, which is exactly
+ * the property solana.h says a schema can never green-light. */
+TEST(Solana, SchemaRejectsUndescribedValueInstruction) {
+  uint8_t program[32];
+  memset(program, 0x42, sizeof(program));
+  uint8_t d[48];
+  build_relay_data(d, 526490980ULL);
+
+  const uint8_t system_program[32] = {0};
+  uint8_t raw[512];
+  size_t pos = build_schema_plus_companion_tx(
+      raw, program, d, sizeof(d), system_program, 2, kSystemTransfer12,
+      sizeof(kSystemTransfer12));
+  SolanaParsedTx tx;
+  ASSERT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+  ASSERT_EQ(tx.num_instructions, 2);
+  /* The parser DOES recognise it -- that is the point: recognition alone used
+   * to be the whole gate. */
+  ASSERT_EQ(tx.instructions[1].type, SOL_INSTR_SYSTEM_TRANSFER);
+
+  uint8_t blob[256];
+  size_t len = build_relay_schema(blob, program, 2);
+  SolanaInstrSchema s;
+  ASSERT_TRUE(solana_parseInstrSchema(blob, len, &s));
+  uint8_t idx = 0xFF;
+  EXPECT_FALSE(solana_schemaApplies(&s, &tx, &idx));
+}
+
+/* Control: an inert companion (SetComputeUnitPrice moves no value and grants
+ * no authority) still applies, so the rejection above is about the unscreened
+ * transfer and not about the message simply having two instructions. */
+TEST(Solana, SchemaAppliesBesideInertComputeBudget) {
+  uint8_t program[32];
+  memset(program, 0x42, sizeof(program));
+  uint8_t d[48];
+  build_relay_data(d, 526490980ULL);
+
+  const uint8_t unit_price[9] = {3, 0x40, 0x42, 0x0F, 0, 0, 0, 0, 0};
+  uint8_t raw[512];
+  size_t pos = build_schema_plus_companion_tx(raw, program, d, sizeof(d),
+                                              SOL_COMPUTE_BUDGET_PROGRAM, 0,
+                                              unit_price, sizeof(unit_price));
+  SolanaParsedTx tx;
+  ASSERT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+  ASSERT_EQ(tx.instructions[1].type, SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE);
+
+  uint8_t blob[256];
+  size_t len = build_relay_schema(blob, program, 2);
+  SolanaInstrSchema s;
+  ASSERT_TRUE(solana_parseInstrSchema(blob, len, &s));
+  uint8_t idx = 0xFF;
+  ASSERT_TRUE(solana_schemaApplies(&s, &tx, &idx));
+  EXPECT_EQ(idx, 0);
 }

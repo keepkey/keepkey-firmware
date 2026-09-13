@@ -903,8 +903,49 @@ void hive_signMessage(const HDNode* node, const HiveSignMessage* msg,
 
 // ── Transfer (op type 2) ──────────────────────────────────────────────────
 
+/*
+ * HiveSignTx carries its asset symbol as a host string, so it needs the same
+ * pinned table cur_asset() applies to the parsed-operations path — one side
+ * validating while the other trusted the host is exactly how the display
+ * spelling reached the signed bytes. The host may send either spelling (the
+ * proto documents "HIVE"/"HBD"); the device signs the wire one and shows the
+ * rebranded one, so neither the chain nor the user sees a name it does not
+ * recognise. VESTS is absent deliberately: hived's transfer op only moves
+ * HIVE and HBD.
+ */
+bool hive_transferAsset(const HiveSignTx* msg, const char** wire,
+                        const char** display, uint8_t* precision) {
+  const char* sym = msg->has_asset_symbol ? msg->asset_symbol : "HIVE";
+  if (strcmp(sym, "HIVE") == 0 || strcmp(sym, HIVE_WIRE_SYMBOL_HIVE) == 0) {
+    *wire = HIVE_WIRE_SYMBOL_HIVE;
+    *display = "HIVE";
+  } else if (strcmp(sym, "HBD") == 0 ||
+             strcmp(sym, HIVE_WIRE_SYMBOL_HBD) == 0) {
+    *wire = HIVE_WIRE_SYMBOL_HBD;
+    *display = "HBD";
+  } else {
+    return false;
+  }
+  // Both transferable tokens are pinned at 3 decimals on-chain, so the
+  // precision is never taken from the host: a differing msg->decimals moves
+  // the decimal point on the confirmation screen relative to the one hived
+  // applies. Reject the mismatch rather than normalize it, exactly as
+  // cur_asset() treats a wrong precision on the parsed path. This also means
+  // msg->decimals is never narrowed to uint8_t, so 256 can no longer alias 0.
+  if (msg->has_decimals && msg->decimals != HIVE_DECIMALS) return false;
+  *precision = HIVE_DECIMALS;
+  return true;
+}
+
 static size_t hive_serialize_transfer(const HiveSignTx* msg, uint8_t* buf,
                                       size_t buf_len) {
+  const char* wire;
+  const char* display;
+  uint8_t prec;
+  // Same resolver the confirmation screen ran: what is signed here carries
+  // the wire symbol, never the display spelling the host may have sent.
+  if (!hive_transferAsset(msg, &wire, &display, &prec)) return 0;
+
   uint8_t* p = buf;
   const uint8_t* end = buf + buf_len;
 
@@ -914,9 +955,7 @@ static size_t hive_serialize_transfer(const HiveSignTx* msg, uint8_t* buf,
   append_string(&p, end, msg->has_from ? msg->from : "");
   append_string(&p, end, msg->has_to ? msg->to : "");
 
-  const char* sym = msg->has_asset_symbol ? msg->asset_symbol : "HIVE";
-  uint8_t prec = (uint8_t)(msg->has_decimals ? msg->decimals : HIVE_DECIMALS);
-  append_asset(&p, end, msg->amount, prec, sym);
+  append_asset(&p, end, msg->amount, prec, wire);
 
   append_string(&p, end, msg->has_memo ? msg->memo : "");
   append_tx_footer(&p, end);
@@ -930,6 +969,8 @@ void hive_signTx(const HDNode* node, const HiveSignTx* msg,
 
   uint8_t tx_buf[512];
   size_t tx_len = hive_serialize_transfer(msg, tx_buf, sizeof(tx_buf));
+  // 0 means the asset was refused; nothing was written, so sign nothing.
+  if (tx_len == 0) return;
 
   if (!hive_sign_tx_sig(node, msg->has_chain_id, msg->chain_id.bytes,
                         msg->chain_id.size, tx_buf, tx_len,
@@ -966,9 +1007,11 @@ static size_t hive_serialize_account_create(const HiveSignAccountCreate* msg,
                    msg->ref_block_prefix, msg->expiration,
                    HIVE_OP_ACCOUNT_CREATE);
 
-  // fee (asset)
+  // fee (asset). Account creation fees are always paid in HIVE, which hived
+  // serializes as "STEEM" — see HIVE_WIRE_SYMBOL_HIVE. The fee screen in
+  // fsm_msgHiveSignAccountCreate still reads "HIVE".
   uint64_t fee = msg->has_fee_amount ? msg->fee_amount : 3000;
-  append_asset(&p, end, fee, HIVE_DECIMALS, "HIVE");
+  append_asset(&p, end, fee, HIVE_DECIMALS, HIVE_WIRE_SYMBOL_HIVE);
 
   // creator
   append_string(&p, end, msg->has_creator ? msg->creator : "");
