@@ -558,11 +558,12 @@ static bool solana_confirmSchemaInstruction(
         break;
       }
       case SOL_SCHEMA_ARG_OPAQUE32:
-        snprintf(value, sizeof(value), "%02x%02x%02x%02x...%02x%02x%02x%02x",
-                 ix->data[off], ix->data[off + 1], ix->data[off + 2],
-                 ix->data[off + 3], ix->data[off + 28], ix->data[off + 29],
-                 ix->data[off + 30], ix->data[off + 31]);
-        break;
+        if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           arg->label, ix->data + off, 32)) {
+          return false;
+        }
+        off += 32;
+        continue;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, arg->label,
                  "%s", value)) {
