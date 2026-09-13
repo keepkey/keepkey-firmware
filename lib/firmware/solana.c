@@ -236,17 +236,14 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           pi->lamports = read_le64(instr_data + 4);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
-        } else if (instr_type == SOL_SYS_CREATE_ACCOUNT && data_len >= 12) {
+        } else if (instr_type == SOL_SYS_CREATE_ACCOUNT && data_len == 52 &&
+                   num_acct_indices >= 2) {
           pi->type = SOL_INSTR_SYSTEM_CREATE_ACCOUNT;
           pi->lamports = read_le64(instr_data + 4);
+          pi->extra_value = read_le64(instr_data + 12);
+          memcpy(pi->extra, instr_data + 20, SOL_PUBKEY_SIZE);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
-          /* CreateAccount also assigns the new account's space and OWNER
-           * program (bytes not parsed here); the owner controls the account, so
-           * a partial "amount only" screen is unsafe. Require AdvancedMode
-           * until a full screen (destination + amount + owner + space) exists.
-           */
-          *force_opaque = true;
         } else if (instr_type == SOL_SYS_ADVANCE_NONCE && data_len == 4 &&
                    num_acct_indices >= 3) {
           pi->type = SOL_INSTR_SYSTEM_ADVANCE_NONCE;

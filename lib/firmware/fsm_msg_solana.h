@@ -120,10 +120,20 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     }
 
     case SOL_INSTR_SYSTEM_CREATE_ACCOUNT: {
+      if (!solana_confirmPubkey(title, "Fund from", pi->from)) return false;
       char amount_str[32];
       solana_formatAmount(amount_str, sizeof(amount_str), pi->lamports);
+      char account_str[45];
+      solana_pubkeyToStr(pi->to, account_str, sizeof(account_str));
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                   "Create %s with %s?", account_str, amount_str)) {
+        return false;
+      }
+      char owner_str[45];
+      solana_pubkeyToStr(pi->extra, owner_str, sizeof(owner_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Create account with %s?", amount_str);
+                     "Owner %s\nSpace %llu bytes?", owner_str,
+                     (unsigned long long)pi->extra_value);
     }
 
     case SOL_INSTR_SYSTEM_ADVANCE_NONCE:
