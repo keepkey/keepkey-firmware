@@ -513,3 +513,69 @@ TEST(Board, BaseToPrecisionRespectsCapacity) {
   EXPECT_EQ(-1, base_to_precision(NULL, (const uint8_t *)"1", 16, 1, 6));
   EXPECT_EQ(-1, base_to_precision(buf, NULL, 16, 1, 6));
 }
+
+// Source loss is not a rendering problem and cannot be paged: vsnprintf() drops
+// the tail before any screen exists, so no later screen can contain it. The
+// entry points must therefore refuse, and refuse BEFORE the ButtonRequest --
+// a "Cut Off, hold to continue anyway" screen takes consent for bytes the
+// device has just admitted it cannot show. This test calls confirm() for real:
+// with the refusal in place it returns without touching the state machine, and
+// without it the call enters confirm_screen() and never returns.
+TEST(Board, ConfirmationFormattingRefusesAnySourceLoss) {
+  const std::string one_too_many(BODY_CHAR_MAX, 'A');
+
+  // Source overflow must return before confirm() sends a ButtonRequest or
+  // enters the interactive confirmation state machine.
+  EXPECT_FALSE(confirm(ButtonRequestType_ButtonRequest_Other, "Overflow", "%s",
+                       one_too_many.c_str()));
+
+  // Expansion is measured after formatting, not from the format string or any
+  // one argument. This is the shape used by multi-field confirmation bodies.
+  const std::string left(175, 'L');
+  const std::string right(175, 'R');
+  EXPECT_FALSE(confirm(ButtonRequestType_ButtonRequest_Other, "Overflow",
+                       "%s::%s", left.c_str(), right.c_str()));
+}
+
+TEST_F(BodyFits, PagerCanExceedItsOwnPageCap) {
+  // page_body_confirm() refuses a body needing more than 99 pages rather than
+  // stopping the count there, because a truncated count makes page 100 the
+  // "last" page and puts the approving hold on a prefix.
+  //
+  // That bound is reachable, which is the point of this test: page_take() sizes
+  // a page by the largest prefix confirm_body_fits() accepts, and for newlines
+  // that is three -- they consume rows without drawing a glyph. A body filling
+  // BODY_CHAR_MAX therefore needs ceil(351 / 3) = 117 pages.
+  //
+  // The refusal itself cannot be asserted here: page_body_confirm() is static
+  // and reaching it means driving real confirm screens, which this binary has
+  // no canvas or input for. What is asserted is the arithmetic the cap depends
+  // on, so that a future change to BODY_ROWS or BODY_CHAR_MAX that quietly
+  // moves the bound fails here rather than in the field.
+  EXPECT_TRUE(confirm_body_fits(std::string(3, '\n').c_str(), BODY_WIDTH));
+  EXPECT_FALSE(confirm_body_fits(std::string(4, '\n').c_str(), BODY_WIDTH));
+
+  const size_t chars_per_page = 3;
+  const size_t worst_case_body = BODY_CHAR_MAX - 1;
+  const size_t pages_needed =
+      (worst_case_body + chars_per_page - 1) / chars_per_page;
+  EXPECT_GT(pages_needed, 99u)
+      << "the 99-page cap is unreachable, so the refusal is dead code";
+}
+
+TEST(Board, EmulatorEraseClearsOnlyTheSelectedStorageSector) {
+  std::vector<uint8_t> flash(FLASH_TOTAL_SIZE, 0x42);
+  uint8_t *previous = emulator_flash_base;
+  emulator_flash_base = flash.data();
+  flash_erase_word(FLASH_STORAGE2);
+  emulator_flash_base = previous;
+
+  const size_t start = 0x8000;
+  const size_t end = start + STOR_FLASH_SECT_LEN;
+  EXPECT_EQ(std::vector<uint8_t>(start, 0x42),
+            std::vector<uint8_t>(flash.begin(), flash.begin() + start));
+  EXPECT_EQ(std::vector<uint8_t>(STOR_FLASH_SECT_LEN, 0xff),
+            std::vector<uint8_t>(flash.begin() + start, flash.begin() + end));
+  EXPECT_EQ(std::vector<uint8_t>(FLASH_TOTAL_SIZE - end, 0x42),
+            std::vector<uint8_t>(flash.begin() + end, flash.end()));
+}

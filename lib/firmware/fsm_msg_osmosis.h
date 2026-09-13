@@ -129,6 +129,17 @@ void fsm_msgOsmosisSignTx(const OsmosisSignTx* msg) {
   layoutHome();
 }
 
+/* A `sender` is the authority the message acts as. It is copied into the signed
+   document verbatim and no LP, swap or IBC screen ever showed it, so the owner
+   approved a document naming an account no screen mentioned. There is exactly
+   one account this session can legitimately act as -- the one whose key signs
+   -- so bind it rather than adding a screen to every flow. A mismatch could
+   not produce a valid transaction anyway. */
+static bool osmosis_validate_sender(bool has_value, const char* value) {
+  return osmosis_validate_required_text(has_value, value) &&
+         osmosis_address_is_signer(value);
+}
+
 void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
   /** Confirm transaction basics */
   CHECK_PARAM(osmosis_signingIsInited(), "Signing not in progress");
@@ -142,8 +153,10 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
 
   /** Confirm required transaction parameters exist */
   if (msg->has_send) {
-    if (!msg->send.has_to_address || !msg->send.has_amount ||
-        !msg->send.has_denom) {
+    if (!osmosis_validate_account_address(msg->send.has_to_address,
+                                          msg->send.to_address) ||
+        !msg->send.has_amount ||
+        !osmosis_validate_required_text(msg->send.has_denom, msg->send.denom)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -182,9 +195,14 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
 
   } else if (msg->has_delegate) {
     /** Confirm required transaction parameters exist */
-    if (!msg->delegate.has_delegator_address ||
-        !msg->delegate.has_validator_address || !msg->delegate.has_amount ||
-        !msg->delegate.has_denom) {
+    if (!osmosis_validate_account_address(msg->delegate.has_delegator_address,
+                                          msg->delegate.delegator_address) ||
+        !osmosis_validate_validator_address(msg->delegate.has_validator_address,
+                                            msg->delegate.validator_address) ||
+        !osmosis_validate_amount(msg->delegate.has_amount,
+                                 msg->delegate.amount) ||
+        !osmosis_validate_required_text(msg->delegate.has_denom,
+                                        msg->delegate.denom)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -235,9 +253,15 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
   } else if (msg->has_undelegate) {
     /** Confirm required transaction parameters exist */
-    if (!msg->undelegate.has_delegator_address ||
-        !msg->undelegate.has_validator_address || !msg->undelegate.has_amount ||
-        !msg->undelegate.has_denom) {
+    if (!osmosis_validate_account_address(msg->undelegate.has_delegator_address,
+                                          msg->undelegate.delegator_address) ||
+        !osmosis_validate_validator_address(
+            msg->undelegate.has_validator_address,
+            msg->undelegate.validator_address) ||
+        !osmosis_validate_amount(msg->undelegate.has_amount,
+                                 msg->undelegate.amount) ||
+        !osmosis_validate_required_text(msg->undelegate.has_denom,
+                                        msg->undelegate.denom)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -288,10 +312,18 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
   } else if (msg->has_lp_add) {
     /** Confirm required transaction parameters exist */
-    if (!msg->lp_add.has_sender || !msg->lp_add.has_pool_id ||
-        !msg->lp_add.has_share_out_amount || !msg->lp_add.has_denom_in_max_a ||
-        !msg->lp_add.has_amount_in_max_a || !msg->lp_add.has_denom_in_max_b ||
-        !msg->lp_add.has_amount_in_max_b) {
+    if (!osmosis_validate_sender(msg->lp_add.has_sender, msg->lp_add.sender) ||
+        !msg->lp_add.has_pool_id ||
+        !osmosis_validate_amount(msg->lp_add.has_share_out_amount,
+                                 msg->lp_add.share_out_amount) ||
+        !osmosis_validate_required_text(msg->lp_add.has_denom_in_max_a,
+                                        msg->lp_add.denom_in_max_a) ||
+        !osmosis_validate_amount(msg->lp_add.has_amount_in_max_a,
+                                 msg->lp_add.amount_in_max_a) ||
+        !osmosis_validate_required_text(msg->lp_add.has_denom_in_max_b,
+                                        msg->lp_add.denom_in_max_b) ||
+        !osmosis_validate_amount(msg->lp_add.has_amount_in_max_b,
+                                 msg->lp_add.amount_in_max_b)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -376,12 +408,19 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
   } else if (msg->has_lp_remove) {
     /** Confirm required transaction parameters exist */
-    if (!msg->lp_remove.has_sender || !msg->lp_remove.has_pool_id ||
-        !msg->lp_remove.has_share_in_amount ||
-        !msg->lp_remove.has_denom_out_min_a ||
-        !msg->lp_remove.has_amount_out_min_a ||
-        !msg->lp_remove.has_denom_out_min_b ||
-        !msg->lp_remove.has_amount_out_min_b) {
+    if (!osmosis_validate_sender(msg->lp_remove.has_sender,
+                                 msg->lp_remove.sender) ||
+        !msg->lp_remove.has_pool_id ||
+        !osmosis_validate_amount(msg->lp_remove.has_share_in_amount,
+                                 msg->lp_remove.share_in_amount) ||
+        !osmosis_validate_required_text(msg->lp_remove.has_denom_out_min_a,
+                                        msg->lp_remove.denom_out_min_a) ||
+        !osmosis_validate_amount(msg->lp_remove.has_amount_out_min_a,
+                                 msg->lp_remove.amount_out_min_a) ||
+        !osmosis_validate_required_text(msg->lp_remove.has_denom_out_min_b,
+                                        msg->lp_remove.denom_out_min_b) ||
+        !osmosis_validate_amount(msg->lp_remove.has_amount_out_min_b,
+                                 msg->lp_remove.amount_out_min_b)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -464,10 +503,18 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
   } else if (msg->has_redelegate) {
     /** Confirm required transaction parameters exist */
-    if (!msg->redelegate.has_delegator_address ||
-        !msg->redelegate.has_validator_src_address ||
-        !msg->redelegate.has_validator_dst_address ||
-        !msg->redelegate.has_amount || !msg->redelegate.has_denom) {
+    if (!osmosis_validate_account_address(msg->redelegate.has_delegator_address,
+                                          msg->redelegate.delegator_address) ||
+        !osmosis_validate_validator_address(
+            msg->redelegate.has_validator_src_address,
+            msg->redelegate.validator_src_address) ||
+        !osmosis_validate_validator_address(
+            msg->redelegate.has_validator_dst_address,
+            msg->redelegate.validator_dst_address) ||
+        !osmosis_validate_amount(msg->redelegate.has_amount,
+                                 msg->redelegate.amount) ||
+        !osmosis_validate_required_text(msg->redelegate.has_denom,
+                                        msg->redelegate.denom)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -535,8 +582,10 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
   } else if (msg->has_rewards) {
     /** Confirm required transaction parameters exist */
-    if (!msg->rewards.has_delegator_address ||
-        !msg->rewards.has_validator_address) {
+    if (!osmosis_validate_account_address(msg->rewards.has_delegator_address,
+                                          msg->rewards.delegator_address) ||
+        !osmosis_validate_validator_address(msg->rewards.has_validator_address,
+                                            msg->rewards.validator_address)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -579,9 +628,16 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
     }
   } else if (msg->has_swap) {
     /** Confirm required transaction parameters exist */
-    if (!msg->swap.has_sender || !msg->swap.has_pool_id ||
-        !msg->swap.has_token_out_denom || !msg->swap.has_token_in_denom ||
-        !msg->swap.has_token_in_amount || !msg->swap.has_token_out_min_amount) {
+    if (!osmosis_validate_sender(msg->swap.has_sender, msg->swap.sender) ||
+        !msg->swap.has_pool_id ||
+        !osmosis_validate_required_text(msg->swap.has_token_out_denom,
+                                        msg->swap.token_out_denom) ||
+        !osmosis_validate_required_text(msg->swap.has_token_in_denom,
+                                        msg->swap.token_in_denom) ||
+        !osmosis_validate_amount(msg->swap.has_token_in_amount,
+                                 msg->swap.token_in_amount) ||
+        !osmosis_validate_amount(msg->swap.has_token_out_min_amount,
+                                 msg->swap.token_out_min_amount)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));
@@ -637,13 +693,29 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
 
   } else if (msg->has_ibc_transfer) {
     /** Confirm required transaction parameters exist */
-    if (!msg->ibc_transfer.has_sender ||
-        !msg->ibc_transfer.has_source_channel ||
-        !msg->ibc_transfer.has_source_port ||
-        !msg->ibc_transfer.has_revision_height ||
-        !msg->ibc_transfer.has_revision_number ||
-        !msg->ibc_transfer.has_denom || !msg->ibc_transfer.has_amount ||
-        !msg->ibc_transfer.has_receiver) {
+    /* The receiver has to be well-formed bech32 BEFORE any screen opens.
+       The serializer refuses a malformed one, but it runs after every IBC
+       approval has already been taken, so the owner approved a transfer
+       that was then rejected. Its HRP belongs to the counterparty chain,
+       so only well-formedness can be checked here -- that is exactly what
+       the serializer checks, moved ahead of the confirmations. */
+    if (!osmosis_validate_sender(msg->ibc_transfer.has_sender,
+                                 msg->ibc_transfer.sender) ||
+        !osmosis_validate_required_text(msg->ibc_transfer.has_receiver,
+                                        msg->ibc_transfer.receiver) ||
+        !osmosis_validate_required_text(msg->ibc_transfer.has_source_channel,
+                                        msg->ibc_transfer.source_channel) ||
+        !osmosis_validate_required_text(msg->ibc_transfer.has_source_port,
+                                        msg->ibc_transfer.source_port) ||
+        !tendermint_bech32IsWellFormed(msg->ibc_transfer.receiver) ||
+        !osmosis_validate_amount(msg->ibc_transfer.has_revision_height,
+                                 msg->ibc_transfer.revision_height) ||
+        !osmosis_validate_amount(msg->ibc_transfer.has_revision_number,
+                                 msg->ibc_transfer.revision_number) ||
+        !osmosis_validate_required_text(msg->ibc_transfer.has_denom,
+                                        msg->ibc_transfer.denom) ||
+        !osmosis_validate_amount(msg->ibc_transfer.has_amount,
+                                 msg->ibc_transfer.amount)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));

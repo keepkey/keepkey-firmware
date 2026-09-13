@@ -55,8 +55,30 @@ bool thorchain_isValidSigner(const char* signer) {
 
 const ThorchainSignTx* thorchain_getThorchainSignTx(void) { return &msg; }
 
+bool thorchain_formatAmount(uint64_t amount, const char* asset, char* out,
+                            size_t out_len) {
+  if (!tendermint_validateSafeText(asset) || !out || out_len == 0) return false;
+
+  char suffix[THORCHAIN_ASSET_SUFFIX_LEN + 2];
+  const int suffix_len = snprintf(suffix, sizeof(suffix), " %s", asset);
+  if (suffix_len <= 0 || (size_t)suffix_len >= sizeof(suffix)) return false;
+
+  return bn_format_uint64(amount, NULL, suffix, 8, 0, false, out, out_len) != 0;
+}
+
 bool thorchain_signTxInit(const HDNode* _node, const ThorchainSignTx* _msg) {
-  initialized = true;
+  thorchain_signAbort();
+  /* Validate the envelope before any of it is hashed, the way
+     osmosis_signTxInit() does. msg_count drives the msgs_remaining countdown,
+     so an absent or zero count would underflow on the first approved message
+     and the session would never finish; chain_id is both serialized into the
+     sign doc and printed on the final approval sentence, so it has to be safe
+     text before either use. */
+  if (!_node || !_msg || !_msg->has_msg_count || _msg->msg_count == 0 ||
+      !_msg->has_chain_id || !tendermint_validateSafeText(_msg->chain_id)) {
+    return false;
+  }
+
   msgs_remaining = _msg->msg_count;
   testnet = false;
 
@@ -106,11 +128,20 @@ bool thorchain_signTxInit(const HDNode* _node, const ThorchainSignTx* _msg) {
   // 10
   sha256_Update(&ctx, (uint8_t*)"\",\"msgs\":[", 10);
 
-  return success;
+  /* Only arm the session once the prologue actually hashed: a half-written
+     sign doc must not accept messages. */
+  if (!success) {
+    thorchain_signAbort();
+    return false;
+  }
+  initialized = true;
+  return true;
 }
 
 bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
                                    const char* to_address, const char* denom) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   const char mainnetp[] = "thor";
   const char testnetp[] = "tthor";
   const char* pfix;
@@ -130,6 +161,18 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
     pfix = testnetp;
   }
 
+  /* Validate the recipient against THIS network's prefix and the 20-byte
+     account length, before it reaches the bare "%s" JSON serialization below.
+     This used to be a bare bech32_decode() into hrp[45]/decoded[38], which
+     both overflowed on host-chosen input and checked neither the network nor
+     the payload length -- so a wrong-chain address, a module or operator
+     address, or a punctuation-bearing HRP all passed straight into the signed
+     document. Select the prefix first so there is something to check against.
+   */
+  if (!tendermint_validateBech32Address(to_address, pfix)) {
+    return false;
+  }
+
   if (!tendermint_getAddress(&node, pfix, from_address)) {
     return false;
   }
@@ -141,6 +184,9 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
     return false;
   }
 
+  /* msgs[] elements are comma-separated; without this the second approved
+     message concatenates onto the first and the signature covers non-JSON.
+     Same shape as binance.c and osmosis.c on this head. */
   if (has_message) {
     sha256_Update(&ctx, (uint8_t*)",", 1);
   }
@@ -167,14 +213,14 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  ",\"to_address\":\"%s\"}}", to_address);
 
-  if (success) {
-    has_message = true;
-  }
+  if (success) has_message = true;
   msgs_remaining--;
   return success;
 }
 
 bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg) {
+  if (!initialized || msgs_remaining == 0) return false;
+
   char buffer[64 + 1];
 
   // Defended here too (not just by the FSM caller) so this signing path is
@@ -184,6 +230,7 @@ bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg) {
     return false;
   }
 
+  // See the MsgSend path: msgs[] elements need the separator.
   if (has_message) {
     sha256_Update(&ctx, (uint8_t*)",", 1);
   }
@@ -213,9 +260,7 @@ bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg) {
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
                                  "\",\"signer\":\"%s\"}}", depmsg->signer);
 
-  if (success) {
-    has_message = true;
-  }
+  if (success) has_message = true;
   msgs_remaining--;
   return success;
 }
@@ -237,8 +282,26 @@ bool thorchain_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
                            NULL) == 0;
 }
 
+/* The account this session's key signs as.
+ *
+ * MsgDeposit's `signer` is serialized verbatim as the message authority, so a
+ * merely well-formed thor/maya address let the device sign a document for an
+ * account it cannot represent -- and the confirmation labels that address as
+ * though it were a destination. There is exactly one authority a session can
+ * act as; require the host to name it. */
+bool thorchain_addressIsSigner(const char* address) {
+  if (!initialized || !address) return false;
+
+  char expected[46] = {0};
+  if (!tendermint_getAddress(&node, testnet ? "tthor" : "thor", expected))
+    return false;
+  return strcmp(address, expected) == 0;
+}
+
 bool thorchain_signingIsInited(void) { return initialized; }
 
+/* msgs_remaining == 0 alone is also the pre-init state, so require that at
+   least one message actually hashed before the sign doc can be finalized. */
 bool thorchain_signingIsFinished(void) {
   return msgs_remaining == 0 && has_message;
 }
@@ -261,6 +324,63 @@ bool thorchain_confirm_full_memo(const char* title, const char* memo,
                                  size_t len) {
   return confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
                        (const uint8_t*)memo, len);
+}
+
+/* Validate the chain/asset separator before the positional parser labels
+ * fields. Empty colon-delimited fields remain meaningful and supported. */
+static bool thorchain_memo_has_canonical_separators(const char* memo,
+                                                    size_t size) {
+  /* The grammar requires OP:CHAIN.ASSET. Dots in later positional fields are
+   * data (for example the THOR.RUNE asymmetric-withdrawal selector), so they
+   * must not be confused with the one separator required in field 1. */
+  if (!memo || size == 0) return false;
+
+  size_t field = 0;
+  size_t dots_in_asset_field = 0;
+  bool has_chain = false;
+  bool has_asset = false;
+
+  for (size_t i = 0; i < size; i++) {
+    if (memo[i] == ':') {
+      field++;
+      continue;
+    }
+    if (field != 1) continue;
+    if (memo[i] == '.')
+      dots_in_asset_field++;
+    else if (dots_in_asset_field == 0)
+      has_chain = true;
+    else
+      has_asset = true;
+  }
+
+  return dots_in_asset_field == 1 && has_chain && has_asset;
+}
+
+static bool thorchain_memo_is_structured_text(const char* memo, size_t size) {
+  if (!memo || size == 0) return false;
+
+  for (size_t i = 0; i < size; i++) {
+    const unsigned char c = (unsigned char)memo[i];
+    if (c < 0x21 || c > 0x7e) return false;
+  }
+  return true;
+}
+
+static bool thorchain_parse_bps(const char* text, uint16_t* bps) {
+  if (!text || !bps || text[0] == '\0') return false;
+  if (text[0] == '0' && text[1] != '\0') return false;
+
+  uint32_t value = 0;
+  for (const char* p = text; *p; p++) {
+    if (*p < '0' || *p > '9') return false;
+    const uint32_t digit = (uint32_t)(*p - '0');
+    if (value > (10000u - digit) / 10u) return false;
+    value = value * 10u + digit;
+  }
+
+  *bps = (uint16_t)value;
+  return true;
 }
 
 ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
@@ -299,7 +419,10 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
 
   // check if memo data is recognized
 
-  if (size > MEMO_MAX) return THORCHAIN_MEMO_UNPARSED;
+  if (size > MEMO_MAX || !thorchain_memo_is_structured_text(swapStr, size) ||
+      !thorchain_memo_has_canonical_separators(swapStr, size)) {
+    return THORCHAIN_MEMO_UNPARSED;
+  }
   memzero(memoBuf, sizeof(memoBuf));
   /* size is a byte count, not necessarily including a NUL: the BTC
    * OP_RETURN caller passes raw memo bytes with no terminator. strlcpy
@@ -353,8 +476,8 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
   asset++;
 
   // Check for swap
-  if (strncmp(fields[0], "SWAP", 4) == 0 || *fields[0] == 's' ||
-      *fields[0] == '=') {
+  if (strcmp(fields[0], "SWAP") == 0 || strcmp(fields[0], "s") == 0 ||
+      strcmp(fields[0], "=") == 0) {
     /* Aggregator outbound memo: field 8 is MinAmountOut|OUTBOUND_MEMO, and
      * everything after '|' is forwarded to the outbound contract. That suffix
      * can itself contain ':' which our ':'-split would scatter (or overflow
@@ -381,6 +504,10 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
         (nfields > 4 && fields[4][0] != '\0') ? fields[4] : NULL;
     const bool has_fee = (nfields > 5 && fields[5][0] != '\0');
     const char* fee_bps = has_fee ? fields[5] : "unspecified";
+    uint16_t parsed_fee_bps = 0;
+    if (has_fee && !thorchain_parse_bps(fee_bps, &parsed_fee_bps)) {
+      return THORCHAIN_MEMO_UNPARSED;
+    }
     /* DEX-aggregator swap-out fields — all router-executed, so all displayed.
      */
     const char* agg_addr =
@@ -443,8 +570,8 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
   }
 
   // Check for add liquidity
-  else if (strncmp(fields[0], "ADD", 3) == 0 || *fields[0] == 'a' ||
-           *fields[0] == '+') {
+  else if (strcmp(fields[0], "ADD") == 0 || strcmp(fields[0], "a") == 0 ||
+           strcmp(fields[0], "+") == 0) {
     // ADD:POOL:PAIREDADDR:AFFILIATE:FEE — paired address, affiliate and fee are
     // all optional but router-executed, so none may be hidden.
     const char* pool = (nfields > 2 && fields[2][0] != '\0') ? fields[2] : NULL;
@@ -452,6 +579,10 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
         (nfields > 3 && fields[3][0] != '\0') ? fields[3] : NULL;
     const bool has_fee = (nfields > 4 && fields[4][0] != '\0');
     const char* fee_bps = has_fee ? fields[4] : "unspecified";
+    uint16_t parsed_fee_bps = 0;
+    if (has_fee && !thorchain_parse_bps(fee_bps, &parsed_fee_bps)) {
+      return THORCHAIN_MEMO_UNPARSED;
+    }
 
     /* ADD grammar defines at most 5 fields; more than that is structure we
      * cannot label and must not sign hidden, so refuse it. */
@@ -483,8 +614,8 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
   }
 
   // Check for withdraw liquidity
-  else if (strncmp(fields[0], "WITHDRAW", 8) == 0 ||
-           strncmp(fields[0], "wd", 2) == 0 || *fields[0] == '-') {
+  else if (strcmp(fields[0], "WITHDRAW") == 0 || strcmp(fields[0], "wd") == 0 ||
+           strcmp(fields[0], "-") == 0) {
     if (nfields < 3 || fields[2][0] == '\0') {
       return THORCHAIN_MEMO_UNPARSED;  // malformed memo
     }
@@ -495,20 +626,9 @@ ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
     }
 
     /* BPS rendered with integer math: snprintf is the integer-only sniprintf
-     * on the device, so no float formats. Negative BPS is a malformed memo.
-     * atoi() silently stops at the first non-digit -- "1HELLO" would show
-     * "0.01%" while the full, unmutated "1HELLO" (undigested "HELLO"
-     * included) is what actually gets signed, since this function only
-     * decides what's confirmed on-screen. Require the whole field to be
-     * digits so the displayed percentage can never diverge from the
-     * signed memo bytes. */
-    for (const char* p = fields[2]; *p; p++) {
-      if (*p < '0' || *p > '9') {
-        return THORCHAIN_MEMO_UNPARSED;
-      }
-    }
-    int bps = atoi(fields[2]);
-    if (bps < 0) {
+     * on the device, so no float formats. Negative BPS is a malformed memo. */
+    uint16_t bps = 0;
+    if (!thorchain_parse_bps(fields[2], &bps)) {
       return THORCHAIN_MEMO_UNPARSED;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,

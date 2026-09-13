@@ -518,6 +518,34 @@ bool eip712_parse_canonical_u32(const char* text, uint32_t* value) {
   return true;
 }
 
+/* chainStr in dsConfirm() is written with a 32-byte bound and holds
+   "chain " + this + ",  ", so 20 digits is the widest value that reaches the
+   screen unclipped. It also covers the full range parseVals()' 64-bit integer
+   encoder can represent, so the bound turns away nothing the device could
+   have hashed correctly anyway. */
+#define DS_CHAINID_MAX_DIGITS 20
+
+/* The domain's chainId is only ever DISPLAYED -- dsConfirm() prints the host's
+   own string and nothing consumes a numeric value (the icon selection it was
+   once parsed for is still TBD). Chain IDs above 2^32 are legal and in
+   production (Palm is 11297108109), so validating it with
+   eip712_parse_canonical_u32() refused the whole domain separator on those
+   chains over a number that was discarded. Keep only the property the screen
+   needs: canonical base-10 digits, so the string shown cannot disagree with
+   the value parseVals() hashed (e.g. "0x1" displays as 0x1 but encodes as 0),
+   with no bound on magnitude. */
+static bool dsChainIdIsDisplayable(const char* text) {
+  if (!text || text[0] == '\0') return false;
+  if (text[0] == '0' && text[1] != '\0') return false;
+
+  size_t digits = 0;
+  for (const char* p = text; *p != '\0'; p++) {
+    if (*p < '0' || *p > '9') return false;
+    if (++digits > DS_CHAINID_MAX_DIGITS) return false;
+  }
+  return true;
+}
+
 static void clearDsVals(void) {
   dsname = NULL;
   dsversion = NULL;
@@ -606,15 +634,13 @@ int dsConfirm(void) {
   if (NULL != dschainId) {
     /* Merge note: the release branch parsed this with sscanf("%" SCNu32),
      * which accepts a trailing space, a leading '+', and non-canonical forms
-     * like "007", and cannot report overflow. eip712_parse_canonical_u32()
-     * rejects all of those and fails closed, so it is used instead. See the
-     * cases in unittests/firmware/ethereum.cpp. */
-    uint32_t chainInt = 0;
-    if (!eip712_parse_canonical_u32(dschainId, &chainInt)) {
+     * like "007". dsChainIdIsDisplayable() rejects all of those and fails
+     * closed. It deliberately does NOT bound the magnitude -- see its comment.
+     * See the cases in unittests/firmware/eip712.cpp. */
+    if (!dsChainIdIsDisplayable(dschainId)) {
       clearDsVals();
       return GENERAL_ERROR;
     }
-    (void)chainInt;
     // As more chains are supported, add icon choice below
     // TBD: not implemented for first release
     // if (chainInt == 1) {
@@ -798,24 +824,14 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
               return errRet;
             }
             const bool is_uint = type_is_integer(typeType, "uint");
-            uint8_t negInt = 0;  // 0 is positive, 1 is negative
-            if (!is_uint) {
-              if (*valStr == '-') {
-                negInt = 1;
-              }
-            }
-            // parse out the length val
-            for (ctr = 0; ctr < 32; ctr++) {
-              if (negInt) {
-                // sign extend negative values
-                encBytes[ctr] = 0xFF;
-              } else {
-                // zero padding for positive
-                encBytes[ctr] = 0;
-              }
-            }
+            /* A leading '-' only tells the digit scan where the number starts;
+             * it does not decide the sign of the encoded word. Sign-extending
+             * on the character encoded "-0" as -2^64 while the screen showed
+             * "-0", which reads as zero -- the one thing a signing device must
+             * never do. The fill below keys on the parsed value instead. */
+            const uint8_t hasMinus = (!is_uint && *valStr == '-') ? 1 : 0;
             // all int strings are assumed to be base 10 and fit into 64 bits
-            const char* digits = valStr + (negInt ? 1 : 0);
+            const char* digits = valStr + hasMinus;
             if (*digits == '\0') return GENERAL_ERROR;
             for (const char* p = digits; *p; p++) {
               if (*p < '0' || *p > '9') return GENERAL_ERROR;
@@ -842,6 +858,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
                 if (intVal < min_value || intVal > max_value)
                   return GENERAL_ERROR;
               }
+            }
+            for (ctr = 0; ctr < 32; ctr++) {
+              // sign extend negative values, zero pad positive ones
+              encBytes[ctr] = (intVal < 0) ? 0xFF : 0;
             }
             // Needs to be big endian, so add to encBytes appropriately
             const uint64_t intBits = (uint64_t)intVal;

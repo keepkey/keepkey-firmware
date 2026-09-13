@@ -30,6 +30,7 @@
 #include "keepkey/board/messages.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/timer.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/board/util.h"
 #include "keepkey/board/variant.h"
 #include "keepkey/firmware/app_confirm.h"
@@ -37,6 +38,7 @@
 #include "keepkey/firmware/authenticator.h"
 #include "keepkey/firmware/bip85.h"
 #include "keepkey/firmware/clearsign_root.h"
+#include "keepkey/rand/rng_health.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/crypto.h"
@@ -48,6 +50,7 @@
 #include "keepkey/firmware/hive.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/mayachain.h"
+#include "keepkey/firmware/nano.h"
 #include "keepkey/firmware/osmosis.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/pin_sm.h"
@@ -106,11 +109,15 @@
 #define _(X) (X)
 
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
+/* Shared scratch returned by fsm_getDerivedNode(). It may hold a root or
+ * derived private key after any chain handler, so session revocation scrubs it
+ * centrally. */
 static HDNode CONFIDENTIAL fsm_derived_node;
 
 void fsm_clearDerivedNode(void) {
   memzero(&fsm_derived_node, sizeof(fsm_derived_node));
 }
+
 #if DEBUG_LINK
 void fsm_test_seedDerivedNode(void) {
   memset(&fsm_derived_node, 0xA5, sizeof(fsm_derived_node));
@@ -263,6 +270,14 @@ static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
     *fingerprint = 0;
   }
 
+  /* Every failure below returns NULL, so the caller has no pointer with which
+   * to clear this scratch -- only this function can. Leaving it dirty left a
+   * root or half-derived private key resident until whatever happened to
+   * overwrite it next: storage_getRootNode() may write before it fails, and by
+   * the time hdnode_private_ckd_cached() can fail the root is definitely
+   * there. Scrub on entry, and on each failure after a possible write. */
+  memzero(&fsm_derived_node, sizeof(fsm_derived_node));
+
   if (!get_curve_by_name(curve)) {
     fsm_sendFailure(FailureType_Failure_SyntaxError, "Unknown ecdsa curve");
     layoutHome();
@@ -270,6 +285,7 @@ static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
   }
 
   if (!storage_getRootNode(curve, true, &fsm_derived_node)) {
+    memzero(&fsm_derived_node, sizeof(fsm_derived_node));
     fsm_sendFailure(FailureType_Failure_NotInitialized,
                     "Device not initialized or passphrase request cancelled");
     layoutHome();
@@ -282,6 +298,7 @@ static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
 
   if (hdnode_private_ckd_cached(&fsm_derived_node, address_n, address_n_count,
                                 fingerprint) == 0) {
+    memzero(&fsm_derived_node, sizeof(fsm_derived_node));
     fsm_sendFailure(FailureType_Failure_Other, "Failed to derive private key");
     layoutHome();
     return 0;
@@ -290,19 +307,37 @@ static HDNode* fsm_getDerivedNode(const char* curve, const uint32_t* address_n,
   return &fsm_derived_node;
 }
 
-#if DEBUG_LINK
+/* A transport rejection never reaches the chain handler's abort path. Clear
+ * the in-flight SIGNING session before reporting it so a later packet cannot
+ * resume one: a malformed EthereumTxAck or TxAck is rejected here, and without
+ * this the half-advanced session is still live for the next ack.
+ *
+ * NOT fsm_abort_workflows(): a setup ceremony cannot be resumed by a rejected
+ * frame -- it advances only on on-device input, setup_stage() refuses to
+ * restage over an armed ceremony (#429) and storage_commit() disarms one --
+ * so tearing it down here buys nothing and costs the user real work. Every
+ * unmapped message id lands in this handler, and on bitcoin-only firmware that
+ * is every multi-chain message a host probes with: setup_abort() would
+ * memzero a recovery 20 words into its seed, mid-entry, because a wallet
+ * application asked for an Ethereum address. (7.14.3 F071.) */
 static void sendFailureWrapper(FailureType code, const char* text) {
+  fsm_abort_signing_workflows();
+  layoutHome();
   fsm_sendFailure(code, text);
 }
-#endif
+
+/* Every host frame counts as activity, so a streamed ceremony or signing
+ * session the user is still working through is not auto-locked mid-flight.
+ * note_host_activity() ignores frames that arrive at the home screen, so a
+ * polling host cannot hold an idle device unlocked. */
+static void fsm_usb_rx(const void* msg, size_t len) {
+  note_host_activity();
+  handle_usb_rx(msg, len);
+}
 
 void fsm_init(void) {
   msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
-#if DEBUG_LINK
   set_msg_failure_handler(&sendFailureWrapper);
-#else
-  set_msg_failure_handler(&fsm_sendFailure);
-#endif
 
   /* set leaving handler for layout to help with determine home state */
   set_leaving_handler(&leave_home);
@@ -312,6 +347,8 @@ void fsm_init(void) {
 #endif
 
   msg_init();
+  /* after msg_init(), which installs the board's own rx callback */
+  usb_set_rx_callback(&fsm_usb_rx);
 
   txin_dgst_initialize();
 }
@@ -351,9 +388,44 @@ void fsm_sendFailure(FailureType code, const char* text) {
   msg_write(MessageType_MessageType_Failure, resp);
 }
 
+void fsm_abort_workflows(void) {
+  setup_abort();
+  fsm_abort_signing_workflows();
+}
+
+/* The signing half of the above. Clearing PIN authorization revokes retained
+ * signing state, but must not discard a setup ceremony: recovery stages its
+ * ceremony before prompting for the PIN, and every routine PIN entry clears
+ * the session while checking the entered digits against the wipe code. */
+void fsm_abort_signing_workflows(void) {
+  signing_abort();
+#if !BITCOIN_ONLY
+  ethereum_signing_abort();
+  nano_signingAbort();
+  tendermint_signAbort();
+  osmosis_signAbort();
+  thorchain_signAbort();
+  mayachain_signAbort();
+  eos_signingAbort();
+  zcash_signing_abort();
+#endif
+  authenticator_clear_cache();
+  memzero(&fsm_derived_node, sizeof(fsm_derived_node));
+}
+
 void fsm_msgClearSession(ClearSession* msg) {
   (void)msg;
+  fsm_abort_workflows();
   session_clear(/*clear_pin=*/true);
+  /* Several abort routines -- Binance, Tendermint, Osmosis, THORChain,
+     MAYAChain, EOS, Nano -- only clear state and touch no layout, so without
+     this the approval screen of the transaction just cancelled stays on the
+     OLED, describing an operation that no longer exists.
+
+     Done here and in fsm_msgCancel() rather than inside fsm_abort_workflows(),
+     because that is also called from toggle_screensaver(), which draws the
+     screensaver immediately afterwards. */
+  layoutHome();
   fsm_sendSuccess("Session cleared");
 }
 

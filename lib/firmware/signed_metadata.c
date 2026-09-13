@@ -775,10 +775,24 @@ static IconType stage_runtime_icon(Image* img, AnimationFrame* frame,
 bool signed_metadata_confirm_load(const char* alias, const char* fingerprint,
                                   const uint8_t* icon, uint8_t icon_w,
                                   uint8_t icon_h, uint16_t icon_len) {
+  /* Draw the logo only in a build that also keeps the session icon cache. In a
+   * build without it, signed_metadata_signer_icon() returns false for the rest
+   * of the session, so no per-tx screen can repeat the logo -- and a logo shown
+   * once here would train the user to expect one, making its later absence
+   * carry no signal. Show the same text-only identity the per-tx screens will
+   * show. */
+#if !ZCASH_PRIVACY
   Image icon_img;
   AnimationFrame icon_frame;
   IconType id_icon = stage_runtime_icon(&icon_img, &icon_frame, icon, icon_w,
                                         icon_h, icon_len);
+#else
+  IconType id_icon = NO_ICON;
+  (void)icon;
+  (void)icon_w;
+  (void)icon_h;
+  (void)icon_len;
+#endif
 
   char body[160];
   memset(body, 0, sizeof(body));
@@ -1166,20 +1180,9 @@ static bool signed_metadata_confirm_screens(void) {
     uint16_t icon_len;
     if (signed_metadata_signer_icon(key_id, &icon_data, &icon_w, &icon_h,
                                     &icon_len)) {
-      icon_img.w = icon_w;
-      icon_img.h = icon_h;
-      icon_img.length = icon_len;
-      icon_img.data = icon_data;
-      icon_frame.x = 0;
-      icon_frame.y = (icon_h < 52) ? (uint16_t)((52 - icon_h) / 2 + 6) : 6;
-      icon_frame.duration = 0;
-      /* Decoder computes pixel = data * color / 100, so color=100 makes the
-       * icon's data bytes direct 0-255 intensities (matches the built-in
-       * icons). color=0xff would overflow uint8 and corrupt every pixel. */
-      icon_frame.color = 100;
-      icon_frame.image = &icon_img;
-      layout_set_runtime_icon(&icon_frame);
-      screen_icon = RUNTIME_ICON;
+      /* Use the same full-height, centered placement as load confirmation. */
+      screen_icon = stage_runtime_icon(&icon_img, &icon_frame, icon_data,
+                                       icon_w, icon_h, icon_len);
     }
 
     memset(body, 0, sizeof(body));

@@ -930,6 +930,27 @@ bool solana_parseInstrSchema(const uint8_t* payload, size_t payload_len,
   return cur == end; /* no trailing bytes */
 }
 
+/* Instructions that may ride along unscreened next to a schema-described one.
+ * The schema review runs only in the SOL_TX_REVIEW_OPAQUE branch of
+ * fsm_msgSolanaSignTx, and that branch never calls solana_confirmInstruction()
+ * for anything -- it goes from the schema screens straight to the blind-sign
+ * warning. So "firmware recognises it" is not enough: a recognised
+ * SystemProgram Transfer beside the described instruction would be signed
+ * without one screen naming its amount or destination. Only instructions that
+ * move no value and grant no authority qualify. */
+static bool solana_schemaCompanionIsInert(SolanaInstrType type) {
+  switch (type) {
+    case SOL_INSTR_COMPUTE_BUDGET_HEAP_FRAME:
+    case SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT:
+    case SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE:
+    case SOL_INSTR_COMPUTE_BUDGET_LOADED_ACCOUNTS_SIZE:
+    case SOL_INSTR_MEMO:
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool solana_schemaApplies(const SolanaInstrSchema* schema,
                           const SolanaParsedTx* tx, uint8_t* out_index) {
   if (!schema || !tx || !out_index) return false;
@@ -976,13 +997,14 @@ bool solana_schemaApplies(const SolanaInstrSchema* schema,
   }
   if (!found) return false;
 
-  /* A schema explains ONE instruction. Every other instruction must be one
-   * firmware already decodes, or the message could move funds through a path
-   * no screen described. */
+  /* A schema explains ONE instruction, and nothing in the schema path draws a
+   * screen for any other, so every other instruction must be inert. Requiring
+   * only that they be RECOGNISED was not enough: a SystemProgram Transfer is
+   * recognised, and it would have been signed unscreened. */
   for (uint8_t i = 0; i < tx->num_instructions; i++) {
     if (i == match) continue;
     if (tx->instructions[i].external ||
-        tx->instructions[i].type == SOL_INSTR_UNKNOWN) {
+        !solana_schemaCompanionIsInert(tx->instructions[i].type)) {
       return false;
     }
   }

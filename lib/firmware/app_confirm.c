@@ -254,9 +254,9 @@ bool confirm_load_device(bool is_node) {
  *
  */
 bool confirm_xpub(const char* node_str, const char* xpub) {
-  return confirm_with_custom_layout(&layout_xpub_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    node_str, "%s", xpub);
+  return confirm_address_with_custom_layout(
+      &layout_xpub_notification, ButtonRequestType_ButtonRequest_Address,
+      node_str, "%s", xpub);
 }
 
 /*
@@ -270,9 +270,9 @@ bool confirm_xpub(const char* node_str, const char* xpub) {
  *
  */
 bool confirm_cosmos_address(const char* desc, const char* address) {
-  return confirm_with_custom_layout(&layout_cosmos_address_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    desc, "%s", address);
+  return confirm_address_with_custom_layout(
+      &layout_cosmos_address_notification,
+      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
 /*
@@ -286,9 +286,9 @@ bool confirm_cosmos_address(const char* desc, const char* address) {
  *
  */
 bool confirm_osmosis_address(const char* desc, const char* address) {
-  return confirm_with_custom_layout(&layout_osmosis_address_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    desc, "%s", address);
+  return confirm_address_with_custom_layout(
+      &layout_osmosis_address_notification,
+      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
 /*
@@ -302,9 +302,9 @@ bool confirm_osmosis_address(const char* desc, const char* address) {
  *
  */
 bool confirm_ethereum_address(const char* desc, const char* address) {
-  return confirm_with_custom_layout(&layout_ethereum_address_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    desc, "%s", address);
+  return confirm_address_with_custom_layout(
+      &layout_ethereum_address_notification,
+      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
 /*
@@ -318,9 +318,9 @@ bool confirm_ethereum_address(const char* desc, const char* address) {
  *
  */
 bool confirm_nano_address(const char* desc, const char* address) {
-  return confirm_with_custom_layout(&layout_nano_address_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    desc, "%s", address);
+  return confirm_address_with_custom_layout(
+      &layout_nano_address_notification,
+      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
 /*
@@ -349,6 +349,20 @@ bool confirm_zcash_address(const char* desc, const char* address) {
 #endif
 
 /*
+ * confirm_zcash_address() - Show zcash address confirmation
+ *
+ * INPUT
+ *      - desc: description (title) shown on both screens
+ *      - address: zcash unified address — full text on the first screen,
+ *        QR on the second
+ * OUTPUT
+ *     true/false of confirmation
+ *
+ */
+#if ZCASH_PRIVACY
+#endif
+
+/*
  * confirm_address() - Show address confirmation
  *
  * INPUT
@@ -359,9 +373,9 @@ bool confirm_zcash_address(const char* desc, const char* address) {
  *
  */
 bool confirm_address(const char* desc, const char* address) {
-  return confirm_with_custom_layout(&layout_address_notification,
-                                    ButtonRequestType_ButtonRequest_Address,
-                                    desc, "%s", address);
+  return confirm_address_with_custom_layout(
+      &layout_address_notification, ButtonRequestType_ButtonRequest_Address,
+      desc, "%s", address);
 }
 
 /*
@@ -374,14 +388,85 @@ bool confirm_address(const char* desc, const char* address) {
  *     true/false of confirmation
  *
  */
-bool confirm_sign_identity(const IdentityType* identity,
-                           const char* challenge) {
+bool format_sign_identity_key_selection(const IdentityType* identity,
+                                        const char* curve, char* out,
+                                        size_t out_len) {
+  if (!identity || !curve || !out || out_len == 0) return false;
+  const int needed = snprintf(
+      out, out_len, "Index: %" PRIu32 "\nCurve: %s\nPath: %s", identity->index,
+      curve, (identity->has_path && identity->path[0]) ? "shown next" : "none");
+  return needed >= 0 && (size_t)needed < out_len;
+}
+
+/* Every field cryptoIdentityFingerprint() hashes has to be renderable without
+   ambiguity, because the screen that shows it is the only thing standing
+   between two identities that derive DIFFERENT keys.
+
+   proto goes into a title and host/port/user are concatenated into an ordinary
+   body, both drawn as layout text: a byte below 0x20 is invisible, a leading
+   space is dropped at a line start, and a newline re-wraps everything after
+   it. So "ssh"/"ssh\n", or a user with a trailing space, can present the same
+   approval while selecting different keys.
+
+   path and the visual challenge already avoid this by going through
+   confirm_bytes(). Putting the other four on their own escaped pages would add
+   four screens to every identity signature; instead require them to be what
+   they always are in practice -- URI components with no space and no control
+   byte -- and refuse anything else before a screen is drawn. 0x21..0x7E is the
+   same range confirm_bytes() renders literally. */
+static bool identity_field_is_unambiguous(bool has_value, const char* value) {
+  if (!has_value || !value) return true; /* absent is unambiguous */
+  for (const unsigned char* p = (const unsigned char*)value; *p; ++p) {
+    if (*p < 0x21 || *p > 0x7e) return false;
+  }
+  return true;
+}
+
+bool confirm_sign_identity(const IdentityType* identity, const char* challenge,
+                           const char* curve) {
   char title[CONFIRM_SIGN_IDENTITY_TITLE], body[CONFIRM_SIGN_IDENTITY_BODY];
 
-  /* Format protocol */
+  if (!identity || !curve) return false;
+
+  /* Refuse before anything is shown -- see identity_field_is_unambiguous(). */
+  if (!identity_field_is_unambiguous(identity->has_proto, identity->proto) ||
+      !identity_field_is_unambiguous(identity->has_host, identity->host) ||
+      !identity_field_is_unambiguous(identity->has_port, identity->port) ||
+      !identity_field_is_unambiguous(identity->has_user, identity->user)) {
+    return false;
+  }
+
+  /* These values select the key and signing algorithm. Keep them out of the
+   * free-form identity body so the maximum-size path can be reviewed by the
+   * exact-byte pager instead of being shortened by a printf buffer. */
+  char key_selection[CONFIRM_SIGN_IDENTITY_KEY];
+  if (!format_sign_identity_key_selection(identity, curve, key_selection,
+                                          sizeof(key_selection)) ||
+      !confirm(ButtonRequestType_ButtonRequest_SignIdentity, "Identity Key",
+               "%s", key_selection)) {
+    memzero(key_selection, sizeof(key_selection));
+    return false;
+  }
+  memzero(key_selection, sizeof(key_selection));
+
+  if (identity->has_path && identity->path[0] &&
+      !confirm_bytes(ButtonRequestType_ButtonRequest_SignIdentity,
+                     "Identity Path", (const uint8_t*)identity->path,
+                     strlen(identity->path))) {
+    return false;
+  }
+
+  /* Format protocol -- verbatim, NOT uppercased.
+   *
+   * cryptoIdentityFingerprint() hashes identity->proto exactly as the host
+   * sent it, so "ssh" and "SSH" select DIFFERENT keys. kk_strupr() made both
+   * render as "SSH login to: ", so the one screen that names the protocol
+   * could not distinguish two identities that sign with different keys.
+   * Canonicalizing the other way is not open to us: the fingerprint is what
+   * derives every existing identity key, and changing its input would strand
+   * them. So show the bytes that are actually hashed. */
   if (identity->has_proto && identity->proto[0]) {
     strlcpy(title, identity->proto, sizeof(title));
-    kk_strupr(title);
     strlcat(title, " login to: ", sizeof(title));
   } else {
     strlcpy(title, "Login to: ", sizeof(title));
@@ -409,9 +494,29 @@ bool confirm_sign_identity(const IdentityType* identity,
     strlcat(body, "\n", sizeof(body));
   }
 
-  /* Format challenge */
-  if (challenge && strlen(challenge) != 0) {
-    strlcat(body, challenge, sizeof(body));
+  /* EVERY visual challenge goes through the exact-byte pager.
+   *
+   * The challenge is hashed into the signature on the non-SSH/GPG identity
+   * path, so the screen has to be able to tell two different challenges apart.
+   * Short ones used to be strlcat'd into `body` and drawn with "%s", which
+   * makes them layout text rather than bytes: a control byte is invisible, a
+   * run of spaces collapses at a line start, and a newline re-wraps everything
+   * around it. Two distinct signed challenges could therefore produce an
+   * identical approval, and only challenges too long for the shared buffer got
+   * the treatment that would have shown the difference.
+   *
+   * Confirm the identity metadata on its own screen -- always, so the title
+   * still names the protocol even when there is no host or user -- then page
+   * the challenge with confirm_bytes(), which escapes every byte outside
+   * 0x21..0x7E. */
+  if (challenge && challenge[0]) {
+    if (!confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
+                 body)) {
+      return false;
+    }
+    return confirm_bytes(ButtonRequestType_ButtonRequest_SignIdentity,
+                         "Visual Challenge", (const uint8_t*)challenge,
+                         strlen(challenge));
   }
 
   return confirm(ButtonRequestType_ButtonRequest_SignIdentity, title, "%s",
@@ -427,6 +532,25 @@ static size_t confirm_byte_token(uint8_t byte, char token[5]) {
 
   snprintf(token, 5, "\\x%02X", byte);
   return 4;
+}
+
+bool confirm_bytes_escape(const uint8_t* data, size_t size, char* out,
+                          size_t out_len) {
+  if ((!data && size != 0) || !out || out_len == 0) return false;
+
+  out[0] = '\0';
+  size_t used = 0;
+  for (size_t i = 0; i < size; i++) {
+    char token[5];
+    const size_t token_len = confirm_byte_token(data[i], token);
+    if (token_len > (out_len - 1) - used) {
+      out[0] = '\0';
+      return false;
+    }
+    memcpy(out + used, token, token_len + 1);
+    used += token_len;
+  }
+  return true;
 }
 
 size_t confirm_bytes_format_page(const uint8_t* data, size_t size, char* out,
@@ -488,7 +612,18 @@ bool confirm_bytes(ButtonRequestType button_request, const char* title,
     }
     if (title_len < 0 || (size_t)title_len >= sizeof(page_title)) goto cleanup;
 
-    if (!confirm(button_request, page_title, "%s", page_body)) goto cleanup;
+    const bool last = (page + 1 == pages);
+    if (last) {
+      /* Only the final page approves the signature, so it keeps the full hold.
+       */
+      if (!confirm(button_request, page_title, "%s", page_body)) goto cleanup;
+    } else {
+      /* Reading an intermediate page advances on a short click. Cancel and
+       * Initialize still return false from the underlying confirmation screen.
+       */
+      if (!review_immediate(button_request, page_title, "%s", page_body))
+        goto cleanup;
+    }
     offset += take;
   }
 
@@ -530,12 +665,19 @@ bool confirm_omni(ButtonRequestType button_request, const char* title,
       case 31:
         suffix = " USDT";
         break;
+      default:
+        /* Asset identity is signed semantics. A generic UNKN ticker makes
+         * every unsupported property ID look identical, so disclose the
+         * complete payload instead of pretending it was decoded. */
+        return confirm_bytes(button_request, title, data, size);
     }
     uint64_t amount_be, amount;
     memcpy(&amount_be, data + 12, sizeof(uint64_t));
     REVERSE64(amount_be, amount);
-    bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false,
-                     str_out, sizeof(str_out));
+    if (!bn_format_uint64(amount, NULL, suffix, BITCOIN_DIVISIBILITY, 0, false,
+                          str_out, sizeof(str_out))) {
+      strlcpy(str_out, "AMOUNT TOO LARGE TO DISPLAY", sizeof(str_out));
+    }
     return confirm(button_request, title, _("Do you want to send %s?"),
                    str_out);
   }

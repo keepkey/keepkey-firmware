@@ -76,10 +76,20 @@ static char CONFIDENTIAL current_words[MNEMONIC_BY_SCREEN_BUF];
 static uint8_t CONFIDENTIAL dice_digest[32];
 static bool has_dice_digest = false;
 
+/* Which dice derivation this ceremony uses. Selected by the host in
+ * ResetDevice (dice_entropy / dice_only) and confirmed on the device by the
+ * consent screen in reset_init() before anything runs. Cleared with the
+ * digest by setup_abort(), so an abandoned ceremony cannot leave it armed. */
+static DiceMode dice_mode = DICE_MODE_NONE;
+
 static void dice_digest_clear(void) {
   memzero(dice_digest, sizeof(dice_digest));
   has_dice_digest = false;
+  dice_mode = DICE_MODE_NONE;
 }
+
+static bool show_mnemonic_pages(const char* mnemonic, const char* title_base,
+                                ButtonRequestType type);
 
 bool setup_isArmed(void) { return setup.kind != SETUP_NONE; }
 
@@ -96,6 +106,10 @@ void setup_abort(void) {
   memzero(&setup, sizeof(setup));
   memzero(int_entropy, sizeof(int_entropy));
   memzero(current_words, sizeof(current_words));
+  /* reset_entropy() receives its generated sentence from bip39.c's static
+   * `mnemo` buffer.  A cancelled/error ceremony has no owner for that secret,
+   * so the common abort path must clear it along with the setup scratch. */
+  mnemonic_clear();
   /* The roll digest is ceremony state like the rest: it only describes the
    * reset that produced it, and leaving it live would keep serving it over
    * DebugLink for the rest of the boot. */
@@ -167,7 +181,8 @@ void setup_arm(SetupKind kind) {
   setup.kind = setup.staged ? kind : SETUP_NONE;
 }
 
-void setup_commit(const char* mnemonic, bool imported) {
+bool setup_commit(SetupKind kind, const char* mnemonic, bool imported) {
+  if (!setup_require(kind, "Setup ceremony was aborted")) return false;
   /* The ordering below is load-bearing. storage_setPin() derives the storage
    * key that storage_commit() encrypts the secrets with, so it has to run
    * before storage_setMnemonic(). Do not reorder. */
@@ -176,7 +191,7 @@ void setup_commit(const char* mnemonic, bool imported) {
   if (setup.has_language) storage_setLanguage(setup.language);
   if (setup.has_label) storage_setLabel(setup.label);
   storage_setAutoLockDelayMs(setup.auto_lock_delay_ms);
-  storage_setU2FCounter(setup.u2f_counter);
+  storage_stageU2FCounter(setup.u2f_counter);
   if (setup.no_backup) storage_setNoBackup();
 
   storage_setMnemonic(mnemonic);
@@ -187,6 +202,7 @@ void setup_commit(const char* mnemonic, bool imported) {
    * storage_commit() aborts any ceremony still armed when it runs. */
   setup_abort();
   storage_commit();
+  return true;
 }
 
 /* Shared paginated-mnemonic display scratch — see reset.h for the contract
@@ -199,11 +215,29 @@ char CONFIDENTIAL mnemonic_scratch_word[MAX_WORD_LEN + ADDITIONAL_WORD_PAD];
 void reset_init(uint32_t _strength, bool passphrase_protection,
                 bool pin_protection, const char* language, const char* label,
                 bool _no_backup, uint32_t _auto_lock_delay_ms,
-                uint32_t _u2f_counter, bool dice_entropy) {
+                uint32_t _u2f_counter, bool dice_entropy, bool dice_only) {
   if (_strength != 128 && _strength != 192 && _strength != 256) {
     fsm_sendFailure(
         FailureType_Failure_SyntaxError,
         _("Invalid mnemonic strength (has to be 128, 192 or 256 bits)"));
+    layoutHome();
+    return;
+  }
+
+  if (dice_only && !dice_entropy) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("dice_only requires dice_entropy"));
+    layoutHome();
+    return;
+  }
+
+  /* The dice modes exist to be checked against the backup words. A reset that
+   * never shows them has nothing to verify, and would put seed material (the
+   * digest, the entropy words) on the screen under a WARNING that recovery is
+   * impossible. Refused, as display_random with no_backup was. */
+  if (dice_entropy && _no_backup) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Dice entropy cannot be combined with no_backup"));
     layoutHome();
     return;
   }
@@ -279,36 +313,57 @@ void reset_init(uint32_t _strength, bool passphrase_protection,
     return;
   }
 
-  /* Dice fold in before EntropyRequest, so the host contribution arrives
-   * strictly after the device has committed to its own.
+  /* Dice ceremony. The host selects the mode in ResetDevice so a wallet can
+   * explain what is coming before anything starts; the device then shows a
+   * consent screen naming the mode it was asked for, so a host cannot pick
+   * one silently. (It is a confirm, not a selector: on a one-button device a
+   * confirm() ends only by hold or by the host's Cancel, and "cancel the
+   * reset" is exactly the right answer to a mode the user did not want.)
+   * Both modes are verifiable offline: nothing enters the derivation that
+   * the user does not hold, and the host's EntropyAck bytes are consumed and
+   * dropped in reset_entropy().
    *
-   * They are deliberately NOT displayed. An earlier version of this code
-   * showed the mixed internal entropy on the OLED and called it a
-   * verifiable commitment; that was wrong. A host that supplies
-   * ext_entropy and reads that screen once computes
-   * SHA256(shown || ext_entropy) -- the seed pre-image -- and dice change
-   * nothing about it, because the displayed value is already post-mix. The
-   * roll digest below is safe by contrast: it is a hash of the user's own
-   * input, not of seed material.
+   *   MIXED: seed = SHA256d(tag || device_draw || SHA256(tag2 || rolls)).
+   *          The device draw is shown as 24 BIP-39 words BEFORE the rolls
+   *          are entered, so it is committed before the device has seen them
+   *          and cannot be chosen to steer the result. The user copies the
+   *          words down; with those and the rolls they recompute the seed.
+   *   ONLY:  seed = SHA256(rolls). The device draw is discarded. Coldcard's
+   *          Dice-Rolls-Only, byte for byte.
    *
-   * ResetDevice.display_random stays in the wire schema and is ignored by
-   * fsm_msgResetDevice(), which is why the old "Can't show internal entropy
-   * when backup is skipped" syntax check is gone: there is no longer an
-   * entropy screen for it to be inconsistent with.
+   * Showing the device draw here is safe for the reason it was unsafe under
+   * the old ResetDevice.display_random screen. That screen revealed the same
+   * 32 bytes while the OTHER half was still host-supplied and uncommitted,
+   * so anyone who read it and knew ext_entropy held the seed pre-image. Here
+   * the other half is dice the user rolls after the words are shown and that
+   * never cross a wire; the host contributes nothing. display_random stays on
+   * the wire and is ignored. Trezor removed the same inherited feature for the
+   * same reason (PR #4119).
    *
-   * The digest needs no clear here -- setup_stage() above ran setup_abort(),
-   * which zeroes it. */
+   * The roll digest is shown in full. In ONLY mode it is the seed material
+   * itself; in both it is the commitment the offline verifier checks.
+   *
+   * The digest and mode need no clear here -- setup_stage() above ran
+   * setup_abort(), which zeroes them. */
   if (dice_entropy) {
     static char CONFIDENTIAL dice_rolls[DICE_MAX_ROLLS];
-    static char CONFIDENTIAL digest_hex[17];
     uint32_t rolls_needed = dice_rolls_for_strength(strength);
 
-    if (!dice_input_collect(dice_rolls, rolls_needed)) {
-      memzero(dice_rolls, sizeof(dice_rolls));
+    dice_mode = dice_only ? DICE_MODE_ONLY : DICE_MODE_MIXED;
+    bool consented =
+        dice_only
+            ? confirm(ButtonRequestType_ButtonRequest_DiceRoll, _("Dice Only"),
+                      _("Seed from %lu rolls ALONE, no device randomness. "
+                        "Verifiable offline."),
+                      (unsigned long)rolls_needed)
+            : confirm(ButtonRequestType_ButtonRequest_DiceRoll,
+                      _("Dice + Device"),
+                      _("Next: 24 entropy words, NOT a backup. Copy "
+                        "them, then roll %lu dice."),
+                      (unsigned long)rolls_needed);
+    if (!consented) {
       /* setup_abort() is the whole rollback -- staged settings, int_entropy,
-       * strength, roll digest. Load-bearing: the tiny-message pump that
-       * accepted the Cancel/Initialize does not dispatch fsm_msgCancel, so
-       * nothing else has aborted the ceremony at this point. */
+       * strength, roll digest, mode. */
       setup_abort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Reset cancelled"));
@@ -316,15 +371,71 @@ void reset_init(uint32_t _strength, bool passphrase_protection,
       return;
     }
 
+    if (dice_mode == DICE_MODE_MIXED) {
+      /* All 32 bytes, always 24 words, whatever strength was requested: the
+       * verifier needs the whole draw. mnemonic_from_data() returns bip39.c's
+       * static buffer; the pager copies it before anything else runs, and
+       * mnemonic_clear() zeroes it afterwards on every path. */
+      bool shown =
+          show_mnemonic_pages(mnemonic_from_data(int_entropy, 32), _("Entropy"),
+                              ButtonRequestType_ButtonRequest_DiceRoll);
+      mnemonic_clear();
+      if (!shown) {
+        setup_abort();
+        layoutHome();
+        return;
+      }
+    }
+
+    /* Empty for the duration of roll entry, so a DebugLink reader can tell
+     * the roll screen apart from the word pages that may precede it. */
+    memzero(current_words, sizeof(current_words));
+    if (!dice_input_collect(dice_rolls, rolls_needed)) {
+      memzero(dice_rolls, sizeof(dice_rolls));
+      /* Load-bearing: the tiny-message pump that accepted the
+       * Cancel/Initialize does not dispatch fsm_msgCancel, so nothing else
+       * has aborted the ceremony at this point. */
+      setup_abort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Reset cancelled"));
+      layoutHome();
+      return;
+    }
+
+    if (dice_rolls_look_biased(dice_rolls, rolls_needed)) {
+      memzero(dice_rolls, sizeof(dice_rolls));
+      setup_abort();
+      fsm_sendFailure(
+          FailureType_Failure_SyntaxError,
+          _("Dice rolls look biased: one face exceeds 30% of the rolls"));
+      layoutHome();
+      return;
+    }
+
     sha256_Raw((const uint8_t*)dice_rolls, rolls_needed, dice_digest);
     has_dice_digest = true;
 
-    data2hex(dice_digest, 8, digest_hex);
+    /* The digest page is formatted into current_words: 265 bytes, already
+     * CONFIDENTIAL, and idle between roll entry and the backup pager. A new
+     * static buffer here cost the full 7.15 image its 16 KiB SRAM reserve,
+     * which sits within a few dozen bytes of the linker floor. Under
+     * DEBUG_LINK reset_get_word() returns this text while the page is up; the
+     * digest is already exposed there. */
+    {
+      char hex[4][17];
+      data2hex(dice_digest, 8, hex[0]);
+      data2hex(dice_digest + 8, 8, hex[1]);
+      data2hex(dice_digest + 16, 8, hex[2]);
+      data2hex(dice_digest + 24, 8, hex[3]);
+      snprintf(current_words, sizeof(current_words),
+               _("%lu rolls. Digest, SECRET:\n%s %s\n%s %s"),
+               (unsigned long)rolls_needed, hex[0], hex[1], hex[2], hex[3]);
+      memzero(hex, sizeof(hex));
+    }
     bool confirmed =
-        confirm(ButtonRequestType_ButtonRequest_DiceRoll, _("Dice Rolls"),
-                _("%lu rolls recorded.\nDigest: %s"),
-                (unsigned long)rolls_needed, digest_hex);
-    memzero(digest_hex, sizeof(digest_hex));
+        confirm_constant_power_paged(ButtonRequestType_ButtonRequest_DiceRoll,
+                                     _("Dice Rolls"), current_words);
+    memzero(current_words, sizeof(current_words));
     if (!confirmed) {
       memzero(dice_rolls, sizeof(dice_rolls));
       setup_abort();
@@ -334,7 +445,11 @@ void reset_init(uint32_t _strength, bool passphrase_protection,
       return;
     }
 
-    dice_mix(int_entropy, dice_rolls, rolls_needed);
+    if (dice_mode == DICE_MODE_ONLY) {
+      dice_derive_only(dice_rolls, rolls_needed, int_entropy);
+    } else {
+      dice_derive_mixed(int_entropy, dice_rolls, rolls_needed, int_entropy);
+    }
     memzero(dice_rolls, sizeof(dice_rolls));
   }
 
@@ -355,48 +470,16 @@ void reset_init(uint32_t _strength, bool passphrase_protection,
   msg_write(MessageType_MessageType_EntropyRequest, &resp);
 }
 
-void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
-  if (!setup_require(SETUP_RESET, _("Not in Reset mode"))) {
-    return;
-  }
-
-  SHA256_CTX ctx;
-  sha256_Init(&ctx);
-  sha256_Update(&ctx, int_entropy, 32);
-  sha256_Update(&ctx, ext_entropy, len);
-  sha256_Final(&ctx, int_entropy);
-
-  const char* temp_mnemonic = mnemonic_from_data(int_entropy, strength / 8);
-
-  memzero(int_entropy, sizeof(int_entropy));
-
-  if (setup.no_backup) {
-    /* Consent for this path is the two WARNING holds taken during the same
-     * ceremony, in reset_init(). */
-    setup_commit(temp_mnemonic, /*imported=*/false);
-    fsm_sendSuccess(_("Device reset"));
-    goto exit;
-  } else {
-    if (!confirm(ButtonRequestType_ButtonRequest_Other,
-                 _("Recovery Seed Backup"),
-                 "This recovery seed will only be shown ONCE. "
-                 "Please write it down carefully,\n"
-                 "and DO NOT share it with anyone. ")) {
-      fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                      _("Reset cancelled"));
-      /* storage_reset() used to run here. Nothing was written, so there is
-       * nothing to reset -- and a host-reachable wipe is not a rollback. */
-      setup_abort();
-      layoutHome();
-      goto exit;
-    }
-  }
-
-  /*
-   * Format mnemonic for user review. Display scratch is the set shared with
-   * the BIP-85 flow (see reset.h) — zero it at entry: the format loop below
-   * depends on empty page strings, and a prior user may have aborted.
-   */
+/* Page \a mnemonic under one ButtonRequest per screen, exposing each screen's
+ * words through reset_get_word() for DebugLink. Used for the backup words
+ * and, in the dice MIXED mode, for the device-entropy words the user copies
+ * down to verify the seed offline. Sends its own Failure and returns false
+ * when the user cancels or the sentence does not fit; the caller owns the
+ * ceremony rollback. The display scratch is the set shared with the BIP-85
+ * flow (see reset.h): zeroed at entry, because the format loop depends on
+ * empty page strings and a prior user may have aborted, and on every exit. */
+static bool show_mnemonic_pages(const char* mnemonic, const char* title_base,
+                                ButtonRequestType type) {
   uint32_t word_count = 0, page_count = 0;
   static char CONFIDENTIAL
       mnemonic_by_screen[MAX_PAGES][MNEMONIC_BY_SCREEN_BUF];
@@ -405,13 +488,20 @@ void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
       mnemonic_scratch_formatted;
   char* mnemonic_display = mnemonic_scratch_display;
   char* formatted_word = mnemonic_scratch_word;
+  bool ok = false;
+
   memzero(mnemonic_scratch_tokened, sizeof(mnemonic_scratch_tokened));
   memzero(mnemonic_scratch_formatted, sizeof(mnemonic_scratch_formatted));
   memzero(mnemonic_scratch_display, sizeof(mnemonic_scratch_display));
   memzero(mnemonic_scratch_word, sizeof(mnemonic_scratch_word));
   memzero(mnemonic_by_screen, sizeof(mnemonic_by_screen));
 
-  strlcpy(tokened_mnemonic, temp_mnemonic, TOKENED_MNEMONIC_BUF);
+  if (mnemonic == NULL) {
+    fsm_sendFailure(FailureType_Failure_Other, _("No mnemonic to display"));
+    goto done;
+  }
+
+  strlcpy(tokened_mnemonic, mnemonic, TOKENED_MNEMONIC_BUF);
 
   char* tok = strtok(tokened_mnemonic, " ");
 
@@ -424,20 +514,13 @@ void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
     snprintf(mnemonic_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
              formatted_mnemonic[page_count], formatted_word);
 
-    /* Group at BODY_WIDTH, exactly as before. The GROUPING is the host
-     * protocol boundary -- reset.c emits one ButtonRequest per group and
-     * the host reads one word set per request -- so it must not change.
-     * Fitting the real 124 px draw width is handled INSIDE the
-     * confirmation by local subpaging, which emits no extra requests. */
-    if (calc_str_line(get_body_font(), mnemonic_scratch_display, BODY_WIDTH) >
-        3) {
+    if (calc_str_line(get_body_font(), mnemonic_display, BODY_WIDTH) > 3) {
       page_count++;
 
       if (MAX_PAGES <= page_count) {
         fsm_sendFailure(FailureType_Failure_Other,
                         _("Too many pages of mnemonic words"));
-        setup_abort();
-        goto exit;
+        goto done;
       }
 
       snprintf(mnemonic_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
@@ -466,36 +549,97 @@ void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
 
   /* Have user confirm mnemonic is sets of 12 words */
   for (uint32_t current_page = 0; current_page < page_count; current_page++) {
-    char title[MEDIUM_STR_BUF] = _("Backup");
+    char title[MEDIUM_STR_BUF];
+    strlcpy(title, title_base, MEDIUM_STR_BUF);
 
     /* make current screen mnemonic available via debuglink */
     strlcpy(current_words, mnemonic_by_screen[current_page],
             MNEMONIC_BY_SCREEN_BUF);
 
     if (page_count > 1) {
-      /* snprintf: 20 + 10 (%d) + 1 (NULL) = 31 */
-      snprintf(title, MEDIUM_STR_BUF, _("Backup %" PRIu32 "/%" PRIu32 ""),
-               current_page + 1, page_count);
+      snprintf(title, MEDIUM_STR_BUF, _("%s %" PRIu32 "/%" PRIu32 ""),
+               title_base, current_page + 1, page_count);
     }
 
-    /* Local subpaging: ONE ButtonRequest per group, any extra OLED
-     * screens navigated inside it. The group count is the host
-     * protocol boundary and does not change -- only the number of
-     * screens within a group does. */
-    if (!confirm_constant_power_paged(
-            ButtonRequestType_ButtonRequest_ConfirmWord, title,
-            formatted_mnemonic[current_page])) {
+    /* Keep the legacy one-request-per-group host protocol while paging the
+     * narrower physical OLED layout locally inside that request. */
+    if (!confirm_constant_power_paged(type, title,
+                                      formatted_mnemonic[current_page])) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Reset cancelled"));
+      goto done;
+    }
+  }
+
+  ok = true;
+
+done:
+  memzero(mnemonic_scratch_tokened, sizeof(mnemonic_scratch_tokened));
+  memzero(mnemonic_by_screen, sizeof(mnemonic_by_screen));
+  memzero(mnemonic_scratch_formatted, sizeof(mnemonic_scratch_formatted));
+  memzero(mnemonic_scratch_display, sizeof(mnemonic_scratch_display));
+  memzero(mnemonic_scratch_word, sizeof(mnemonic_scratch_word));
+  return ok;
+}
+
+void reset_entropy(const uint8_t* ext_entropy, uint32_t len) {
+  if (!setup_require(SETUP_RESET, _("Not in Reset mode"))) {
+    return;
+  }
+
+  SHA256_CTX ctx;
+  memzero(&ctx, sizeof(ctx));
+  /* In either dice mode int_entropy is ALREADY the whole derivation, set in
+   * reset_init(), and is used verbatim. The host's EntropyAck is still
+   * consumed, so the wire flow and every host stay unchanged, but its bytes
+   * are dropped: folding them in would put a value the user does not hold
+   * back into the derivation and destroy the offline check that is the
+   * entire point of opting in. Not re-hashed either, so the published
+   * derivations are exactly what the verifier computes. */
+  if (dice_mode == DICE_MODE_NONE) {
+    sha256_Init(&ctx);
+    sha256_Update(&ctx, int_entropy, 32);
+    sha256_Update(&ctx, ext_entropy, len);
+    sha256_Final(&ctx, int_entropy);
+  }
+
+  const char* temp_mnemonic = mnemonic_from_data(int_entropy, strength / 8);
+
+  memzero(int_entropy, sizeof(int_entropy));
+
+  if (setup.no_backup) {
+    /* Consent for this path is the two WARNING holds taken during the same
+     * ceremony, in reset_init(). */
+    if (!setup_commit(SETUP_RESET, temp_mnemonic, /*imported=*/false))
+      goto exit;
+    fsm_sendSuccess(_("Device reset"));
+    goto exit;
+  } else {
+    if (!confirm(ButtonRequestType_ButtonRequest_Other,
+                 _("Recovery Seed Backup"),
+                 "This recovery seed will only be shown ONCE. "
+                 "Please write it down carefully,\n"
+                 "and DO NOT share it with anyone. ")) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Reset cancelled"));
+      /* storage_reset() used to run here. Nothing was written, so there is
+       * nothing to reset -- and a host-reachable wipe is not a rollback. */
       setup_abort();
+      layoutHome();
       goto exit;
     }
+  }
+
+  if (!show_mnemonic_pages(temp_mnemonic, _("Backup"),
+                           ButtonRequestType_ButtonRequest_ConfirmWord)) {
+    setup_abort();
+    goto exit;
   }
 
   /* Every page was held through. This is the commit point: the settings the
    * user chose during THIS ceremony and the seed land together, or neither
    * lands. */
-  setup_commit(temp_mnemonic, /*imported=*/false);
+  if (!setup_commit(SETUP_RESET, temp_mnemonic, /*imported=*/false)) goto exit;
   fsm_sendSuccess(_("Device reset"));
 
 exit:
@@ -503,7 +647,6 @@ exit:
    * here has already run it, directly or through setup_commit(). */
   memzero(&ctx, sizeof(ctx));
   memzero(mnemonic_scratch_tokened, sizeof(mnemonic_scratch_tokened));
-  memzero(mnemonic_by_screen, sizeof(mnemonic_by_screen));
   memzero(mnemonic_scratch_formatted, sizeof(mnemonic_scratch_formatted));
   memzero(mnemonic_scratch_display, sizeof(mnemonic_scratch_display));
   memzero(mnemonic_scratch_word, sizeof(mnemonic_scratch_word));

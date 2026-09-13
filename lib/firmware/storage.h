@@ -33,6 +33,31 @@
 #define V16_ENCSEC_SIZE 512  // for reading old encrypted sec size
 #define V17_ENCSEC_SIZE 1024
 
+/* Retired V18 clear-sign identity record. The fixed-size fields remain in the
+ * in-memory/storage layout for backward compatibility, but RC18 never trusts,
+ * returns, or writes their contents: this public section lacks authenticated
+ * integrity against physical flash modification.
+ *   pubkey  : 33-byte compressed secp256k1 (matches signed_metadata slots)
+ *   alias   : METADATA_ALIAS_MAX_LEN(31)+1, printable [A-Za-z0-9 _-]
+ *   icon    : 1bpp mono row-major bitmap, <= CLEARSIGN_ICON_MAX bytes,
+ *             icon_len==0 => text-only identity (no logo)
+ * Serialized size is fixed (CLEARSIGN_IDENTITY_SERIALIZED_LEN) — appended after
+ * encrypted_sec in the V18 storage layout; never reorder existing fields. */
+#define CLEARSIGN_ICON_MAX 384
+#define CLEARSIGN_IDENTITY_ALIAS_SIZE 32 /* METADATA_ALIAS_MAX_LEN(31) + 1 */
+#define PERSISTENT_IDENTITY_COUNT 2
+typedef struct _ClearsignIdentity {
+  bool present;
+  uint8_t key_id;  // the signer slot (1..METADATA_MAX_KEYS-1) this identity
+                   // reloads into; the per-tx blob's key_id selects it
+  uint8_t pubkey[33];
+  char alias[CLEARSIGN_IDENTITY_ALIAS_SIZE];
+  uint8_t icon_w;
+  uint8_t icon_h;
+  uint16_t icon_len;
+  uint8_t icon[CLEARSIGN_ICON_MAX];
+} ClearsignIdentity;
+
 typedef struct _authBlockType {
   authType authData[AUTHDATA_SIZE];                          // 450
   uint8_t reserved[512 - sizeof(authType) * AUTHDATA_SIZE];  // 62
@@ -219,7 +244,9 @@ typedef enum {
   SUS_Invalid,
   SUS_Valid,
   SUS_Updated,
-  SUS_BitcoinOnlyLocked,  // written by bitcoin-only firmware; refuse to load
+  /// Storage was written by bitcoin-only firmware and this build must not load
+  /// it. The wallet stays INTACT in flash -- this is a refusal, never a wipe.
+  SUS_BitcoinOnlyLocked,
 } StorageUpdateStatus;
 
 /// \brief Copy configuration from storage partition in flash memory to shadow

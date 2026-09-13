@@ -5,7 +5,15 @@
 #include "trezor/crypto/bip32.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+
+/* Suffix width for the deposit confirmation screen, from
+ * include/keepkey/transport/messages-thorchain.options:
+ * ThorchainMsgDeposit.asset max_size:20 -> 19 visible chars, plus the leading
+ * space. Named so the "<amount> <asset>" buffer is sized from the protocol
+ * maximum -- bn_format() zeroes its output and returns 0 if it does not fit. */
+#define THORCHAIN_ASSET_SUFFIX_LEN 20
 
 typedef struct _ThorchainSignTx ThorchainSignTx;
 typedef struct _ThorchainMsgDeposit ThorchainMsgDeposit;
@@ -25,9 +33,19 @@ bool thorchain_signTxUpdateMsgSend(const uint64_t amount,
 bool thorchain_signTxUpdateMsgDeposit(const ThorchainMsgDeposit* depmsg);
 bool thorchain_signTxFinalize(uint8_t* public_key, uint8_t* signature);
 bool thorchain_signingIsInited(void);
+
+/// True iff `address` is the account this session's key signs as. Use for
+/// MsgDeposit's `signer`, which is serialized verbatim as the authority.
+bool thorchain_addressIsSigner(const char* address);
 bool thorchain_signingIsFinished(void);
 void thorchain_signAbort(void);
 const ThorchainSignTx* thorchain_getThorchainSignTx(void);
+
+/* Format exactly the amount text used by both THORChain confirmation paths.
+ * Returns false instead of allowing bn_format_uint64() to leave a blank
+ * confirmation when the caller's buffer cannot hold the protocol maximum. */
+bool thorchain_formatAmount(uint64_t amount, const char* asset, char* out,
+                            size_t out_len);
 
 // Result of thorchain_parseConfirmMemo(). A memo the device could not parse
 // and a refusal at a confirm screen are DIFFERENT outcomes and must never be

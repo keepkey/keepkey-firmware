@@ -134,6 +134,29 @@ void fsm_msgBinanceTransferMsg(const BinanceTransferMsg* msg) {
         layoutHome();
         return;
       }
+      /* Validate both addresses BEFORE the screen. binance_validateTransfer()
+         checks structure only, and the bech32/network check lives in
+         binance_serializeInputOutput(), which runs after this approval -- so a
+         malformed or wrong-network recipient was displayed and approved, then
+         rejected. */
+      {
+        const char* const pfix = binance_sessionAddressPrefix();
+        /* The input is the transfer's AUTHORITY, and no screen displays it,
+           so being well formed on the right network is not enough -- it has to
+           be the account this session's key signs as. The output is the
+           recipient and is shown, so it only needs to be a valid address on
+           the same network. */
+        if (!pfix ||
+            !tendermint_validateBech32Address(msg->inputs[0].address, pfix) ||
+            !binance_addressIsSigner(msg->inputs[0].address) ||
+            !tendermint_validateBech32Address(msg->outputs[0].address, pfix)) {
+          binance_signAbort();
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          "Invalid Binance transfer address");
+          layoutHome();
+          return;
+        }
+      }
       if (!confirm_transaction_output(
               ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
               msg->outputs[0].address)) {

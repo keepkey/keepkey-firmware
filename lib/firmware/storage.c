@@ -167,12 +167,18 @@ uint32_t storage_nextU2FCounter(void) {
   return shadow_config.storage.pub.u2f_counter;
 }
 
-void storage_setU2FCounter(uint32_t u2f_counter) {
+void storage_stageU2FCounter(uint32_t u2f_counter) {
   shadow_config.storage.pub.u2f_counter = u2f_counter;
   /* This is a setter, not a persistence boundary. All callers finish a
    * larger atomic update and call storage_commit() themselves. Committing
    * here used to abort an armed reset/recovery ceremony halfway through
    * setup_commit(), wiping its mnemonic before storage_setMnemonic(). */
+}
+
+/* Same contract as storage_stageU2FCounter(): the caller commits. Kept as a
+ * separate name because both spellings have callers. */
+void storage_setU2FCounter(uint32_t u2f_counter) {
+  storage_stageU2FCounter(u2f_counter);
 }
 
 static bool storage_isActiveSector(const char* flash) {
@@ -263,7 +269,7 @@ _Static_assert(STORAGE_VERSION >= STORAGE_VERSION_LAST_SHIPPED,
                  "and devices carrying it would be wiped on upgrade.");
 #include "storage_versions.inc"
 
-static enum StorageVersion version_from_int(int version) {
+static enum StorageVersion version_from_int(uint32_t version) {
 #define STORAGE_VERSION_LAST(VAL)        \
   _Static_assert(VAL == STORAGE_VERSION, \
                  "need to update "       \
@@ -595,10 +601,12 @@ pintest_t storage_isWipeCodeCorrect_impl(const char* wipe_code,
  *
  * SCOPE, stated because the previous revision of this branch overclaimed it:
  * this covers the draws below and nothing else. It is NOT wallet-wide
- * enforcement -- ordinary random_buffer() callers, including the Orchard
- * RedPallas signing nonce in the crypto submodule, still draw unchecked
- * exactly as they do on develop. Making the default checked was tried and
- * descoped from 7.15; see docs/security/rc28-open-findings-handoff.md.
+ * enforcement -- ordinary random_buffer() callers still draw unchecked exactly
+ * as they do on develop. (The Orchard RedPallas spend-auth randomness used to
+ * be the headline example here; it is drawn through random_buffer_checked()
+ * now, in fsm_msg_zcash.h.) Making the default checked was tried and descoped
+ * from 7.15: it can hang or brick the bootloader when the generator has failed
+ * and there is no defined degraded-RNG recovery mode yet.
  *
  * These call sites are void and have no way to report a failure, so they halt
  * -- the same disposition storage_secMigrate() takes when secrets fail to
@@ -972,7 +980,7 @@ void storage_readStorageV1(SessionState* ss, Storage* storage, const char* ptr,
   memcpy(storage->sec.pin, ptr + 393, 10);
   storage->pub.has_language = read_bool(ptr + 403);
   memset(storage->pub.language, 0, sizeof(storage->pub.language));
-  memcpy(storage->pub.language, ptr + 404, 17);
+  memcpy(storage->pub.language, ptr + 404, sizeof(storage->pub.language) - 1);
   storage->pub.has_label = read_bool(ptr + 421);
   memset(storage->pub.label, 0, sizeof(storage->pub.label));
   memcpy(storage->pub.label, ptr + 422, 33);
@@ -1035,7 +1043,7 @@ void storage_readStorageV1(SessionState* ss, Storage* storage, const char* ptr,
 }
 
 void storage_writeStorageV11(char* ptr, size_t len, const Storage* storage) {
-  if (len < 852) return;
+  if (len < 468 + sizeof(storage->encrypted_sec)) return;
   write_u32_le(ptr, storage->version);
 
   uint32_t flags =
@@ -1097,7 +1105,7 @@ void storage_writeStorageV11(char* ptr, size_t len, const Storage* storage) {
 }
 
 void storage_readStorageV11(Storage* storage, const char* ptr, size_t len) {
-  if (len < 852) return;
+  if (len < 468 + sizeof(storage->encrypted_sec)) return;
 
   storage->version = read_u32_le(ptr);
 
@@ -1132,10 +1140,10 @@ void storage_readStorageV11(Storage* storage, const char* ptr, size_t len) {
       MAX(read_u32_le(ptr + 12), STORAGE_MIN_SCREENSAVER_TIMEOUT);
 
   memset(storage->pub.language, 0, sizeof(storage->pub.language));
-  memcpy(storage->pub.language, ptr + 16, 16);
+  memcpy(storage->pub.language, ptr + 16, sizeof(storage->pub.language) - 1);
 
   memset(storage->pub.label, 0, sizeof(storage->pub.label));
-  memcpy(storage->pub.label, ptr + 32, 48);
+  memcpy(storage->pub.label, ptr + 32, sizeof(storage->pub.label) - 1);
 
   memcpy(storage->pub.wrapped_storage_key, ptr + 80, 64);
   memcpy(storage->pub.storage_key_fingerprint, ptr + 144, 32);
@@ -1215,6 +1223,7 @@ void storage_writeStorageV16Plaintext(char* ptr, size_t len,
 }
 
 void storage_writeStorageV16(char* ptr, size_t len, const Storage* storage) {
+  if (len < 1501 + sizeof(storage->encrypted_sec)) return;
   // V16 shares the same non-secret storage format as V17
 
   storage_writeStorageV16Plaintext(ptr, len, storage);
@@ -1271,10 +1280,10 @@ void storage_readStorageV16Plaintext(Storage* storage, const char* ptr,
       MAX(read_u32_le(ptr + 12), STORAGE_MIN_SCREENSAVER_TIMEOUT);
 
   memset(storage->pub.language, 0, sizeof(storage->pub.language));
-  memcpy(storage->pub.language, ptr + 16, 16);
+  memcpy(storage->pub.language, ptr + 16, sizeof(storage->pub.language) - 1);
 
   memset(storage->pub.label, 0, sizeof(storage->pub.label));
-  memcpy(storage->pub.label, ptr + 32, 48);
+  memcpy(storage->pub.label, ptr + 32, sizeof(storage->pub.label) - 1);
 
   memcpy(storage->pub.wrapped_storage_key, ptr + 80, 64);
   memcpy(storage->pub.storage_key_fingerprint, ptr + 144, 32);
@@ -1296,6 +1305,7 @@ void storage_readStorageV16Plaintext(Storage* storage, const char* ptr,
 }
 
 void storage_readStorageV16(Storage* storage, const char* ptr, size_t len) {
+  if (len < 1501 + sizeof(storage->encrypted_sec)) return;
   // V16 shares the same non-secret storage format as V17
   storage_readStorageV16Plaintext(storage, ptr, len);
 
@@ -1308,6 +1318,7 @@ void storage_readStorageV16(Storage* storage, const char* ptr, size_t len) {
 }
 
 void storage_writeStorageV17(char* ptr, size_t len, const Storage* storage) {
+  if (len < 1501 + sizeof(storage->encrypted_sec)) return;
   // V16 shares most of the same non-secret storage format as V17
   storage_writeStorageV16Plaintext(ptr, len, storage);
 
@@ -1333,6 +1344,7 @@ void storage_writeStorageV17(char* ptr, size_t len, const Storage* storage) {
 }
 
 void storage_readStorageV17(Storage* storage, const char* ptr, size_t len) {
+  if (len < 1501 + sizeof(storage->encrypted_sec)) return;
   // V16 shares most of the same non-secret storage format as V17
   storage_readStorageV16Plaintext(storage, ptr, len);
 
@@ -1413,6 +1425,7 @@ void storage_readStorageV20(Storage* storage, const char* ptr, size_t len) {
 }
 
 void storage_writeStorageV19(char* ptr, size_t len, const Storage* storage) {
+  if (len < V20_STORAGE_LEN) return;
   storage_writeStorageV20(ptr, len, storage);
   uint32_t flags = read_u32_le(ptr + 4);
   flags |= storage->pub.pin_kdf_v2 ? (1u << 20) : 0;
@@ -1420,6 +1433,7 @@ void storage_writeStorageV19(char* ptr, size_t len, const Storage* storage) {
 }
 
 void storage_readStorageV19(Storage* storage, const char* ptr, size_t len) {
+  if (len < V20_STORAGE_LEN) return;
   storage_readStorageV20(storage, ptr, len);
   uint32_t flags = read_u32_le(ptr + 4);
   storage->pub.pin_kdf_v2 = flags & (1u << 20);
@@ -1458,39 +1472,39 @@ void storage_readV2(SessionState* ss, ConfigFlash* dst, const char* flash,
 }
 
 void storage_readV11(ConfigFlash* dst, const char* flash, size_t len) {
-  if (len < 1024) return;
+  if (len < 44 + 468 + sizeof(dst->storage.encrypted_sec)) return;
   storage_readMeta(&dst->meta, flash, 44);
-  storage_readStorageV11(&dst->storage, flash + 44, 852);
+  storage_readStorageV11(&dst->storage, flash + 44, len - 44);
 }
 
 void storage_writeV11(char* flash, size_t len, const ConfigFlash* src) {
-  if (len < 1024) return;
+  if (len < 44 + 468 + sizeof(src->storage.encrypted_sec)) return;
   storage_writeMeta(flash, 44, &src->meta);
-  storage_writeStorageV11(flash + 44, 852, &src->storage);
+  storage_writeStorageV11(flash + 44, len - 44, &src->storage);
 }
 
 void storage_readV16(ConfigFlash* dst, const char* flash, size_t len) {
-  if (len < 1024) return;
+  if (len < 44 + 1501 + sizeof(dst->storage.encrypted_sec)) return;
   storage_readMeta(&dst->meta, flash, 44);
-  storage_readStorageV16(&dst->storage, flash + 44, 852);
+  storage_readStorageV16(&dst->storage, flash + 44, len - 44);
 }
 
 void storage_writeV16(char* flash, size_t len, const ConfigFlash* src) {
-  if (len < 1024) return;
+  if (len < 44 + 1501 + sizeof(src->storage.encrypted_sec)) return;
   storage_writeMeta(flash, 44, &src->meta);
-  storage_writeStorageV16(flash + 44, 852, &src->storage);
+  storage_writeStorageV16(flash + 44, len - 44, &src->storage);
 }
 
 void storage_readV17(ConfigFlash* dst, const char* flash, size_t len) {
-  if (len < 1024) return;
+  if (len < 44 + V20_STORAGE_LEN) return;
   storage_readMeta(&dst->meta, flash, 44);
-  storage_readStorageV17(&dst->storage, flash + 44, 852);
+  storage_readStorageV17(&dst->storage, flash + 44, len - 44);
 }
 
 void storage_writeV17(char* flash, size_t len, const ConfigFlash* src) {
-  if (len < 1024) return;
+  if (len < 44 + V20_STORAGE_LEN) return;
   storage_writeMeta(flash, 44, &src->meta);
-  storage_writeStorageV17(flash + 44, 852, &src->storage);
+  storage_writeStorageV17(flash + 44, len - 44, &src->storage);
 }
 
 void storage_readV20(ConfigFlash* dst, const char* flash, size_t len) {
@@ -1761,6 +1775,13 @@ void storage_init(void) {
       // firmware recovers the wallet; leaving requires an explicit wipe.
       btc_only_locked = true;
       storage_reset();
+      // storage_fromFlash() memzeroed the WHOLE shadow config, meta included,
+      // and storage_reset() clears only .storage. Every loading arm restores
+      // the metadata via storage_readMeta(); this arm returns before reaching
+      // one, so without this the device reports an EMPTY device_id -- the same
+      // empty id on every locked device, which silently merges distinct
+      // devices in any host keyed on it. The sector is known active here.
+      storage_readMeta(&shadow_config.meta, flash, STORAGE_SECTOR_LEN);
       break;
   }
 
@@ -1821,6 +1842,8 @@ void storage_reset_impl(SessionState* ss, ConfigFlash* cfg) {
 }
 
 void storage_wipe(void) {
+  fsm_abort_workflows();
+  signed_metadata_clear_signers();
   flash_erase_word(FLASH_STORAGE1);
   flash_erase_word(FLASH_STORAGE2);
   flash_erase_word(FLASH_STORAGE3);
@@ -1830,11 +1853,12 @@ void storage_wipe(void) {
 }
 
 void storage_clearKeys(void) {
-  /* A wipe code is a real authorization loss, not a soft Initialize. Clear the
-   * decrypted storage section and every plaintext cache before destroying the
-   * wrapping material. */
-  authenticator_clear_cache();
-  fsm_clearDerivedNode();
+  /* A wipe code is a real authorization loss, not a soft Initialize. End every
+   * workflow and revoke session signers, then clear the decrypted storage
+   * section and every plaintext cache before destroying the wrapping
+   * material. */
+  fsm_abort_workflows();
+  signed_metadata_clear_signers();
   session_clear_impl(&session, &shadow_config.storage, true);
   memzero(&session.storageKey, sizeof(session.storageKey));
   memzero(&shadow_config.storage.pub.wrapped_storage_key,
@@ -1847,10 +1871,6 @@ void storage_clearKeys(void) {
 }
 
 void session_clear(bool clear_pin) {
-  if (clear_pin) {
-    authenticator_clear_cache();
-    fsm_clearDerivedNode();
-  }
   /* Runtime ClearSign trust belongs to the unlocked device session. Any path
    * that tears that session down must also revoke its RAM-only signer slots. */
   signed_metadata_clear_signers();
@@ -1901,6 +1921,15 @@ pintest_t session_clear_impl(SessionState* ss, Storage* storage,
    * Shadow only -- writes no flash, so the "does not modify flash storage
    * config state" contract above holds. AdvancedMode is never persisted. */
   if (clear_pin) {
+    /* Direct callers bypass session_clear(); revoke all authorization here.
+     * Setup ceremonies are deliberately left alone: pin_protect() reaches this
+     * through the routine wipe-code probe (any PIN that is not the wipe code
+     * returns PIN_WRONG), and a dry-run recovery has already staged its
+     * ceremony by then. The paths that must discard a ceremony --
+     * session_clear(), the auto-lock, Initialize, ClearSession -- call
+     * fsm_abort_workflows() themselves. */
+    fsm_abort_signing_workflows();
+    signed_metadata_clear_signers();
     storage_setPolicy_impl(storage->pub.policies, "AdvancedMode", false);
   }
 
@@ -2589,6 +2618,16 @@ bool storage_getPassphraseProtected(void) {
 }
 
 void storage_setPassphraseProtected(bool passphrase) {
+  if (shadow_config.storage.pub.passphrase_protection != passphrase) {
+    /* Invalidate wallet selection without re-unlocking storage or committing:
+     * setup_commit() also calls this while its settings are still staged. */
+    session.seedCached = false;
+    session.seedUsesPassphrase = false;
+    memzero(session.seed, sizeof(session.seed));
+    session.passphraseCached = false;
+    memzero(session.passphrase, sizeof(session.passphrase));
+    authenticator_clear_cache();
+  }
   shadow_config.storage.pub.passphrase_protection = passphrase;
 }
 

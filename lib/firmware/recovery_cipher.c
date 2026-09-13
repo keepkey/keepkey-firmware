@@ -51,7 +51,7 @@ static bool enforce_wordlist = true;
 static bool dry_run = true;
 static bool awaiting_character;
 static CONFIDENTIAL char mnemonic[MNEMONIC_BUF];
-static char english_alphabet[ENGLISH_ALPHABET_BUF] =
+static const char english_alphabet[ENGLISH_ALPHABET_BUF] =
     "abcdefghijklmnopqrstuvwxyz";
 static CONFIDENTIAL char cipher[ENGLISH_ALPHABET_BUF];
 static int uncyphered_word_count = 0;
@@ -442,7 +442,7 @@ void next_character(void) {
   memzero(current_word_scratch, sizeof(current_word_scratch));
 
   /* Format previous word indicator (e.g. "(1.alcohol)" when entering word 2) */
-  static char prev_info[32];
+  static CONFIDENTIAL char prev_info[32];
   prev_info[0] = '\0';
   if (word_pos > 0 && last_completed_word[0]) {
     snprintf(prev_info, sizeof(prev_info), "(%" PRIu32 ".%s)", word_pos,
@@ -451,6 +451,7 @@ void next_character(void) {
 
   /* Show cipher and partial word */
   layout_cipher(formatted_word_scratch, cipher, prev_info);
+  memzero(prev_info, sizeof(prev_info));
   memzero(formatted_word_scratch, sizeof(formatted_word_scratch));
 }
 
@@ -602,8 +603,9 @@ void recovery_delete_character(void) {
   }
 
   size_t len = strlen(mnemonic);
+  bool deleted_separator = len > 0 && mnemonic[len - 1] == ' ';
   if (len > 0) {
-    if (mnemonic[len - 1] == ' ') words_entered--;
+    if (deleted_separator) words_entered--;
 
     mnemonic[len - 1] = '\0';
     // coded_mnemonic is always exactly as long as mnemonic -- every append
@@ -624,6 +626,23 @@ void recovery_delete_character(void) {
    * Re-deriving it from coded_mnemonic the same way decoded_word is
    * re-derived from mnemonic does, at any backspace depth or word count. */
   char cur[CURRENT_WORD_BUF];
+  if (deleted_separator) {
+    /* Moving back a word changes which completed word precedes the cursor. */
+    memzero(last_completed_word, sizeof(last_completed_word));
+    const char* end = strrchr(mnemonic, ' ');
+    if (end) {
+      const char* start = end;
+      while (start > mnemonic && start[-1] != ' ') start--;
+      size_t previous_len = (size_t)(end - start);
+      if (previous_len < sizeof(cur)) {
+        memcpy(cur, start, previous_len);
+        cur[previous_len] = '\0';
+        attempt_auto_complete(cur);
+        strlcpy(last_completed_word, cur, sizeof(last_completed_word));
+      }
+    }
+    memzero(cur, sizeof(cur));
+  }
   get_current_word(cur);
   strlcpy(decoded_word, cur, sizeof(decoded_word));
   memzero(cur, sizeof(cur));
@@ -678,6 +697,7 @@ void recovery_cipher_finalize(void) {
   memzero(temp_word_scratch, sizeof(temp_word_scratch));
 
   /* Attempt to autocomplete each word */
+  uint32_t words_committed = 0;
   char* tok = strtok(mnemonic, " ");
 
   while (tok) {
@@ -687,8 +707,27 @@ void recovery_cipher_finalize(void) {
 
     strlcat(final_mnemonic_scratch, temp_word_scratch, MNEMONIC_BUF);
     strlcat(final_mnemonic_scratch, " ", MNEMONIC_BUF);
+    words_committed++;
 
     tok = strtok(NULL, " ");
+  }
+
+  /* words_entered counts SEPARATORS, and strtok() collapses runs of them, so a
+   * ceremony driven with nothing but spaces satisfies the count gate above
+   * while producing no words at all. The phrase that then reaches the commit
+   * is empty, !enforce_wordlist (the wire default) skips mnemonic_check(), and
+   * the device stores a seed every attacker can derive. Require the words the
+   * loop actually emitted to be the count the ceremony claimed -- on every
+   * path, including the dry run, where a short phrase is equally meaningless.
+   */
+  if (words_committed != words_entered) {
+    memzero(final_mnemonic_scratch, sizeof(final_mnemonic_scratch));
+    memzero(temp_word_scratch, sizeof(temp_word_scratch));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    "Not enough words entered");
+    setup_abort();
+    layoutHome();
+    return;
   }
   memzero(temp_word_scratch, sizeof(temp_word_scratch));
 
@@ -721,9 +760,10 @@ void recovery_cipher_finalize(void) {
     /* Commit point: the settings staged at the start of THIS ceremony and
      * the seed the user typed word by word land together, or neither lands.
      * setup_commit() disarms before it writes. */
-    setup_commit(final_mnemonic_scratch, /*imported=*/!enforce_wordlist);
+    const bool committed = setup_commit(SETUP_RECOVERY, final_mnemonic_scratch,
+                                        /*imported=*/!enforce_wordlist);
     memzero(final_mnemonic_scratch, sizeof(final_mnemonic_scratch));
-    fsm_sendSuccess("Device recovered");
+    if (committed) fsm_sendSuccess("Device recovered");
   } else if (dry_run) {
     bool match = storage_isInitialized() &&
                  storage_containsMnemonic(final_mnemonic_scratch);

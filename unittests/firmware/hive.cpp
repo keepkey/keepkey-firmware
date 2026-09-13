@@ -2,6 +2,7 @@ extern "C" {
 #include "keepkey/board/font.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/firmware/hive.h"
+#include "trezor/crypto/secp256k1.h"
 }
 
 #include "gtest/gtest.h"
@@ -980,4 +981,178 @@ TEST(Hive, SerializationMatchesHivedClaimRewardBalance) {
   HiveParsedTx parsed;
   ASSERT_EQ(nullptr, hive_parseOperations(tx.data(), tx.size(), &parsed));
   EXPECT_STREQ("VESTS", hive_assetSymbol(parsed.ops[0].assets[2]));
+}
+
+// ---------------------------------------------------------------------------
+// HiveSignTx / HiveSignAccountCreate — the dedicated message paths.
+//
+// hive_parseOperations() permanently refuses ops 2 and 9, so these messages
+// are the ONLY way the device signs a transfer or an account_create, and they
+// were the only asset paths with no symbol table: the host's display spelling
+// was copied straight into the signed bytes. The expected vectors below are
+// built with the same append_asset() the two hived goldens above pin byte for
+// byte, so the wire spelling comes from the side the chain agrees with rather
+// than from the serializer under test.
+// ---------------------------------------------------------------------------
+
+// The transfer serializer is only reachable through hive_signTx(), which
+// emits nothing unless the signature succeeds — so the fixture needs a node
+// that can actually sign.
+HDNode hive_test_node() {
+  HDNode node = {};
+  node.curve = &secp256k1_info;
+  std::memset(node.private_key, 0x11, sizeof(node.private_key));
+  hdnode_fill_public_key(&node);
+  return node;
+}
+
+// 1.000 of the default asset from @alice to @bob, no memo.
+HiveSignTx hive_test_transfer() {
+  HiveSignTx msg = {};
+  msg.has_ref_block_num = true;
+  msg.ref_block_num = 4660;
+  msg.has_ref_block_prefix = true;
+  msg.ref_block_prefix = 0xdeadbeef;
+  msg.has_expiration = true;
+  msg.expiration = 0x5fffaa40;
+  msg.has_from = true;
+  std::strcpy(msg.from, "alice");
+  msg.has_to = true;
+  std::strcpy(msg.to, "bob");
+  msg.has_amount = true;
+  msg.amount = 1000;
+  return msg;
+}
+
+TEST(Hive, TransferSignsTheWireAssetSymbol) {
+  std::vector<uint8_t> expected;
+  append_u16_le(expected, 4660);
+  append_u32_le(expected, 0xdeadbeef);
+  append_u32_le(expected, 0x5fffaa40);
+  append_varint(expected, 1);
+  append_varint(expected, HIVE_OP_TRANSFER);
+  append_string(expected, "alice");
+  append_string(expected, "bob");
+  append_asset(expected, 1000, 3, "HIVE");  // hived writes "STEEM"
+  append_string(expected, "");              // memo
+  append_varint(expected, 0);               // extensions
+
+  HDNode node = hive_test_node();
+  HiveSignTx msg = hive_test_transfer();  // asset_symbol absent -> HIVE
+  HiveSignedTx resp = {};
+  hive_signTx(&node, &msg, &resp);
+
+  ASSERT_TRUE(resp.has_serialized_tx);
+  const std::vector<uint8_t> actual(
+      resp.serialized_tx.bytes,
+      resp.serialized_tx.bytes + resp.serialized_tx.size);
+  EXPECT_EQ(expected, actual);
+
+  // Stated separately because this is the failure mode, not a byte diff: a
+  // transfer carrying the display spelling recovers a key in no authority and
+  // hived rejects the broadcast as "missing required active authority".
+  const std::string bytes(actual.begin(), actual.end());
+  EXPECT_NE(std::string::npos, bytes.find("STEEM"));
+  EXPECT_EQ(std::string::npos, bytes.find("HIVE"));
+}
+
+TEST(Hive, TransferAssetMapsBothSpellingsAndPinsPrecision) {
+  const char* wire = nullptr;
+  const char* display = nullptr;
+  uint8_t precision = 0;
+
+  for (const char* spelling : {"HIVE", "STEEM"}) {
+    HiveSignTx msg = hive_test_transfer();
+    msg.has_asset_symbol = true;
+    std::strcpy(msg.asset_symbol, spelling);
+    ASSERT_TRUE(hive_transferAsset(&msg, &wire, &display, &precision))
+        << spelling;
+    EXPECT_STREQ("STEEM", wire);
+    EXPECT_STREQ("HIVE", display);
+    EXPECT_EQ(HIVE_DECIMALS, precision);
+  }
+
+  for (const char* spelling : {"HBD", "SBD"}) {
+    HiveSignTx msg = hive_test_transfer();
+    msg.has_asset_symbol = true;
+    std::strcpy(msg.asset_symbol, spelling);
+    ASSERT_TRUE(hive_transferAsset(&msg, &wire, &display, &precision))
+        << spelling;
+    EXPECT_STREQ("SBD", wire);
+    EXPECT_STREQ("HBD", display);
+    EXPECT_EQ(HIVE_DECIMALS, precision);
+  }
+}
+
+TEST(Hive, TransferRejectsUnknownSymbolsAndUnpinnedPrecision) {
+  const char* wire = nullptr;
+  const char* display = nullptr;
+  uint8_t precision = 0;
+
+  // VESTS is a real Hive asset with a real precision that the transfer op
+  // still cannot move; the rest are near-misses of the two it can.
+  for (const char* spelling : {"VESTS", "HIVEX", "hive", "STEEMX", ""}) {
+    HiveSignTx msg = hive_test_transfer();
+    msg.has_asset_symbol = true;
+    std::strcpy(msg.asset_symbol, spelling);
+    EXPECT_FALSE(hive_transferAsset(&msg, &wire, &display, &precision))
+        << spelling;
+  }
+
+  // Anything but the pinned 3 moves the decimal point on the confirmation
+  // screen relative to the one hived applies. 256 is the aliasing case: it
+  // narrowed to 0 behind the old `prec > 18` guard and was signed as 0.
+  for (uint32_t decimals : {0u, 6u, 19u, 256u}) {
+    HiveSignTx msg = hive_test_transfer();
+    msg.has_decimals = true;
+    msg.decimals = decimals;
+    EXPECT_FALSE(hive_transferAsset(&msg, &wire, &display, &precision))
+        << decimals;
+  }
+
+  // A refused asset must produce NO signature rather than one over fallback
+  // bytes the user never saw.
+  HDNode node = hive_test_node();
+  HiveSignTx msg = hive_test_transfer();
+  msg.has_asset_symbol = true;
+  std::strcpy(msg.asset_symbol, "VESTS");
+  HiveSignedTx resp = {};
+  hive_signTx(&node, &msg, &resp);
+  EXPECT_FALSE(resp.has_signature);
+  EXPECT_FALSE(resp.has_serialized_tx);
+}
+
+TEST(Hive, AccountCreateFeeUsesTheWireAssetSymbol) {
+  HDNode node = hive_test_node();
+
+  HiveSignAccountCreate msg = {};
+  msg.has_ref_block_num = true;
+  msg.ref_block_num = 4660;
+  msg.has_ref_block_prefix = true;
+  msg.ref_block_prefix = 0xdeadbeef;
+  msg.has_expiration = true;
+  msg.expiration = 0x5fffaa40;
+  msg.has_creator = true;
+  std::strcpy(msg.creator, "alice");
+  msg.has_new_account_name = true;
+  std::strcpy(msg.new_account_name, "bob");
+
+  uint8_t role_key[33] = {0};
+  role_key[0] = 0x02;
+  HiveSignedAccountCreate resp = {};
+  hive_signAccountCreate(&node, &msg, role_key, role_key, role_key, role_key,
+                         &resp);
+
+  ASSERT_TRUE(resp.has_serialized_tx);
+  // The fee is the first field of the op: 2 + 4 + 4 header bytes, then the
+  // op-count and op-type varints (op 9 is one byte).
+  const size_t fee_offset = 12;
+  ASSERT_GE(resp.serialized_tx.size, fee_offset + HIVE_ASSET_LEN);
+
+  std::vector<uint8_t> expected_fee;
+  append_asset(expected_fee, 3000, 3, "HIVE");  // default fee, wire "STEEM"
+  const std::vector<uint8_t> actual_fee(
+      resp.serialized_tx.bytes + fee_offset,
+      resp.serialized_tx.bytes + fee_offset + HIVE_ASSET_LEN);
+  EXPECT_EQ(expected_fee, actual_fee);
 }

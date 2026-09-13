@@ -12,6 +12,31 @@ TEST(EOS, UnknownActionsRequireAdvancedMode) {
   EXPECT_TRUE(eos_unknownActionPolicyAllows(true));
 }
 
+TEST(EOS, StreamedUnknownActionCommonMustRemainIdentical) {
+  EosActionCommon first = {};
+  first.has_account = true;
+  first.account = 0x1111;
+  first.has_name = true;
+  first.name = 0x2222;
+  first.authorization_count = 1;
+  first.authorization[0].has_actor = true;
+  first.authorization[0].actor = 0x3333;
+  first.authorization[0].has_permission = true;
+  first.authorization[0].permission = 0x4444;
+
+  EosActionCommon next = first;
+  EXPECT_TRUE(eos_actionCommonEqual(&first, &next));
+
+  next.name++;
+  EXPECT_FALSE(eos_actionCommonEqual(&first, &next));
+  next = first;
+  next.authorization[0].actor++;
+  EXPECT_FALSE(eos_actionCommonEqual(&first, &next));
+  next = first;
+  next.authorization_count = 0;
+  EXPECT_FALSE(eos_actionCommonEqual(&first, &next));
+}
+
 TEST(EOS, NewAccountCannotDowngradeToUnknownAction) {
   EosActionCommon common = {};
   common.has_account = true;
@@ -21,6 +46,51 @@ TEST(EOS, NewAccountCannotDowngradeToUnknownAction) {
   EXPECT_TRUE(eos_isSupportedAction(&common));
 
   common.account = 0x1111111111111111ULL;
+  EXPECT_FALSE(eos_isSupportedAction(&common));
+}
+
+TEST(EOS, SupportedActionsArePairsNotEitherContract) {
+  /* The classifier used to accept "account is eosio OR eosio.token" for every
+     listed action name. Combined with eosio.system.c accepting eosio.token in
+     its CHECK_COMMON, a host could compile eosio.token::newaccount through the
+     STRUCTURED path: it drew an ordinary "New Account" screen, no confirmation
+     in eosio.system.c names the contract, and it never reached
+     eos_compileActionUnknown() so the AdvancedMode gate did not apply.
+
+     The pairs below are exactly what eos-contracts/ compiles. */
+  EosActionCommon common = {};
+  common.has_account = true;
+  common.has_name = true;
+
+  /* Transfer belongs to eosio.token, and only there. */
+  common.account = EOS_eosio_token;
+  common.name = EOS_Transfer;
+  EXPECT_TRUE(eos_isSupportedAction(&common));
+  common.account = EOS_eosio;
+  EXPECT_FALSE(eos_isSupportedAction(&common));
+
+  /* Every system action belongs to eosio, and only there. This is the
+     cross-contract case that used to pass. */
+  const uint64_t system_actions[] = {
+      EOS_DelegateBW,  EOS_UndelegateBW, EOS_Refund,       EOS_BuyRam,
+      EOS_BuyRamBytes, EOS_SellRam,      EOS_VoteProducer, EOS_UpdateAuth,
+      EOS_DeleteAuth,  EOS_LinkAuth,     EOS_UnlinkAuth,   EOS_NewAccount};
+  for (size_t i = 0; i < sizeof(system_actions) / sizeof(system_actions[0]);
+       i++) {
+    common.name = system_actions[i];
+    common.account = EOS_eosio;
+    EXPECT_TRUE(eos_isSupportedAction(&common))
+        << "eosio action " << i << " should be supported";
+    common.account = EOS_eosio_token;
+    EXPECT_FALSE(eos_isSupportedAction(&common))
+        << "eosio.token action " << i << " must not be a supported pair";
+  }
+
+  /* An unrelated contract is unsupported whatever the action name. */
+  common.account = 0x1111111111111111ULL;
+  common.name = EOS_Transfer;
+  EXPECT_FALSE(eos_isSupportedAction(&common));
+  common.name = EOS_NewAccount;
   EXPECT_FALSE(eos_isSupportedAction(&common));
 }
 

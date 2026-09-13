@@ -714,7 +714,7 @@ struct pb_extension_s {
    fd,                                                                  \
    pb_delta(st, which_##u, m),                                          \
    pb_membersize(st, m),                                                \
-   PB_BYTES_CAP_SINGLE(ptype, st, m),                                  \
+   PB_BYTES_CAP_SINGLE(ptype, st, m),                                   \
    0,                                                                   \
    ptr}
 

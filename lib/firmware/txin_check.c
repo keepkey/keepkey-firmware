@@ -60,7 +60,10 @@ void txin_dgst_addto(const uint8_t* data, size_t len) {
 
 // finalize txin digest
 void txin_dgst_final(void) {
-  sha256_Final(&txin_hash_ctx, txin_current_digest);
+  // Every output compares the same transaction inputs. Finalize a copy so
+  // later outputs do not hash an empty or already-finalized context.
+  SHA256_CTX snapshot = txin_hash_ctx;
+  sha256_Final(&snapshot, txin_current_digest);
   return;
 }
 
@@ -90,16 +93,10 @@ void txin_dgst_getstrs(char* prev, char* cur, size_t len) {
   return;
 }
 
-// save last state and reset for next tx request
-void txin_dgst_reset_only(void) {
-  memzero(txin_current_digest, SHA256_DIGEST_LENGTH);
-  sha256_Init(&txin_hash_ctx);
-  return;
-}
-void txin_dgst_save_and_reset(const char* amt_str, const char* addr_str) {
+// Save the comparison key without changing this transaction's input hash.
+void txin_dgst_save(const char* amt_str, const char* addr_str) {
   memcpy(txin_last_digest, txin_current_digest, SHA256_DIGEST_LENGTH);
   memcpy(last_amount_str, amt_str, AMT_STR_LEN);
   memcpy(last_addr_str, addr_str, ADDR_STR_LEN);
-  txin_dgst_reset_current();
   return;
 }

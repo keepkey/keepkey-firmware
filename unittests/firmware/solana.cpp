@@ -2154,3 +2154,108 @@ TEST(Solana, AtaUnknownInstructionStillOpaque) {
   SolanaParsedTx tx;
   EXPECT_EQ(solana_inspectTx(raw, len, &tx), SOL_TX_REVIEW_OPAQUE);
 }
+
+/* Build a two-instruction legacy message: ix0 is the schema-described call on
+ * `program` (unknown to the parser, so the message is OPAQUE and the schema
+ * review path runs), ix1 is a companion instruction on `companion_program`. */
+static size_t build_schema_plus_companion_tx(
+    uint8_t* raw, const uint8_t* program, const uint8_t* instr_data,
+    uint8_t data_len, const uint8_t* companion_program, uint8_t companion_accts,
+    const uint8_t* companion_data, uint8_t companion_len) {
+  size_t pos = 0;
+  raw[pos++] = 1; /* num_required_sigs */
+  raw[pos++] = 0; /* num_readonly_signed */
+  raw[pos++] = 2; /* num_readonly_unsigned: both programs */
+  raw[pos++] = 4; /* sender, vault, schema program, companion program */
+  memset(raw + pos, 0x11, 32);
+  pos += 32;
+  memset(raw + pos, 0x22, 32);
+  pos += 32;
+  memcpy(raw + pos, program, 32);
+  pos += 32;
+  memcpy(raw + pos, companion_program, 32);
+  pos += 32;
+  memset(raw + pos, 0xBB, 32); /* recent blockhash */
+  pos += 32;
+
+  raw[pos++] = 2; /* two instructions */
+
+  raw[pos++] = 2; /* ix0 program index */
+  raw[pos++] = 2; /* two account indices */
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = data_len;
+  memcpy(raw + pos, instr_data, data_len);
+  pos += data_len;
+
+  raw[pos++] = 3; /* ix1 program index */
+  raw[pos++] = companion_accts;
+  for (uint8_t i = 0; i < companion_accts; i++) raw[pos++] = i;
+  raw[pos++] = companion_len;
+  memcpy(raw + pos, companion_data, companion_len);
+  pos += companion_len;
+  return pos;
+}
+
+/* SystemProgram Transfer: u32 LE type 2 + u64 LE lamports (1 SOL). */
+static const uint8_t kSystemTransfer12[12] = {2,    0,    0,    0, 0x00, 0xCA,
+                                              0x9A, 0x3B, 0x00, 0, 0,    0};
+
+/* A schema describes ONE instruction, and the schema review path draws no
+ * screen for any other -- it goes from the schema screens straight to the
+ * blind-sign warning. So a recognised-but-undescribed instruction must not be
+ * allowed to ride along: this SystemProgram Transfer would otherwise be signed
+ * without a single screen naming its amount or destination, which is exactly
+ * the property solana.h says a schema can never green-light. */
+TEST(Solana, SchemaRejectsUndescribedValueInstruction) {
+  uint8_t program[32];
+  memset(program, 0x42, sizeof(program));
+  uint8_t d[48];
+  build_relay_data(d, 526490980ULL);
+
+  const uint8_t system_program[32] = {0};
+  uint8_t raw[512];
+  size_t pos = build_schema_plus_companion_tx(
+      raw, program, d, sizeof(d), system_program, 2, kSystemTransfer12,
+      sizeof(kSystemTransfer12));
+  SolanaParsedTx tx;
+  ASSERT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+  ASSERT_EQ(tx.num_instructions, 2);
+  /* The parser DOES recognise it -- that is the point: recognition alone used
+   * to be the whole gate. */
+  ASSERT_EQ(tx.instructions[1].type, SOL_INSTR_SYSTEM_TRANSFER);
+
+  uint8_t blob[256];
+  size_t len = build_relay_schema(blob, program, 2);
+  SolanaInstrSchema s;
+  ASSERT_TRUE(solana_parseInstrSchema(blob, len, &s));
+  uint8_t idx = 0xFF;
+  EXPECT_FALSE(solana_schemaApplies(&s, &tx, &idx));
+}
+
+/* Control: an inert companion (SetComputeUnitPrice moves no value and grants
+ * no authority) still applies, so the rejection above is about the unscreened
+ * transfer and not about the message simply having two instructions. */
+TEST(Solana, SchemaAppliesBesideInertComputeBudget) {
+  uint8_t program[32];
+  memset(program, 0x42, sizeof(program));
+  uint8_t d[48];
+  build_relay_data(d, 526490980ULL);
+
+  const uint8_t unit_price[9] = {3, 0x40, 0x42, 0x0F, 0, 0, 0, 0, 0};
+  uint8_t raw[512];
+  size_t pos = build_schema_plus_companion_tx(raw, program, d, sizeof(d),
+                                              SOL_COMPUTE_BUDGET_PROGRAM, 0,
+                                              unit_price, sizeof(unit_price));
+  SolanaParsedTx tx;
+  ASSERT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+  ASSERT_EQ(tx.instructions[1].type, SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE);
+
+  uint8_t blob[256];
+  size_t len = build_relay_schema(blob, program, 2);
+  SolanaInstrSchema s;
+  ASSERT_TRUE(solana_parseInstrSchema(blob, len, &s));
+  uint8_t idx = 0xFF;
+  ASSERT_TRUE(solana_schemaApplies(&s, &tx, &idx));
+  EXPECT_EQ(idx, 0);
+}

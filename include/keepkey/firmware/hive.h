@@ -95,6 +95,15 @@ bool hive_slip48_path_valid_for_role(const uint32_t* address_n, size_t count,
 #define HIVE_SYM_HBD (1u << 1)
 #define HIVE_SYM_VESTS (1u << 2)
 
+// WIRE asset symbols — what hived actually serializes. The 2020 rebrand
+// renamed the tokens but NOT their serialization, so every asset the device
+// SIGNS spells HIVE as "STEEM" and HBD as "SBD". Signing the display spelling
+// makes hived recover a key from different bytes, which surfaces as the
+// misleading "missing required active authority". hive_assetSymbol() maps
+// these back so the user still reads HIVE/HBD.
+#define HIVE_WIRE_SYMBOL_HIVE "STEEM"
+#define HIVE_WIRE_SYMBOL_HBD "SBD"
+
 // ── Public API ────────────────────────────────────────────────────────────
 /**
  * Encode a 33-byte compressed public key in Hive/Steem STM-prefix base58
@@ -122,8 +131,21 @@ bool hive_getPublicKeys(const HDNode* root, uint32_t account_index,
                         char* posting_out, size_t posting_len);
 
 /**
+ * Resolve the asset a HiveSignTx moves into the triple the device needs:
+ * *wire is the symbol written into the signed bytes, *display is what the
+ * confirmation screen must read, and *precision is the protocol-pinned
+ * precision (never the host's). The host may spell the symbol either way
+ * ("HIVE"/"STEEM", "HBD"/"SBD"); any other symbol, and any decimals other
+ * than the pinned value, returns false so the transfer is refused rather
+ * than signed under something hived cannot validate.
+ */
+bool hive_transferAsset(const HiveSignTx* msg, const char** wire,
+                        const char** display, uint8_t* precision);
+
+/**
  * Sign a Hive transfer transaction (op type 2).
- * Rejects memos longer than HIVE_MAX_MEMO_LEN (440 bytes).
+ * Rejects memos longer than HIVE_MAX_MEMO_LEN (440 bytes), and any asset
+ * hive_transferAsset() does not accept.
  */
 void hive_signTx(const HDNode* node, const HiveSignTx* msg, HiveSignedTx* resp);
 

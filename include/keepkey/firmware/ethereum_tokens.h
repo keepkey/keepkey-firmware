@@ -53,6 +53,13 @@ extern const TokenType tokens[];
 
 extern const TokenType* UnknownToken;
 
+/* The Ethereum-mainnet 0xeeee..eeee pseudo-address used by 0x and several
+ * routers to mean ETH.  Ordinary lookup is strictly chain-scoped and returns
+ * this ETH-labelled entry only for chain 1.  A router that assigns native-
+ * asset meaning to the same bytes on another chain must resolve that meaning
+ * explicitly without borrowing this token metadata. */
+extern const TokenType* EthTestToken;
+
 const TokenType* tokenIter(int32_t* ctr);
 
 const TokenType* tokenByChainAddress(uint32_t chain_id, const uint8_t* address);

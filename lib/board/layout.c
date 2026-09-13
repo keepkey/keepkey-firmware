@@ -665,7 +665,7 @@ void layout_debuglink_watermark(void) {
   DrawableParams sp;
   sp.x = KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, watermark) -
          BODY_FONT_LINE_PADDING;
-  sp.y = KEEPKEY_DISPLAY_HEIGHT - 1 * font_height(font);
+  sp.y = KEEPKEY_DISPLAY_HEIGHT - font_height(font);
   sp.color = 0x22;
   draw_string(canvas, font, watermark, &sp, KEEPKEY_DISPLAY_WIDTH,
               font_height(font));
@@ -684,7 +684,6 @@ void layout_clear(void) {
   layout_clear_animations();
 
   layout_clear_static();
-
 #if DEBUG_LINK
   layout_debuglink_watermark();
 #endif

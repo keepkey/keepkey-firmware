@@ -25,6 +25,8 @@
 
 #include "trezor/crypto/bip32.h"
 
+#include "keepkey/firmware/ethereum_tokens.h"
+
 typedef struct _EthereumSignTx EthereumSignTx;
 
 /// \returns true iff the 0x Exchange Proxy is deployed at ZXSWAP_ADDRESS on

@@ -314,7 +314,7 @@ const CoinType* coinByNameOrTicker(const char* name) {
   return coinByShortcut(name);
 }
 
-const CoinType* coinByChainAddress(uint8_t chain_id, const uint8_t* address) {
+const CoinType* coinByChainAddress(uint32_t chain_id, const uint8_t* address) {
   if (chain_id != 1) return NULL;
 
   if (!address) return NULL;

@@ -93,9 +93,16 @@ static bool solana_confirmPriorityFee(const SolanaParsedTx* tx) {
  *
  * Takes no SolanaSignTx on purpose: every value on these screens is decoded
  * from the bytes being signed. Nothing the host merely asserts is displayed,
- * so there is no untrusted string left to sanitise. */
+ * so there is no untrusted string left to sanitise.
+ *
+ * recipient_owner is the one exception, and it is not an exception to the
+ * rule: the caller accepts it only after re-deriving the associated-token
+ * address from it ON DEVICE and finding that it equals the destination in the
+ * signed bytes. A wrong owner cannot survive that derivation, so what is shown
+ * is proven, not asserted. NULL when the host supplied nothing that matches. */
 static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
-                                      uint8_t idx, uint8_t total) {
+                                      uint8_t idx, uint8_t total,
+                                      const uint8_t* recipient_owner) {
   char title[32];
   snprintf(title, sizeof(title), "Instr %d/%d", idx + 1, total);
 
@@ -206,6 +213,20 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
        * honestly assert. */
       /* UINT64_MAX with a three-digit decimals count needs 54 bytes including
        * the terminator in the exact base-unit fallback. */
+      /* The destination in the signed bytes is a program-derived token
+       * account, which the owner cannot recognise. When the host supplies the
+       * wallet it belongs to AND that wallet re-derives to this exact account
+       * on device, name it: the screen then carries the address the user
+       * actually knows, beside the one being signed. */
+      if (recipient_owner) {
+        char owner_str[45];
+        solana_pubkeyToStr(recipient_owner, owner_str, sizeof(owner_str));
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                     "Token account of\n%s", owner_str)) {
+          return false;
+        }
+      }
+
       char amount_str[64];
       solana_formatTokenAmount(amount_str, sizeof(amount_str), pi->amount,
                                "tokens", pi->extra_u8);
@@ -537,11 +558,11 @@ static bool solana_confirmSchemaTransaction(
     uint8_t schema_ix, const char* alias,
     const char fingerprint[METADATA_FINGERPRINT_LEN]) {
   for (uint8_t i = 0; i < parsed->num_instructions; i++) {
-    const bool ok = i == schema_ix
-                        ? solana_confirmSchemaInstruction(schema, parsed, i,
-                                                          alias, fingerprint)
-                        : solana_confirmInstruction(&parsed->instructions[i], i,
-                                                    parsed->num_instructions);
+    const bool ok = i == schema_ix ? solana_confirmSchemaInstruction(
+                                         schema, parsed, i, alias, fingerprint)
+                                   : solana_confirmInstruction(
+                                         &parsed->instructions[i], i,
+                                         parsed->num_instructions, NULL);
     if (!ok) return false;
   }
   return true;
@@ -965,8 +986,23 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
   } else if (tx_review == SOL_TX_REVIEW_VERIFIED) {
     /* Per-instruction confirmation for fully verified messages */
     for (uint8_t i = 0; i < parsed.num_instructions; i++) {
+      /* Resolve the recipient's wallet for token transfers, by re-deriving the
+       * associated-token address from each owner the host offered and keeping
+       * the one that equals the destination being signed. Nothing is displayed
+       * unless that derivation matches, so a wrong or invented owner is
+       * dropped rather than shown. */
+      const SolanaParsedInstruction* pi = &parsed.instructions[i];
+      uint8_t owner[SOL_PUBKEY_SIZE];
+      const uint8_t* owner_ptr = NULL;
+      if ((pi->type == SOL_INSTR_TOKEN_TRANSFER_CHECKED ||
+           pi->type == SOL_INSTR_TOKEN_TRANSFER) &&
+          pi->has_mint &&
+          solana_findTokenRecipientOwner(msg, pi->program_id, pi->mint, pi->to,
+                                         owner)) {
+        owner_ptr = owner;
+      }
       if (!solana_confirmInstruction(&parsed.instructions[i], i,
-                                     parsed.num_instructions)) {
+                                     parsed.num_instructions, owner_ptr)) {
         memzero(node, sizeof(*node));
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
                         _("Signing cancelled"));
