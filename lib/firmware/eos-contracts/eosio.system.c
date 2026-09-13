@@ -509,14 +509,9 @@ static bool isStandardAuthorization(const EosAuthorization* auth) {
 
   if (auth->keys[0].weight != 1) return false;
 
+  /* Delegations and waits are hashed into the signed authorization but are
+   * absent from the abbreviated single-key confirmation screen. */
   if (auth->accounts_count != 0 || auth->waits_count != 0) return false;
-
-  /* Without this check, a host can satisfy every field above while ALSO
-   * setting accounts_count>0 with attacker-chosen actor@permission
-   * delegations -- the abbreviated single-key confirm screen never shows
-   * them, but eos_hashAuthorization() hashes all of them into the signed
-   * authorization regardless of which confirm path ran. */
-  if (auth->accounts_count != 0) return false;
 
   return true;
 }
