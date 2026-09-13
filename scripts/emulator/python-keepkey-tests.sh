@@ -71,28 +71,14 @@ echo "=== End diagnostic ==="
 
 # Phase 1: Screenshot captures driven by report SECTIONS (single source of truth)
 #
-# generate-test-report.py --screenshot-filter reads SECTIONS and emits a pytest -k
-# expression for every test with non-empty screenshot expectations. Adding screenshots
-# to a test in SECTIONS automatically includes it here — no manual filter maintenance.
+# Use exact module::method selectors from the report catalog, so unrelated tests
+# with similar names cannot satisfy a screenshot expectation.
 echo "=== Phase 1: Report-driven screenshot capture ==="
 # Detect firmware version from CMakeLists if not set in env.
-# NOTE: grep -oE (POSIX ERE), NOT -oP — this runs in the Alpine/busybox
-# python-keepkey container where grep has no -P (PCRE). With -P grep errored
-# and the version silently fell back to 7.14.0, so every 7.15.0 section
-# (Hive, EVM clear-signing) was excluded from screenshot capture.
+# The Alpine/BusyBox container needs a portable sed expression here.
 if [ -z "$FW_VERSION" ]; then
-    FW_VERSION=$(sed -n '/^project/,/)/p' /kkemu/CMakeLists.txt | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    [ -z "$FW_VERSION" ] && FW_VERSION="7.14.0"
-    # grep -oP is a GNU extension. This container's grep is BusyBox, which has
-    # no -P, so the old command ALWAYS failed and `|| echo "7.14.0"` silently
-    # supplied a wrong version. Everything downstream keys off this: SECTIONS
-    # entries are filtered by ver_ge(fw_version, min_fw), so on the 7.14.2
-    # release branch every test gated to 7.14.1 or later was excluded from the
-    # screenshot filter AND from report validation. That is why the suites this
-    # release changed captured no screens.
-    #
-    # Use sed only, and FAIL rather than defaulting: a wrong version here is
-    # invisible and silently narrows what CI checks.
+    # Fail rather than defaulting: a wrong version silently narrows the
+    # screenshot catalog and report validation.
     FW_VERSION=$(sed -n 's/^[[:space:]]*VERSION[[:space:]]\{1,\}\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\).*/\1/p' /kkemu/CMakeLists.txt | head -1)
     if [ -z "$FW_VERSION" ]; then
         echo "FATAL: could not read VERSION from /kkemu/CMakeLists.txt."
@@ -104,20 +90,21 @@ if [ -z "$FW_VERSION" ]; then
     echo "Detected FW_VERSION=$FW_VERSION from CMakeLists.txt"
 fi
 export FW_VERSION
-SCREENSHOT_FILTER=$(python3 ../scripts/generate-test-report.py --screenshot-filter --fw-version=$FW_VERSION "$REPORT_VARIANT_ARG" 2>/dev/null)
-if [ -z "$SCREENSHOT_FILTER" ]; then
-    echo "WARNING: --screenshot-filter returned empty, falling back to full suite"
-    SCREENSHOT_FILTER="test_"
+SCREENSHOT_TESTS=$(python3 ../scripts/generate-test-report.py \
+    --screenshot-test-list --fw-version="$FW_VERSION" "$REPORT_VARIANT_ARG")
+if [ -z "$SCREENSHOT_TESTS" ]; then
+    echo "FATAL: screenshot test list is empty"
+    echo "1" > /kkemu/test-reports/python-keepkey/status
+    exit 1
 fi
-echo "Filter: $SCREENSHOT_FILTER"
 KEEPKEY_SCREENSHOT=1 \
 SCREENSHOT_DIR=/kkemu/test-reports/screenshots \
+KEEPKEY_SCREENSHOT_TESTS="$SCREENSHOT_TESTS" \
 KK_EXPECT_PERSIST_REJECTED=1 \
 KK_TRANSPORT_MAIN=kkemu:11044 \
 KK_TRANSPORT_DEBUG=kkemu:11045 \
 pytest -v --tb=short \
   $PYTEST_TIMEOUT_ARGS \
-  -k "$SCREENSHOT_FILTER" \
   --junitxml=/kkemu/test-reports/python-keepkey/junit-screenshots.xml \
   -s 2>&1 || true
 # pytest exit code is NOT the gate — screenshot count below is.
