@@ -43,6 +43,37 @@ static CONFIDENTIAL authType authData[AUTHDATA_SIZE] = {0};
 static bool localAuthdataUpdate =
     true; /* initialization trick, only need to fetch a local copy once
              successfully */
+
+void authenticator_clear_cache(void) {
+  memzero(authData, sizeof(authData));
+  localAuthdataUpdate = true;
+}
+
+static unsigned authenticator_cancel(void) {
+  /* A nested confirmation refusal does not pass through fsm_msgCancel(), so it
+   * must revoke the decrypted authenticator cache itself. Without this,
+   * authData[] keeps every account's plaintext TOTP secret resident and
+   * localAuthdataUpdate stays false, so the next request short-circuits
+   * getAuthData() and serves them without re-running the storage
+   * fingerprint/passphrase check. */
+  authenticator_clear_cache();
+  return AUTH_CANCELLED;
+}
+
+#if DEBUG_LINK
+bool authenticator_cache_is_empty(void) {
+  const uint8_t* bytes = (const uint8_t*)authData;
+  uint8_t aggregate = 0;
+  for (size_t i = 0; i < sizeof(authData); i++) aggregate |= bytes[i];
+  return aggregate == 0 && localAuthdataUpdate;
+}
+
+void authenticator_test_seed_cache(void) {
+  memset(authData, 0xA5, sizeof(authData));
+  localAuthdataUpdate = false;
+}
+#endif
+
 static bool getAuthData(void) {
   if (localAuthdataUpdate) {
     if (storage_getAuthData(authData)) {
@@ -56,6 +87,16 @@ static bool getAuthData(void) {
 }
 
 static void setAuthData(void) { storage_setAuthData(authData); }
+
+static bool authDisplayFieldValid(const char* value, size_t max_len) {
+  size_t len = strnlen(value, max_len + 1);
+  if (len == 0 || len > max_len) return false;
+  for (size_t i = 0; i < len; i++) {
+    uint8_t ch = (uint8_t)value[i];
+    if (ch < 0x20 || ch > 0x7e) return false;
+  }
+  return true;
+}
 
 #if DEBUG_LINK
 static unsigned _otpSlot = 0;
@@ -77,76 +118,105 @@ void getAuthSlot(char* authSlotData) {
 }
 #endif
 
-void wipeAuthData(void) {
-  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Wipe Authdata",
-          "Do you want to PERMANENTLY delete all authenticator accounts?\n If "
-          "not, unplug Keepkey now.");
+unsigned wipeAuthData(void) {
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Wipe Authdata",
+               "Do you want to PERMANENTLY delete all authenticator accounts?"))
+    return authenticator_cancel();
 
   // wipe storage and reset authdata encryption flag
   storage_wipeAuthData();
   // wipe local copy
-  memzero(authData, sizeof(authData));
-  localAuthdataUpdate = true;
-  return;
+  authenticator_clear_cache();
+  return NOERR;
 }
 
 unsigned addAuthAccount(char* accountWithSeed) {
+  if (accountWithSeed == NULL) return TOKERR;
+  const size_t sourceLen = strlen(accountWithSeed);
   char *domain, *account, *seedStr;
-  unsigned slot;
-  char authSecret[AUTHSECRET_SIZE_MAX];  // 128-bit key len is the recommended
-                                         // minimum, this is room for 160-bit
-  size_t authSecretLen;
+  unsigned slot = AUTHDATA_SIZE;
+  char authSecret[AUTHSECRET_SIZE_MAX] = {
+      0};  // 128-bit key len is the recommended minimum, this is room for
+           // 160-bit
+  size_t authSecretLen = 0;
+  unsigned result = UNKERR;
 
   // accountWithSeed should be of the form "domain:account:seedStr"
   domain = strtok(accountWithSeed, ":");  // get the domain string token
-  if (NULL == domain) {
-    return TOKERR;
+  if (NULL == domain || !authDisplayFieldValid(domain, DOMAIN_SIZE - 1)) {
+    result = TOKERR;
+    goto cleanup;
   }
 
   account = strtok(NULL, ":");  // get the account string token
   if (NULL == account) {
-    return TOKERR;
+    result = TOKERR;
+    goto cleanup;
   }
-  if (0 == strlen(account)) {
-    return TOKERR;
+  if (!authDisplayFieldValid(account, ACCOUNT_SIZE - 1)) {
+    result = TOKERR;
+    goto cleanup;
   }
 
   seedStr = strtok(NULL, "");  // get the seed string string token
   if (NULL == seedStr) {
-    return TOKERR;
+    result = TOKERR;
+    goto cleanup;
   }
   if (0 == strlen(seedStr)) {
-    return TOKERR;
+    result = TOKERR;
+    goto cleanup;
   }
 
   authSecretLen = base32_decoded_length(strlen(seedStr));
+  if (authSecretLen < AUTHSECRET_SIZE_MIN) {
+    result = BADSECRET;
+    goto cleanup;
+  }
   if (AUTHSECRET_SIZE_MAX < authSecretLen) {
-    return LARGESEED;
+    result = LARGESEED;
+    goto cleanup;
   }
 
   if (!getAuthData()) {
-    return BADPASS;  // fingerprint did not match, passphrase incorrect
+    result = BADPASS;
+    goto cleanup;
   }
 
-  // look for first empty slot
-  for (slot = 0; slot < AUTHDATA_SIZE; slot++) {
-    if (authData[slot].secretSize == 0) {
-      break;
+  // Reject duplicate identities and remember the first empty slot. Legacy
+  // duplicates are removed together by removeAuthAccount().
+  for (unsigned i = 0; i < AUTHDATA_SIZE; i++) {
+    if (authData[i].secretSize != 0 &&
+        strncmp(authData[i].domain, domain, DOMAIN_SIZE) == 0 &&
+        strncmp(authData[i].account, account, ACCOUNT_SIZE) == 0) {
+      result = DUPLICATE;
+      goto cleanup;
     }
+    if (slot == AUTHDATA_SIZE && authData[i].secretSize == 0) slot = i;
   }
   if (slot == AUTHDATA_SIZE) {
-    return NOSLOT;  // no empty slots
+    result = NOSLOT;
+    goto cleanup;
   }
 
   if (NULL == base32_decode((const char*)seedStr, strlen(seedStr),
                             (uint8_t*)authSecret, sizeof(authSecret),
                             BASE32_ALPHABET_RFC4648)) {
-    return BADSECRET;  // bad decode
+    result = BADSECRET;
+    goto cleanup;
   }
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm add account",
-          "Domain: %.*s\nAccount: %.*s\nSecret: %s", DOMAIN_SIZE, domain,
-          ACCOUNT_SIZE, account, seedStr);
+  // Keep the secret on its own screen. A 32-character base32 secret appended
+  // after domain/account can wrap past the OLED's three body rows, leaving the
+  // tail signed into storage but invisible to the user.
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Add Auth Account",
+               "Domain: %.*s\nAccount: %.*s", DOMAIN_SIZE, domain, ACCOUNT_SIZE,
+               account) ||
+      !confirm(ButtonRequestType_ButtonRequest_Other, "TOTP Secret", "%s",
+               seedStr)) {
+    result = AUTH_CANCELLED;
+    goto cleanup;
+  }
 
   authData[slot].secretSize = authSecretLen;
   memcpy(authData[slot].authSecret, authSecret, authData[slot].secretSize);
@@ -154,50 +224,59 @@ unsigned addAuthAccount(char* accountWithSeed) {
   strlcpy(authData[slot].account, account, ACCOUNT_SIZE);
 
   setAuthData();
+  result = NOERR;
 
-  return NOERR;  // success
+cleanup:
+  memzero(authSecret, sizeof(authSecret));
+  memzero(accountWithSeed, sourceLen);
+  if (result == AUTH_CANCELLED) authenticator_clear_cache();
+  return result;
 }
 
 unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
   const char *domain, *account, *tIntervalStr, *tRemainStr;
-  uint8_t hmac[SHA1_DIGEST_LENGTH];  // hmac-sha1 digest length is 160 bits
-  unsigned slot;
-  uint32_t t0;
+  uint8_t hmac[SHA1_DIGEST_LENGTH] = {0};
+  uint8_t tIntervalBytes[8] = {0};
+  char otp_candidate[9] = {0};
+  char otp_display[10] = {0};
+  char account_display[DOMAIN_SIZE + ACCOUNT_SIZE + 2] = {0};
+  unsigned slot = AUTHDATA_SIZE;
+  uint32_t t0 = getSysTime();
+  unsigned result = TOKERR;
 
-  t0 = getSysTime();
+  memzero(otpStr, 9);
 
   // accountWithSeed should be of the form "domain:account:msgStr"
 
   domain = strtok(accountWithMsg, ":");  // get the domain string token
   if (NULL == domain) {
-    return TOKERR;
+    goto cleanup;
   }
   account = strtok(NULL, ":");  // get the account string token
   if (NULL == account) {
-    return TOKERR;
+    goto cleanup;
   }
   if (0 == strlen(account)) {
-    return TOKERR;
+    goto cleanup;
   }
   tIntervalStr = strtok(NULL, ":");  // get the message string string token
   if (NULL == tIntervalStr) {
-    return TOKERR;
+    goto cleanup;
   }
   if (0 == strlen(tIntervalStr)) {
-    return TOKERR;
+    goto cleanup;
   }
   tRemainStr = strtok(NULL, "");  // get the message string string token
   if (NULL == tRemainStr) {
-    return TOKERR;
+    goto cleanup;
   }
   if (0 == (strlen(tRemainStr))) {
-    return TOKERR;
+    goto cleanup;
   }
 
   // convert time interval string to long int
   long tIntervalVal = strtol(tIntervalStr, NULL, 10);
   // get big endian representation
-  uint8_t tIntervalBytes[8] = {0};
   tIntervalBytes[4] = (tIntervalVal >> 24) & 0xff;
   tIntervalBytes[5] = (tIntervalVal >> 16) & 0xff;
   tIntervalBytes[6] = (tIntervalVal >> 8) & 0xff;
@@ -208,7 +287,8 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
 
   if (!getAuthData()) {  // in theory an OTP could be requested on a dirty local
                          // copy
-    return BADPASS;      // fingerprint did not match, passphrase incorrect
+    result = BADPASS;
+    goto cleanup;
   }
 
   // look for account
@@ -220,7 +300,8 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
   }
 
   if (slot == AUTHDATA_SIZE) {
-    return NOACC;  // account not found
+    result = NOACC;
+    goto cleanup;
   }
 
 #if DEBUG_LINK
@@ -246,44 +327,58 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
   }
   unsigned otp = bin_code % (unsigned long)modnum;
 
-  snprintf(otpStr, 9, "%06u", otp);
-  char otpStrLarge[10] = {0};
-  // snprintf(otpStrLarge, 9, "\x19%06u", otp);
-  snprintf(otpStrLarge, 9, "%06u", otp);
-  (void)review_immediate(ButtonRequestType_ButtonRequest_Other, "display OTP",
-                         "Press button to display OTP");
+  snprintf(otp_candidate, sizeof(otp_candidate), "%06u", otp);
+  snprintf(otp_display, sizeof(otp_display), "%06u", otp);
+  if (!review_immediate(ButtonRequestType_ButtonRequest_Other, "display OTP",
+                        "Press button to display OTP")) {
+    result = AUTH_CANCELLED;
+    goto cleanup;
+  }
 
   // Check to see if user needs to regenerate OTP
   tRemainVal -=
       (getSysTime() - t0) / 1000;  // time since kk received time value
   if (tRemainVal < 4) {
-    (void)review_immediate(ButtonRequestType_ButtonRequest_Other, "OTP Timeout",
-                           "OTP time slice timed out, regenerate OTP");
+    if (!review_immediate(ButtonRequestType_ButtonRequest_Other, "OTP Timeout",
+                          "OTP time slice timed out, regenerate OTP")) {
+      result = AUTH_CANCELLED;
+      goto cleanup;
+    }
   } else {
-    char accStr[DOMAIN_SIZE + ACCOUNT_SIZE + 2] = {0};
-    strncpy(accStr, authData[slot].domain, DOMAIN_SIZE);
-    strcat(accStr, " ");
-    strncat(accStr, authData[slot].account, ACCOUNT_SIZE);
+    strncpy(account_display, authData[slot].domain, DOMAIN_SIZE);
+    strcat(account_display, " ");
+    strncat(account_display, authData[slot].account, ACCOUNT_SIZE);
     unsigned remainingdmSec = tRemainVal * 10;  // how many 1/10 secs remaining
-    layoutProgressForAuth(otpStrLarge, accStr, (1000 * remainingdmSec) / 300);
+    layoutProgressForAuth(otp_display, account_display,
+                          (1000 * remainingdmSec) / 300);
     for (; remainingdmSec > 0; remainingdmSec--) {
       delay_ms(100);
-      layoutProgressForAuth(otpStrLarge, accStr, (1000 * remainingdmSec) / 300);
+      layoutProgressForAuth(otp_display, account_display,
+                            (1000 * remainingdmSec) / 300);
     }
   }
-  return NOERR;
+  strlcpy(otpStr, otp_candidate, 9);
+  result = NOERR;
+
+cleanup:
+  memzero(hmac, sizeof(hmac));
+  memzero(tIntervalBytes, sizeof(tIntervalBytes));
+  memzero(otp_candidate, sizeof(otp_candidate));
+  memzero(otp_display, sizeof(otp_display));
+  memzero(account_display, sizeof(account_display));
+  if (result == AUTH_CANCELLED) authenticator_clear_cache();
+  return result;
 }
 
 unsigned getAuthAccount(const char* slotStr, char acc[]) {
-  uint8_t val;
-  val = (uint8_t)(strtol(slotStr, NULL, 10));
+  char* end = NULL;
+  if (!slotStr || slotStr[0] == '\0') return NOSLOT;
+  long parsed = strtol(slotStr, &end, 10);
+  if (*end != '\0' || parsed < 0 || parsed >= AUTHDATA_SIZE) return NOSLOT;
+  uint8_t val = (uint8_t)parsed;
 
   if (!getAuthData()) {
     return BADPASS;  // fingerprint did not match, passphrase incorrect
-  }
-
-  if (val >= AUTHDATA_SIZE) {
-    return NOSLOT;  // slot index error, has to be less than size of struct
   }
 
   if (authData[val].secretSize == 0) {
@@ -297,18 +392,18 @@ unsigned getAuthAccount(const char* slotStr, char acc[]) {
 
 unsigned removeAuthAccount(char* domAcc) {
   char *domain, *account;
-  unsigned slot;
+  bool found = false;
 
   // accountWithSeed should be of the form "domain:account"
   domain = strtok(domAcc, ":");  // get the domain string token
-  if (NULL == domain) {
+  if (NULL == domain || !authDisplayFieldValid(domain, DOMAIN_SIZE - 1)) {
     return TOKERR;
   }
   account = strtok(NULL, "");  // get the account string token
   if (NULL == account) {
     return TOKERR;
   }
-  if (0 == strlen(account)) {
+  if (!authDisplayFieldValid(account, ACCOUNT_SIZE - 1)) {
     return TOKERR;
   }
 
@@ -316,23 +411,30 @@ unsigned removeAuthAccount(char* domAcc) {
     return BADPASS;  // fingerprint did not match, passphrase incorrect
   }
 
-  // find slot for account
-  for (slot = 0; slot < AUTHDATA_SIZE; slot++) {
-    if ((0 == strncmp(authData[slot].domain, domain, DOMAIN_SIZE - 1)) &&
-        (0 == strncmp(authData[slot].account, account, ACCOUNT_SIZE - 1))) {
-      break;
-    }
+  // Find every matching slot. Older firmware allowed duplicate identities, so
+  // a confirmed deletion must remove all copies atomically.
+  for (unsigned slot = 0; slot < AUTHDATA_SIZE; slot++) {
+    if (authData[slot].secretSize != 0 &&
+        strncmp(authData[slot].domain, domain, DOMAIN_SIZE) == 0 &&
+        strncmp(authData[slot].account, account, ACCOUNT_SIZE) == 0)
+      found = true;
   }
 
-  if (slot == AUTHDATA_SIZE) {
+  if (!found) {
     return NOACC;  // account not found
   }
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
-          "Do you want to PERMANENTLY delete account %.*s:%.*s?",
-          DOMAIN_SIZE - 1, domain, ACCOUNT_SIZE - 1, account);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Confirm Delete Account",
+               "Do you want to PERMANENTLY delete account %.*s:%.*s?",
+               DOMAIN_SIZE - 1, domain, ACCOUNT_SIZE - 1, account))
+    return authenticator_cancel();
 
-  memzero((void*)&authData[slot], sizeof(authType));
+  for (unsigned slot = 0; slot < AUTHDATA_SIZE; slot++) {
+    if (authData[slot].secretSize != 0 &&
+        strncmp(authData[slot].domain, domain, DOMAIN_SIZE) == 0 &&
+        strncmp(authData[slot].account, account, ACCOUNT_SIZE) == 0)
+      memzero((void*)&authData[slot], sizeof(authType));
+  }
   setAuthData();
   return NOERR;  // success
 }

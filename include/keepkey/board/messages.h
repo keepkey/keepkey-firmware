@@ -30,6 +30,11 @@
 #define MSG_TINY_BFR_SZ 64
 #define MSG_TINY_TYPE_ERROR 0xFFFF
 
+/* True while unwinding a handler already answered by a tiny receive Failure. */
+bool msg_handler_rejected(void);
+bool keepkey_before_message_dispatch(MessageType msg_id);
+void keepkey_after_message_dispatch(void);
+
 #define MSG_IN(ID, STRUCT_NAME, PROCESS_FUNC)                        \
   [ID].msg_id = (ID), [ID].type = (NORMAL_MSG), [ID].dir = (IN_MSG), \
   [ID].fields = (STRUCT_NAME##_fields), [ID].dispatch = (PARSABLE),  \
@@ -101,6 +106,13 @@ typedef void (*raw_msg_handler_t)(RawMessage* msg, uint32_t frame_length);
 
 const pb_field_t* message_fields(MessageMapType type, MessageType msg_id,
                                  MessageMapDirection dir);
+
+/* Shared frame arena (defined in messages.c). Acquiring the arena for TX or
+ * scratch drops any partially reassembled inbound frame — see the FrameArena
+ * contract in messages.c. Single-threaded transport only. */
+TrezorFrameBuffer* frame_arena_tx(void);
+void frame_arena_tx_clear(void);
+uint16_t* frame_arena_scratch2049(void);
 
 bool msg_write(MessageType msg_id, const void* msg);
 

@@ -324,8 +324,10 @@ bool nano_signTx(const NanoSignTx* msg, HDNode* node, NanoSignedTx* resp) {
 
     char amount_string[60];
     memset(amount_string, 0, sizeof(amount_string));
-    bn_format(&balance_delta, NULL, NULL, coin->decimals, 0, false,
-              amount_string, sizeof(amount_string));
+    if (!bn_format(&balance_delta, NULL, NULL, coin->decimals, 0, false,
+                   amount_string, sizeof(amount_string))) {
+      return false;
+    }
 
     if (is_transfer) {
       // Confirm transfer between own accounts

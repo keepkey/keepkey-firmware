@@ -23,6 +23,15 @@
 #include "keepkey/transport/interface.h"
 #include "keepkey/board/messages.h"
 
+/* Scrub the function-static HDNode used by synchronous FSM derivations. */
+void fsm_clearDerivedNode(void);
+#if DEBUG_LINK
+void fsm_test_seedDerivedNode(void);
+bool fsm_test_derivedNodeIsZero(void);
+void fsm_test_clearLastFailure(void);
+FailureType fsm_test_lastFailureCode(void);
+#endif
+
 #define RESP_INIT(TYPE)                                                    \
   TYPE* resp = (TYPE*)msg_resp;                                            \
   _Static_assert(sizeof(msg_resp) >= sizeof(TYPE), #TYPE " is too large"); \
@@ -37,6 +46,11 @@
 #define VERSTR(X) STR(X)
 
 void fsm_init(void);
+
+/* End every in-flight workflow and scrub its volatile authorization/key
+ * state. Call before any operation that clears or revokes a session. */
+void fsm_abort_workflows(void);
+void fsm_abort_signing_workflows(void);
 
 void fsm_sendSuccess(const char* text);
 
@@ -85,6 +99,12 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg);
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg);
 void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg);
 void fsm_msgEthereum712TypesValues(Ethereum712TypesValues* msg);
+void fsm_msgEthereumTxMetadata(const EthereumTxMetadata* msg);
+void fsm_msgLoadClearsignSigner(const LoadClearsignSigner* msg);
+
+void fsm_msgClearsignAttestorGetPublicKey(
+    const ClearsignAttestorGetPublicKey* msg);
+void fsm_msgClearsignAttestorSign(const ClearsignAttestorSign* msg);
 
 void fsm_msgNanoGetAddress(NanoGetAddress* msg);
 void fsm_msgNanoSignTx(NanoSignTx* msg);
@@ -131,6 +151,22 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg);
 void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg);
 void fsm_msgSolanaSignOffchainMessage(const SolanaSignOffchainMessage* msg);
 
+#if ZCASH_PRIVACY
+void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg);
+void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg);
+void fsm_msgZcashGetOrchardFVK(const ZcashGetOrchardFVK* msg);
+void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg);
+void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg);
+void fsm_msgZcashDisplayAddress(const ZcashDisplayAddress* msg);
+#endif
+void fsm_msgHiveGetPublicKey(const HiveGetPublicKey* msg);
+void fsm_msgHiveGetPublicKeys(const HiveGetPublicKeys* msg);
+void fsm_msgHiveSignTx(const HiveSignTx* msg);
+void fsm_msgHiveSignAccountCreate(const HiveSignAccountCreate* msg);
+void fsm_msgHiveSignAccountUpdate(const HiveSignAccountUpdate* msg);
+void fsm_msgHiveSignMessage(const HiveSignMessage* msg);
+void fsm_msgHiveSignOperations(const HiveSignOperations* msg);
+
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);
 void fsm_msgDebugLinkGetState(DebugLinkGetState* msg);
@@ -141,5 +177,7 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump* msg);
 void fsm_msgFlashWrite(FlashWrite* msg);
 void fsm_msgFlashHash(FlashHash* msg);
 void fsm_msgSoftReset(SoftReset* msg);
+
+void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic* msg);
 
 #endif

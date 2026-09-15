@@ -63,9 +63,51 @@ void fsm_msgSignIdentity(SignIdentity* msg) {
 
   CHECK_INITIALIZED
 
-  if (!confirm_sign_identity(&(msg->identity), msg->has_challenge_visual
-                                                   ? msg->challenge_visual
-                                                   : 0)) {
+  CHECK_PARAM(msg->has_identity, "Invalid identity");
+
+  const bool sign_ssh =
+      msg->identity.has_proto && strcmp(msg->identity.proto, "ssh") == 0;
+  const bool sign_gpg =
+      msg->identity.has_proto && strcmp(msg->identity.proto, "gpg") == 0;
+  const char* curve =
+      msg->has_ecdsa_curve_name ? msg->ecdsa_curve_name : SECP256K1_NAME;
+  /* Establish that there is something signable BEFORE asking anyone to approve
+     it. The identity check used to sit after the confirmation and the curve was
+     not checked until fsm_getDerivedNode() below, so a request with no identity
+     or an unsupported curve collected a full approval -- and, for the curve, a
+     PIN entry -- before failing. The curve also selects the key, so it belongs
+     on the screen's side of the line, not after it. */
+  uint8_t hash[32];
+  if (cryptoIdentityFingerprint(&(msg->identity), hash) == 0) {
+    fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
+    layoutHome();
+    return;
+  }
+
+  if (!get_curve_by_name(curve)) {
+    memzero(hash, sizeof(hash));
+    fsm_sendFailure(FailureType_Failure_SyntaxError, "Unknown ecdsa curve");
+    layoutHome();
+    return;
+  }
+
+  /* SSH/GPG sign only challenge_hidden. Generic identity signatures bind both
+   * challenges, so review both there; SSH/GPG review only the actual signed
+   * payload and never present the unsigned visual field as authoritative. */
+  if (!confirm_sign_identity(&msg->identity, NULL, curve) ||
+      ((!sign_ssh && !sign_gpg) &&
+       !confirm_bytes(
+           ButtonRequestType_ButtonRequest_SignIdentity, "Visual Challenge",
+           (const uint8_t*)msg->challenge_visual,
+           msg->has_challenge_visual ? strlen(msg->challenge_visual) : 0)) ||
+      !confirm_bytes(
+          ButtonRequestType_ButtonRequest_SignIdentity,
+          sign_ssh   ? "Signed SSH Challenge"
+          : sign_gpg ? "Signed GPG Digest"
+                     : "Hidden Challenge",
+          msg->challenge_hidden.bytes,
+          msg->has_challenge_hidden ? msg->challenge_hidden.size : 0)) {
+    memzero(hash, sizeof(hash));
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Sign identity cancelled");
     layoutHome();
@@ -73,14 +115,6 @@ void fsm_msgSignIdentity(SignIdentity* msg) {
   }
 
   CHECK_PIN
-
-  uint8_t hash[32];
-  if (!msg->has_identity ||
-      cryptoIdentityFingerprint(&(msg->identity), hash) == 0) {
-    fsm_sendFailure(FailureType_Failure_Other, "Invalid identity");
-    layoutHome();
-    return;
-  }
 
   uint32_t address_n[5];
   address_n[0] = 0x80000000 | 13;
@@ -93,19 +127,10 @@ void fsm_msgSignIdentity(SignIdentity* msg) {
   address_n[4] = 0x80000000 | hash[12] | (hash[13] << 8) | (hash[14] << 16) |
                  ((uint32_t)hash[15] << 24);
 
-  const char* curve = SECP256K1_NAME;
-  if (msg->has_ecdsa_curve_name) {
-    curve = msg->ecdsa_curve_name;
-  }
   HDNode* node = fsm_getDerivedNode(curve, address_n, 5, NULL);
   if (!node) {
     return;
   }
-
-  bool sign_ssh =
-      msg->identity.has_proto && (strcmp(msg->identity.proto, "ssh") == 0);
-  bool sign_gpg =
-      msg->identity.has_proto && (strcmp(msg->identity.proto, "gpg") == 0);
 
   int result = 0;
   layout_simple_message("Signing Identity...");

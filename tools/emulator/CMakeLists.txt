@@ -6,36 +6,22 @@ if(${KK_EMULATOR})
   include_directories(
       ${CMAKE_SOURCE_DIR}/include
       ${CMAKE_BINARY_DIR}/include
-      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
+      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto)
 
-  set(FIRMWARE_LIBS
-      kkfirmware
-      kkfirmware.keepkey
-      kkboard
-      kkboard.keepkey
-      kkvariant.keepkey
-      kkvariant.salt
-      kktransport
-      trezorcrypto
-      qrcodegenerator
-      SecAESSTM32
-      kkrand)
+  # Standalone emulator binary — UDP sockets on :11044/:11045 (used by firmware
+  # CI: python-keepkey UDP tests + OLED screenshots). NOT built on Windows: it
+  # depends on BSD sockets + signal(); the vault never uses it — the vault loads
+  # the dylib/DLL below instead.
+  if(NOT WIN32)
+    add_executable(kkemu ${sources})
 
-  # Standalone emulator binary (uses UDP sockets)
-  add_executable(kkemu ${sources})
-
-  # Add linker flags for ARM64 Mac compatibility
-  if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-    target_link_options(kkemu PRIVATE "-Wl,-no_fixup_chains")
-  endif()
-
-  target_link_libraries(kkemu ${FIRMWARE_LIBS} kkemulator)
-
-  # Shared library (ring buffers, no sockets) for in-process FFI (vault)
-  if(KK_BUILD_DYLIB)
-    target_link_libraries(kkemulator_dylib ${FIRMWARE_LIBS})
+    # Add linker flags for ARM64 Mac compatibility
     if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-      target_link_options(kkemulator_dylib PRIVATE "-Wl,-no_fixup_chains")
+      set_property(TARGET kkemu APPEND_STRING PROPERTY LINK_FLAGS
+                   " -Wl,-no_fixup_chains")
     endif()
+
+    target_link_libraries(kkemu ${FIRMWARE_LIBS} kkemulator)
   endif()
+
 endif()

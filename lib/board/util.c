@@ -104,32 +104,79 @@ bool is_valid_ascii(const uint8_t* data, uint32_t size) {
 
 /* convert number in base units to specified decimal precision */
 int base_to_precision(uint8_t* dest, const uint8_t* value,
-                      const uint8_t dest_len, const uint8_t value_len,
+                      const size_t dest_len, const size_t value_len,
                       const uint8_t precision) {
   if (!(dest && value)) {
     // invalid pointer
     return -1;
   }
-  if (value_len + 1 > dest_len) {
+  if (dest_len == 0 || value_len == 0) {
+    return -1;
+  }
+
+  /* Decimal inputs are signed as strings. Accept only their unique canonical
+     representation so the value shown on the OLED is byte-for-byte bound to
+     the value placed in the transaction: no leading zeros ("01" and "1" would
+     otherwise render identically) and no non-digit bytes (a "1x" would render
+     as the digits around whatever the host smuggled in). Rejecting here is
+     what makes the callers' negative-return refusal paths reachable. */
+  if (value_len > 1 && value[0] == '0') {
+    return -1;
+  }
+  for (size_t i = 0; i < value_len; i++) {
+    if (value[i] < '0' || value[i] > '9') {
+      return -1;
+    }
+  }
+
+  /* Rewritten with explicit index arithmetic. The previous implementation had
+     two defects, both reachable from the Osmosis formatters:
+
+       - it used strlcpy(dst, src, n), whose third argument is the TOTAL size of
+         the destination including the NUL, to copy n DIGITS. It therefore
+         copied at most n-1 digits and silently dropped the last one, so a
+         signed "1234567" rendered as 1.23456 and a signed "1" rendered as
+         0.00000.
+       - it terminated with dest[dest_len] = '\0', one byte past a buffer whose
+         supplied capacity is dest_len. Callers passing sizeof(buf) got a
+         one-byte stack overwrite.
+
+     dest_len is the full capacity of dest, NUL included. */
+
+  /* Exact output length, computed before anything is written. */
+  size_t out_len;
+  if (value_len > precision) {
+    /* <leading digits> '.' <precision digits>, or just the digits when there
+       is no fractional part to separate. */
+    out_len = (size_t)value_len + (precision ? 1u : 0u);
+  } else {
+    /* "0." then precision digits, left-padded with zeros. */
+    out_len = 2u + (size_t)precision;
+  }
+  if (out_len + 1u > (size_t)dest_len) {
     // value too large for output buffer
     return -1;
   }
-  memset(dest, '0', dest_len);
-  uint8_t leading_digits =
-      ((value_len - precision) > 0) ? (value_len - precision) : 0;
 
-  if (!leading_digits) {
-    memcpy(dest, "0.", 2);
-    uint8_t offset =
-        2 + (((precision - value_len) > 0) ? (precision - value_len) : 0);
-    strlcpy((char*)&dest[offset], (char*)value, value_len);
+  size_t w = 0;
+  if (value_len > precision) {
+    const size_t leading = (size_t)value_len - precision;
+    memcpy(dest + w, value, leading);
+    w += leading;
+    if (precision) {
+      dest[w++] = '.';
+      memcpy(dest + w, value + leading, precision);
+      w += precision;
+    }
   } else {
-    uint8_t copy_len = MIN((value_len - leading_digits), precision);
-    memcpy(dest, value, leading_digits);
-    dest[leading_digits] = '.';
-    strlcpy((char*)&dest[leading_digits + 1], (char*)&value[leading_digits],
-            copy_len);
+    dest[w++] = '0';
+    dest[w++] = '.';
+    const size_t pad = (size_t)precision - value_len;
+    memset(dest + w, '0', pad);
+    w += pad;
+    memcpy(dest + w, value, value_len);
+    w += value_len;
   }
-  dest[dest_len] = '\0';
+  dest[w] = '\0';
   return 0;
 }

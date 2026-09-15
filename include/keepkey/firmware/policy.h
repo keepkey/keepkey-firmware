@@ -27,6 +27,12 @@
 
 // NOTE: when adding policies, *ONLY* add to the end. Otherwise this breaks
 // storage_upgradePolicies();
+//
+// NOTE: storage flags bit 12 is BURNED. It used to persist AdvancedMode, which
+// is now session-scoped (never written, never restored -- see storage.c). Do
+// not reuse the bit for a new policy or field: firmware at 7.15 and earlier
+// reads it as AdvancedMode, so a device downgraded to one of those builds would
+// read the new field as "blind signing enabled".
 static const PolicyType policies[] = {
     {true, "ShapeShift", true, false},
     {true, "Pin Caching", true, true},

@@ -75,6 +75,17 @@ TEST(Coins, TableSanity) {
 
     if (!coin.has_contract_address) continue;
 
+    // Pre-existing (not 7.x-release related): these legacy coins[] entries are
+    // display-only leftovers whose ERC20 entries were dropped from the generated
+    // token table years ago (dead/migrated tokens). Named allowlist so a *new*
+    // missing token still fails this sanity check.
+    static const char *const kLegacyNoTokenEntry[] = {
+        "QTUM", "BNB", "ZIL", "GTO", "IOST", "CMT", "MCO", "ODEM"};
+    bool legacy = false;
+    for (const char *t : kLegacyNoTokenEntry)
+      if (strcmp(coin.coin_shortcut, t) == 0) { legacy = true; break; }
+    if (legacy) continue;
+
     const TokenType *token;
     if (!tokenByTicker(1, coin.coin_shortcut, &token)) {
       EXPECT_TRUE(false) << "Can't uniquely find " << coin.coin_shortcut;
@@ -210,14 +221,29 @@ TEST(Coins, CoinByNameOrTicker) {
 }
 
 TEST(Coins, CoinByChainAddress) {
-  const CoinType *zrx = coinByChainAddress(1, (const uint8_t*)"\xE4\x1d\x24\x89\x57\x1d\x32\x21\x89\x24\x6D\xaF\xA5\xeb\xDe\x1F\x46\x99\xF4\x98");
+  static const uint8_t zrx_address[] =
+      "\xE4\x1d\x24\x89\x57\x1d\x32\x21\x89\x24\x6D\xaF\xA5\xeb\xDe\x1F"
+      "\x46\x99\xF4\x98";
+  const CoinType *zrx = coinByChainAddress(1, zrx_address);
   ASSERT_NE(zrx, nullptr);
   EXPECT_EQ(zrx->coin_name, std::string("0x"));
   EXPECT_EQ(zrx->coin_shortcut, std::string("ZRX"));
+
+  // A uint8_t chain-id parameter made 257 alias chain 1.
+  EXPECT_EQ(nullptr, coinByChainAddress(257, zrx_address));
 }
 
 TEST(Coins, TokenByChainAddress) {
-  const TokenType *zrx = tokenByChainAddress(1, (const uint8_t*)"\xE4\x1d\x24\x89\x57\x1d\x32\x21\x89\x24\x6D\xaF\xA5\xeb\xDe\x1F\x46\x99\xF4\x98");
+  static const uint8_t zrx_address[] =
+      "\xE4\x1d\x24\x89\x57\x1d\x32\x21\x89\x24\x6D\xaF\xA5\xeb\xDe\x1F"
+      "\x46\x99\xF4\x98";
+  const TokenType *zrx = tokenByChainAddress(1, zrx_address);
   ASSERT_NE(zrx, nullptr);
   EXPECT_EQ(zrx->ticker, std::string(" ZRX"));
+
+  EXPECT_EQ(UnknownToken, tokenByChainAddress(257, zrx_address));
+
+  const TokenType *by_ticker = nullptr;
+  EXPECT_FALSE(tokenByTicker(257, "ZRX", &by_ticker));
+  EXPECT_EQ(nullptr, by_ticker);
 }

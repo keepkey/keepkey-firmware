@@ -38,7 +38,8 @@
  0x0000 |  4 bytes    |  magic = 'stor'
  0x0004 |  12 bytes   |  uuid
  0x0010 |  25 bytes   |  uuid_str
- 0x0029 |  ?          |  Storage structure
+ 0x0029 |  3 bytes    |  alignment padding
+ 0x002c |  ?          |  Storage structure
  */
 
 #define STORAGE_SECTOR_LEN 0x00004000
@@ -89,6 +90,8 @@ void board_init(void);
 void kk_board_init(void);
 
 void __stack_chk_fail(void) __attribute__((noreturn));
+/// CRC-32/MPEG-2 over \p word_len 32-bit WORDS (not bytes). \p data must be
+/// 4-byte aligned: the hardware path casts it to uint32_t*.
 uint32_t calc_crc32(const void* data, int word_len);
 
 void __attribute__((noreturn)) shutdown(void);

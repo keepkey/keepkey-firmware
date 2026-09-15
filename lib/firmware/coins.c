@@ -85,6 +85,7 @@ const CoinType coins[COINS_COUNT] = {
    TAPROOT},
 #include "keepkey/firmware/coins.def"
 
+#if !BITCOIN_ONLY  // ERC-20 tokens excluded from the bitcoin-only image
 #define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS)                    \
   {                                                                           \
       true,                                                                   \
@@ -131,6 +132,7 @@ const CoinType coins[COINS_COUNT] = {
       false, /* has_taproot, taproot*/                                        \
   },
 #include "keepkey/firmware/tokens.def"
+#endif  // !BITCOIN_ONLY
 };
 
 _Static_assert(sizeof(coins) / sizeof(coins[0]) == COINS_COUNT,
@@ -226,6 +228,22 @@ static bool path_mismatched(const CoinType* coin, const uint32_t* address_n,
     return mismatch;
   }
 
+  // m/86' : BIP86 Taproot
+  // m / purpose' / bip44_account_path' / account' / change / address_index
+  if (address_n[0] == (0x80000000 + 86)) {
+    mismatch |= !coin->has_segwit || !coin->segwit;
+    mismatch |= !coin->has_bech32_prefix;
+    mismatch |= !coin->has_taproot || !coin->taproot;
+    mismatch |= (address_n_count != (whole_account ? 3 : 5));
+    mismatch |= (address_n[1] != coin->bip44_account_path);
+    mismatch |= (address_n[2] & 0x80000000) == 0;
+    if (!whole_account) {
+      mismatch |= (address_n[3] & 0x80000000) == 0x80000000;
+      mismatch |= (address_n[4] & 0x80000000) == 0x80000000;
+    }
+    return mismatch;
+  }
+
   return false;
 }
 
@@ -296,7 +314,7 @@ const CoinType* coinByNameOrTicker(const char* name) {
   return coinByShortcut(name);
 }
 
-const CoinType* coinByChainAddress(uint8_t chain_id, const uint8_t* address) {
+const CoinType* coinByChainAddress(uint32_t chain_id, const uint8_t* address) {
   if (chain_id != 1) return NULL;
 
   if (!address) return NULL;

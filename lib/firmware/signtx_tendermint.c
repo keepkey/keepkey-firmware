@@ -36,19 +36,21 @@ static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
 static bool has_message;
 static bool initialized;
+static TendermintSigningType signing_type;
 static uint32_t msgs_remaining;
 static TendermintSignTx tmsg;
 
 const void* tendermint_getSignTx(void) { return (void*)&tmsg; }
 
 bool tendermint_signTxInit(const HDNode* _node, const void* _msg,
-                           const size_t msgsize, const char* denom) {
-  initialized = true;
-  msgs_remaining = ((TendermintSignTx*)_msg)->msg_count;
-  has_message = false;
-
-  memzero(&node, sizeof(node));
-  memcpy(&node, _node, sizeof(node));
+                           const size_t msgsize, const char* denom,
+                           TendermintSigningType type) {
+  tendermint_signAbort();
+  if (!_node || !_msg || !denom ||
+      (type != TENDERMINT_SIGNING_COSMOS &&
+       type != TENDERMINT_SIGNING_GENERIC)) {
+    return false;
+  }
 
   /*
     _msg is expected to be of type TendermintSignTx, CosmosSignTx or
@@ -65,6 +67,23 @@ bool tendermint_signTxInit(const HDNode* _node, const void* _msg,
     return false;
   }
 
+  const TendermintSignTx* common = (const TendermintSignTx*)_msg;
+  if (!common->has_msg_count || common->msg_count == 0 ||
+      !common->has_chain_id || !tendermint_validateSafeText(common->chain_id) ||
+      !tendermint_validateSafeText(denom)) {
+    return false;
+  }
+  if (type == TENDERMINT_SIGNING_GENERIC &&
+      (!common->has_chain_name ||
+       !tendermint_validateSafeText(common->chain_name) || !common->has_denom ||
+       !tendermint_validateSafeText(common->denom) ||
+       !common->has_message_type_prefix ||
+       !tendermint_validateSafeText(common->message_type_prefix))) {
+    return false;
+  }
+
+  msgs_remaining = common->msg_count;
+  memcpy(&node, _node, sizeof(node));
   memcpy((void*)&tmsg, _msg, msgsize);
 
   bool success = true;
@@ -103,24 +122,46 @@ bool tendermint_signTxInit(const HDNode* _node, const void* _msg,
   // 10
   sha256_Update(&ctx, (uint8_t*)"\",\"msgs\":[", 10);
 
-  return success;
+  if (!success) {
+    tendermint_signAbort();
+    return false;
+  }
+  initialized = true;
+  signing_type = type;
+  return true;
+}
+
+static bool tendermint_canUpdate(void) {
+  return initialized && msgs_remaining > 0;
+}
+
+static bool tendermint_configIsSafe(const char* chainstr, const char* denom,
+                                    const char* msgTypePrefix) {
+  return tendermint_validateSafeText(chainstr) &&
+         tendermint_validateSafeText(denom) &&
+         tendermint_validateSafeText(msgTypePrefix) &&
+         strnlen(chainstr, 15) <= 14 && strnlen(denom, 10) <= 9 &&
+         strnlen(msgTypePrefix, 25) <= 24;
 }
 
 bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
                                     const char* to_address,
                                     const char* chainstr, const char* denom,
                                     const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
-  size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, to_address)) {
+  /* Validate against the caller's chain prefix (chainstr) and the 20-byte
+     account length before the address reaches the bare "%s" JSON serialization
+     below. This was a bare bech32_decode() into hrp[45]/decoded[38]: both
+     undersized for host-chosen input (see tendermint_bech32DecodeChecked()),
+     and neither the network nor the payload length was checked, so a
+     wrong-chain address, a module or operator address, or a punctuation-bearing
+     HRP passed through into the signed document. */
+  if (!tendermint_validateBech32Address(to_address, chainstr)) {
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
@@ -163,8 +204,10 @@ bool tendermint_signTxUpdateMsgSend(const uint64_t amount,
   success &=
       tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}", to_address);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
@@ -173,17 +216,25 @@ bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
                                         const char* validator_address,
                                         const char* chainstr, const char* denom,
                                         const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
-  size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against the caller's chain prefix (chainstr) and the 20-byte
+     account length before the address reaches the bare "%s" JSON serialization
+     below. This was a bare bech32_decode() into hrp[45]/decoded[38]: both
+     undersized for host-chosen input (see tendermint_bech32DecodeChecked()),
+     and neither the network nor the payload length was checked, so a
+     wrong-chain address, a module or operator address, or a punctuation-bearing
+     HRP passed through into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address, chainstr)) {
+    return false;
+  }
+  /* The validator operator is interpolated into the signed document with the
+     same bare "%s" as the delegator above, so it needs the same gate. */
+  if (!tendermint_validateValidatorAddress(validator_address, chainstr)) {
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
@@ -226,8 +277,10 @@ bool tendermint_signTxUpdateMsgDelegate(const uint64_t amount,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
                                  validator_address);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
@@ -236,17 +289,25 @@ bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
                                           const char* chainstr,
                                           const char* denom,
                                           const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
-  size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against the caller's chain prefix (chainstr) and the 20-byte
+     account length before the address reaches the bare "%s" JSON serialization
+     below. This was a bare bech32_decode() into hrp[45]/decoded[38]: both
+     undersized for host-chosen input (see tendermint_bech32DecodeChecked()),
+     and neither the network nor the payload length was checked, so a
+     wrong-chain address, a module or operator address, or a punctuation-bearing
+     HRP passed through into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address, chainstr)) {
+    return false;
+  }
+  /* The validator operator is interpolated into the signed document with the
+     same bare "%s" as the delegator above, so it needs the same gate. */
+  if (!tendermint_validateValidatorAddress(validator_address, chainstr)) {
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
@@ -289,8 +350,10 @@ bool tendermint_signTxUpdateMsgUndelegate(const uint64_t amount,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
                                  validator_address);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
@@ -298,17 +361,26 @@ bool tendermint_signTxUpdateMsgRedelegate(
     const uint64_t amount, const char* delegator_address,
     const char* validator_src_address, const char* validator_dst_address,
     const char* chainstr, const char* denom, const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
-  size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against the caller's chain prefix (chainstr) and the 20-byte
+     account length before the address reaches the bare "%s" JSON serialization
+     below. This was a bare bech32_decode() into hrp[45]/decoded[38]: both
+     undersized for host-chosen input (see tendermint_bech32DecodeChecked()),
+     and neither the network nor the payload length was checked, so a
+     wrong-chain address, a module or operator address, or a punctuation-bearing
+     HRP passed through into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address, chainstr)) {
+    return false;
+  }
+  /* Both validator operators are interpolated with the same bare "%s" as the
+     delegator above; neither was checked. */
+  if (!tendermint_validateValidatorAddress(validator_src_address, chainstr) ||
+      !tendermint_validateValidatorAddress(validator_dst_address, chainstr)) {
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
@@ -359,8 +431,10 @@ bool tendermint_signTxUpdateMsgRedelegate(
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
                                  validator_src_address);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
@@ -369,17 +443,25 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t* amount,
                                        const char* validator_address,
                                        const char* chainstr, const char* denom,
                                        const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
-  size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, delegator_address)) {
+  /* Validate against the caller's chain prefix (chainstr) and the 20-byte
+     account length before the address reaches the bare "%s" JSON serialization
+     below. This was a bare bech32_decode() into hrp[45]/decoded[38]: both
+     undersized for host-chosen input (see tendermint_bech32DecodeChecked()),
+     and neither the network nor the payload length was checked, so a
+     wrong-chain address, a module or operator address, or a punctuation-bearing
+     HRP passed through into the signed document. */
+  if (!tendermint_validateBech32Address(delegator_address, chainstr)) {
+    return false;
+  }
+  /* The validator operator is interpolated into the signed document with the
+     same bare "%s" as the delegator above, so it needs the same gate. */
+  if (!tendermint_validateValidatorAddress(validator_address, chainstr)) {
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
@@ -425,8 +507,10 @@ bool tendermint_signTxUpdateMsgRewards(const uint64_t* amount,
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer), "%s\"}}",
                                  validator_address);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
@@ -435,23 +519,36 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
     const char* source_channel, const char* source_port,
     const char* revision_number, const char* revision_height,
     const char* chainstr, const char* denom, const char* msgTypePrefix) {
+  if (!tendermint_canUpdate()) return false;
   char buffer[128];
-  size_t decoded_len;
-  char hrp[45];
-  uint8_t decoded[38];
-
-  if (!bech32_decode(hrp, decoded, &decoded_len, receiver)) {
+  /* An IBC receiver lives on the COUNTERPARTY chain, so its human-readable
+     part is deliberately not one of ours and cannot be pinned to a prefix.
+     What can be fixed is the decode itself: the previous bare bech32_decode()
+     wrote into hrp[45]/decoded[38], both of which a host can overrun (see
+     tendermint_bech32DecodeChecked()). Check well-formedness with bounded
+     buffers instead. */
+  if (!tendermint_bech32IsWellFormed(receiver)) {
     return false;
   }
 
-  if (strnlen(msgTypePrefix, 25) > 24 || strnlen(denom, 10) > 9 ||
-      strnlen(chainstr, 15) > 14) {
+  if (!tendermint_configIsSafe(chainstr, denom, msgTypePrefix)) {
     return false;
   }
 
   // ^14 + 39 + 1 = ^54
   char from_address[54];
   if (!tendermint_getAddress(&node, chainstr, from_address)) {
+    return false;
+  }
+
+  /* The sender must be THIS signer.
+   *
+   * from_address was derived here and then thrown away: the JSON below writes
+   * the host-supplied `sender` verbatim, and no screen displayed it. So an
+   * arbitrary sender survived every approval and produced a signed IBC message
+   * naming an account that cannot authorize it. There is exactly one account
+   * this session can act as; require the host to name it. */
+  if (!sender || strcmp(sender, from_address) != 0) {
     return false;
   }
 
@@ -505,12 +602,18 @@ bool tendermint_signTxUpdateMsgIBCTransfer(
                                  "\",\"denom\":\"%s\"}}}",
                                  amount, denom);
 
-  has_message = true;
-  msgs_remaining--;
+  if (success) {
+    has_message = true;
+    msgs_remaining--;
+  }
   return success;
 }
 
 bool tendermint_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
+  if (!initialized || msgs_remaining != 0 || !has_message || !public_key ||
+      !signature) {
+    return false;
+  }
   char buffer[128];
 
   // 14 + ^20 + 2 = ^36
@@ -528,12 +631,37 @@ bool tendermint_signTxFinalize(uint8_t* public_key, uint8_t* signature) {
                            NULL) == 0;
 }
 
-bool tendermint_signingIsInited(void) { return initialized; }
+/* The account this session signs as, under `chain_prefix`. Handlers use it to
+   refuse a mismatched `sender` BEFORE any screen opens, rather than letting the
+   serializer refuse it after the approval. */
+bool tendermint_addressIsSigner(const char* address, const char* chain_prefix) {
+  if (!address || !chain_prefix) return false;
 
-bool tendermint_signingIsFinished(void) { return msgs_remaining == 0; }
+  char expected[54] = {0};
+  if (!tendermint_getAddress(&node, chain_prefix, expected)) return false;
+  return strcmp(address, expected) == 0;
+}
+
+bool tendermint_signingIsInited(TendermintSigningType type) {
+  return initialized && signing_type == type;
+}
+
+bool tendermint_signingConfigMatches(const char* chain_name, const char* denom,
+                                     const char* message_type_prefix) {
+  return tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC) && chain_name &&
+         denom && message_type_prefix &&
+         strcmp(chain_name, tmsg.chain_name) == 0 &&
+         strcmp(denom, tmsg.denom) == 0 &&
+         strcmp(message_type_prefix, tmsg.message_type_prefix) == 0;
+}
+
+bool tendermint_signingIsFinished(void) {
+  return initialized && msgs_remaining == 0 && has_message;
+}
 
 void tendermint_signAbort(void) {
   initialized = false;
+  signing_type = TENDERMINT_SIGNING_NONE;
   has_message = false;
   msgs_remaining = 0;
   memzero(&tmsg, sizeof(tmsg));

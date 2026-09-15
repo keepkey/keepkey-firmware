@@ -20,6 +20,7 @@
 #ifndef FONT_H
 #define FONT_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 /* Data pertaining to the image of a character */
@@ -53,5 +54,9 @@ uint32_t font_width(const Font* font);
 
 uint32_t calc_str_width(const Font* font, const char* str);
 uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width);
+uint32_t calc_str_line_n(const Font* font, const char* str, size_t str_len,
+                         uint16_t line_width);
+size_t calc_str_page(const Font* font, const char* str, size_t str_len,
+                     uint16_t line_width, uint32_t max_lines);
 
 #endif
