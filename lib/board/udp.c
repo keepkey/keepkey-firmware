@@ -22,6 +22,7 @@
 #include "keepkey/board/usb.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/emulator/emulator.h"
+#include "trezor/crypto/memzero.h"
 
 #include <stdint.h>
 #include <assert.h>
@@ -62,6 +63,7 @@ void usbPoll(void) {
       // msg_read_tiny(msg.message, sizeof(msg.message));
     }
   }
+  memzero(buf, sizeof(buf));
 }
 
 bool usb_tx(const uint8_t* msg, uint32_t len) {

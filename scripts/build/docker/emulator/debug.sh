@@ -3,7 +3,7 @@
 KEEPKEY_FIRMWARE="$(dirname "$(dirname "$(dirname "$(dirname "$( cd "$(dirname "$0")" ; pwd -P )")")")")"
 cd $KEEPKEY_FIRMWARE
 
-IMAGETAG=kktech/firmware:v15
+IMAGETAG=kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 
 docker pull $IMAGETAG
 

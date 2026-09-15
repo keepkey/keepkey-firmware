@@ -1,8 +1,8 @@
 # KeepKey Firmware Release Pipeline
 #
 # Triggered by version tags (v*) on master.
-# Builds firmware, computes reproducible hashes,
-# and creates a draft GitHub Release with all artifacts.
+# Verifies and packages the exact binaries from successful presign CI,
+# then creates a draft GitHub Release with their evidence.
 #
 # Git-flow: tag master after merging a release/* or hotfix/* branch.
 #
@@ -18,10 +18,11 @@ on:
       - 'v*'
 
 env:
-  BASE_IMAGE: kktech/firmware:v15
+  BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   validate:
@@ -29,8 +30,11 @@ jobs:
     timeout-minutes: 3
     outputs:
       fw_version: ${{ steps.version.outputs.fw_version }}
+      ci_run_id: ${{ steps.evidence.outputs.ci_run_id }}
+      arm_full_artifact: ${{ steps.evidence.outputs.arm_full_artifact }}
+      arm_bitcoin_artifact: ${{ steps.evidence.outputs.arm_bitcoin_artifact }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           submodules: recursive
 
@@ -45,79 +49,242 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve exact-commit presign evidence
+        id: evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FW_VERSION: ${{ steps.version.outputs.fw_version }}
+        run: |
+          gh api --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+            -f head_sha="$GITHUB_SHA" -f status=success -f per_page=100 \
+            > /tmp/ci-runs.json
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open('/tmp/ci-runs.json', encoding='utf-8') as handle:
+              runs = json.load(handle).get('workflow_runs', [])
+          runs = [run for run in runs
+                  if run.get('head_sha') == os.environ['GITHUB_SHA']
+                  and run.get('conclusion') == 'success']
+          if not runs:
+              raise SystemExit('no successful CI run exists for the tagged commit')
+          run = max(runs, key=lambda item: item.get('created_at', ''))
+          run_id = str(run['id'])
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('ci_run_id=%s\n' % run_id)
+          with open('/tmp/ci-run-id', 'w', encoding='ascii') as output:
+              output.write(run_id)
+          PY
+          RUN_ID=$(cat /tmp/ci-run-id)
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/artifacts?per_page=100" \
+            > /tmp/ci-artifacts.json
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open('/tmp/ci-artifacts.json', encoding='utf-8') as handle:
+              artifacts = json.load(handle).get('artifacts', [])
+          names = [item['name'] for item in artifacts
+                   if not item.get('expired')]
+          if 'test-report' not in names:
+              raise SystemExit('exact-commit CI has no test-report artifact')
+          prefix = 'firmware-v%s-' % os.environ['FW_VERSION']
+          arm = [name for name in names if name.startswith(prefix)]
+          variants = {
+              variant: [name for name in arm if name.endswith('-' + variant)]
+              for variant in ('full', 'bitcoin-only')
+          }
+          if any(len(found) != 1 for found in variants.values()):
+              raise SystemExit('expected exact full and bitcoin-only ARM artifacts, found %r' % arm)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('arm_full_artifact=%s\n' % variants['full'][0])
+              output.write('arm_bitcoin_artifact=%s\n' % variants['bitcoin-only'][0])
+          PY
+
+      - name: Verify audited source and binary hashes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ steps.evidence.outputs.ci_run_id }}
+          ARM_FULL_ARTIFACT: ${{ steps.evidence.outputs.arm_full_artifact }}
+          ARM_BITCOIN_ARTIFACT: ${{ steps.evidence.outputs.arm_bitcoin_artifact }}
+        run: |
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name test-report --dir audited-report
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "$ARM_FULL_ARTIFACT" --dir audited-arm/full
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "$ARM_BITCOIN_ARTIFACT" --dir audited-arm/bitcoin-only
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          def digest(path):
+              value = hashlib.sha256()
+              with path.open('rb') as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                      value.update(chunk)
+              return value.hexdigest()
+
+          report_dir = Path('audited-report')
+          arm_dir = Path('audited-arm')
+          with (report_dir / 'test-report-manifest.json').open(
+                  encoding='utf-8') as handle:
+              manifest = json.load(handle)
+          if manifest.get('firmware_sha') != os.environ['GITHUB_SHA']:
+              raise SystemExit('presign manifest is for a different commit')
+          python_sha = subprocess.check_output(
+              ['git', 'rev-parse', 'HEAD:deps/python-keepkey'],
+              text=True).strip()
+          if manifest.get('python_sha') != python_sha:
+              raise SystemExit('presign manifest has a different Python pin')
+          run_id = os.environ['CI_RUN_ID']
+          if not manifest.get('run_url', '').endswith('/' + run_id):
+              raise SystemExit('presign manifest names a different CI run')
+          pdf = report_dir / manifest['pdf']['path']
+          if digest(pdf) != manifest['pdf']['sha256']:
+              raise SystemExit('presign PDF hash mismatch')
+          variants = manifest.get('arm', {}).get('variants', {})
+          if set(variants) != {'full', 'bitcoin-only'}:
+              raise SystemExit('presign manifest does not bind both ARM products')
+          manifest_hashes = {}
+          for variant, evidence in variants.items():
+              variant_dir = arm_dir / variant
+              arm_manifest = variant_dir / 'arm-build-manifest.json'
+              manifest_hashes[variant] = digest(arm_manifest)
+              if manifest_hashes[variant] != evidence['manifest_sha256']:
+                  raise SystemExit('%s ARM manifest hash mismatch' % variant)
+              expected = {item['name']: item['sha256']
+                          for item in evidence['files']}
+              actual = {path.name: digest(path)
+                        for path in variant_dir.iterdir()
+                        if path.suffix in ('.bin', '.elf')}
+              if not expected or actual != expected:
+                  raise SystemExit('%s audited ARM artifact set or hash mismatch' % variant)
+          combined = hashlib.sha256(json.dumps(
+              manifest_hashes, sort_keys=True).encode('ascii')).hexdigest()
+          if combined != manifest['arm']['manifest_set_sha256']:
+              raise SystemExit('ARM manifest-set hash mismatch')
+          print('exact presign evidence and both ARM products verified')
+          PY
+
   build-firmware:
     needs: validate
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 'suffix' names the published files; 'variant' is the internal build
+          # selector. The default build takes an EMPTY suffix so its assets keep
+          # the names every previous release used (v7.14.x shipped
+          # firmware.keepkey.bin). Only bitcoin-only is qualified, because it is
+          # the unusual one.
+          - variant: full
+            arm_output: arm_full_artifact
+            suffix: ""
+            cmake_flags: ""
+          - variant: bitcoin-only
+            arm_output: arm_bitcoin_artifact
+            suffix: "-bitcoin-only"
+            cmake_flags: "-DKK_BITCOIN_ONLY=ON"
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
-      - name: Cache base image
-        id: cache-base
-        uses: actions/cache@v5
-        with:
-          path: /tmp/base-image.tar
-          key: base-image-${{ env.BASE_IMAGE }}
-
-      - name: Pull and cache base image
-        if: steps.cache-base.outputs.cache-hit != 'true'
+      - name: Download audited release inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ needs.validate.outputs.ci_run_id }}
+          ARM_ARTIFACT: ${{ needs.validate.outputs[matrix.arm_output] }}
         run: |
-          docker pull ${{ env.BASE_IMAGE }}
-          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name test-report --dir audited-report
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "$ARM_ARTIFACT" --dir audited-arm
 
-      - name: Load base image from cache
-        if: steps.cache-base.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/base-image.tar
-
-      - name: Cross-compile firmware
+      - name: Prepare the audited binaries
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/root/keepkey-firmware:z \
-            ${{ env.BASE_IMAGE }} /bin/sh -c "\
-              mkdir /root/build && cd /root/build && \
-              cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
-                -DCMAKE_BUILD_TYPE=MinSizeRel \
-                -DCMAKE_COLOR_MAKEFILE=ON && \
-              make && \
-              mkdir -p /root/keepkey-firmware/release && \
-              cp bin/firmware.keepkey.bin /root/keepkey-firmware/release/ && \
-              cp bin/firmware.keepkey.elf /root/keepkey-firmware/release/ && \
-              cp bin/bootloader.bin /root/keepkey-firmware/release/ 2>/dev/null || true && \
-              chmod -R a+rw /root/keepkey-firmware/release"
+          python3 - <<'PY'
+          import shutil
+          from pathlib import Path
 
-      - name: Compute hashes
-        working-directory: release
-        run: |
-          echo "# KeepKey Firmware v${{ needs.validate.outputs.fw_version }} — Hash Manifest" > HASHES.txt
-          echo "" >> HASHES.txt
-          for f in *.bin; do
-            [ -f "$f" ] || continue
-            FULL_HASH=$(sha256sum "$f" | awk '{print $1}')
-            echo "sha256 (full)    $f  $FULL_HASH" >> HASHES.txt
-            FILE_SIZE=$(stat -c%s "$f")
-            if [ "$FILE_SIZE" -gt 256 ]; then
-              PAYLOAD_HASH=$(tail -c +257 "$f" | sha256sum | awk '{print $1}')
-              echo "sha256 (payload) $f  $PAYLOAD_HASH" >> HASHES.txt
-            fi
-            echo "" >> HASHES.txt
-          done
-          cat HASHES.txt
+          report_dir = Path('audited-report')
+          arm_dir = Path('audited-arm')
+          release = Path('release')
+          release.mkdir()
+          mappings = {
+              '-firmware.keepkey.bin': 'firmware.keepkey.bin',
+              '-firmware.keepkey.elf': 'firmware.keepkey.elf',
+          }
+          copied = set()
+          for source in arm_dir.iterdir():
+              for suffix, target in mappings.items():
+                  if source.name.endswith(suffix):
+                      if target in copied:
+                          raise SystemExit('duplicate audited artifact: ' + target)
+                      shutil.copyfile(str(source), str(release / target))
+                      copied.add(target)
+          required = {'firmware.keepkey.bin', 'firmware.keepkey.elf'}
+          if not required.issubset(copied):
+              raise SystemExit('audited firmware bin/elf are missing')
+          shutil.copyfile(str(report_dir / 'test-report.pdf'),
+                          str(release / 'presign-test-report.pdf'))
+          shutil.copyfile(str(report_dir / 'test-report-manifest.json'),
+                          str(release / 'presign-evidence-manifest.json'))
+          PY
 
       - name: Rename artifacts
         working-directory: release
         run: |
           VER="${{ needs.validate.outputs.fw_version }}"
-          [ -f firmware.keepkey.bin ] && mv firmware.keepkey.bin "firmware.keepkey.v${VER}.bin"
-          [ -f firmware.keepkey.elf ] && mv firmware.keepkey.elf "firmware.keepkey.v${VER}.elf"
-          [ -f bootloader.bin ] && mv bootloader.bin "bootloader.v${VER}.bin"
+          SUFFIX="${{ matrix.suffix }}"
+          [ -f firmware.keepkey.bin ] && mv firmware.keepkey.bin "firmware.keepkey.v${VER}${SUFFIX}.bin"
+          [ -f firmware.keepkey.elf ] && mv firmware.keepkey.elf "firmware.keepkey.v${VER}${SUFFIX}.elf"
           ls -lh
 
+      - name: Compute hashes
+        working-directory: release
+        run: |
+          SUFFIX="${{ matrix.suffix }}"
+          {
+            echo "# KeepKey Firmware v${{ needs.validate.outputs.fw_version }} — Hash Manifest"
+            echo ""
+            # Provenance: name the exact toolchain these bytes came out of. BASE_IMAGE
+            # is a sha256 manifest digest, not a tag, so this identifies one immutable
+            # image rather than whatever the tag pointed at on the day. Without it a
+            # green CI build and a locally reproduced binary cannot be shown to be the
+            # same toolchain product. See GH #425.
+            echo "builder image    ${BASE_IMAGE}"
+            echo "source commit    ${GITHUB_SHA}"
+            echo "# UNSIGNED presign artifacts; signing changes full-image hashes."
+            echo "# Regenerate this manifest from the final signed binaries before publication."
+            echo ""
+            for f in *.bin; do
+              [ -f "$f" ] || continue
+              FULL_HASH=$(sha256sum "$f" | awk '{print $1}')
+              echo "sha256 (full)    $f  $FULL_HASH"
+              FILE_SIZE=$(stat -c%s "$f")
+              if [ "$FILE_SIZE" -gt 256 ]; then
+                PAYLOAD_HASH=$(tail -c +257 "$f" | sha256sum | awk '{print $1}')
+                echo "sha256 (payload) $f  $PAYLOAD_HASH"
+              fi
+              echo ""
+            done
+          } > "HASHES${SUFFIX}.txt"
+          cat "HASHES${SUFFIX}.txt"
+
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: release-firmware
+          # Per-variant, because upload-artifact v4+ makes names immutable: two
+          # matrix legs writing one name is a hard failure, not a merge.
+          name: release-firmware-${{ matrix.variant }}
           path: release/*
           retention-days: 90
 
@@ -126,13 +293,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           submodules: recursive
 
       - name: Cache base image
         id: cache-base
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
           path: /tmp/base-image.tar
           key: base-image-${{ env.BASE_IMAGE }}
@@ -158,18 +325,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Download firmware artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: release-firmware
+          pattern: release-firmware-*
           path: artifacts
+          merge-multiple: true
 
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          cp artifacts/*.bin artifacts/*.elf artifacts/HASHES.txt release-assets/
+          cp artifacts/firmware.keepkey*.bin artifacts/firmware.keepkey*.elf artifacts/*.pdf artifacts/*.json \
+            artifacts/HASHES*.txt release-assets/
           ls -lh release-assets/
 
       - name: Generate release body
@@ -179,23 +348,53 @@ jobs:
           ## KeepKey Firmware v${VER}
 
           ### Reproducible Build Verification
+
+          Regular image — \`firmware.keepkey.v${VER}.bin\`, hashes in
+          \`HASHES.txt\`. From the repository root:
           \`\`\`bash
           ./scripts/build/docker/device/release.sh
           tail -c +257 bin/firmware.keepkey.bin | shasum -a 256
           \`\`\`
 
+          Bitcoin-only image — \`firmware.keepkey.v${VER}-bitcoin-only.bin\`,
+          hashes in \`HASHES-bitcoin-only.txt\`. \`release.sh\` takes no variant
+          argument on this release line and always builds the regular image, so
+          running it and comparing against the bitcoin-only manifest mismatches
+          by construction — and comparing against \`HASHES.txt\` instead would
+          "match" while saying nothing about the binary you meant to check.
+          Drive the same pinned builder image directly, adding the one cmake
+          flag CI used for this asset:
+          \`\`\`bash
+          docker run --rm -v "\$PWD:/root/keepkey-firmware:z" ${BASE_IMAGE} \\
+            /bin/sh -c 'mkdir /root/build && cd /root/build &&
+              cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware -DKK_BITCOIN_ONLY=ON -DCMAKE_BUILD_TYPE=MinSizeRel &&
+              make && mkdir -p /root/keepkey-firmware/bin &&
+              cp bin/*.bin /root/keepkey-firmware/bin/ && chmod -R a+rw /root/keepkey-firmware/bin'
+          tail -c +257 bin/firmware.keepkey.bin | shasum -a 256
+          \`\`\`
+
+          Presign evidence and its exact audited binary manifest are attached.
+          CI evidence run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ needs.validate.outputs.ci_run_id }}
+
           > **DRAFT** — firmware must be signed by 3/5 key holders before publishing.
 
           ### Signing Checklist
-          - [ ] Built on multiple machines, hashes match
+          - [ ] Both variants built on multiple machines, each payload hash
+                matched against its own manifest (\`HASHES.txt\` for the regular
+                image, \`HASHES-bitcoin-only.txt\` for the bitcoin-only one)
           - [ ] Signed on air-gapped machine (3/5 signers)
           - [ ] Storage upgrade tested on production device
           - [ ] Signed .bin uploaded, replacing unsigned
+          - [ ] All three signatures verified on each final firmware image
+          - [ ] HASHES manifests regenerated from the final signed binaries,
+                using the attached versioned filenames, and re-uploaded.
+                Signing changes the full-image hash; the attached presign
+                hashes must not be presented as hashes of the signed image.
           - [ ] Release notes finalized
           EOF
 
       - name: Create draft release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           draft: true
           name: "Firmware v${{ needs.validate.outputs.fw_version }}"

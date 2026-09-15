@@ -32,6 +32,7 @@
 #include "keepkey/transport/interface.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/base58.h"
+#include "trezor/crypto/bip340.h"
 #include "trezor/crypto/cash_addr.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/memzero.h"
@@ -43,6 +44,7 @@
 #define _(X) (X)
 
 #define SEGWIT_VERSION_0 0
+#define SEGWIT_VERSION_1 1
 
 #define CASHADDR_P2KH (0)
 #define CASHADDR_P2SH (8)
@@ -113,6 +115,95 @@ uint32_t op_push(uint32_t i, uint8_t* out) {
   return 5;
 }
 
+bool address_to_script_pubkey(const CoinType* coin, const char* address,
+                              uint8_t* script_pubkey, size_t* script_pubkey_len,
+                              size_t script_pubkey_size) {
+  uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
+  size_t addr_raw_len;
+  int witver;
+
+  const curve_info* curve = get_curve_by_name(coin->curve_name);
+  if (!curve) return false;
+
+  // Deliberately narrower than compile_output's output-side decoding: this is
+  // only reached for inputs of a coin with taproot enabled, i.e. Bitcoin and
+  // Testnet, so cashaddr and the BCH burn warning do not apply.  Kept separate
+  // rather than factored out of compile_output because that block interleaves
+  // confirm-and-cancel UX with the script building.
+  if (coin->has_bech32_prefix &&
+      segwit_addr_decode(&witver, addr_raw, &addr_raw_len, coin->bech32_prefix,
+                         address)) {
+    // push witness version (OP_0 = 0, OP_i = 80 + i), then the program
+    if (addr_raw_len + 2 > script_pubkey_size) {
+      return false;
+    }
+    script_pubkey[0] = witver == 0 ? 0 : 80 + witver;
+    script_pubkey[1] = addr_raw_len;
+    memcpy(script_pubkey + 2, addr_raw, addr_raw_len);
+    *script_pubkey_len = addr_raw_len + 2;
+    return true;
+  }
+
+  addr_raw_len = base58_decode_check(address, curve->hasher_base58, addr_raw,
+                                     MAX_ADDR_RAW_SIZE);
+
+  if (coin->has_address_type &&
+      addr_raw_len == 20 + address_prefix_bytes_len(coin->address_type) &&
+      address_check_prefix(addr_raw, coin->address_type)) {
+    if (25 > script_pubkey_size) {
+      return false;
+    }
+    script_pubkey[0] = 0x76;  // OP_DUP
+    script_pubkey[1] = 0xA9;  // OP_HASH_160
+    script_pubkey[2] = 0x14;  // pushing 20 bytes
+    memcpy(script_pubkey + 3,
+           addr_raw + address_prefix_bytes_len(coin->address_type), 20);
+    script_pubkey[23] = 0x88;  // OP_EQUALVERIFY
+    script_pubkey[24] = 0xAC;  // OP_CHECKSIG
+    *script_pubkey_len = 25;
+    return true;
+  }
+
+  if (coin->has_address_type_p2sh &&
+      addr_raw_len == 20 + address_prefix_bytes_len(coin->address_type_p2sh) &&
+      address_check_prefix(addr_raw, coin->address_type_p2sh)) {
+    if (23 > script_pubkey_size) {
+      return false;
+    }
+    script_pubkey[0] = 0xA9;  // OP_HASH_160
+    script_pubkey[1] = 0x14;  // pushing 20 bytes
+    memcpy(script_pubkey + 2,
+           addr_raw + address_prefix_bytes_len(coin->address_type_p2sh), 20);
+    script_pubkey[22] = 0x87;  // OP_EQUAL
+    *script_pubkey_len = 23;
+    return true;
+  }
+
+  return false;
+}
+
+bool fill_input_script_pubkey(const CoinType* coin, const HDNode* root,
+                              const TxInputType* in, uint8_t* script_pubkey,
+                              size_t* script_pubkey_len,
+                              size_t script_pubkey_size) {
+  static CONFIDENTIAL HDNode node;
+  char address[MAX_ADDR_SIZE] = {0};
+  bool res;
+
+  memcpy(&node, root, sizeof(HDNode));
+  res = hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count,
+                                  NULL) != 0;
+  if (res) {
+    hdnode_fill_public_key(&node);  // returns void in this tree
+  }
+  res = res && compute_address(coin, in->script_type, &node, in->has_multisig,
+                               &in->multisig, address);
+  memzero(&node, sizeof(node));
+
+  return res && address_to_script_pubkey(coin, address, script_pubkey,
+                                         script_pubkey_len, script_pubkey_size);
+}
+
 bool compute_address(const CoinType* coin, InputScriptType script_type,
                      const HDNode* node, bool has_multisig,
                      const MultisigRedeemScriptType* multisig,
@@ -125,6 +216,11 @@ bool compute_address(const CoinType* coin, InputScriptType script_type,
 
   if (has_multisig) {
     size_t prelen;
+    // No taproot multisig.  Without this the request would fall through to
+    // the p2sh branch below and hand back a p2sh address for a taproot ask.
+    if (script_type == InputScriptType_SPENDTAPROOT) {
+      return 0;
+    }
     if (cryptoMultisigPubkeyIndex(coin, multisig, node->public_key) < 0) {
       return 0;
     }
@@ -186,9 +282,28 @@ bool compute_address(const CoinType* coin, InputScriptType script_type,
       return 0;
     }
   } else if (script_type == InputScriptType_SPENDTAPROOT) {
-    // we don't handle spendtaproot input types
-    return 0;
-
+    // p2tr: the witness program is the BIP-86 tweaked output key, bech32m
+    // encoded at witness version 1.
+    if ((!coin->has_segwit || !coin->segwit) || !coin->has_bech32_prefix) {
+      return 0;
+    }
+    if (!coin->has_taproot || !coin->taproot) {
+      return 0;
+    }
+    uint8_t output_key[32];
+    // node->public_key is compressed; bytes 1..33 are the x-only internal key.
+    // BIP-341 defines the internal key as x-only, so the odd-y case resolves
+    // to its even-y counterpart here and in the signer alike.
+    if (bip340_tweak_pubkey(curve->params, node->public_key + 1,
+                            /*merkle_root=*/NULL, output_key) != 0) {
+      return 0;
+    }
+    // Exactly 32 bytes: segwit_addr_encode only length-checks the witness
+    // program for version 0, so a wrong length would encode silently.
+    if (!segwit_addr_encode(address, coin->bech32_prefix, SEGWIT_VERSION_1,
+                            output_key, sizeof(output_key))) {
+      return 0;
+    }
   } else if (script_type == InputScriptType_SPENDP2SHWITNESS) {
     // segwit p2wpkh embedded in p2sh
     if (!coin->has_segwit || !coin->segwit) {
@@ -238,14 +353,32 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
         }
       } else {
         // is this thorchain data?
-        if (!thorchain_parseConfirmMemo((const char*)in->op_return_data.bytes,
-                                        (size_t)in->op_return_data.size)) {
+#if !BITCOIN_ONLY
+        ThorchainMemoResult memo_result =
+            thorchain_parseConfirmMemo((const char*)in->op_return_data.bytes,
+                                       (size_t)in->op_return_data.size);
+        if (memo_result == THORCHAIN_MEMO_CANCELLED) {
+          // A memo screen was refused. That is a refusal to sign, not a parse
+          // failure: never answer it by asking again on the raw-data screen.
+          return -1;  // user aborted
+        }
+        if (memo_result == THORCHAIN_MEMO_UNPARSED) {
           if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
                             _("Confirm OP_RETURN"), in->op_return_data.bytes,
                             in->op_return_data.size)) {
             return -1;  // user aborted
           }
         }
+#else
+        // Bitcoin-only decodes no THORChain memo, so there is no friendly
+        // screen to show. Fall back to confirming the raw OP_RETURN payload:
+        // the bytes still have to be approved, they are just not interpreted.
+        if (!confirm_data(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                          _("Confirm OP_RETURN"), in->op_return_data.bytes,
+                          in->op_return_data.size)) {
+          return -1;  // user aborted
+        }
+#endif
       }
     }
     uint32_t r = 0;
@@ -276,19 +409,25 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
       case OutputScriptType_PAYTOP2SHWITNESS:
         input_script_type = InputScriptType_SPENDP2SHWITNESS;
         break;
+      case OutputScriptType_PAYTOTAPROOT:
+        input_script_type = InputScriptType_SPENDTAPROOT;
+        break;
       default:
         return 0;  // failed to compile output
     }
     memcpy(&node, root, sizeof(HDNode));
     if (hdnode_private_ckd_cached(&node, in->address_n, in->address_n_count,
                                   NULL) == 0) {
+      memzero(&node, sizeof(node));
       return 0;  // failed to compile output
     }
     hdnode_fill_public_key(&node);
     if (!compute_address(coin, input_script_type, &node, in->has_multisig,
                          &in->multisig, in->address)) {
+      memzero(&node, sizeof(node));
       return 0;  // failed to compile output
     }
+    memzero(&node, sizeof(node));
   } else if (!in->has_address) {
     return 0;  // failed to compile output
   }
@@ -452,11 +591,11 @@ int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
              "To try again, unplug/replug KeepKey.");
       retval = -1;  // abort
     }
-    txin_dgst_save_and_reset(amount_str, prefix_len + in->address);
-
     if (retval == -1) {
       return retval;
     }
+    // A refused output must not replace the comparison key for the next retry.
+    txin_dgst_save(amount_str, prefix_len + in->address);
   }
 
   return out->script_pubkey.size;
@@ -478,14 +617,19 @@ uint32_t compile_script_sig(uint32_t address_type, const uint8_t* pubkeyhash,
 }
 
 // if out == NULL just compute the length
+bool multisig_quorum_is_valid(const MultisigRedeemScriptType* multisig) {
+  if (multisig == NULL || !multisig->has_m) return false;
+  const uint32_t m = multisig->m;
+  const uint32_t n = multisig->pubkeys_count;
+  return m >= 1 && m <= n && n <= 15;
+}
+
 uint32_t compile_script_multisig(const CoinType* coin,
                                  const MultisigRedeemScriptType* multisig,
                                  uint8_t* out) {
-  if (!multisig->has_m) return 0;
+  if (!multisig_quorum_is_valid(multisig)) return 0;
   const uint32_t m = multisig->m;
   const uint32_t n = multisig->pubkeys_count;
-  if (m < 1 || m > 15) return 0;
-  if (n < 1 || n > 15) return 0;
   uint32_t r = 0;
   if (out) {
     out[r] = 0x50 + m;
@@ -512,11 +656,9 @@ uint32_t compile_script_multisig(const CoinType* coin,
 uint32_t compile_script_multisig_hash(const CoinType* coin,
                                       const MultisigRedeemScriptType* multisig,
                                       uint8_t* hash) {
-  if (!multisig->has_m) return 0;
+  if (!multisig_quorum_is_valid(multisig)) return 0;
   const uint32_t m = multisig->m;
   const uint32_t n = multisig->pubkeys_count;
-  if (m < 1 || m > 15) return 0;
-  if (n < 1 || n > 15) return 0;
 
   const curve_info* curve = get_curve_by_name(coin->curve_name);
   if (!curve) return 0;
@@ -561,7 +703,28 @@ uint32_t serialize_script_sig(const uint8_t* signature, uint32_t signature_len,
 
 uint32_t serialize_script_multisig(const CoinType* coin,
                                    const MultisigRedeemScriptType* multisig,
-                                   uint8_t sighash, uint8_t* out) {
+                                   uint8_t sighash, uint8_t* out,
+                                   size_t out_len) {
+  if (!coin || !multisig || !out) return 0;
+
+  /* Prove the complete write fits before touching the destination. Nanopb's
+   * static bytes decoder can accept one byte beyond the declared max_size due
+   * to structure padding, so the protobuf declaration is not a serializer
+   * bound. Runtime validation rejects non-DER sizes too, but this function
+   * remains safe independently of its caller. */
+  uint32_t required = coin->decred ? 0 : 1;
+  for (uint32_t i = 0; i < multisig->signatures_count; i++) {
+    const uint32_t sig_len = multisig->signatures[i].size;
+    if (sig_len == 0) continue;
+    if (sig_len > 72) return 0;
+    const uint32_t item_len = sig_len + 1; /* DER plus sighash */
+    required += op_push_size(item_len) + item_len;
+  }
+  const uint32_t script_len = compile_script_multisig(coin, multisig, 0);
+  if (script_len == 0) return 0;
+  required += op_push_size(script_len) + script_len;
+  if (required > out_len) return 0;
+
   uint32_t r = 0;
   if (!coin->decred) {
     // Decred fixed the off-by-one bug
@@ -578,10 +741,6 @@ uint32_t serialize_script_multisig(const CoinType* coin,
     r += multisig->signatures[i].size;
     out[r] = sighash;
     r++;
-  }
-  uint32_t script_len = compile_script_multisig(coin, multisig, 0);
-  if (script_len == 0) {
-    return 0;
   }
   r += op_push(script_len, out + r);
   r += compile_script_multisig(coin, multisig, out + r);
@@ -960,6 +1119,9 @@ uint32_t tx_input_weight(const CoinType* coin, const TxInputType* txinput) {
       weight += 4;  // empty input script
     }
     weight += input_script_size;  // discounted witness
+  } else if (txinput->script_type == InputScriptType_SPENDTAPROOT) {
+    weight += 4;  // empty scriptSig length in the non-witness serialization
+    weight += 2 + TXSIZE_SCHNORR_SIGNATURE;  // stack count, item length, sig
   }
   return weight;
 }

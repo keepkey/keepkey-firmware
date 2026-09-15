@@ -34,12 +34,24 @@ void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection,
                           uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter,
                           bool _dry_run);
 void next_character(void);
+/* Redraw the current cipher without changing its substitution mapping or
+ * advancing recovery after an unrelated host transport failure. */
+bool recovery_cipher_redraw(void);
 void recovery_character(const char* character);
 void recovery_delete_character(void);
 void recovery_cipher_finalize(void);
+
+/// Zero the recovery-side buffers and flags. Touches no storage. Called only
+/// by setup_abort(), which owns the ceremony as a whole.
+void recovery_cipher_reset(void);
+
+/// Abort the whole setup ceremony, not just its recovery half. Kept as the
+/// name existing callers use; it is an alias for setup_abort().
 void recovery_cipher_abort(void);
 
 #if DEBUG_LINK
+void recovery_cipher_test_set_word_fragments(void);
+bool recovery_cipher_test_word_fragments_are_zero(void);
 const char* recovery_get_cipher(void);
 const char* recovery_get_auto_completed_word(void);
 #endif

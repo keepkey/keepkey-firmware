@@ -1,10 +1,6 @@
 void fsm_msgInitialize(Initialize* msg) {
   (void)msg;
-  recovery_cipher_abort();
-  signing_abort();
-  ethereum_signing_abort();
-  tendermint_signAbort();
-  eos_signingAbort();
+  fsm_abort_workflows();
   session_clear(false);  // do not clear PIN
   layoutHome();
   fsm_msgGetFeatures(0);
@@ -40,10 +36,29 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
   resp->has_model = true;
   strlcpy(resp->model, model(), sizeof(resp->model));
 
+  /* Taproot capability.  Reported directly so a host does not have to infer
+     P2TR support from a firmware version -- that inference breaks whenever the
+     feature is retargeted to a different release. */
+  resp->has_supports_taproot = true;
+  resp->supports_taproot = true;
+
   /* Variant Name */
   resp->has_firmware_variant = true;
+#if BITCOIN_ONLY
+  /* Report the established KeepKeyBTC / EmulatorBTC names rather than the
+     board variant, so that existing hosts recognise a bitcoin-only image and
+     skip multi-chain-only behaviour instead of offering it features this
+     firmware does not implement. */
+#ifdef EMULATOR
+  strlcpy(resp->firmware_variant, "EmulatorBTC",
+          sizeof(resp->firmware_variant));
+#else
+  strlcpy(resp->firmware_variant, "KeepKeyBTC", sizeof(resp->firmware_variant));
+#endif
+#else
   strlcpy(resp->firmware_variant, variant_getName(),
           sizeof(resp->firmware_variant));
+#endif
 
   /* Security settings */
   resp->has_pin_protection = true;
@@ -124,6 +139,12 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
 void fsm_msgGetCoinTable(GetCoinTable* msg) {
   RESP_INIT(CoinTable);
 
+#if BITCOIN_ONLY
+  const size_t coin_table_count = COINS_COUNT;
+#else
+  const size_t coin_table_count = COINS_COUNT + TOKENS_COUNT;
+#endif
+
   CHECK_PARAM(msg->has_start == msg->has_end,
               "Incorrect GetCoinTable parameters");
 
@@ -131,9 +152,8 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
   resp->chunk_size = sizeof(resp->table) / sizeof(resp->table[0]);
 
   if (msg->has_start && msg->has_end) {
-    if (COINS_COUNT + TOKENS_COUNT <= msg->start ||
-        COINS_COUNT + TOKENS_COUNT < msg->end || msg->end < msg->start ||
-        resp->chunk_size < msg->end - msg->start) {
+    if (coin_table_count <= msg->start || coin_table_count < msg->end ||
+        msg->end < msg->start || resp->chunk_size < msg->end - msg->start) {
       fsm_sendFailure(FailureType_Failure_Other,
                       "Incorrect GetCoinTable parameters");
       layoutHome();
@@ -142,7 +162,7 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
   }
 
   resp->has_num_coins = true;
-  resp->num_coins = COINS_COUNT + TOKENS_COUNT;
+  resp->num_coins = coin_table_count;
 
   if (msg->has_start && msg->has_end) {
     resp->table_count = msg->end - msg->start;
@@ -150,8 +170,10 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
     for (size_t i = 0; i < msg->end - msg->start; i++) {
       if (msg->start + i < COINS_COUNT) {
         resp->table[i] = coins[msg->start + i];
+#if !BITCOIN_ONLY
       } else if (msg->start + i - COINS_COUNT < TOKENS_COUNT) {
         coinFromToken(&resp->table[i], &tokens[msg->start + i - COINS_COUNT]);
+#endif
       }
     }
   }
@@ -166,13 +188,15 @@ static bool isValidModelNumber(const char* model) {
   return false;
 }
 
-void checkPassphrase(void) {
+bool checkPassphrase(void) {
   if (!passphrase_protect()) {
+    authenticator_clear_cache();
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "authenticator needs passphrase");
     layoutHome();
-    return;
+    return false;
   }
+  return true;
 }
 
 void fsm_msgPing(Ping* msg) {
@@ -198,6 +222,7 @@ void fsm_msgPing(Ping* msg) {
       "Authenticator secret seed too large",
       "passphrase incorrect for authdata",
       "Auth secret unknown error",
+      "Action cancelled",
   };
 
   typedef enum _AUTH_MSG_TYPE {
@@ -230,6 +255,18 @@ void fsm_msgPing(Ping* msg) {
     }
   }
 
+  /* A protected Ping can block inside its confirmation or PIN/passphrase
+   * prompt while the main-loop auto-lock check is suspended. End any older
+   * signing stream before it can wait, so a Cancel cannot resume it. This is
+   * not a lock: PIN, passphrase, AdvancedMode and ClearSign signers stay with
+   * the session (hosts unlock via Ping(pin_protection) and then sign). */
+  if (authMsg < NUM_AUTHMESSAGES ||
+      (msg->has_button_protection && msg->button_protection) ||
+      (msg->has_pin_protection && msg->pin_protection) ||
+      (msg->has_passphrase_protection && msg->passphrase_protection)) {
+    fsm_abort_signing_workflows();
+  }
+
   if (authMsg < NUM_AUTHMESSAGES) {
     // this is an authenticator message
     unsigned errcode;
@@ -238,7 +275,7 @@ void fsm_msgPing(Ping* msg) {
         0};  // allow room for domain + ":" + account
 
     CHECK_PIN
-    checkPassphrase();
+    if (!checkPassphrase()) return;
 
     switch (authMsg) {
       case INITAUTH:
@@ -277,8 +314,7 @@ void fsm_msgPing(Ping* msg) {
         break;
 
       case WIPEADATA:
-        wipeAuthData();
-        errcode = NOERR;
+        errcode = wipeAuthData();
         resp->has_message = false;
         break;
 
@@ -314,6 +350,8 @@ void fsm_msgPing(Ping* msg) {
         return;
       }
     }
+    /* Confirmation may service DebugLink through the shared response arena. */
+    memset(resp, 0, sizeof(*resp));
     if (msg->has_message) {
       resp->has_message = true;
       memcpy(&(resp->message), &(msg->message), sizeof(resp->message));
@@ -325,6 +363,8 @@ void fsm_msgPing(Ping* msg) {
 }
 
 void fsm_msgChangePin(ChangePin* msg) {
+  CHECK_NOT_BITCOIN_ONLY_LOCKED
+
   bool removal = msg->has_remove && msg->remove;
   bool confirmed = false;
 
@@ -375,6 +415,8 @@ void fsm_msgChangePin(ChangePin* msg) {
 }
 
 void fsm_msgChangeWipeCode(ChangeWipeCode* msg) {
+  CHECK_NOT_BITCOIN_ONLY_LOCKED
+
   bool removal = msg->has_remove && msg->remove;
   bool confirmed = false;
 
@@ -448,6 +490,18 @@ void fsm_msgChangeWipeCode(ChangeWipeCode* msg) {
 void fsm_msgWipeDevice(WipeDevice* msg) {
   (void)msg;
 
+  /* Supersede active work when the request ARRIVES, not when it succeeds.
+   *
+   * Aborting only on the wipe path left the cancel path resumable: a
+   * WipeDevice that interrupts a streamed signing session puts its own screen
+   * up, and if the owner declines the wipe the handler returns with the old
+   * session still live. The host then sends the TxAck it was already holding
+   * and the interrupted signing continues -- across a screen that said nothing
+   * about that transaction. A new top-level ceremony ends whatever preceded
+   * it, exactly as the Bitcoin and Ethereum signing starts do; whether the
+   * owner then approves the wipe is a separate question. */
+  fsm_abort_workflows();
+
   if (!confirm(ButtonRequestType_ButtonRequest_WipeDevice, "Wipe Device",
                "Do you want to erase your private keys and settings?")) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Wipe cancelled");
@@ -456,6 +510,8 @@ void fsm_msgWipeDevice(WipeDevice* msg) {
   }
 
   /* Wipe device */
+  fsm_abort_workflows();
+  session_clear(/*clear_pin=*/true);
   storage_wipe();
   storage_reset();
   storage_resetUuid();
@@ -529,9 +585,12 @@ void fsm_msgLoadDevice(LoadDevice* msg) {
 
 void fsm_msgResetDevice(ResetDevice* msg) {
   CHECK_NOT_INITIALIZED
+  CHECK_NO_CEREMONY
 
-  reset_init(msg->has_display_random && msg->display_random,
-             msg->has_strength ? msg->strength : 128,
+  // display_random remains in the wire schema for host compatibility, but is
+  // intentionally ignored: internal entropy is seed pre-image material and
+  // must never be rendered or returned by production firmware.
+  reset_init(msg->has_strength ? msg->strength : 128,
              msg->has_passphrase_protection && msg->passphrase_protection,
              msg->has_pin_protection && msg->pin_protection,
              msg->has_language ? msg->language : 0,
@@ -539,7 +598,8 @@ void fsm_msgResetDevice(ResetDevice* msg) {
              msg->has_no_backup ? msg->no_backup : false,
              msg->has_auto_lock_delay_ms ? msg->auto_lock_delay_ms
                                          : STORAGE_DEFAULT_SCREENSAVER_TIMEOUT,
-             msg->has_u2f_counter ? msg->u2f_counter : 0);
+             msg->has_u2f_counter ? msg->u2f_counter : 0,
+             msg->has_dice_entropy && msg->dice_entropy);
 }
 
 void fsm_msgEntropyAck(EntropyAck* msg) {
@@ -552,15 +612,17 @@ void fsm_msgEntropyAck(EntropyAck* msg) {
 
 void fsm_msgCancel(Cancel* msg) {
   (void)msg;
-  recovery_cipher_abort();
-  signing_abort();
-  ethereum_signing_abort();
-  tendermint_signAbort();
-  eos_signingAbort();
+  fsm_abort_workflows();
+  /* See fsm_msgClearSession(): the abort routines for Binance, Tendermint,
+     Osmosis, THORChain, MAYAChain, EOS and Nano have no layout side effect, so
+     the cancelled transaction's approval screen would otherwise stay up. */
+  layoutHome();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");
 }
 
 void fsm_msgApplySettings(ApplySettings* msg) {
+  CHECK_NOT_BITCOIN_ONLY_LOCKED
+
   if (msg->has_label) {
     if (!confirm(ButtonRequestType_ButtonRequest_ChangeLabel, "Change Label",
                  "Do you want to change the label to \"%s\"?", msg->label)) {
@@ -651,11 +713,23 @@ apply_settings_cancelled:
 }
 
 void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
+  CHECK_NO_CEREMONY
+
   if (msg->has_dry_run && msg->dry_run) {
     CHECK_INITIALIZED
   } else {
     CHECK_NOT_INITIALIZED
   }
+
+  /* CHECK_NO_CEREMONY above refuses a recovery that would collide with an
+   * armed setup ceremony, but setup_isArmed() knows nothing about signing. A
+   * dry run is permitted on an initialized device, so it can start while a
+   * streamed signing session is waiting on its next ACK -- and run to
+   * completion with that session still resumable afterwards. Abort here rather
+   * than inside the macro so the refusal keeps its meaning, and abort only
+   * after both init-state checks have passed: a recovery that is about to be
+   * rejected must not tear down work it never replaces. */
+  fsm_abort_workflows();
 
   recovery_cipher_init(
       msg->has_word_count ? msg->word_count : 0,
@@ -681,6 +755,8 @@ void fsm_msgCharacterAck(CharacterAck* msg) {
 }
 
 void fsm_msgApplyPolicies(ApplyPolicies* msg) {
+  CHECK_NOT_BITCOIN_ONLY_LOCKED
+
   CHECK_PARAM(msg->policy_count > 0, "No policies provided");
 
   for (size_t i = 0; i < msg->policy_count; ++i) {
