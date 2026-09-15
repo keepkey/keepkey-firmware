@@ -37,6 +37,9 @@ static Handler on_release_handler = NULL;
 static void* on_release_handler_context = NULL;
 static void* on_press_handler_context = NULL;
 
+/* Firmware overrides this hook to account for physical user activity. */
+__attribute__((weak)) void keepkey_user_activity(void) {}
+
 #ifndef EMULATOR
 static const uint16_t BUTTON_PIN = GPIO7;
 static const uint32_t BUTTON_PORT = GPIOB;
@@ -144,6 +147,9 @@ bool keepkey_button_down(void) {
 
 void buttonisr_usr(void) {
 #ifndef EMULATOR
+  /* Physical interaction is activity. Layout changes are host-triggerable and
+   * must never renew auto-lock on their own. */
+  keepkey_user_activity();
   if (gpio_get(BUTTON_PORT, BUTTON_PIN) & BUTTON_PIN) {
     if (on_release_handler) {
       on_release_handler(on_release_handler_context);

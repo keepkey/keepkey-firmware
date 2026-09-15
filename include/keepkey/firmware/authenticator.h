@@ -18,6 +18,8 @@
 #ifndef __AUTHENTICATOR_H__
 #define __AUTHENTICATOR_H__
 
+#include <stdbool.h>
+
 // WARNING: Changing these defines changes the size of authStruct, which in turn
 // changes the secret storage size in saved in flash. These value must be
 // coordinated with the size of uint8_t encrypted_sec[] in in
@@ -41,6 +43,7 @@ enum AUTH_ERR_TYPE {
   LARGESEED,
   BADPASS,
   UNKERR,
+  CANCELED,
   NUM_AUTHERRS
 };
 
@@ -68,8 +71,13 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]);
 unsigned addAuthAccount(char* accountWithSeed);
 unsigned getAuthAccount(const char* slotStr, char acc[]);
 unsigned removeAuthAccount(char* domAcc);
-void wipeAuthData(void);
+unsigned wipeAuthData(void);
+/* Drop plaintext TOTP state without modifying encrypted persistent accounts.
+ * The next authorized operation must reload it from storage. */
+void authenticator_clear_cache(void);
 #if DEBUG_LINK
 void getAuthSlot(char* authSlotData);
+bool authenticator_cache_is_empty(void);
+void authenticator_test_seed_cache(void);
 #endif
 #endif

@@ -320,7 +320,9 @@ bool storage_protect_off(void) {
   flash_erase_word(marker_sector);
   bool ret = flash_write(marker_sector, 0, sizeof(STORAGE_PROTECT_OFF_MAGIC),
                          (const uint8_t*)STORAGE_PROTECT_OFF_MAGIC);
-  return ret;
+  return ret && memcmp((const void*)flash_write_helper(marker_sector),
+                       STORAGE_PROTECT_OFF_MAGIC,
+                       sizeof(STORAGE_PROTECT_OFF_MAGIC)) == 0;
 }
 
 /// Clear the marker that allows the firmware to boot.

@@ -25,6 +25,7 @@
 #include "keepkey/transport/interface.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define TX_OVERWINTERED 0x80000000
@@ -66,6 +67,8 @@ uint32_t compile_script_sig(uint32_t address_type, const uint8_t* pubkeyhash,
 uint32_t compile_script_multisig(const CoinType* coin,
                                  const MultisigRedeemScriptType* multisig,
                                  uint8_t* out);
+/// Shared wire-boundary invariant for every Bitcoin multisig script.
+bool multisig_quorum_is_valid(const MultisigRedeemScriptType* multisig);
 uint32_t compile_script_multisig_hash(const CoinType* coin,
                                       const MultisigRedeemScriptType* multisig,
                                       uint8_t* hash);
@@ -74,9 +77,15 @@ uint32_t serialize_script_sig(const uint8_t* signature, uint32_t signature_len,
                               uint8_t sighash, uint8_t* out);
 uint32_t serialize_script_multisig(const CoinType* coin,
                                    const MultisigRedeemScriptType* multisig,
-                                   uint8_t sighash, uint8_t* out);
+                                   uint8_t sighash, uint8_t* out,
+                                   size_t out_len);
 int compile_output(const CoinType* coin, const HDNode* root, TxOutputType* in,
                    TxOutputBinType* out, bool needs_confirm);
+
+bool fill_input_script_pubkey(const CoinType* coin, const HDNode* root,
+                              const TxInputType* in, uint8_t* script_pubkey,
+                              size_t* script_pubkey_len,
+                              size_t script_pubkey_size);
 
 uint32_t tx_prevout_hash(Hasher* hasher, const TxInputType* input);
 uint32_t tx_script_hash(Hasher* hasher, uint32_t size, const uint8_t* data);

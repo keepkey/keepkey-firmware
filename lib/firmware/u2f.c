@@ -35,6 +35,7 @@
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/u2f/u2f.h"
 #include "keepkey/firmware/u2f/u2f_keys.h"
+#include "keepkey/rand/rng_health.h"
 #include "trezor/crypto/bip39.h"
 #include "trezor/crypto/bip39_english.h"
 #include "trezor/crypto/ecdsa.h"
@@ -524,10 +525,18 @@ static const HDNode* generateKeyHandle(const uint8_t app_id[],
   uint8_t keybase[U2F_APPID_SIZE + KEY_PATH_LEN];
 
   // Derivation path is m/U2F'/r'/r'/r'/r'/r'/r'/r'/r'
+  //
+  // The path IS the secret here -- the key handle is public and an attacker who
+  // can predict the path derives the credential -- so it draws through the RNG
+  // gate rather than random32(). Registration fails rather than minting a
+  // credential on an untrusted generator.
   uint32_t key_path[KEY_PATH_ENTRIES];
+  if (!random_buffer_checked((uint8_t*)key_path, sizeof(key_path))) {
+    debugLog(0, "", "ERR: RNG self-test failed");
+    return NULL;
+  }
   for (uint32_t i = 0; i < KEY_PATH_ENTRIES; i++) {
-    // high bit for hardened keys
-    key_path[i] = 0x80000000 | random32();
+    key_path[i] |= 0x80000000;  // high bit for hardened keys
   }
 
   // First half of keyhandle is key_path

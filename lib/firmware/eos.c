@@ -50,6 +50,8 @@ static EosTxHeader header;
 static uint32_t actions_remaining = 0;
 static uint32_t unknown_total = 0;
 static uint32_t unknown_remaining = 0;
+static EosActionCommon unknown_common;
+static bool unknown_common_valid = false;
 
 bool eos_formatAsset(const EosAsset* asset, char str[EOS_ASSET_STR_SIZE]) {
   memset(str, 0, EOS_ASSET_STR_SIZE);
@@ -306,6 +308,8 @@ void eos_signingInit(const uint8_t* chain_id, uint32_t num_actions,
 
   unknown_remaining = 0;
   unknown_total = 0;
+  memzero(&unknown_common, sizeof(unknown_common));
+  unknown_common_valid = false;
   hasher_Init(&hasher_unknown, HASHER_SHA2);
 
   actions_remaining = num_actions;
@@ -332,6 +336,8 @@ void eos_signingAbort(void) {
   actions_remaining = 0;
   unknown_remaining = 0;
   unknown_total = 0;
+  memzero(&unknown_common, sizeof(unknown_common));
+  unknown_common_valid = false;
 }
 
 bool eos_compileAsset(const EosAsset* asset) {
@@ -385,10 +391,58 @@ bool eos_compilePermissionLevel(const EosPermissionLevel* auth) {
 
 bool eos_hasActionUnknownDataRemaining(void) { return 0 < unknown_remaining; }
 
-static bool isSupportedAction(const EosActionCommon* common) {
-  if (common->account == EOS_eosio || common->account == EOS_eosio_token) {
+bool eos_actionCommonEqual(const EosActionCommon* a, const EosActionCommon* b) {
+  if (!a || !b || a->has_account != b->has_account ||
+      a->account != b->account || a->has_name != b->has_name ||
+      a->name != b->name || a->authorization_count != b->authorization_count) {
+    return false;
+  }
+
+  for (size_t i = 0; i < a->authorization_count; i++) {
+    const EosPermissionLevel* aa = &a->authorization[i];
+    const EosPermissionLevel* bb = &b->authorization[i];
+    if (aa->has_actor != bb->has_actor || aa->actor != bb->actor ||
+        aa->has_permission != bb->has_permission ||
+        aa->permission != bb->permission) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool eos_isSupportedAction(const EosActionCommon* common) {
+  /* Exact contract/action PAIRS, not "either contract, any action".
+   *
+   * The account-level `||` said eosio.token::newaccount and eosio::transfer
+   * were both supported. They are not: transfer belongs to eosio.token and the
+   * system actions belong to eosio. That mattered in two directions at once.
+   *
+   * eosio.system.c's CHECK_COMMON accepted eosio.token as well, so
+   * eosio.token::newaccount COMPILED through the structured path and drew an
+   * ordinary "New Account" screen -- and none of the eosio.system confirmations
+   * names the contract, so nothing on the OLED said the call was aimed at the
+   * token contract. It also never reached eos_compileActionUnknown(), so the
+   * AdvancedMode gate on arbitrary actions did not apply to it.
+   *
+   * And because this function ALSO answers "may this be sent as an unknown
+   * action", the loose pairing refused eosio::transfer down the disclosed
+   * opaque path while no compiler would accept it either -- unsignable rather
+   * than merely unparsed.
+   *
+   * The pairs below are exactly what the two compilers accept, so this
+   * classifier and eos-contracts/ cannot drift apart.
+   *
+   * EOS_Owner and EOS_Active are permission names rather than actions and no
+   * compiler handles them; they stay listed under eosio so the current refusal
+   * of eosio::owner as an unknown action is unchanged by this fix. */
+  if (common->account == EOS_eosio_token) {
+    /* eos-contracts/eosio.token.c */
+    return common->name == EOS_Transfer;
+  }
+
+  if (common->account == EOS_eosio) {
+    /* eos-contracts/eosio.system.c */
     switch (common->name) {
-      case EOS_Transfer:
       case EOS_Owner:
       case EOS_Active:
       case EOS_DelegateBW:
@@ -402,15 +456,19 @@ static bool isSupportedAction(const EosActionCommon* common) {
       case EOS_DeleteAuth:
       case EOS_LinkAuth:
       case EOS_UnlinkAuth:
+      case EOS_NewAccount:
         return true;
     }
   }
+
   return false;
 }
 
+bool eos_unknownActionPolicyAllows(bool advanced_mode) { return advanced_mode; }
+
 bool eos_compileActionUnknown(const EosActionCommon* common,
                               const EosActionUnknown* action) {
-  if (isSupportedAction(common)) {
+  if (eos_isSupportedAction(common)) {
     fsm_sendFailure(
         FailureType_Failure_SyntaxError,
         "EosActionUnknown cannot be used with supported contract actions");
@@ -418,23 +476,29 @@ bool eos_compileActionUnknown(const EosActionCommon* common,
     return false;
   }
 
-  if (!storage_isPolicyEnabled("AdvancedMode")) {
-    (void)review(ButtonRequestType_ButtonRequest_Other, "Warning",
-                 "Signing of arbitrary EOS actions is recommended only for "
-                 "experienced users. Enable 'AdvancedMode' policy to dismiss.");
+  if (!eos_unknownActionPolicyAllows(storage_isPolicyEnabled("AdvancedMode"))) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    "Enable AdvancedMode to sign arbitrary EOS actions");
+    eos_signingAbort();
+    layoutHome();
+    return false;
   }
 
   if (unknown_remaining == 0) {
     CHECK_PARAM_RET(eos_compileActionCommon(common),
                     "Cannot compile ActionCommon", false);
 
+    memcpy(&unknown_common, common, sizeof(unknown_common));
+    unknown_common_valid = true;
+
     hasher_Init(&hasher_unknown, HASHER_SHA2);
 
     unknown_total = unknown_remaining = action->data_size;
     eos_hashUInt(&hasher_preimage, action->data_size);
-  } else if (action->data_size != unknown_total) {
+  } else if (action->data_size != unknown_total || !unknown_common_valid ||
+             !eos_actionCommonEqual(common, &unknown_common)) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    "EosActionUnknown unexpected change in total length");
+                    "EosActionUnknown metadata changed between chunks");
     eos_signingAbort();
     layoutHome();
     return false;
@@ -456,14 +520,46 @@ bool eos_compileActionUnknown(const EosActionCommon* common,
 
   if (unknown_remaining == 0) {
     char name[EOS_NAME_STR_SIZE];
-    CHECK_PARAM_RET(eos_formatName(common->name, name), "Invalid name", false);
+    CHECK_PARAM_RET(eos_formatName(unknown_common.name, name), "Invalid name",
+                    false);
 
     char account[EOS_NAME_STR_SIZE];
-    CHECK_PARAM_RET(eos_formatName(common->account, account), "Invalid name",
-                    false);
+    CHECK_PARAM_RET(eos_formatName(unknown_common.account, account),
+                    "Invalid name", false);
 
     char title[MEDIUM_STR_BUF];
     snprintf(title, sizeof(title), "%s:%s", account, name);
+
+    /* Show the AUTHORITIES this action runs under.
+     *
+     * unknown_common.authorization[] is part of the signed transaction and is
+     * compared across chunks and hashed into the preimage, but the screen
+     * below names only the contract, the action, a byte count and a data
+     * fingerprint. So an AdvancedMode owner approving an opaque action could
+     * not see which of their permissions it was being executed with -- the one
+     * part of an unknown action that says how much it is allowed to do.
+     * EosActionCommon carries at most 16 of them. */
+    for (pb_size_t i = 0; i < unknown_common.authorization_count; i++) {
+      const EosPermissionLevel* auth = &unknown_common.authorization[i];
+      char actor[EOS_NAME_STR_SIZE];
+      char permission[EOS_NAME_STR_SIZE];
+      CHECK_PARAM_RET(auth->has_actor && eos_formatName(auth->actor, actor),
+                      "Invalid authorization actor", false);
+      CHECK_PARAM_RET(
+          auth->has_permission && eos_formatName(auth->permission, permission),
+          "Invalid authorization permission", false);
+
+      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmEosAction, title,
+                   "Authorized by %s@%s (%u of %u)", actor, permission,
+                   (unsigned)(i + 1),
+                   (unsigned)unknown_common.authorization_count)) {
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        "Action Cancelled");
+        eos_signingAbort();
+        layoutHome();
+        return false;
+      }
+    }
 
     static uint8_t hash[32];
     hasher_Final(&hasher_unknown, hash);
@@ -480,6 +576,8 @@ bool eos_compileActionUnknown(const EosActionCommon* common,
       layoutHome();
       return false;
     }
+    memzero(&unknown_common, sizeof(unknown_common));
+    unknown_common_valid = false;
   }
 
   return true;
