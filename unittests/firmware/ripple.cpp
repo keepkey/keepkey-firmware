@@ -67,6 +67,26 @@ TEST(Ripple, SerializeAddress) {
                      22) == 0);
 }
 
+/* XRP's own ceiling is 100 billion XRP = 1e17 drops. The amount encoding has
+ * 62 usable bits (the top two flag XRP and positive), so it fits with room to
+ * spare -- a device bound of 1e11 drops would refuse 99.9999% of the supply. */
+TEST(Ripple, SerializeAmountCoversTheProtocolMaximum) {
+  uint8_t buf[16];
+  memset(buf, 0, sizeof(buf));
+  uint8_t *cursor = buf;
+  bool ok = true;
+
+  ripple_serializeAmount(&ok, &cursor, buf + sizeof(buf), &RFM_amount,
+                         (int64_t)RIPPLE_MAX_DROPS);
+
+  ASSERT_TRUE(ok);
+  ASSERT_EQ(9, cursor - buf);
+  EXPECT_EQ(0x61, buf[0]);  // field type 6 (amount), key 1
+  // 1e17 = 0x016345785D8A0000, with bit 62 set to mark it positive.
+  const uint8_t expected[8] = {0x41, 0x63, 0x45, 0x78, 0x5D, 0x8A, 0x00, 0x00};
+  EXPECT_EQ(0, memcmp(buf + 1, expected, sizeof(expected)));
+}
+
 TEST(Ripple, Serialize) {
   RippleSignTx tx;
   memset(&tx, 0, sizeof(tx));
@@ -127,4 +147,37 @@ TEST(Ripple, Serialize) {
         "\x78\x08\x26";
 
   ASSERT_TRUE(memcmp(serialized, expected, sizeof(serialized)) == 0);
+}
+
+TEST(Ripple, MemoLengthPrefixBoundary) {
+  // XRPL Binary Format / Length Prefixing: 0..192 use one byte;
+  // 193..12480 use two. 192 is reachable with memo[200].
+  const int lengths[] = {191, 192, 193, 199};
+  const uint8_t expected[][2] = {{0xbf, 0}, {0xc0, 0}, {0xc1, 0}, {0xc1, 6}};
+  for (size_t i = 0; i < 4; ++i) {
+    uint8_t buffer[4] = {};
+    uint8_t *cursor = buffer;
+    bool ok = true;
+    ripple_serializeVarint(&ok, &cursor, buffer + sizeof(buffer), lengths[i]);
+    ASSERT_TRUE(ok);
+    EXPECT_EQ(lengths[i] <= 192 ? 1 : 2, cursor - buffer) << lengths[i];
+    EXPECT_EQ(expected[i][0], buffer[0]) << lengths[i];
+    if (lengths[i] > 192) EXPECT_EQ(expected[i][1], buffer[1]);
+  }
+}
+
+TEST(Ripple, MemoDataUsesTheXrplFieldNumber) {
+  RippleSignTx tx = {};
+  tx.has_memo = true;
+  strcpy(tx.memo, "intent");
+
+  uint8_t serialized[64] = {};
+  uint8_t *cursor = serialized;
+  ASSERT_TRUE(ripple_serialize(&cursor, serialized + sizeof(serialized), &tx,
+                               nullptr, nullptr, nullptr, 0));
+
+  const uint8_t expected[] = {0xF9, 0xEA, 0x72, 0x06, 'i', 'n',
+                              't',  'e',  'n',  't',  0xE1, 0xF1};
+  ASSERT_GE(static_cast<size_t>(cursor - serialized), sizeof(expected));
+  EXPECT_EQ(0, memcmp(cursor - sizeof(expected), expected, sizeof(expected)));
 }

@@ -22,6 +22,7 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/firmware/app_layout.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 
@@ -29,6 +30,8 @@
 static HomeState home_state = AT_HOME;
 
 static uint32_t idle_time = 0;
+
+void keepkey_user_activity(void) { reset_idle_time(); }
 
 static void layoutLockedState(void) {
   const Font* font = get_body_font();
@@ -77,7 +80,6 @@ void layoutHome(void) {
 void layoutHomeForced(void) {
   layout_home();
   layoutLockedState();
-  reset_idle_time();
   home_state = AT_HOME;
 }
 
@@ -93,7 +95,6 @@ void leave_home(void) {
   switch (home_state) {
     case AT_HOME:
       layout_home_reversed();
-      reset_idle_time();
       home_state = AWAY_FROM_HOME;
       break;
 
@@ -117,14 +118,27 @@ void leave_home(void) {
  *     none
  */
 void toggle_screensaver(void) {
+  /* Auto-lock is a session boundary even while the device is waiting for the
+   * host between streamed signing messages.  Confirmation handlers block the
+   * main loop, so this check cannot interrupt a button hold; AWAY_FROM_HOME
+   * here means firmware has returned to the main loop and is idle, and
+   * only validated workflow progress renews the deadline. Unrelated host
+   * polls and incomplete frames cannot keep a stalled session unlocked. */
+  if (home_state != SCREENSAVER && idle_time >= storage_getAutoLockDelayMs()) {
+    /* signing_abort() and ethereum_signing_abort() draw the home screen, and
+     * layoutHomeForced() resets the idle timer. Restore it, or the screensaver
+     * drawn below is replaced by the home screen on the very next tick. */
+    const uint32_t locked_at = idle_time;
+    fsm_abort_workflows();
+    session_clear(/*clear_pin=*/true);
+    idle_time = locked_at;
+    layout_screensaver();
+    home_state = SCREENSAVER;
+    return;
+  }
+
   switch (home_state) {
     case AT_HOME:
-      if (idle_time >= storage_getAutoLockDelayMs()) {
-        session_clear(/*clear_pin=*/true);
-        layout_screensaver();
-        home_state = SCREENSAVER;
-      }
-
       break;
 
     case SCREENSAVER:
@@ -162,3 +176,27 @@ void increment_idle_time(uint32_t increment_ms) { idle_time += increment_ms; }
  *     none
  */
 void reset_idle_time(void) { idle_time = 0; }
+
+/*
+ * Renew the deadline only after a workflow accepts a signing stage or a real
+ * recovery edit, or accepts entropy for an armed reset. Callers must validate
+ * both the session and its payload first; receiving/decoding a host packet
+ * alone is never progress. Some signing handlers wait at AT_HOME, so accepted
+ * progress there also renews the timer. A completed lock cannot be undone by
+ * this hook.
+ */
+void note_workflow_progress(void) {
+  if (home_state != SCREENSAVER) {
+    reset_idle_time();
+  }
+}
+
+/*
+ * home_get_state() - Current home-screen state, for tests
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     the state toggle_screensaver() last settled on
+ */
+HomeState home_get_state(void) { return home_state; }

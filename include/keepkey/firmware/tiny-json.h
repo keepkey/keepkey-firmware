@@ -35,6 +35,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* This header closes an extern "C" block at the bottom but never opened one, so
+   including it from C++ emitted a stray '}' that closed the includer's own
+   block. That is why no unit test could include eip712.h, which pulls this in.
+   Opening the block here makes the header self-consistent; C builds are
+   unaffected because __cplusplus is undefined there. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define json_containerOf(ptr, type, member) \
   ((type*)((char*)ptr - offsetof(type, member)))
 
@@ -66,7 +75,6 @@ typedef struct json_s {
   jsonType_t type;
 } json_t;
 
-extern int errno;
 /** Parse a string to get a json.
  * @param str String pointer with a JSON object. It will be modified.
  * @param mem Array of json properties to allocate.

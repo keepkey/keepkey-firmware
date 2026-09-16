@@ -20,15 +20,27 @@
 #include "trezor/crypto/sha2.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/secp256k1.h"
+#include "trezor/crypto/memzero.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/signatures.h"
 #include "keepkey/board/pubkeys.h"
 
 #include <stdint.h>
+#include <stddef.h>
 
 volatile const uint8_t valid_pubkey[PUBKEYS] = {
     0xff, 0xff, 0xff, 0xff, 0xff,
 };
+
+/* Signature verification runs before entropy collection and DRBG setup.
+ * Keep this comparison deterministic: memcmp_s() deliberately randomizes its
+ * access order and is only valid after those services are initialized. */
+static int boot_constant_time_mismatch(const uint8_t* lhs, const uint8_t* rhs,
+                                       size_t len) {
+  volatile uint8_t diff = 0;
+  for (size_t i = 0; i < len; ++i) diff |= lhs[i] ^ rhs[i];
+  return diff != 0;
+}
 
 int signatures_ok(void) {
   uint32_t codelen = *((uint32_t*)FLASH_META_CODELEN);
@@ -68,23 +80,52 @@ int signatures_ok(void) {
     return KEY_EXPIRED;
   } /* Expired signing key */
 
+  /* F3 hardening: double-compute SHA-256, compare in constant time */
+  uint8_t firmware_fingerprint2[32];
   sha256_Raw((uint8_t*)FLASH_APP_START, codelen, firmware_fingerprint);
+  asm volatile("" ::: "memory");
+  sha256_Raw((uint8_t*)FLASH_APP_START, codelen, firmware_fingerprint2);
 
-  if (ecdsa_verify_digest(&secp256k1, pubkey[sigindex1 - 1],
-                          (uint8_t*)FLASH_META_SIG1,
-                          firmware_fingerprint) != 0) { /* Failure */
+  if (boot_constant_time_mismatch(firmware_fingerprint, firmware_fingerprint2,
+                                  32)) {
+    memzero(firmware_fingerprint, sizeof(firmware_fingerprint));
+    memzero(firmware_fingerprint2, sizeof(firmware_fingerprint2));
+    return SIG_FAIL;
+  }
+  memzero(firmware_fingerprint2, sizeof(firmware_fingerprint2));
+
+  /* F3 hardening: infective aggregation — accumulate all three ECDSA
+   * results instead of early-returning on each. Forces attacker to
+   * corrupt all three verify calls, not just skip one branch. */
+  volatile int verify_acc = 0;
+  volatile int verify_sentinel = 0;
+
+  verify_acc |=
+      ecdsa_verify_digest(&secp256k1, pubkey[sigindex1 - 1],
+                          (uint8_t*)FLASH_META_SIG1, firmware_fingerprint);
+  verify_sentinel++;
+  asm volatile("" ::: "memory");
+
+  verify_acc |=
+      ecdsa_verify_digest(&secp256k1, pubkey[sigindex2 - 1],
+                          (uint8_t*)FLASH_META_SIG2, firmware_fingerprint);
+  verify_sentinel++;
+  asm volatile("" ::: "memory");
+
+  verify_acc |=
+      ecdsa_verify_digest(&secp256k1, pubkey[sigindex3 - 1],
+                          (uint8_t*)FLASH_META_SIG3, firmware_fingerprint);
+  verify_sentinel++;
+  asm volatile("" ::: "memory");
+
+  memzero(firmware_fingerprint, sizeof(firmware_fingerprint));
+
+  /* All three verifies must have executed and all must have passed */
+  if (verify_sentinel != 3) {
     return SIG_FAIL;
   }
 
-  if (ecdsa_verify_digest(&secp256k1, pubkey[sigindex2 - 1],
-                          (uint8_t*)FLASH_META_SIG2,
-                          firmware_fingerprint) != 0) { /* Failure */
-    return SIG_FAIL;
-  }
-
-  if (ecdsa_verify_digest(&secp256k1, pubkey[sigindex3 - 1],
-                          (uint8_t*)FLASH_META_SIG3,
-                          firmware_fingerprint) != 0) { /* Failure */
+  if (verify_acc != 0) {
     return SIG_FAIL;
   }
 

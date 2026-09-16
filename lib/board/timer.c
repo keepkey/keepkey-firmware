@@ -25,6 +25,11 @@
 #else
 #include <signal.h>
 #include <unistd.h>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN /* exclude winsock.h — it declares \
+                               shutdown(SOCKET,int) */
+#include <windows.h>        /* Sleep() */
+#endif
 #endif
 
 #include "keepkey/board/keepkey_board.h"
@@ -194,6 +199,13 @@ static void run_runnables(void) {
 }
 
 void kk_timer_init(void) {
+  /* Reinitializing an emulator dylib must discard callbacks owned by the
+   * previous wallet. Re-pushing these intrusive nodes without clearing the
+   * queues links a node to itself. */
+  active_queue = (RunnableQueue){NULL, 0};
+  free_queue = (RunnableQueue){NULL, 0};
+  remaining_delay = UINT32_MAX;
+  timeSinceWakeup = 0;
   for (int i = 0; i < MAX_RUNNABLES; i++) {
     runnable_queue_push(&free_queue, &runnables[i]);
   }
@@ -229,11 +241,12 @@ void timer_init(void) {
   nvic_set_priority(NVIC_TIM4_IRQ, 16 * 2);
 
   timer_enable_counter(TIM4);
-#else
+#elif !defined(_WIN32) && !defined(KKEMU_DYLIB)
   void tim4_sighandler(int sig);
   signal(SIGALRM, tim4_sighandler);
   ualarm(1000, 1000);
 #endif
+  /* Dylib/Windows: kkemu_poll() drives timerisr_usr(); no async timer. */
 }
 
 uint32_t fi_defense_delay(volatile uint32_t value) {
@@ -287,8 +300,26 @@ void delay_us(uint32_t us) {
 void delay_ms(uint32_t ms) {
   remaining_delay = ms;
 
+#ifdef EMULATOR
+  /* Dylib execution has no SIGALRM and can block inside usbPoll(), so its
+   * delays advance from wall clock. Standalone POSIX keeps the signal timer. */
+#if defined(_WIN32) || defined(KKEMU_DYLIB)
+  while (remaining_delay > 0) {
+#ifdef _WIN32
+    Sleep(1);
+#else
+    usleep(1000);
+#endif
+    timerisr_usr();
+  }
+#else
   while (remaining_delay > 0) {
   }
+#endif
+#else
+  while (remaining_delay > 0) {
+  }
+#endif
 }
 
 /*
@@ -310,6 +341,15 @@ void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
     if (remaining_delay % frequency_ms == 0) {
       (*callback_func)();
     }
+#if defined(EMULATOR) && (defined(_WIN32) || defined(KKEMU_DYLIB))
+    /* See delay_ms(): only the thread-driven dylib advances its own tick. */
+#ifdef _WIN32
+    Sleep(1);
+#else
+    usleep(1000);
+#endif
+    timerisr_usr();
+#endif
   }
 }
 
@@ -348,7 +388,7 @@ void timerisr_usr(void) {
 #endif
 }
 
-#ifdef EMULATOR
+#if defined(EMULATOR) && !defined(_WIN32)
 void tim4_sighandler(int sig) { timerisr_usr(); }
 #endif
 

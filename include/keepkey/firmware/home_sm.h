@@ -33,5 +33,8 @@ void leave_home(void);
 void toggle_screensaver(void);
 void increment_idle_time(uint32_t increment_ms);
 void reset_idle_time(void);
+/* Call only after validated workflow progress, never on raw host traffic. */
+void note_workflow_progress(void);
+HomeState home_get_state(void);
 
 #endif

@@ -6,7 +6,7 @@
 # against a registry rather than the local daemon, so CI must be able to
 # point it at the GHCR mirror explicitly. The default keeps plain
 # `docker build` and local use working unchanged.
-ARG BASE_IMAGE=kktech/firmware:v15
+ARG BASE_IMAGE=kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 FROM ${BASE_IMAGE} AS deps
 
 # Extra Python deps needed by tests that aren't in the shared base image.
@@ -17,7 +17,11 @@ FROM ${BASE_IMAGE} AS deps
 # compiles a C extension at install time and needs Python.h + a C toolchain
 # linked against musl. Verified locally against the pinned image.
 RUN apk add --no-cache python3-dev gcc musl-dev
-RUN python3 -m pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome
+# Per-test timeouts turn protocol/UI deadlocks into named failures and keep the
+# rest of the release evidence measurable. python-keepkey-tests.sh passes the
+# plugin's --timeout options in both phases, so omitting it makes pytest reject
+# the entire invocation before collecting a single test.
+RUN python3 -m pip install --no-cache-dir rlp eth-keys eth-utils pycryptodome pytest-timeout
 
 FROM deps
 

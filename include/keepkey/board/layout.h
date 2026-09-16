@@ -21,6 +21,7 @@
 #define LAYOUT_H
 
 #include "keepkey/board/canvas.h"
+#include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/draw.h"
 
@@ -53,6 +54,11 @@
 #define BODY_TOP_MARGIN 7
 #define BODY_COLOR 0xFF
 #define BODY_WIDTH 225
+/* Constant-power layouts draw from the mirrored right half of the canvas at
+ * x = 128 + LEFT_MARGIN.  This is the complete horizontal budget available
+ * there; using BODY_WIDTH lets the renderer run past the canvas edge and drop
+ * seed words without an indication. */
+#define CONSTANT_POWER_BODY_WIDTH (KEEPKEY_DISPLAY_WIDTH - (128 + LEFT_MARGIN))
 #define BODY_WIDTH_WITH_ICON BODY_WIDTH - LEFT_MARGIN_WITH_ICON
 #define BODY_ROWS 3
 #define BODY_FONT_LINE_PADDING 4
@@ -79,6 +85,11 @@ typedef enum {
 typedef enum {
   NO_ICON = 0,
   ETHEREUM_ICON,
+  VERIFIED_ICON,
+  /* A runtime-supplied 1bpp mono RLE bitmap (e.g. a loaded clear-sign identity
+   * logo). The frame is set via layout_set_runtime_icon() before the confirm;
+   * drawn by layout_add_icon(). */
+  RUNTIME_ICON,
 } IconType;
 
 typedef void (*AnimateCallback)(void* data, uint32_t duration,
@@ -111,6 +122,12 @@ void layout_constant_power_notification(const char* str1, const char* str2,
                                         NotificationType type);
 void layout_notification_icon(NotificationType type, DrawableParams* sp);
 void layout_add_icon(IconType type);
+
+/// \brief Set the frame drawn for RUNTIME_ICON on the next confirm. Pass NULL
+///        to clear. The AnimationFrame + its Image must outlive the confirm
+///        (typically file-static in the caller).
+struct AnimationFrame_;
+void layout_set_runtime_icon(const struct AnimationFrame_* frame);
 void layout_warning(const char* str);
 void layout_warning_static(const char* str);
 void layout_simple_message(const char* str);
@@ -124,6 +141,10 @@ void animating_progress_handler(const char* desc, int permil);
 void layoutProgress(const char* desc, int permil);
 void layoutProgressForAuth(const char* otp, const char* desc, int permil);
 void layoutProgressSwipe(const char* desc, int permil);
+void layoutProgressTrickle(const char* desc, int base_permil,
+                           int target_permil);
+void layoutProgressTrickleStop(void);
+void layout_animate_poll(void);
 void layout_add_animation(AnimateCallback callback, void* data,
                           uint32_t duration);
 void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed);

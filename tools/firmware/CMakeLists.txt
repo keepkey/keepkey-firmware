@@ -9,12 +9,14 @@ if(NOT ${KK_EMULATOR})
   include_directories(
       ${CMAKE_SOURCE_DIR}/include
       ${CMAKE_BINARY_DIR}/include
-      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
+      ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-firmware/crypto)
 
   set(linker_script ${CMAKE_CURRENT_SOURCE_DIR}/keepkey.ld)
 
+  # Link map for the CI SRAM report/artifact (pairs with the .ld's 16 KiB
+  # stack-reserve ASSERT and the -fstack-usage frame report).
   set(CMAKE_EXE_LINKER_FLAGS
-      "${CMAKE_EXE_LINKER_FLAGS} -T${linker_script} -L${CMAKE_BINARY_DIR}/lib")
+      "${CMAKE_EXE_LINKER_FLAGS} -T${linker_script} -L${CMAKE_BINARY_DIR}/lib -Wl,-Map=${CMAKE_BINARY_DIR}/bin/firmware.keepkey.map,--cref")
 
   set(LINK_FLAGS
       kkfirmware

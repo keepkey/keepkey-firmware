@@ -22,6 +22,7 @@
 #include <libopencm3/stm32/desig.h>
 #else
 #include <stdint.h>
+
 #include <stdbool.h>
 #endif
 
@@ -32,11 +33,23 @@
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/util.h"
 #include "keepkey/rand/rng.h"
+#include "keepkey/rand/rng_health.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/rand.h"
 
 #include <string.h>
 #include <stdint.h>
+
+#ifdef EMULATOR
+__attribute__((weak)) bool emulator_flash_write_completed(Allocation group,
+                                                          uint32_t offset,
+                                                          uint32_t len) {
+  (void)group;
+  (void)offset;
+  (void)len;
+  return true;
+}
+#endif
 
 uint8_t HW_ENTROPY_DATA[HW_ENTROPY_LEN];
 
@@ -96,15 +109,17 @@ bool flash_chk_status(void) {
  *     none
  */
 void flash_erase_word(Allocation group) {
-#ifndef EMULATOR
   const FlashSector* s = flash_sector_map;
   while (s->use != FLASH_INVALID) {
     if (s->use == group) {
+#ifndef EMULATOR
       svc_flash_erase_sector((uint32_t)s->sector);
+#else
+      memset((void*)FLASH_PTR(s->start), 0xff, s->len);
+#endif
     }
     ++s;
   }
-#endif
 }
 
 /*
@@ -163,7 +178,7 @@ fww_exit:
   return (retval);
 #else
   memcpy((void*)(flash_write_helper(group) + offset), data, len);
-  return true;
+  return emulator_flash_write_completed(group, offset, len);
 #endif
 }
 
@@ -189,7 +204,7 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len,
   return (retval);
 #else
   memcpy((void*)(flash_write_helper(group) + offset), data, len);
-  return true;
+  return emulator_flash_write_completed(group, offset, len);
 #endif
 }
 
@@ -319,20 +334,29 @@ const char* flash_programModel(void) {
 #endif
 }
 
-void flash_collectHWEntropy(bool privileged) {
+bool flash_collectHWEntropy(bool privileged) {
 #ifdef EMULATOR
   (void)privileged;
   memzero(HW_ENTROPY_DATA, HW_ENTROPY_LEN);
+  return true;
 #else
   if (privileged) {
     desig_get_unique_id((uint32_t*)HW_ENTROPY_DATA);
     // set entropy in the OTP randomness block
     if (!flash_otp_is_locked(FLASH_OTP_BLOCK_RANDOMNESS)) {
       uint8_t entropy[FLASH_OTP_BLOCK_SIZE] = {0};
-      random_buffer(entropy, FLASH_OTP_BLOCK_SIZE);
+      /* This block feeds the PIN-KDF salt on the same boot. If the checked
+       * draw fails, do not read the still-erased block into HW_ENTROPY_DATA:
+       * the caller must stop before storage_init() can consume it. */
+      if (!random_buffer_checked(entropy, FLASH_OTP_BLOCK_SIZE)) {
+        memzero(entropy, sizeof(entropy));
+        memzero(HW_ENTROPY_DATA, HW_ENTROPY_LEN);
+        return false;
+      }
       flash_otp_write(FLASH_OTP_BLOCK_RANDOMNESS, 0, entropy,
                       FLASH_OTP_BLOCK_SIZE);
       flash_otp_lock(FLASH_OTP_BLOCK_RANDOMNESS);
+      memzero(entropy, sizeof(entropy));
     }
     // collect entropy from OTP randomness block
     flash_otp_read(FLASH_OTP_BLOCK_RANDOMNESS, 0, HW_ENTROPY_DATA + 12,
@@ -341,6 +365,7 @@ void flash_collectHWEntropy(bool privileged) {
     // unprivileged mode => use fixed HW_ENTROPY
     memset(HW_ENTROPY_DATA, 0x3C, HW_ENTROPY_LEN);
   }
+  return true;
 #endif
 }
 

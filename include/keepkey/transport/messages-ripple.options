@@ -6,5 +6,7 @@ RippleSignTx.address_n max_count:8
 
 RipplePayment.destination max_size:36
 
+RippleSignTx.memo max_size:200
+
 RippleSignedTx.signature max_size:75
 RippleSignedTx.serialized_tx max_size:1024

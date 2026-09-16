@@ -1,0 +1,41 @@
+# Files merge_direction_gate.py flags that have been LOOKED AT and cleared.
+#
+# A flag means "the merged tree equals one side while the other side had real
+# churn". That is a question, not a verdict: alpha is 218 commits ahead of
+# upstream develop and 0 behind, so some of alpha's changes reached the fork's
+# develop by another route and taking develop's file loses nothing.
+#
+# Anything flagged and NOT listed here has not been examined. Add a line only
+# after checking, and say what you checked.
+#
+# format:  <path>  #  <why it is safe>
+
+# --- took develop's file; alpha's changes to it were already present there ---
+lib/board/confirm_sm.c                          # develop's renderer-measured pager supersedes alpha's calc_str_page model; recorded decision, #428 reopened 3x through that seam
+lib/firmware/binance.c                          # develop carries alpha's denom validators plus more
+lib/firmware/ethereum_contracts/zxswap.c        # develop's churn is a superset
+lib/firmware/fsm_msg_tendermint.h               # equivalent
+unittests/firmware/cosmos.cpp                   # equivalent
+lib/firmware/fsm_msg_binance.h                  # equivalent
+lib/firmware/ethereum_contracts/zxtransERC20.c  # develop's #468 tail-binding is the newer fix
+lib/firmware/fsm_msg_cosmos.h                   # equivalent
+include/keepkey/board/confirm_sm.h              # matches develop's pager, above
+unittests/firmware/eos.cpp                      # equivalent
+lib/firmware/ethereum_contracts/saproxy.c       # equivalent
+scripts/emulator/python-keepkey.Dockerfile      # develop pins the builder image by digest
+
+# --- took alpha's file; every develop-only symbol verified still declared ---
+lib/firmware/ethereum_contracts/zxliquidtx.c    # alpha has #431 chain binding and #435 deadline fix already; strictly more screens
+include/keepkey/firmware/solana.h               # develop added nothing alpha lacks
+lib/firmware/authenticator.c                    # develop's is OLDER; alpha has 5 checks develop dropped. develop's only addition (CANCELED, wipeAuthData) is present as AUTH_CANCELLED
+include/keepkey/firmware/signtx_tendermint.h    # TENDERMINT_SIGNING_* enum present, 2 users in lib/
+include/keepkey/firmware/osmosis.h              # 3-arg osmosis_signTxUpdateMsgSend present
+include/keepkey/firmware/authenticator.h        # see authenticator.c
+include/keepkey/firmware/binance.h              # binance_isValidDenom + binance_validateTransfer both declared and used
+include/keepkey/firmware/eos.h                  # eos_isSupportedAction + eos_unknownActionPolicyAllows both declared and used
+scripts/build/docker/device/release.sh          # kktech/firmware@sha256 digest pin present
+unittests/board/CMakeLists.txt                  # kkemulator link dep present
+scripts/emulator/Dockerfile                     # kktech/firmware@sha256 digest pin present
+scripts/build/docker/device/debug.sh            # digest pin present
+scripts/build/docker/emulator/debug.sh          # digest pin present
+lib/emulator/setup.c                            # develop's inline /dev/urandom loop moved to lib/emulator/random.c with the same EINTR + short-read handling, plus a Windows BCryptGenRandom path develop lacks

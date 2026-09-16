@@ -44,9 +44,11 @@ enum {
   CONCAT(CoinIndex, __COUNTER__),
 #include "keepkey/firmware/coins.def"
 
+#if !BITCOIN_ONLY  // ERC-20 tokens excluded from the bitcoin-only image
 #define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS) \
   CONCAT(CoinIndex, __COUNTER__),
 #include "keepkey/firmware/tokens.def"
+#endif
 
   CoinIndexLast,
   CoinIndexFirst = 0
@@ -68,7 +70,7 @@ extern const CoinType coins[];
 const CoinType* coinByShortcut(const char* shortcut);
 const CoinType* coinByName(const char* name);
 const CoinType* coinByNameOrTicker(const char* name);
-const CoinType* coinByChainAddress(uint8_t chain_id, const uint8_t* address);
+const CoinType* coinByChainAddress(uint32_t chain_id, const uint8_t* address);
 const CoinType* coinByAddressType(uint32_t address_type);
 const CoinType* coinBySlip44(uint32_t bip44_account_path);
 void coin_amnt_to_str(const CoinType* coin, uint64_t amnt, char* buf, int len);
