@@ -86,6 +86,11 @@ typedef struct {
 typedef void (*layout_notification_t)(const char* str1, const char* str2,
                                       NotificationType type);
 
+#ifdef EMULATOR
+typedef void (*confirm_test_observer_t)(const char* title, const char* body);
+void confirm_test_set_observer(confirm_test_observer_t observer);
+#endif
+
 /// \brief Will a confirmation body fit on the screen it is drawn on?
 ///
 /// draw_string() stops drawing once a glyph no longer fits the canvas and

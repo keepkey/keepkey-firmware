@@ -89,6 +89,7 @@ TEST_F(SetupCeremony, AbortIsIdempotent) {
 // BIP39 owns a static output buffer.  Once setup is abandoned, retaining the
 // generated sentence there is retaining an otherwise unowned device seed.
 TEST_F(SetupCeremony, AbortScrubsGeneratedMnemonic) {
+  constexpr size_t kBip39MnemonicBufferSize = 24u * 10u;
   const uint8_t entropy[16] = {};
   const char* generated = mnemonic_from_data(entropy, sizeof(entropy));
   ASSERT_NE(nullptr, generated);
@@ -96,7 +97,7 @@ TEST_F(SetupCeremony, AbortScrubsGeneratedMnemonic) {
 
   setup_abort();
 
-  for (size_t i = 0; i < 24u * 10u; ++i) {
+  for (size_t i = 0; i < kBip39MnemonicBufferSize; ++i) {
     EXPECT_EQ('\0', generated[i]);
   }
 }
@@ -157,6 +158,7 @@ TEST_F(SetupCeremony, MessagePermutationsLeaveNothingArmed) {
 }
 
 TEST_F(SetupCeremony, AbortWipesBip39MnemonicAndRecoveryFragments) {
+  constexpr size_t kBip39MnemonicBufferSize = 24u * 10u;
   const uint8_t entropy[16] = {0};
   const char* mnemonic = mnemonic_from_data(entropy, sizeof(entropy));
   ASSERT_NE(nullptr, mnemonic);
@@ -166,7 +168,9 @@ TEST_F(SetupCeremony, AbortWipesBip39MnemonicAndRecoveryFragments) {
 
   setup_abort();
 
-  EXPECT_EQ('\0', mnemonic[0]);
+  for (size_t i = 0; i < kBip39MnemonicBufferSize; ++i) {
+    EXPECT_EQ('\0', mnemonic[i]);
+  }
   EXPECT_TRUE(recovery_cipher_test_word_fragments_are_zero());
   EXPECT_FALSE(setup_isArmed());
 }

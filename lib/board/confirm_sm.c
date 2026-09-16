@@ -558,6 +558,12 @@ static bool confirm_helper(const char* request_title, const char* request_body,
                            layout_notification_t layout_notification_func,
                            bool constant_power, IconType iconNum,
                            bool immediate, bool notify_host) {
+#ifdef EMULATOR
+  extern confirm_test_observer_t confirm_test_observer;
+  if (confirm_test_observer != NULL) {
+    confirm_test_observer(request_title, request_body);
+  }
+#endif
   const uint16_t body_width =
       (uint16_t)((iconNum == NO_ICON) ? BODY_WIDTH : BODY_WIDTH_WITH_ICON);
 
@@ -613,6 +619,14 @@ static bool confirm_helper(const char* request_title, const char* request_body,
   return confirm_screen(request_title, request_body, layout_notification_func,
                         constant_power, iconNum, immediate);
 }
+
+#ifdef EMULATOR
+confirm_test_observer_t confirm_test_observer = NULL;
+
+void confirm_test_set_observer(confirm_test_observer_t observer) {
+  confirm_test_observer = observer;
+}
+#endif
 
 bool confirm(ButtonRequestType type, const char* request_title,
              const char* request_body, ...) {

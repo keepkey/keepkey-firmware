@@ -76,12 +76,10 @@ bool tron_getAddress(const uint8_t public_key[33], char* address,
  * Format TRON amount (SUN) for display
  * 1 TRX = 1,000,000 SUN
  */
-void tron_formatAmount(char* buf, size_t len, uint64_t amount) {
+bool tron_formatAmount(char* buf, size_t len, uint64_t amount) {
   bignum256 val;
   bn_read_uint64(amount, &val);
-  if (!bn_format(&val, NULL, " TRX", TRON_DECIMALS, 0, false, buf, len)) {
-    strlcpy(buf, "AMOUNT TOO LARGE TO DISPLAY", len);
-  }
+  return bn_format(&val, NULL, " TRX", TRON_DECIMALS, 0, false, buf, len);
 }
 
 bool tron_addressFromBytes(const uint8_t addr[TRON_RAW_ADDRESS_SIZE], char* out,

@@ -86,6 +86,18 @@ TEST(EOS, SupportedActionsArePairsNotEitherContract) {
         << "eosio.token action " << i << " must not be a supported pair";
   }
 
+  /* Permission names have no structured compiler action. They remain
+     classified under eosio so EosActionUnknown cannot use AdvancedMode to
+     sign them as opaque actions. */
+  const uint64_t blocked_permission_names[] = {EOS_Owner, EOS_Active};
+  for (uint64_t name : blocked_permission_names) {
+    common.name = name;
+    common.account = EOS_eosio;
+    EXPECT_TRUE(eos_isSupportedAction(&common));
+    common.account = EOS_eosio_token;
+    EXPECT_FALSE(eos_isSupportedAction(&common));
+  }
+
   /* An unrelated contract is unsupported whatever the action name. */
   common.account = 0x1111111111111111ULL;
   common.name = EOS_Transfer;

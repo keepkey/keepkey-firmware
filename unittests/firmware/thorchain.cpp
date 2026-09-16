@@ -34,6 +34,13 @@ extern "C" {
 // Mirrors the bound inside thorchain_parseConfirmMemo().
 static const size_t THORCHAIN_MEMO_MAX_FOR_TEST = 256;
 
+static std::vector<std::string> observed_confirmations;
+
+static void observe_confirmation(const char* title, const char* body) {
+  observed_confirmations.emplace_back(std::string(title ? title : "") + "\n" +
+                                      (body ? body : ""));
+}
+
 /*
  * confirm() auto-accept driver for unit tests.
  *
@@ -589,11 +596,27 @@ static bool parseMemo(const char* memo) {
 // confirm() paged, that 4th row — the tail of the USDT contract address — was
 // simply dropped from the screen.
 TEST(Thorchain, MemoSwapFullFormShowsAffiliate) {
+  observed_confirmations.clear();
   ASSERT_TRUE(kkconfirm_preload(5, 0));
+  confirm_test_set_observer(observe_confirmation);
   EXPECT_TRUE(
       parseMemo("SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:"
                 "0x41e5560054824ea6b0732e656e3ad64e20e94e45:420:kk:75"));
   EXPECT_EQ(0, kkconfirm_drain());
+  confirm_test_set_observer(nullptr);
+
+  ASSERT_EQ(4u, observed_confirmations.size());
+  EXPECT_EQ(
+      "Thorchain swap\nConfirm swap asset "
+      "USDT-0xdac17f958d2ee523a2206206994597c13d831ec7\n on chain ETH",
+      observed_confirmations[0]);
+  EXPECT_EQ(
+      "Thorchain swap\nConfirm to "
+      "0x41e5560054824ea6b0732e656e3ad64e20e94e45",
+      observed_confirmations[1]);
+  EXPECT_EQ("Thorchain swap\nConfirm limit 420", observed_confirmations[2]);
+  EXPECT_EQ("Thorchain swap\nAffiliate fee 75 bps to kk",
+            observed_confirmations[3]);
 }
 
 // An affiliate FEE with an EMPTY affiliate slot must still be disclosed. The

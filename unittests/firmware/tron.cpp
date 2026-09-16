@@ -479,6 +479,15 @@ TEST(Tron, FormatTrc20AmountUint256) {
   EXPECT_STREQ(buf, "1000000000000000000");
 }
 
+TEST(Tron, NativeAmountFormattingReportsFailure) {
+  char amount[32] = {};
+  EXPECT_TRUE(tron_formatAmount(amount, sizeof(amount), UINT64_MAX));
+  EXPECT_STREQ("18446744073709.551615 TRX", amount);
+
+  char too_small[8] = {};
+  EXPECT_FALSE(tron_formatAmount(too_small, sizeof(too_small), UINT64_MAX));
+}
+
 TEST(Tron, AddressFromBytes) {
   /* Base58Check of 41 + 20 bytes must round-trip through the display helper */
   uint8_t addr[21];

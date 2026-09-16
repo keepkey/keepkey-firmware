@@ -100,8 +100,9 @@ bool tron_getAddress(const uint8_t public_key[33], char* address,
  * @param buf Output buffer
  * @param len Length of output buffer
  * @param amount Amount in SUN (1 TRX = 1,000,000 SUN)
+ * @return true when the complete amount fits in buf
  */
-void tron_formatAmount(char* buf, size_t len, uint64_t amount);
+bool tron_formatAmount(char* buf, size_t len, uint64_t amount);
 
 /**
  * Sign a TRON transaction

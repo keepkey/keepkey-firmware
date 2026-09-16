@@ -178,7 +178,12 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
     bool confirmed = false;
     if (tx_type == TRON_TX_TRANSFER) {
       char amount_str[32];
-      tron_formatAmount(amount_str, sizeof(amount_str), parsed.amount);
+      if (!tron_formatAmount(amount_str, sizeof(amount_str), parsed.amount)) {
+        memzero(node, sizeof(*node));
+        fsm_sendFailure(FailureType_Failure_Other, _("Amount display failed"));
+        layoutHome();
+        return;
+      }
       confirmed = confirm(ButtonRequestType_ButtonRequest_SignTx, "TRON",
                           "Send %s to %s?", amount_str, to_str);
     } else { /* TRON_TX_TRC20_TRANSFER */
@@ -198,7 +203,12 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
 
     if (confirmed && parsed.has_fee_limit) {
       char fee_str[32];
-      tron_formatAmount(fee_str, sizeof(fee_str), parsed.fee_limit);
+      if (!tron_formatAmount(fee_str, sizeof(fee_str), parsed.fee_limit)) {
+        memzero(node, sizeof(*node));
+        fsm_sendFailure(FailureType_Failure_Other, _("Fee display failed"));
+        layoutHome();
+        return;
+      }
       confirmed = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "TRON",
                           "Max network fee %s", fee_str);
     }

@@ -126,7 +126,9 @@ static bool tendermint_bech32DecodeChecked(const char* address, char* hrp_out,
    tendermint_validateBech32Address() instead. */
 bool tendermint_bech32IsWellFormed(const char* address) {
   char hrp[BECH32_MAX_HRP_LEN + 1] = {0};
-  return tendermint_bech32DecodeChecked(address, hrp, NULL);
+  size_t decoded_len = 0;
+  return tendermint_bech32DecodeChecked(address, hrp, &decoded_len) &&
+         decoded_len == TENDERMINT_ACCOUNT_ADDRESS_GROUPS;
 }
 
 bool tendermint_validateBech32Address(const char* address,

@@ -2664,12 +2664,15 @@ uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width) {
  * confirm_body_fits), so this is not on a consent path. */
 size_t calc_str_page(const Font* font, const char* str, size_t str_len,
                      uint16_t line_width, uint32_t max_lines) {
-  size_t best = 0;
-  for (size_t take = 1; take <= str_len; take++) {
-    /* A longer prefix never needs fewer lines, so the first prefix that does
-     * not fit settles it. */
-    if (calc_str_line_n(font, str, take, line_width) > max_lines) break;
-    best = take;
+  size_t low = 0;
+  size_t high = str_len;
+  while (low < high) {
+    const size_t take = low + (high - low + 1) / 2;
+    if (calc_str_line_n(font, str, take, line_width) <= max_lines) {
+      low = take;
+    } else {
+      high = take - 1;
+    }
   }
-  return best;
+  return low;
 }

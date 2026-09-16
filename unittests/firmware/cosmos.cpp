@@ -36,12 +36,17 @@ TEST(Cosmos, HostTextMustBeSafeForJsonAndDisplay) {
   EXPECT_FALSE(tendermint_validateBech32Address(
       "cosmos1qqqqqqqqqqqqqqqqqqqqe9efq6", "cosmos"));
 
-  /* Well-formedness with an arbitrary HRP, for IBC receivers on counterparty
-     chains. Still bounded, still checksum-checked. */
+  /* Account validation with an arbitrary HRP, for IBC receivers on
+     counterparty chains. It still requires the 32 groups of a 20-byte account
+     so a checksum-valid validator/module/blob cannot become the receiver. */
   EXPECT_TRUE(tendermint_bech32IsWellFormed(
       "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"));
   EXPECT_TRUE(tendermint_bech32IsWellFormed(
       "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a"));
+  EXPECT_FALSE(tendermint_bech32IsWellFormed(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnl07mr"));
+  EXPECT_FALSE(
+      tendermint_bech32IsWellFormed("cosmos1qqqqqqqqqqqqqqqqqqqqe9efq6"));
   EXPECT_FALSE(tendermint_bech32IsWellFormed(nullptr));
   EXPECT_FALSE(tendermint_bech32IsWellFormed(""));
   EXPECT_FALSE(tendermint_bech32IsWellFormed("not-bech32"));
