@@ -52,6 +52,10 @@ extern bool reset_msg_stack;
 
 static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
 
+#ifdef EMULATOR
+static confirm_test_observer_t confirm_test_observer = NULL;
+#endif
+
 /* The single place a host-supplied body is formatted. vsnprintf() returns the
  * length it WOULD have written, which is the only chance to notice that
  * strbuf was too small -- after this, the evidence is gone.
@@ -559,7 +563,6 @@ static bool confirm_helper(const char* request_title, const char* request_body,
                            bool constant_power, IconType iconNum,
                            bool immediate, bool notify_host) {
 #ifdef EMULATOR
-  extern confirm_test_observer_t confirm_test_observer;
   if (confirm_test_observer != NULL) {
     confirm_test_observer(request_title, request_body);
   }
@@ -621,8 +624,6 @@ static bool confirm_helper(const char* request_title, const char* request_body,
 }
 
 #ifdef EMULATOR
-confirm_test_observer_t confirm_test_observer = NULL;
-
 void confirm_test_set_observer(confirm_test_observer_t observer) {
   confirm_test_observer = observer;
 }
