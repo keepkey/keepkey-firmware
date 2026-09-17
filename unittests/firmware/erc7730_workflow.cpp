@@ -4,6 +4,20 @@ extern "C" {
 #include "keepkey/firmware/erc7730_workflow.h"
 }
 
+static void prepareTypedUintWorkflow(Erc7730Workflow* workflow) {
+  workflow->typed_data = true;
+  workflow->phase = ERC7730_WORKFLOW_READY;
+  workflow->loader.abi_started = true;
+  workflow->loader.index.complete = true;
+  workflow->loader.abi.complete = true;
+  workflow->loader.abi.node_count = 2;
+  workflow->loader.abi.nodes[0].kind = ERC7730_ABI_TUPLE;
+  workflow->loader.abi.nodes[0].first_child = 1;
+  workflow->loader.abi.nodes[0].child_count = 1;
+  workflow->loader.abi.nodes[1].kind = ERC7730_ABI_UINT;
+  workflow->loader.abi.nodes[1].size = 256;
+}
+
 TEST(Erc7730Workflow, RejectsUnbackedAndMalformedStarts) {
   erc7730_catalog_clear_preload();
   Erc7730Workflow workflow{};
@@ -51,4 +65,49 @@ TEST(Erc7730Workflow, ReportsOnlyUnvalidatedCalldataAsWaiting) {
   EXPECT_EQ(remaining, 0u);
   workflow.calldata.received = 97;
   EXPECT_FALSE(erc7730_workflow_calldata_waiting(&workflow, &remaining));
+}
+
+TEST(Erc7730Workflow, CapturesAndFormatsExactTypedDataLeaf) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+
+  const uint32_t member_path[2] = {1, 0};
+  uint8_t value[32] = {0};
+  value[31] = 42;
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
+                                              sizeof(value)));
+  EXPECT_FALSE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
+                                               sizeof(value)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  char formatted[16];
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "42");
+}
+
+TEST(Erc7730Workflow, TypedDataCaptureFailsClosedOnMissingOrWrongWidthValue) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  const uint32_t other_path[2] = {1, 1};
+  uint8_t value[32] = {0};
+  EXPECT_TRUE(erc7730_workflow_eip712_observe(&workflow, other_path, 2, value,
+                                              sizeof(value)));
+  EXPECT_FALSE(erc7730_workflow_eip712_finish(&workflow));
+  const uint32_t target_path[2] = {1, 0};
+  EXPECT_FALSE(erc7730_workflow_eip712_observe(&workflow, target_path, 2, value,
+                                               sizeof(value) - 1));
 }

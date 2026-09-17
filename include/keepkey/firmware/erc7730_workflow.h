@@ -16,6 +16,7 @@ typedef enum {
   ERC7730_WORKFLOW_SELECT,
   ERC7730_WORKFLOW_READY,
   ERC7730_WORKFLOW_CALLDATA,
+  ERC7730_WORKFLOW_TYPED_DATA,
   ERC7730_WORKFLOW_COMPLETE,
   ERC7730_WORKFLOW_FAILED,
 } Erc7730WorkflowPhase;
@@ -105,6 +106,13 @@ bool erc7730_workflow_restore_and_start_calldata(Erc7730Workflow* workflow,
 bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
                                                 EthereumSignTx* tx,
                                                 const Erc7730Path* path);
+bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
+                                           const Erc7730Path* path);
+bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,
+                                     const uint32_t* member_path,
+                                     size_t member_path_count,
+                                     const uint8_t* value, size_t value_len);
+bool erc7730_workflow_eip712_finish(Erc7730Workflow* workflow);
 bool erc7730_workflow_restore_complete(const Erc7730Workflow* workflow,
                                        EthereumSignTx* tx);
 Erc7730AbiResult erc7730_workflow_calldata_feed(Erc7730Workflow* workflow,

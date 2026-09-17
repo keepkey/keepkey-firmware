@@ -391,6 +391,123 @@ bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
   return true;
 }
 
+bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
+                                           const Erc7730Path* path) {
+  if (!workflow || !path || !workflow->typed_data ||
+      workflow->phase != ERC7730_WORKFLOW_READY || path->source != 1 ||
+      path->step_count == 0 || path->step_count >= ERC7730_ABI_MAX_DEPTH)
+    return false;
+  Erc7730AbiProgram program;
+  if (!erc7730_program_loader_complete(&workflow->loader, &program))
+    return false;
+  uint16_t node = program.root;
+  memzero(&workflow->calldata, sizeof(workflow->calldata));
+  for (uint8_t i = 0; i < path->step_count; i++) {
+    if (path->steps[i].opcode != 1 || path->steps[i].first < 0 ||
+        node >= program.node_count)
+      return false;
+    const Erc7730AbiNode* parent = &program.nodes[node];
+    const uint32_t index = (uint32_t)path->steps[i].first;
+    if (parent->kind == ERC7730_ABI_TUPLE) {
+      if (index >= parent->child_count) return false;
+      node = (uint16_t)(parent->first_child + index);
+    } else if (parent->kind == ERC7730_ABI_ARRAY) {
+      if (parent->child_count != 1 ||
+          (parent->array_length != ERC7730_ABI_DYNAMIC_ARRAY &&
+           index >= parent->array_length))
+        return false;
+      node = parent->first_child;
+    } else {
+      return false;
+    }
+    workflow->calldata.capture_path[i] = path->steps[i].first;
+  }
+  if (node >= program.node_count ||
+      program.nodes[node].kind > ERC7730_ABI_STRING)
+    return false;
+  workflow->calldata.capture_path_count = path->step_count;
+  workflow->calldata.capture.node = node;
+  workflow->calldata.capture_enabled = true;
+  workflow->phase = ERC7730_WORKFLOW_TYPED_DATA;
+  return true;
+}
+
+static bool normalize_eip712_capture(const Erc7730AbiNode* node,
+                                     const uint8_t* value, size_t value_len,
+                                     Erc7730AbiCapture* capture) {
+  if (!node || (!value && value_len != 0) || !capture) return false;
+  capture->length = 32;
+  if (node->kind == ERC7730_ABI_UINT || node->kind == ERC7730_ABI_INT) {
+    const size_t width = node->size / 8u;
+    if (width == 0 || width > 32 || value_len != width) return false;
+    memset(capture->data,
+           node->kind == ERC7730_ABI_INT && (value[0] & 0x80u) ? 0xff : 0,
+           32 - width);
+    memcpy(capture->data + 32 - width, value, width);
+    return true;
+  }
+  if (node->kind == ERC7730_ABI_ADDRESS) {
+    if (value_len != 20) return false;
+    memzero(capture->data, 12);
+    memcpy(capture->data + 12, value, 20);
+    return true;
+  }
+  if (node->kind == ERC7730_ABI_BOOL) {
+    if (value_len != 1 || value[0] > 1) return false;
+    memzero(capture->data, 31);
+    capture->data[31] = value[0];
+    return true;
+  }
+  if (node->kind == ERC7730_ABI_FIXED_BYTES) {
+    if (node->size == 0 || node->size > 32 || value_len != node->size)
+      return false;
+    memcpy(capture->data, value, value_len);
+    memzero(capture->data + value_len, 32 - value_len);
+    return true;
+  }
+  if (node->kind == ERC7730_ABI_BYTES || node->kind == ERC7730_ABI_STRING) {
+    if (value_len > sizeof(capture->data)) return false;
+    memcpy(capture->data, value, value_len);
+    capture->length = value_len;
+    return true;
+  }
+  return false;
+}
+
+bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,
+                                     const uint32_t* member_path,
+                                     size_t member_path_count,
+                                     const uint8_t* value, size_t value_len) {
+  if (!workflow || !member_path || !value ||
+      workflow->phase != ERC7730_WORKFLOW_TYPED_DATA ||
+      !workflow->calldata.capture_enabled || member_path_count < 2 ||
+      member_path[0] != 1)
+    return false;
+  if (member_path_count != workflow->calldata.capture_path_count + 1u)
+    return true;
+  for (size_t i = 0; i < workflow->calldata.capture_path_count; i++)
+    if (member_path[i + 1u] != (uint32_t)workflow->calldata.capture_path[i])
+      return true;
+  if (workflow->calldata.capture_found) return false;
+  Erc7730AbiProgram program;
+  if (!erc7730_program_loader_complete(&workflow->loader, &program) ||
+      workflow->calldata.capture.node >= program.node_count ||
+      !normalize_eip712_capture(&program.nodes[workflow->calldata.capture.node],
+                                value, value_len, &workflow->calldata.capture))
+    return false;
+  workflow->calldata.capture_found = true;
+  return true;
+}
+
+bool erc7730_workflow_eip712_finish(Erc7730Workflow* workflow) {
+  if (!workflow || workflow->phase != ERC7730_WORKFLOW_TYPED_DATA ||
+      !workflow->calldata.capture_enabled || !workflow->calldata.capture_found)
+    return false;
+  workflow->calldata.complete = true;
+  workflow->phase = ERC7730_WORKFLOW_COMPLETE;
+  return true;
+}
+
 bool erc7730_workflow_restore_complete(const Erc7730Workflow* workflow,
                                        EthereumSignTx* tx) {
   return workflow && tx && workflow->phase == ERC7730_WORKFLOW_COMPLETE &&
@@ -430,7 +547,8 @@ bool erc7730_workflow_active(const Erc7730Workflow* workflow) {
   return workflow && (workflow->phase == ERC7730_WORKFLOW_REPLAY ||
                       workflow->phase == ERC7730_WORKFLOW_SELECT ||
                       workflow->phase == ERC7730_WORKFLOW_READY ||
-                      workflow->phase == ERC7730_WORKFLOW_CALLDATA);
+                      workflow->phase == ERC7730_WORKFLOW_CALLDATA ||
+                      workflow->phase == ERC7730_WORKFLOW_TYPED_DATA);
 }
 
 bool erc7730_workflow_complete(const Erc7730Workflow* workflow) {

@@ -478,14 +478,6 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       layoutHome();
       return;
     }
-    if (workflow->typed_data) {
-      eip712_stream_abort();
-      erc7730_workflow_abort(workflow);
-      fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Unsupported certified EIP-712 field program"));
-      layoutHome();
-      return;
-    }
     workflow->current_formatter = instruction.b;
     if (!erc7730_workflow_select_string(workflow, instruction.a)) {
       erc7730_workflow_abort(workflow);
@@ -569,7 +561,21 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     layoutHome();
     return;
   }
-  start_erc7730_calldata(workflow, &path);
+  if (workflow->typed_data) {
+    if (!erc7730_workflow_start_eip712_capture(workflow, &path) ||
+        !eip712_stream_definition_accepted()) {
+      memzero(&path, sizeof(path));
+      eip712_stream_abort();
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unsupported ERC-7730 typed-data path"));
+      layoutHome();
+      return;
+    }
+    eip712_pump();
+  } else {
+    start_erc7730_calldata(workflow, &path);
+  }
   memzero(&path, sizeof(path));
 }
 
@@ -1086,6 +1092,31 @@ static void eip712_pump(void) {
       return;
     }
     case EIP712_REQ_DONE: {
+      Erc7730Workflow* workflow = erc7730_workflow_state();
+      if (workflow->phase == ERC7730_WORKFLOW_TYPED_DATA) {
+        char formatted[ERC7730_FORMATTED_VALUE_MAX + 1u];
+        if (!erc7730_workflow_eip712_finish(workflow) ||
+            !erc7730_workflow_format_captured_raw(workflow, formatted,
+                                                  sizeof(formatted))) {
+          memzero(formatted, sizeof(formatted));
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Certified EIP-712 value was not found"));
+          layout_home();
+          return;
+        }
+        const bool confirmed =
+            confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                    workflow->label, "%s", formatted);
+        memzero(formatted, sizeof(formatted));
+        erc7730_workflow_abort(workflow);
+        if (!confirmed) {
+          fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                          _("Signing cancelled by user"));
+          layout_home();
+          return;
+        }
+      }
       /* sign(keccak(0x19 || 0x01 || domainSeparator || hashStruct(message))) */
       uint8_t preimage[66];
       preimage[0] = 0x19;
@@ -1186,6 +1217,31 @@ void fsm_msgEthereumTypedDataStructAck(const EthereumTypedDataStructAck* msg) {
 
 void fsm_msgEthereumTypedDataValueAck(const EthereumTypedDataValueAck* msg) {
   CHECK_INITIALIZED
-  eip712_stream_on_value(msg);
+  uint32_t member_path[EIP712_MAX_DEPTH + 2];
+  size_t member_path_count = 0;
+  const Eip712Next* requested = eip712_stream_next();
+  if (requested->kind == EIP712_REQ_VALUE) {
+    member_path_count = requested->member_path_len;
+    memcpy(member_path, requested->member_path,
+           member_path_count * sizeof(uint32_t));
+  }
+  if (!eip712_stream_on_value(msg)) {
+    memzero(member_path, sizeof(member_path));
+    eip712_pump();
+    return;
+  }
+  Erc7730Workflow* workflow = erc7730_workflow_state();
+  if (workflow->phase == ERC7730_WORKFLOW_TYPED_DATA &&
+      !erc7730_workflow_eip712_observe(workflow, member_path, member_path_count,
+                                       msg->value.bytes, msg->value.size)) {
+    memzero(member_path, sizeof(member_path));
+    eip712_stream_abort();
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("EIP-712 value does not match certified definition"));
+    layout_home();
+    return;
+  }
+  memzero(member_path, sizeof(member_path));
   eip712_pump();
 }
