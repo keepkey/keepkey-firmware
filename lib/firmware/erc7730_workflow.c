@@ -942,6 +942,8 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
                                    output_size);
   } else if (workflow->current_formatter_kind == 6) {
     result = erc7730_format_duration(&program, &capture, output, output_size);
+  } else if (workflow->current_formatter_kind == 5) {
+    result = erc7730_format_timestamp(&program, &capture, output, output_size);
   }
   memzero(&capture, sizeof(capture));
   return result;

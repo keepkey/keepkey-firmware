@@ -41,6 +41,7 @@ typedef enum {
   ERC7730_DISPLAY_CONDITION,
   ERC7730_DISPLAY_CONDITION_SET,
   ERC7730_DISPLAY_CONDITION_LITERAL,
+  ERC7730_DISPLAY_FORMATTER_ARGUMENT,
 } Erc7730DisplayStage;
 
 /* The workflow owns every pointer-bearing interpreter object. No pointer into
@@ -77,8 +78,14 @@ typedef struct {
   /* Format 1 admits at most 64 literals, so authenticated set references fit
    * in bytes and do not spend another 64 bytes of signing SRAM. */
   uint8_t condition_literals[64];
-  uint16_t condition_literal_count;
-  uint16_t condition_literal_position;
+  union {
+    uint16_t condition_literal_count;
+    uint16_t formatter_auxiliary;
+  };
+  union {
+    uint16_t condition_literal_position;
+    uint16_t formatter_value_path;
+  };
   bool typed_data;
   bool intent_confirmed;
   bool condition_capture;

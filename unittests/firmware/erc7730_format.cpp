@@ -164,3 +164,37 @@ TEST(Erc7730Format, FormatsDurationsWithoutIntegerNarrowing) {
   EXPECT_FALSE(
       erc7730_format_duration(&program, &capture, output, sizeof(output)));
 }
+
+TEST(Erc7730Format, FormatsUnixTimestampsAsCanonicalUtcRfc3339) {
+  Erc7730AbiNode node{};
+  node.kind = ERC7730_ABI_UINT;
+  node.size = 256;
+  Erc7730AbiProgram program{&node, 1, 0};
+  Erc7730AbiCapture capture{};
+  capture.node = 0;
+  capture.length = 32;
+  char output[32];
+  ASSERT_TRUE(
+      erc7730_format_timestamp(&program, &capture, output, sizeof(output)));
+  EXPECT_STREQ(output, "1970-01-01T00:00:00Z");
+
+  capture.data[28] = 0x65;
+  capture.data[29] = 0xe0;
+  capture.data[30] = 0x31;
+  capture.data[31] = 0xd0;
+  ASSERT_TRUE(
+      erc7730_format_timestamp(&program, &capture, output, sizeof(output)));
+  EXPECT_STREQ(output, "2024-02-29T07:27:12Z");
+
+  node.kind = ERC7730_ABI_INT;
+  memset(capture.data, 0xff, sizeof(capture.data));
+  ASSERT_TRUE(
+      erc7730_format_timestamp(&program, &capture, output, sizeof(output)));
+  EXPECT_STREQ(output, "1969-12-31T23:59:59Z");
+
+  node.kind = ERC7730_ABI_UINT;
+  memset(capture.data, 0, sizeof(capture.data));
+  capture.data[0] = 1;
+  EXPECT_FALSE(
+      erc7730_format_timestamp(&program, &capture, output, sizeof(output)));
+}
