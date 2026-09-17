@@ -36,7 +36,6 @@ typedef enum {
  */
 typedef struct {
   uint8_t definition_id[32];
-  uint8_t kind;
   uint64_t chain_id;
   uint8_t contract_address[20];
   uint8_t selector_or_type_hash[32];
@@ -46,6 +45,7 @@ typedef struct {
   uint32_t program_length;
   uint32_t envelope_length;
   char delegate_alias[CLEARSIGN_ALIAS_LEN + 1];
+  uint8_t kind;
 } Erc7730CatalogIdentity;
 
 /* Incremental verifier. Its size is bounded independently of descriptor size;

@@ -168,10 +168,7 @@ static void continue_ethereum_sign_tx(EthereumSignTx* msg) {
 
 static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   Erc7730Workflow* workflow = erc7730_workflow_state();
-  const char* intent = NULL;
-  size_t intent_length = 0;
-  if (!erc7730_workflow_selected_string(workflow, &intent, &intent_length) ||
-      intent_length == 0 || intent_length > ERC7730_PROGRAM_MAX_STRING_LENGTH) {
+  if (workflow->intent[0] == '\0') {
     erc7730_workflow_abort(workflow);
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Invalid ERC-7730 intent"));
@@ -179,14 +176,62 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
     return;
   }
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Contract action",
-               "%s", intent)) {
+               "%s", workflow->intent)) {
     erc7730_workflow_abort(workflow);
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     _("Signing cancelled by user"));
     layoutHome();
     return;
   }
+  if (workflow->label[0] != '\0') {
+    char formatted[ERC7730_FORMATTED_VALUE_MAX + 1u];
+    if (!erc7730_workflow_format_captured_raw(workflow, formatted,
+                                              sizeof(formatted))) {
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unable to format ERC-7730 field"));
+      layoutHome();
+      return;
+    }
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, workflow->label,
+                 "%s", formatted)) {
+      memzero(formatted, sizeof(formatted));
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled by user"));
+      layoutHome();
+      return;
+    }
+    memzero(formatted, sizeof(formatted));
+  }
   continue_ethereum_sign_tx(tx);
+}
+
+static void start_erc7730_calldata(Erc7730Workflow* workflow,
+                                   const Erc7730Path* path) {
+  EthereumSignTx tx;
+  const bool started =
+      path ? erc7730_workflow_restore_and_start_capture(workflow, &tx, path)
+           : erc7730_workflow_restore_and_start_calldata(workflow, &tx);
+  if (!started) {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid ERC-7730 execution program"));
+    layoutHome();
+    return;
+  }
+  size_t remaining = 0;
+  if (erc7730_workflow_calldata_waiting(workflow, &remaining)) {
+    send_erc7730_calldata_request();
+  } else if (erc7730_workflow_calldata_finish(workflow) == ERC7730_ABI_OK) {
+    confirm_erc7730_intent_and_continue(&tx);
+  } else {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("ERC-7730 calldata does not match definition"));
+    layoutHome();
+  }
+  memzero(&tx, sizeof(tx));
 }
 
 void fsm_msgEthereumSignTx(EthereumSignTx* msg) {
@@ -376,46 +421,130 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     uint16_t instruction_count = 0;
     if (!erc7730_workflow_selected_display(workflow, &instruction,
                                            &instruction_count) ||
-        instruction_count == 0 || instruction.opcode != 1 ||
-        instruction.flags != 0 || instruction.a == UINT16_MAX ||
-        instruction.b != UINT16_MAX || instruction.c != UINT16_MAX ||
-        !erc7730_workflow_select_string(workflow, instruction.a)) {
+        instruction_count == 0) {
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_SyntaxError,
-                      _("Invalid ERC-7730 intent instruction"));
+                      _("Invalid ERC-7730 display instruction"));
       layoutHome();
       return;
     }
+    if (workflow->display_stage == ERC7730_DISPLAY_NONE) {
+      if (instruction.opcode != 1 || instruction.flags != 0 ||
+          instruction.a == UINT16_MAX || instruction.b != UINT16_MAX ||
+          instruction.c != UINT16_MAX ||
+          !erc7730_workflow_select_string(workflow, instruction.a)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 intent instruction"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_INTENT_STRING;
+      send_erc7730_definition_request();
+      return;
+    }
+    if (workflow->display_stage == ERC7730_DISPLAY_INSTRUCTION &&
+        instruction.opcode == 10 && instruction.flags == 0 &&
+        instruction.a == UINT16_MAX && instruction.b == UINT16_MAX &&
+        instruction.c == UINT16_MAX) {
+      start_erc7730_calldata(workflow, NULL);
+      return;
+    }
+    if (workflow->display_stage != ERC7730_DISPLAY_INSTRUCTION ||
+        instruction.opcode != 4 || instruction.flags != 0 ||
+        instruction.a == UINT16_MAX || instruction.b == UINT16_MAX ||
+        instruction.c != UINT16_MAX) {
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unsupported ERC-7730 field instruction"));
+      layoutHome();
+      return;
+    }
+    workflow->current_formatter = instruction.b;
+    if (!erc7730_workflow_select_string(workflow, instruction.a)) {
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 field label"));
+      layoutHome();
+      return;
+    }
+    workflow->display_stage = ERC7730_DISPLAY_LABEL;
     send_erc7730_definition_request();
     return;
   }
-  if (selection_kind != ERC7730_SELECTION_STRING) {
+  if (selection_kind == ERC7730_SELECTION_STRING) {
+    if (workflow->display_stage == ERC7730_DISPLAY_INTENT_STRING) {
+      if (!erc7730_workflow_preserve_selected_string(workflow, true)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 intent"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
+      if (!erc7730_workflow_select_display(workflow, 1)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Missing ERC-7730 display instruction"));
+        layoutHome();
+        return;
+      }
+      send_erc7730_definition_request();
+      return;
+    }
+    if (workflow->display_stage != ERC7730_DISPLAY_LABEL ||
+        !erc7730_workflow_preserve_selected_string(workflow, false) ||
+        !erc7730_workflow_select_formatter(workflow,
+                                           workflow->current_formatter)) {
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 field formatter"));
+      layoutHome();
+      return;
+    }
+    workflow->display_stage = ERC7730_DISPLAY_FORMATTER;
+    send_erc7730_definition_request();
+    return;
+  }
+  if (selection_kind == ERC7730_SELECTION_FORMATTER) {
+    Erc7730Formatter formatter;
+    if (workflow->display_stage != ERC7730_DISPLAY_FORMATTER ||
+        !erc7730_workflow_selected_formatter(workflow, &formatter) ||
+        formatter.kind != 1 || formatter.flags != 0 ||
+        formatter.argument_count != 1 || formatter.arguments[0].role != 1 ||
+        formatter.arguments[0].source != 1 ||
+        !erc7730_workflow_select_path(workflow, formatter.arguments[0].index)) {
+      memzero(&formatter, sizeof(formatter));
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unsupported ERC-7730 formatter"));
+      layoutHome();
+      return;
+    }
+    memzero(&formatter, sizeof(formatter));
+    workflow->display_stage = ERC7730_DISPLAY_PATH;
+    send_erc7730_definition_request();
+    return;
+  }
+  if (selection_kind != ERC7730_SELECTION_PATH) {
     erc7730_workflow_abort(workflow);
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Invalid ERC-7730 selection state"));
     layoutHome();
     return;
   }
-  EthereumSignTx tx;
-  if (!erc7730_workflow_restore_and_start_calldata(workflow, &tx)) {
+  Erc7730Path path;
+  if (workflow->display_stage != ERC7730_DISPLAY_PATH ||
+      !erc7730_workflow_selected_path(workflow, &path)) {
+    memzero(&path, sizeof(path));
     erc7730_workflow_abort(workflow);
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Invalid ERC-7730 execution program"));
+                    _("Invalid ERC-7730 value path"));
     layoutHome();
     return;
   }
-  size_t remaining = 0;
-  if (erc7730_workflow_calldata_waiting(workflow, &remaining)) {
-    send_erc7730_calldata_request();
-  } else if (erc7730_workflow_calldata_finish(workflow) == ERC7730_ABI_OK) {
-    confirm_erc7730_intent_and_continue(&tx);
-  } else {
-    erc7730_workflow_abort(workflow);
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("ERC-7730 calldata does not match definition"));
-    layoutHome();
-  }
-  memzero(&tx, sizeof(tx));
+  start_erc7730_calldata(workflow, &path);
+  memzero(&path, sizeof(path));
 }
 
 void fsm_msgEthereumTxMetadata(const EthereumTxMetadata* msg) {
