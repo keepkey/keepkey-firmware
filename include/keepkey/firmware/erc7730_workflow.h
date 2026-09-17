@@ -30,6 +30,7 @@ typedef enum {
   ERC7730_SELECTION_CONDITION,
   ERC7730_SELECTION_LITERAL,
   ERC7730_SELECTION_TOKEN_METADATA,
+  ERC7730_SELECTION_NETWORK_METADATA,
 } Erc7730SelectionKind;
 
 typedef enum {
@@ -101,10 +102,12 @@ typedef struct {
     uint16_t condition_literal_position;
     uint16_t formatter_value_path;
   };
-  bool typed_data;
-  bool intent_confirmed;
-  bool condition_capture;
-  bool condition_matched;
+  uint8_t typed_data : 1;
+  uint8_t intent_confirmed : 1;
+  uint8_t condition_capture : 1;
+  uint8_t condition_matched : 1;
+  uint8_t token_native_alias_pending : 1;
+  uint8_t token_native : 1;
 } Erc7730Workflow;
 
 /* One Ethereum workflow exists at a time. Keeping ownership here ensures FSM
@@ -138,6 +141,8 @@ bool erc7730_workflow_select_literal(Erc7730Workflow* workflow,
 bool erc7730_workflow_select_token_metadata(Erc7730Workflow* workflow,
                                             uint64_t chain_id,
                                             const uint8_t address[20]);
+bool erc7730_workflow_select_network_metadata(Erc7730Workflow* workflow,
+                                              uint64_t chain_id);
 Erc7730CatalogResult erc7730_workflow_selection_feed(
     Erc7730Workflow* workflow, const EthereumClearSignDefinitionChunk* chunk,
     bool* complete);
@@ -155,6 +160,8 @@ bool erc7730_workflow_selected_condition(const Erc7730Workflow* workflow,
 bool erc7730_workflow_selected_literal(const Erc7730Workflow* workflow,
                                        Erc7730Literal* literal);
 bool erc7730_workflow_selected_token_metadata(
+    const Erc7730Workflow* workflow, Erc7730TokenMetadata* metadata);
+bool erc7730_workflow_selected_network_metadata(
     const Erc7730Workflow* workflow, Erc7730TokenMetadata* metadata);
 bool erc7730_workflow_restore_and_start_calldata(Erc7730Workflow* workflow,
                                                  EthereumSignTx* tx);

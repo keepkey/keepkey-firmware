@@ -188,6 +188,19 @@ bool erc7730_workflow_select_token_metadata(Erc7730Workflow* workflow,
   return begin_selection_replay(workflow, ERC7730_SELECTION_TOKEN_METADATA);
 }
 
+bool erc7730_workflow_select_network_metadata(Erc7730Workflow* workflow,
+                                              uint64_t chain_id) {
+  Erc7730ProgramSection section;
+  if (!workflow || workflow->phase != ERC7730_WORKFLOW_READY ||
+      !erc7730_program_index_section(&workflow->loader.index, 8, &section))
+    return false;
+  memzero(&workflow->selection, sizeof(workflow->selection));
+  erc7730_program_network_metadata_begin(&workflow->selection.token_metadata,
+                                         section.length, chain_id);
+  if (workflow->selection.token_metadata.failed) return false;
+  return begin_selection_replay(workflow, ERC7730_SELECTION_NETWORK_METADATA);
+}
+
 static bool feed_selection_program(Erc7730Workflow* workflow,
                                    uint32_t program_offset,
                                    const uint8_t* program_data,
@@ -214,6 +227,7 @@ static bool feed_selection_program(Erc7730Workflow* workflow,
       section_type = 4;
       break;
     case ERC7730_SELECTION_TOKEN_METADATA:
+    case ERC7730_SELECTION_NETWORK_METADATA:
       section_type = 8;
       break;
     default:
@@ -257,7 +271,8 @@ static bool feed_selection_program(Erc7730Workflow* workflow,
     return erc7730_program_literal_feed(&workflow->selection.literal,
                                         section_offset, overlap_data,
                                         overlap_length);
-  if (workflow->selection_kind == ERC7730_SELECTION_TOKEN_METADATA)
+  if (workflow->selection_kind == ERC7730_SELECTION_TOKEN_METADATA ||
+      workflow->selection_kind == ERC7730_SELECTION_NETWORK_METADATA)
     return erc7730_program_token_metadata_feed(
         &workflow->selection.token_metadata, section_offset, overlap_data,
         overlap_length);
@@ -320,6 +335,7 @@ Erc7730CatalogResult erc7730_workflow_selection_feed(
                              !workflow->selection.literal.failed;
         break;
       case ERC7730_SELECTION_TOKEN_METADATA:
+      case ERC7730_SELECTION_NETWORK_METADATA:
         selection_complete = workflow->selection.token_metadata.complete &&
                              !workflow->selection.token_metadata.failed;
         break;
@@ -398,6 +414,15 @@ bool erc7730_workflow_selected_token_metadata(
   return workflow && workflow->phase != ERC7730_WORKFLOW_IDLE &&
          workflow->phase != ERC7730_WORKFLOW_FAILED &&
          workflow->selection_kind == ERC7730_SELECTION_TOKEN_METADATA &&
+         erc7730_program_token_metadata_complete(
+             &workflow->selection.token_metadata, metadata);
+}
+
+bool erc7730_workflow_selected_network_metadata(
+    const Erc7730Workflow* workflow, Erc7730TokenMetadata* metadata) {
+  return workflow && workflow->phase != ERC7730_WORKFLOW_IDLE &&
+         workflow->phase != ERC7730_WORKFLOW_FAILED &&
+         workflow->selection_kind == ERC7730_SELECTION_NETWORK_METADATA &&
          erc7730_program_token_metadata_complete(
              &workflow->selection.token_metadata, metadata);
 }
@@ -608,14 +633,23 @@ bool erc7730_workflow_load_membership_set(Erc7730Workflow* workflow,
 
 static bool finish_membership(Erc7730Workflow* workflow, bool matched,
                               bool* visible) {
+  uint8_t formatter_state[64];
+  if (workflow->token_native_alias_pending)
+    memcpy(formatter_state, workflow->value_scratch.condition_value.data + 32,
+           sizeof(formatter_state));
   const uint8_t opcode = workflow->pending_condition.opcode;
   if (opcode == 8 && !matched) return false;
   *visible = opcode == 6 ? matched : opcode == 7 ? !matched : false;
   workflow->condition_capture = false;
   workflow->condition_matched = false;
   memzero(&workflow->pending_condition, sizeof(workflow->pending_condition));
-  memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+  if (!workflow->token_native_alias_pending)
+    memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
   memzero(workflow->condition_literals, sizeof(workflow->condition_literals));
+  if (workflow->token_native_alias_pending)
+    memcpy(workflow->condition_literals, formatter_state,
+           sizeof(formatter_state));
+  memzero(formatter_state, sizeof(formatter_state));
   workflow->condition_literal_count = 0;
   workflow->condition_literal_position = 0;
   workflow->container_source = 0;
