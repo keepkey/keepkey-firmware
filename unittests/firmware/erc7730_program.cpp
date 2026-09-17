@@ -108,3 +108,52 @@ TEST(Erc7730ProgramAbi, RejectsMalformedGraphAndLength) {
   erc7730_program_abi_begin(&abi, 10);
   EXPECT_TRUE(abi.failed);
 }
+
+TEST(Erc7730ProgramPath, SelectsStructuredContainerAndSlicePaths) {
+  const std::vector<uint8_t> section = {
+      0, 3, 1, 2,    0xff, 0xff, 1, 0xff, 0xff, 0xff, 0xff, 2, 2, 0, 0,
+      4, 1, 1, 0xff, 0xff, 3,    3, 0xff, 0xff, 0xff, 0xfe, 0, 0, 0, 5,
+  };
+  for (uint16_t target = 0; target < 3; target++) {
+    for (size_t chunk : {1u, 5u, 64u}) {
+      Erc7730ProgramPath loader;
+      erc7730_program_path_begin(&loader, (uint32_t)section.size(), target);
+      for (size_t offset = 0; offset < section.size();) {
+        const size_t length = std::min(chunk, section.size() - offset);
+        ASSERT_TRUE(erc7730_program_path_feed(&loader, (uint32_t)offset,
+                                              section.data() + offset, length));
+        offset += length;
+      }
+      Erc7730Path path;
+      ASSERT_TRUE(erc7730_program_path_complete(&loader, &path));
+      if (target == 0) {
+        EXPECT_EQ(path.source, 1);
+        EXPECT_EQ(path.step_count, 2);
+        EXPECT_EQ(path.steps[0].first, -1);
+        EXPECT_EQ(path.steps[1].opcode, 2);
+      } else if (target == 1) {
+        EXPECT_EQ(path.source, 2);
+        EXPECT_EQ(path.source_index, 4);
+      } else {
+        EXPECT_EQ(path.steps[0].opcode, 3);
+        EXPECT_EQ(path.steps[0].flags, 3);
+        EXPECT_EQ(path.steps[0].first, -2);
+        EXPECT_EQ(path.steps[0].second, 5);
+      }
+    }
+  }
+}
+
+TEST(Erc7730ProgramPath, RejectsMissingTargetAndMalformedSteps) {
+  const std::vector<uint8_t> one = {0, 1, 1, 1, 0xff, 0xff, 2};
+  Erc7730ProgramPath loader;
+  erc7730_program_path_begin(&loader, (uint32_t)one.size(), 1);
+  EXPECT_FALSE(erc7730_program_path_feed(&loader, 0, one.data(), one.size()));
+
+  const std::vector<uint8_t> duplicate_all = {
+      0, 1, 1, 2, 0xff, 0xff, 2, 2,
+  };
+  erc7730_program_path_begin(&loader, (uint32_t)duplicate_all.size(), 0);
+  EXPECT_FALSE(erc7730_program_path_feed(&loader, 0, duplicate_all.data(),
+                                         duplicate_all.size()));
+}

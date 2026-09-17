@@ -159,3 +159,160 @@ bool erc7730_program_abi_complete(const Erc7730ProgramAbi* abi,
 void erc7730_program_abi_clear(Erc7730ProgramAbi* abi) {
   if (abi) memzero(abi, sizeof(*abi));
 }
+
+static void path_finish_entry(Erc7730ProgramPath* path) {
+  if (path->path_index == path->target_index) path->selected_found = true;
+  path->path_index++;
+  path->header_received = 0;
+  path->current_step_count = 0;
+  path->step_index = 0;
+  path->step_opcode = 0;
+  path->step_flags = 0;
+  path->step_value_received = 0;
+  path->step_value_length = 0;
+  path->full_array_seen = false;
+}
+
+static void path_finish_step(Erc7730ProgramPath* path) {
+  path->step_index++;
+  path->step_opcode = 0;
+  path->step_flags = 0;
+  path->step_value_received = 0;
+  path->step_value_length = 0;
+  if (path->step_index == path->current_step_count) path_finish_entry(path);
+}
+
+void erc7730_program_path_begin(Erc7730ProgramPath* path,
+                                uint32_t section_length,
+                                uint16_t target_index) {
+  if (!path) return;
+  memzero(path, sizeof(*path));
+  path->section_length = section_length;
+  path->target_index = target_index;
+  if (section_length < 2) path->failed = true;
+}
+
+bool erc7730_program_path_feed(Erc7730ProgramPath* path,
+                               uint32_t section_offset, const uint8_t* data,
+                               size_t data_len) {
+  if (!path || !data || data_len == 0 || path->failed || path->complete ||
+      section_offset != path->received ||
+      data_len > path->section_length - path->received) {
+    if (path) path->failed = true;
+    return false;
+  }
+  for (size_t i = 0; i < data_len; i++, path->received++) {
+    const uint8_t byte = data[i];
+    if (path->received < 2) {
+      path->scratch[path->received] = byte;
+      if (path->received == 1) {
+        path->path_count = read_be16(path->scratch);
+        if (path->path_count > 64 || path->target_index >= path->path_count) {
+          path->failed = true;
+          return false;
+        }
+      }
+      continue;
+    }
+
+    if (path->header_received < 4) {
+      path->scratch[path->header_received++] = byte;
+      if (path->header_received != 4) continue;
+      const uint8_t source = path->scratch[0];
+      const uint8_t steps = path->scratch[1];
+      const uint16_t source_index = read_be16(path->scratch + 2);
+      if (source < 1 || source > 3 || steps > ERC7730_ABI_MAX_PATH ||
+          (source == 1 && (source_index != UINT16_MAX || steps == 0)) ||
+          (source != 1 && steps != 0) ||
+          (source == 2 && (source_index == 0 || source_index > 6)) ||
+          (source == 3 && source_index == UINT16_MAX)) {
+        path->failed = true;
+        return false;
+      }
+      if (path->path_index == path->target_index) {
+        path->selected.source = source;
+        path->selected.step_count = steps;
+        path->selected.source_index = source_index;
+      }
+      path->current_step_count = steps;
+      if (steps == 0) path_finish_entry(path);
+      continue;
+    }
+
+    if (path->step_opcode == 0) {
+      path->step_opcode = byte;
+      if (path->path_index == path->target_index)
+        path->selected.steps[path->step_index].opcode = byte;
+      if (byte == 1) {
+        path->step_value_length = 4;
+      } else if (byte == 2) {
+        if (path->full_array_seen) {
+          path->failed = true;
+          return false;
+        }
+        path->full_array_seen = true;
+        path_finish_step(path);
+      } else if (byte == 3) {
+        if (path->step_index + 1u != path->current_step_count) {
+          path->failed = true;
+          return false;
+        }
+      } else {
+        path->failed = true;
+        return false;
+      }
+      continue;
+    }
+
+    if (path->step_opcode == 3 && path->step_flags == 0) {
+      if (byte == 0 || (byte & (uint8_t)~3u) != 0) {
+        path->failed = true;
+        return false;
+      }
+      path->step_flags = byte;
+      path->step_value_length =
+          (uint8_t)(((byte & 1u) ? 4u : 0u) + ((byte & 2u) ? 4u : 0u));
+      if (path->path_index == path->target_index)
+        path->selected.steps[path->step_index].flags = byte;
+      if (path->step_value_length == 0) path_finish_step(path);
+      continue;
+    }
+
+    path->scratch[path->step_value_received++] = byte;
+    if (path->step_value_received != path->step_value_length) continue;
+    if (path->path_index == path->target_index) {
+      Erc7730PathStep* selected = &path->selected.steps[path->step_index];
+      if (path->step_opcode == 1) {
+        selected->first = (int32_t)read_be32(path->scratch);
+      } else {
+        uint8_t value_offset = 0;
+        if ((path->step_flags & 1u) != 0) {
+          selected->first = (int32_t)read_be32(path->scratch);
+          value_offset = 4;
+        }
+        if ((path->step_flags & 2u) != 0)
+          selected->second = (int32_t)read_be32(path->scratch + value_offset);
+      }
+    }
+    path_finish_step(path);
+  }
+
+  if (path->received == path->section_length) {
+    path->complete = !path->failed && path->path_index == path->path_count &&
+                     path->header_received == 0 && path->step_opcode == 0 &&
+                     path->selected_found;
+    if (!path->complete) path->failed = true;
+  }
+  return !path->failed;
+}
+
+bool erc7730_program_path_complete(const Erc7730ProgramPath* path,
+                                   Erc7730Path* result) {
+  if (!path || !result || !path->complete || path->failed) return false;
+  *result = path->selected;
+  return true;
+}
+
+void erc7730_program_path_clear(Erc7730ProgramPath* path) {
+  if (path) memzero(path, sizeof(*path));
+}
