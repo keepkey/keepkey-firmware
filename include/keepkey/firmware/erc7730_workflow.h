@@ -39,6 +39,8 @@ typedef enum {
   ERC7730_DISPLAY_FORMATTER,
   ERC7730_DISPLAY_PATH,
   ERC7730_DISPLAY_CONDITION,
+  ERC7730_DISPLAY_CONDITION_SET,
+  ERC7730_DISPLAY_CONDITION_LITERAL,
 } Erc7730DisplayStage;
 
 /* The workflow owns every pointer-bearing interpreter object. No pointer into
@@ -71,9 +73,16 @@ typedef struct {
   uint8_t current_formatter_kind;
   uint8_t container_source;
   Erc7730Condition pending_condition;
+  Erc7730AbiCapture condition_value;
+  /* Format 1 admits at most 64 literals, so authenticated set references fit
+   * in bytes and do not spend another 64 bytes of signing SRAM. */
+  uint8_t condition_literals[64];
+  uint16_t condition_literal_count;
+  uint16_t condition_literal_position;
   bool typed_data;
   bool intent_confirmed;
   bool condition_capture;
+  bool condition_matched;
 } Erc7730Workflow;
 
 /* One Ethereum workflow exists at a time. Keeping ownership here ensures FSM
@@ -138,6 +147,16 @@ bool erc7730_workflow_condition_capture_pending(
     const Erc7730Workflow* workflow);
 bool erc7730_workflow_resolve_captured_condition(Erc7730Workflow* workflow,
                                                  bool* visible);
+bool erc7730_workflow_prepare_captured_membership(
+    Erc7730Workflow* workflow, uint16_t* literal_set);
+bool erc7730_workflow_load_membership_set(Erc7730Workflow* workflow,
+                                          const Erc7730Literal* set,
+                                          uint16_t* first_literal);
+bool erc7730_workflow_finish_empty_membership(Erc7730Workflow* workflow,
+                                              bool* visible);
+bool erc7730_workflow_observe_membership_literal(
+    Erc7730Workflow* workflow, const Erc7730Literal* literal, bool* complete,
+    bool* visible, uint16_t* next_literal);
 bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
                                            const Erc7730Path* path);
 bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,
