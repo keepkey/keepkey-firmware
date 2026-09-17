@@ -403,18 +403,19 @@ bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
   uint16_t node = program.root;
   memzero(&workflow->calldata, sizeof(workflow->calldata));
   for (uint8_t i = 0; i < path->step_count; i++) {
-    if (path->steps[i].opcode != 1 || path->steps[i].first < 0 ||
-        node >= program.node_count)
-      return false;
+    if (path->steps[i].opcode != 1 || node >= program.node_count) return false;
     const Erc7730AbiNode* parent = &program.nodes[node];
-    const uint32_t index = (uint32_t)path->steps[i].first;
+    const int32_t requested = path->steps[i].first;
     if (parent->kind == ERC7730_ABI_TUPLE) {
-      if (index >= parent->child_count) return false;
-      node = (uint16_t)(parent->first_child + index);
+      if (requested < 0 || (uint32_t)requested >= parent->child_count)
+        return false;
+      node = (uint16_t)(parent->first_child + (uint32_t)requested);
     } else if (parent->kind == ERC7730_ABI_ARRAY) {
       if (parent->child_count != 1 ||
           (parent->array_length != ERC7730_ABI_DYNAMIC_ARRAY &&
-           index >= parent->array_length))
+           ((requested >= 0 && (uint32_t)requested >= parent->array_length) ||
+            (requested < 0 &&
+             (uint32_t)(-(int64_t)requested) > parent->array_length))))
         return false;
       node = parent->first_child;
     } else {
@@ -483,6 +484,25 @@ bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,
       !workflow->calldata.capture_enabled || member_path_count < 2 ||
       member_path[0] != 1)
     return false;
+  /* Array lengths are streamed at the array's own path before its elements.
+   * Resolve a signed negative component from that device-validated length,
+   * then compare subsequent element paths using the resulting absolute index.
+   */
+  for (size_t i = 0; i < workflow->calldata.capture_path_count; i++) {
+    const int32_t wanted = workflow->calldata.capture_path[i];
+    if (wanted >= 0 || member_path_count != i + 1u) continue;
+    bool prefix_matches = true;
+    for (size_t j = 0; j < i; j++)
+      prefix_matches &=
+          member_path[j + 1u] == (uint32_t)workflow->calldata.capture_path[j];
+    if (!prefix_matches) continue;
+    if (value_len != 2) return false;
+    const uint16_t length = (uint16_t)((value[0] << 8) | value[1]);
+    const int64_t resolved = (int64_t)length + wanted;
+    if (resolved < 0 || resolved >= length) return false;
+    workflow->calldata.capture_path[i] = (int32_t)resolved;
+    return true;
+  }
   if (member_path_count != workflow->calldata.capture_path_count + 1u)
     return true;
   for (size_t i = 0; i < workflow->calldata.capture_path_count; i++)
