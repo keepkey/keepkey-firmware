@@ -508,6 +508,9 @@ static struct {
   bool require_definition;
   bool definition_accepted;
   Eip712DomainFacts domain_facts;
+  bool have_expected_hashes;
+  uint8_t expected_domain_separator[32];
+  uint8_t expected_message_hash[32];
 
   /* Root 0 is the domain, root 1 the message; the domain separator is kept
    * while the message is walked. */
@@ -723,6 +726,19 @@ static void complete_frame(void) {
   /* Both halves are in hand. The FSM derives the key and signs: the response
    * buffer and the node live there, and keeping key material out of this
    * translation unit keeps it unit-testable. */
+  if (e712.have_expected_hashes) {
+    if (memcmp(e712.expected_domain_separator, e712.domain_separator, 32) !=
+            0 ||
+        memcmp(e712.expected_message_hash, digest, 32) != 0) {
+      memzero(digest, sizeof(digest));
+      fail("EIP-712 replay changed the signed document");
+      return;
+    }
+  } else {
+    memcpy(e712.expected_domain_separator, e712.domain_separator, 32);
+    memcpy(e712.expected_message_hash, digest, 32);
+    e712.have_expected_hashes = true;
+  }
   memzero(&next_step, sizeof(next_step));
   next_step.kind = EIP712_REQ_DONE;
   memcpy(next_step.domain_separator, e712.domain_separator, 32);
@@ -730,7 +746,7 @@ static void complete_frame(void) {
   memcpy(next_step.address_n, e712.address_n,
          e712.address_n_count * sizeof(uint32_t));
   next_step.address_n_count = e712.address_n_count;
-  eip712_stream_abort();
+  e712.waiting = EIP712_IDLE;
 }
 
 /* Point the machine at element member_index of the array frame on top.
@@ -844,6 +860,24 @@ bool eip712_stream_begin(const EthereumSignTypedData* msg,
   strlcpy(e712.stack[0].name, "EIP712Domain", EIP712_MAX_STRUCT_NAME);
   begin_type_hash();
   return true;
+}
+
+bool eip712_stream_replay(void) {
+  if (!e712.active || !e712.definition_accepted ||
+      !e712.have_expected_hashes || next_step.kind != EIP712_REQ_DONE)
+    return false;
+  e712.root = 0;
+  e712.have_domain_separator = false;
+  e712.depth = 1;
+  e712.slots_used = 0;
+  e712.want_array_len = false;
+  e712.pending_declared_dim = 0;
+  memzero(&e712.domain_facts, sizeof(e712.domain_facts));
+  memzero(e712.stack, sizeof(e712.stack));
+  memzero(e712.pool, sizeof(e712.pool));
+  strlcpy(e712.stack[0].name, "EIP712Domain", EIP712_MAX_STRUCT_NAME);
+  begin_type_hash();
+  return next_step.kind == EIP712_REQ_STRUCT;
 }
 
 bool eip712_stream_on_struct(const EthereumTypedDataStructAck* ack) {
@@ -1081,7 +1115,8 @@ bool eip712_stream_on_value(const EthereumTypedDataValueAck* ack) {
   /* Display and absorb from the SAME buffer in the same call. This is the
    * property the old JSON parser could not offer and the reason it was
    * withdrawn: there is no second read that could return something else. */
-  if (!eip712_confirm_leaf(e712.pending_name, field, bytes, len)) {
+  if (!e712.definition_accepted &&
+      !eip712_confirm_leaf(e712.pending_name, field, bytes, len)) {
     eip712_stream_abort();
     memzero(&next_step, sizeof(next_step));
     next_step.kind = EIP712_REQ_CANCELLED;

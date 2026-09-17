@@ -650,13 +650,6 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         instruction.c == UINT16_MAX) {
       if (workflow->typed_data) {
         erc7730_workflow_abort(workflow);
-        if (!eip712_stream_definition_accepted()) {
-          eip712_stream_abort();
-          fsm_sendFailure(FailureType_Failure_SyntaxError,
-                          _("Unable to resume certified EIP-712"));
-          layoutHome();
-          return;
-        }
         eip712_pump();
       } else {
         start_erc7730_calldata(workflow, NULL);
@@ -1448,8 +1441,11 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     confirm_erc7730_intent_and_continue(&unused_tx);
     memzero(&unused_tx, sizeof(unused_tx));
   } else if (workflow->typed_data) {
+    const bool first_pass =
+        eip712_stream_next()->kind == EIP712_REQ_DEFINITION;
     if (!erc7730_workflow_start_eip712_capture(workflow, &path) ||
-        !eip712_stream_definition_accepted()) {
+        !(first_pass ? eip712_stream_definition_accepted()
+                     : eip712_stream_replay())) {
       memzero(&path, sizeof(path));
       eip712_stream_abort();
       erc7730_workflow_abort(workflow);
@@ -1980,28 +1976,15 @@ static void eip712_pump(void) {
     case EIP712_REQ_DONE: {
       Erc7730Workflow* workflow = erc7730_workflow_state();
       if (workflow->phase == ERC7730_WORKFLOW_TYPED_DATA) {
-        char formatted[ERC7730_FORMATTED_VALUE_MAX + 1u];
-        if (!erc7730_workflow_eip712_finish(workflow) ||
-            !erc7730_workflow_format_captured_raw(workflow, formatted,
-                                                  sizeof(formatted))) {
-          memzero(formatted, sizeof(formatted));
+        if (!erc7730_workflow_eip712_finish(workflow)) {
           erc7730_workflow_abort(workflow);
           fsm_sendFailure(FailureType_Failure_SyntaxError,
                           _("Certified EIP-712 value was not found"));
           layout_home();
           return;
         }
-        const bool confirmed =
-            confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                    workflow->label, "%s", formatted);
-        memzero(formatted, sizeof(formatted));
-        erc7730_workflow_abort(workflow);
-        if (!confirmed) {
-          fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                          _("Signing cancelled by user"));
-          layout_home();
-          return;
-        }
+        confirm_erc7730_replayed_field();
+        return;
       }
       /* sign(keccak(0x19 || 0x01 || domainSeparator || hashStruct(message))) */
       uint8_t preimage[66];
@@ -2053,6 +2036,7 @@ static void eip712_pump(void) {
       resp->message_hash.size = 32;
       memcpy(resp->message_hash.bytes, next->message_hash, 32);
       msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
+      eip712_stream_abort();
       layout_home();
       return;
     }
