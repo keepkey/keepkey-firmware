@@ -565,6 +565,52 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     if (workflow->display_stage == ERC7730_DISPLAY_INSTRUCTION &&
+        instruction.opcode == 2 && instruction.flags == 0 &&
+        instruction.a != UINT16_MAX && instruction.b == UINT16_MAX &&
+        instruction.c == UINT16_MAX) {
+      if (workflow->condition_matched) {
+        if (!erc7730_workflow_skip_display(workflow)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 interpolation jump"));
+          layoutHome();
+          return;
+        }
+      } else {
+        if (!erc7730_workflow_select_string(workflow, instruction.a)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 interpolated text"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_INTERPOLATED_TEXT;
+      }
+      send_erc7730_definition_request();
+      return;
+    }
+    if (workflow->display_stage == ERC7730_DISPLAY_INSTRUCTION &&
+        instruction.opcode == 3 && instruction.flags == 0 &&
+        instruction.a != UINT16_MAX && instruction.b == UINT16_MAX &&
+        instruction.c == UINT16_MAX) {
+      /* Value interpolation is activated in the next execution unit. Until
+       * then, the signed fallback intent remains atomic and authoritative. */
+      erc7730_workflow_fail_interpolation(workflow);
+      if (!erc7730_workflow_skip_display(workflow)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 interpolation jump"));
+        layoutHome();
+        return;
+      }
+      send_erc7730_definition_request();
+      return;
+    }
+    if (workflow->display_stage == ERC7730_DISPLAY_INSTRUCTION &&
+        (workflow->condition_matched ||
+         workflow->value_scratch.formatter_parameters.base[0] != '\0'))
+      erc7730_workflow_finalize_interpolation(workflow);
+    if (workflow->display_stage == ERC7730_DISPLAY_INSTRUCTION &&
         instruction.opcode == 10 && instruction.flags == 0 &&
         instruction.a == UINT16_MAX && instruction.b == UINT16_MAX &&
         instruction.c == UINT16_MAX) {
@@ -908,6 +954,18 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     return;
   }
   if (selection_kind == ERC7730_SELECTION_STRING) {
+    if (workflow->display_stage == ERC7730_DISPLAY_INTERPOLATED_TEXT) {
+      (void)erc7730_workflow_append_interpolated_string(workflow);
+      if (!erc7730_workflow_skip_display(workflow)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 interpolation continuation"));
+        layoutHome();
+        return;
+      }
+      send_erc7730_definition_request();
+      return;
+    }
     if (workflow->display_stage == ERC7730_DISPLAY_ENUM_VALUE) {
       const char* value = NULL;
       size_t value_len = 0;
@@ -1030,6 +1088,8 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         layoutHome();
         return;
       }
+      memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+      workflow->condition_matched = false;
       workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
       workflow->display_index = 1;
       if (!erc7730_workflow_select_display(workflow, 1)) {

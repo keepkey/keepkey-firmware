@@ -668,3 +668,30 @@ TEST(Erc7730Workflow, NeverClaimsUnverifiedEncryptedPlaintext) {
   EXPECT_FALSE(erc7730_workflow_format_captured_raw(&workflow, formatted,
                                                     sizeof(formatted)));
 }
+
+TEST(Erc7730Workflow, BuildsInterpolatedTextAtomicallyOrKeepsFallback) {
+  Erc7730Workflow workflow{};
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  workflow.selection_kind = ERC7730_SELECTION_STRING;
+  workflow.selection.string.complete = true;
+  strcpy(workflow.intent, "Fallback intent");
+  memcpy(workflow.selection.string.value, "Send ", 5);
+  workflow.selection.string.selected_length = 5;
+  ASSERT_TRUE(erc7730_workflow_append_interpolated_string(&workflow));
+  memcpy(workflow.selection.string.value, "tokens", 6);
+  workflow.selection.string.selected_length = 6;
+  ASSERT_TRUE(erc7730_workflow_append_interpolated_string(&workflow));
+  erc7730_workflow_finalize_interpolation(&workflow);
+  EXPECT_STREQ(workflow.intent, "Send tokens");
+
+  strcpy(workflow.intent, "Safe fallback");
+  memset(workflow.selection.string.value, 'a',
+         ERC7730_PROGRAM_MAX_STRING_LENGTH);
+  workflow.selection.string.selected_length = ERC7730_PROGRAM_MAX_STRING_LENGTH;
+  ASSERT_TRUE(erc7730_workflow_append_interpolated_string(&workflow));
+  workflow.selection.string.value[0] = 'b';
+  workflow.selection.string.selected_length = 1;
+  EXPECT_FALSE(erc7730_workflow_append_interpolated_string(&workflow));
+  erc7730_workflow_finalize_interpolation(&workflow);
+  EXPECT_STREQ(workflow.intent, "Safe fallback");
+}
