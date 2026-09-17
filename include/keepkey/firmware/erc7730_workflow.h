@@ -17,6 +17,8 @@ typedef enum {
   ERC7730_WORKFLOW_READY,
   ERC7730_WORKFLOW_CALLDATA,
   ERC7730_WORKFLOW_TYPED_DATA,
+  ERC7730_WORKFLOW_EMBEDDED_AUTH,
+  ERC7730_WORKFLOW_PARENT_AUTH,
   ERC7730_WORKFLOW_COMPLETE,
   ERC7730_WORKFLOW_FAILED,
 } Erc7730WorkflowPhase;
@@ -118,6 +120,10 @@ typedef struct {
                            [ERC7730_ABI_CAPTURE_MAX];
   uint8_t embedded_lengths[ERC7730_EMBEDDED_MAX_DEPTH];
   uint8_t embedded_callee[20];
+  uint8_t embedded_definition_id[32];
+  uint32_t embedded_envelope_length;
+  uint32_t embedded_next_offset;
+  uint16_t embedded_resume_instruction;
   union {
     uint16_t condition_literal_count;
     uint16_t formatter_auxiliary;
@@ -197,6 +203,8 @@ bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
                                                  const Erc7730Path* path);
 bool erc7730_workflow_restore_and_start_array_capture(
     Erc7730Workflow* workflow, EthereumSignTx* tx, const Erc7730Path* path);
+bool erc7730_workflow_execute_embedded_calldata(Erc7730Workflow* workflow,
+                                                const Erc7730Path* path);
 bool erc7730_workflow_capture_tx_container(Erc7730Workflow* workflow,
                                            const Erc7730Path* path,
                                            EthereumSignTx* tx,
@@ -264,6 +272,9 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
                                           char* output, size_t output_size);
 bool erc7730_workflow_captured_address(const Erc7730Workflow* workflow,
                                        uint8_t address[20]);
+bool erc7730_workflow_captured_bytes(const Erc7730Workflow* workflow,
+                                     uint8_t* value, size_t value_size,
+                                     size_t* value_length);
 bool erc7730_workflow_captured_uint64(const Erc7730Workflow* workflow,
                                       uint64_t* value);
 bool erc7730_workflow_captured_array_length(const Erc7730Workflow* workflow,
@@ -287,6 +298,16 @@ bool erc7730_workflow_enter_embedded(Erc7730Workflow* workflow,
 bool erc7730_workflow_accept_embedded_definition(
     const Erc7730Workflow* workflow,
     const Erc7730CatalogIdentity* child_identity);
+bool erc7730_workflow_begin_embedded_auth(Erc7730Workflow* workflow);
+bool erc7730_workflow_begin_parent_auth(Erc7730Workflow* workflow);
+bool erc7730_workflow_embedded_request(
+    const Erc7730Workflow* workflow, uint8_t definition_id[32],
+    bool* has_definition_id, uint64_t* chain_id, uint8_t callee[20],
+    uint8_t selector[4], uint32_t* offset, uint32_t* length,
+    uint8_t* recursion_depth);
+Erc7730CatalogResult erc7730_workflow_embedded_auth_feed(
+    Erc7730Workflow* workflow,
+    const EthereumClearSignDefinitionChunk* chunk, bool* complete);
 bool erc7730_workflow_leave_embedded(Erc7730Workflow* workflow,
                                      uint8_t parent_definition_id[32],
                                      uint16_t* resume_instruction);

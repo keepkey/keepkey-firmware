@@ -168,6 +168,101 @@ TEST(Erc7730Workflow, BoundsAndAuthenticatesEmbeddedCallStack) {
       &workflow, callee, calldata, sizeof(calldata), 5));
 }
 
+TEST(Erc7730Workflow, DerivesEmbeddedLookupAndParentRestoreRequests) {
+  Erc7730Workflow workflow{};
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  workflow.identity.kind = ERC7730_DEFINITION_CALLDATA;
+  workflow.identity.chain_id = 42161;
+  memset(workflow.identity.definition_id, 0x11, 32);
+  uint8_t callee[20];
+  memset(callee, 0x42, sizeof(callee));
+  const uint8_t calldata[] = {0xde, 0xad, 0xbe, 0xef, 1, 2, 3};
+  ASSERT_TRUE(erc7730_workflow_enter_embedded(
+      &workflow, callee, calldata, sizeof(calldata), 17));
+  ASSERT_TRUE(erc7730_workflow_begin_embedded_auth(&workflow));
+  EXPECT_TRUE(erc7730_workflow_active(&workflow));
+
+  uint8_t requested_id[32], requested_callee[20], selector[4], depth = 0;
+  bool has_id = true;
+  uint64_t chain_id = 0;
+  uint32_t offset = 99, length = 0;
+  ASSERT_TRUE(erc7730_workflow_embedded_request(
+      &workflow, requested_id, &has_id, &chain_id, requested_callee,
+      selector, &offset, &length, &depth));
+  EXPECT_FALSE(has_id);
+  EXPECT_EQ(chain_id, 42161u);
+  EXPECT_EQ(memcmp(requested_callee, callee, sizeof(callee)), 0);
+  EXPECT_EQ(memcmp(selector, calldata, sizeof(selector)), 0);
+  EXPECT_EQ(offset, 0u);
+  EXPECT_EQ(length, ERC7730_TRANSPORT_CHUNK_MAX);
+  EXPECT_EQ(depth, 1u);
+
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  uint8_t parent_id[32];
+  memcpy(parent_id, workflow.embedded_frames[0].parent_definition_id,
+         sizeof(parent_id));
+  ASSERT_TRUE(erc7730_workflow_begin_parent_auth(&workflow));
+  ASSERT_TRUE(erc7730_workflow_embedded_request(
+      &workflow, requested_id, &has_id, &chain_id, requested_callee,
+      selector, &offset, &length, &depth));
+  EXPECT_TRUE(has_id);
+  EXPECT_EQ(memcmp(requested_id, parent_id, sizeof(requested_id)), 0);
+  for (uint8_t byte : requested_callee) EXPECT_EQ(byte, 0u);
+  for (uint8_t byte : selector) EXPECT_EQ(byte, 0u);
+  EXPECT_EQ(depth, 1u);
+  EXPECT_EQ(workflow.embedded_resume_instruction, 17u);
+}
+
+TEST(Erc7730Workflow, RejectsDefinitionIdChangesDuringEmbeddedAuth) {
+  Erc7730Workflow workflow{};
+  workflow.phase = ERC7730_WORKFLOW_EMBEDDED_AUTH;
+  workflow.embedded_depth = 1;
+  workflow.embedded_next_offset = 12;
+  memset(workflow.embedded_definition_id, 0x55, 32);
+  EthereumClearSignDefinitionChunk chunk{};
+  chunk.definition_id.size = 32;
+  memset(chunk.definition_id.bytes, 0x56, 32);
+  chunk.offset = 12;
+  chunk.total_length = 100;
+  chunk.data.size = 1;
+  bool complete = false;
+  EXPECT_EQ(erc7730_workflow_embedded_auth_feed(&workflow, &chunk, &complete),
+            ERC7730_CATALOG_BAD_SEQUENCE);
+  EXPECT_FALSE(complete);
+  EXPECT_EQ(workflow.phase, ERC7730_WORKFLOW_FAILED);
+  EXPECT_EQ(workflow.embedded_depth, 0u);
+}
+
+TEST(Erc7730Workflow, DecodesEmbeddedFieldsOnlyFromCapturedCalldata) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  workflow.typed_data = false;
+  workflow.identity.kind = ERC7730_DEFINITION_CALLDATA;
+  workflow.embedded_depth = 1;
+  workflow.embedded_lengths[0] = 36;
+  workflow.embedded_calldata[0][0] = 0xde;
+  workflow.embedded_calldata[0][1] = 0xad;
+  workflow.embedded_calldata[0][2] = 0xbe;
+  workflow.embedded_calldata[0][3] = 0xef;
+  workflow.embedded_calldata[0][35] = 42;
+  Erc7730Path path{};
+  path.source = 1;
+  path.source_index = UINT16_MAX;
+  path.step_count = 1;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_execute_embedded_calldata(&workflow, &path));
+  uint64_t value = 0;
+  ASSERT_TRUE(erc7730_workflow_captured_uint64(&workflow, &value));
+  EXPECT_EQ(value, 42u);
+
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  ASSERT_TRUE(erc7730_workflow_execute_embedded_calldata(&workflow, nullptr));
+  EXPECT_EQ(workflow.phase, ERC7730_WORKFLOW_COMPLETE);
+  workflow.embedded_calldata[0][35] = 43;
+  EXPECT_EQ(value, 42u);
+}
+
 TEST(Erc7730Workflow, ReportsOnlyUnvalidatedCalldataAsWaiting) {
   Erc7730Workflow workflow{};
   size_t remaining = 99;
