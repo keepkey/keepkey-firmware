@@ -32,6 +32,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       eos-contracts/eosio.token.c
       ethereum.c
       ethereum_contracts.c
+      erc7730_abi.c
       ethereum_contracts/makerdao.c
       ethereum_contracts/saproxy.c
       ethereum_contracts/zxappliquid.c
