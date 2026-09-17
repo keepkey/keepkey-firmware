@@ -223,6 +223,30 @@ TEST(Eip712Stream, RejectsUnrepresentableOrMalformedDomainBindings) {
                                            contract, sizeof(contract)));
 }
 
+TEST(Eip712Stream, CertifiedWalkPausesBeforeMessageValuesUntilAccepted) {
+  EthereumSignTypedData begin{};
+  strcpy(begin.primary_type, "Mail");
+  ASSERT_TRUE(eip712_stream_begin(&begin, true));
+
+  EthereumTypedDataStructAck empty{};
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_STRUCT);
+  ASSERT_STREQ(eip712_stream_next()->struct_name, "EIP712Domain");
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // discover domain
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // hash domain type
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // complete domain
+  ASSERT_STREQ(eip712_stream_next()->struct_name, "Mail");
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // discover message
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // hash message type
+
+  EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DEFINITION);
+  EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
+  EXPECT_TRUE(eip712_stream_definition_accepted());
+  EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_STRUCT);
+  EXPECT_STREQ(eip712_stream_next()->struct_name, "Mail");
+  EXPECT_FALSE(eip712_stream_definition_accepted());
+  eip712_stream_abort();
+}
+
 TEST(Eip712Stream, EncodeAddressIsLeftPadded) {
   Field f = mk(EthereumTypedDataStructAck_EthereumDataType_ADDRESS);
   uint8_t v[20];

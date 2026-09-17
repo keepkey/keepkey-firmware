@@ -61,6 +61,7 @@ typedef struct {
   uint8_t phase;
   uint8_t selection_kind : 4;
   uint8_t display_stage : 4;
+  bool typed_data;
 } Erc7730Workflow;
 
 /* One Ethereum workflow exists at a time. Keeping ownership here ensures FSM
@@ -71,6 +72,8 @@ Erc7730Workflow* erc7730_workflow_state(void);
 bool erc7730_workflow_begin(Erc7730Workflow* workflow,
                             const Erc7730CatalogIdentity* identity,
                             const EthereumSignTx* tx);
+bool erc7730_workflow_begin_eip712(Erc7730Workflow* workflow,
+                                   const Erc7730CatalogIdentity* identity);
 bool erc7730_workflow_waiting(const Erc7730Workflow* workflow,
                               uint8_t definition_id[32], uint32_t* offset,
                               uint32_t* total_length);

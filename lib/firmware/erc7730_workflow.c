@@ -18,16 +18,8 @@ static void fail(Erc7730Workflow* workflow) {
   workflow->phase = ERC7730_WORKFLOW_FAILED;
 }
 
-bool erc7730_workflow_begin(Erc7730Workflow* workflow,
-                            const Erc7730CatalogIdentity* identity,
-                            const EthereumSignTx* tx) {
-  if (!workflow || !identity || !tx) return false;
-  memzero(workflow, sizeof(*workflow));
-  if (identity->kind != ERC7730_DEFINITION_CALLDATA ||
-      !erc7730_tx_continuation_capture(&workflow->continuation, tx)) {
-    fail(workflow);
-    return false;
-  }
+static bool begin_replay(Erc7730Workflow* workflow,
+                         const Erc7730CatalogIdentity* identity) {
   memcpy(&workflow->identity, identity, sizeof(*identity));
   uint8_t definition_id[32];
   uint32_t total_length = 0;
@@ -46,6 +38,31 @@ bool erc7730_workflow_begin(Erc7730Workflow* workflow,
   }
   workflow->phase = ERC7730_WORKFLOW_REPLAY;
   return true;
+}
+
+bool erc7730_workflow_begin(Erc7730Workflow* workflow,
+                            const Erc7730CatalogIdentity* identity,
+                            const EthereumSignTx* tx) {
+  if (!workflow || !identity || !tx) return false;
+  memzero(workflow, sizeof(*workflow));
+  if (identity->kind != ERC7730_DEFINITION_CALLDATA ||
+      !erc7730_tx_continuation_capture(&workflow->continuation, tx)) {
+    fail(workflow);
+    return false;
+  }
+  return begin_replay(workflow, identity);
+}
+
+bool erc7730_workflow_begin_eip712(Erc7730Workflow* workflow,
+                                   const Erc7730CatalogIdentity* identity) {
+  if (!workflow || !identity) return false;
+  memzero(workflow, sizeof(*workflow));
+  if (identity->kind != ERC7730_DEFINITION_EIP712) {
+    fail(workflow);
+    return false;
+  }
+  workflow->typed_data = true;
+  return begin_replay(workflow, identity);
 }
 
 bool erc7730_workflow_waiting(const Erc7730Workflow* workflow,

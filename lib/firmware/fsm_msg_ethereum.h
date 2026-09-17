@@ -87,6 +87,8 @@ static int process_ethereum_msg(EthereumSignTx* msg, bool* needs_confirm) {
   }
 }
 
+static void eip712_pump(void);
+
 static void send_erc7730_definition_request(void) {
   Erc7730Workflow* workflow = erc7730_workflow_state();
   const Erc7730CatalogIdentity* identity = erc7730_workflow_identity(workflow);
@@ -104,15 +106,19 @@ static void send_erc7730_definition_request(void) {
     return;
   }
   RESP_INIT(EthereumClearSignDefinitionRequest);
-  resp->kind = EthereumClearSignDefinitionKind_ERC7730_CALLDATA;
+  resp->kind = identity->kind == ERC7730_DEFINITION_EIP712
+                   ? EthereumClearSignDefinitionKind_ERC7730_EIP712
+                   : EthereumClearSignDefinitionKind_ERC7730_CALLDATA;
   resp->chain_id = identity->chain_id;
   resp->has_contract_address = true;
   resp->contract_address.size = sizeof(identity->contract_address);
   memcpy(resp->contract_address.bytes, identity->contract_address,
          sizeof(identity->contract_address));
   resp->has_selector_or_type_hash = true;
-  resp->selector_or_type_hash.size = 4;
-  memcpy(resp->selector_or_type_hash.bytes, identity->selector_or_type_hash, 4);
+  resp->selector_or_type_hash.size =
+      identity->kind == ERC7730_DEFINITION_EIP712 ? 32 : 4;
+  memcpy(resp->selector_or_type_hash.bytes, identity->selector_or_type_hash,
+         resp->selector_or_type_hash.size);
   resp->has_definition_id = true;
   resp->definition_id.size = sizeof(definition_id);
   memcpy(resp->definition_id.bytes, definition_id, sizeof(definition_id));
@@ -447,7 +453,19 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         instruction.opcode == 10 && instruction.flags == 0 &&
         instruction.a == UINT16_MAX && instruction.b == UINT16_MAX &&
         instruction.c == UINT16_MAX) {
-      start_erc7730_calldata(workflow, NULL);
+      if (workflow->typed_data) {
+        erc7730_workflow_abort(workflow);
+        if (!eip712_stream_definition_accepted()) {
+          eip712_stream_abort();
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Unable to resume certified EIP-712"));
+          layoutHome();
+          return;
+        }
+        eip712_pump();
+      } else {
+        start_erc7730_calldata(workflow, NULL);
+      }
       return;
     }
     if (workflow->display_stage != ERC7730_DISPLAY_INSTRUCTION ||
@@ -457,6 +475,14 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       _("Unsupported ERC-7730 field instruction"));
+      layoutHome();
+      return;
+    }
+    if (workflow->typed_data) {
+      eip712_stream_abort();
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unsupported certified EIP-712 field program"));
       layoutHome();
       return;
     }
@@ -1021,6 +1047,30 @@ static void eip712_pump(void) {
   const Eip712Next* next = eip712_stream_next();
 
   switch (next->kind) {
+    case EIP712_REQ_DEFINITION: {
+      Eip712DomainFacts facts;
+      Erc7730CatalogIdentity identity;
+      if (!eip712_stream_domain_facts(&facts) || !facts.has_chain_id ||
+          !facts.has_primary_type_hash ||
+          !erc7730_catalog_preloaded(&identity) ||
+          !erc7730_catalog_matches_eip712(
+              &identity, facts.chain_id, facts.verifying_contract,
+              facts.has_verifying_contract, facts.primary_type_hash) ||
+          !erc7730_workflow_begin_eip712(erc7730_workflow_state(), &identity)) {
+        memzero(&facts, sizeof(facts));
+        memzero(&identity, sizeof(identity));
+        eip712_stream_abort();
+        erc7730_workflow_abort(erc7730_workflow_state());
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("ERC-7730 definition does not match typed data"));
+        layout_home();
+        return;
+      }
+      memzero(&facts, sizeof(facts));
+      memzero(&identity, sizeof(identity));
+      send_erc7730_definition_request();
+      return;
+    }
     case EIP712_REQ_STRUCT: {
       RESP_INIT(EthereumTypedDataStructRequest);
       strlcpy(resp->name, next->struct_name, sizeof(resp->name));
@@ -1121,7 +1171,10 @@ void fsm_msgEthereumSignTypedData(const EthereumSignTypedData* msg) {
     return;
   }
 
-  eip712_stream_begin(msg);
+  Erc7730CatalogIdentity definition;
+  const bool certified = erc7730_catalog_preloaded(&definition);
+  memzero(&definition, sizeof(definition));
+  eip712_stream_begin(msg, certified);
   eip712_pump();
 }
 

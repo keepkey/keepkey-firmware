@@ -161,11 +161,12 @@ typedef enum {
  * out of the walk is what lets the whole thing be unit-tested. */
 typedef enum {
   EIP712_REQ_NONE = 0,
-  EIP712_REQ_STRUCT,    /* send EthereumTypedDataStructRequest */
-  EIP712_REQ_VALUE,     /* send EthereumTypedDataValueRequest */
-  EIP712_REQ_DONE,      /* both hashes ready: derive, sign, respond */
-  EIP712_REQ_FAIL,      /* send Failure(error) */
-  EIP712_REQ_CANCELLED, /* the user declined a screen */
+  EIP712_REQ_STRUCT,     /* send EthereumTypedDataStructRequest */
+  EIP712_REQ_VALUE,      /* send EthereumTypedDataValueRequest */
+  EIP712_REQ_DEFINITION, /* authenticate the preloaded ERC-7730 program */
+  EIP712_REQ_DONE,       /* both hashes ready: derive, sign, respond */
+  EIP712_REQ_FAIL,       /* send Failure(error) */
+  EIP712_REQ_CANCELLED,  /* the user declined a screen */
 } Eip712ReqKind;
 
 typedef struct {
@@ -183,7 +184,9 @@ typedef struct {
 const Eip712Next* eip712_stream_next(void);
 
 /* Begin a signing session. Fills in the first request. */
-bool eip712_stream_begin(const EthereumSignTypedData* msg);
+bool eip712_stream_begin(const EthereumSignTypedData* msg,
+                         bool require_definition);
+bool eip712_stream_definition_accepted(void);
 
 /* Feed the machine. Each returns false and tears the session down on any
  * protocol or validation error, having already sent a Failure. */

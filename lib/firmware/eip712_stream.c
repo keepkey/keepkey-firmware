@@ -505,6 +505,8 @@ static struct {
   uint8_t address_n_count;
   char primary_type[EIP712_MAX_STRUCT_NAME];
   bool metamask_v4_compat;
+  bool require_definition;
+  bool definition_accepted;
   Eip712DomainFacts domain_facts;
 
   /* Root 0 is the domain, root 1 the message; the domain separator is kept
@@ -806,7 +808,8 @@ static void advance_after_slot(void) {
   request_struct(f->name);
 }
 
-bool eip712_stream_begin(const EthereumSignTypedData* msg) {
+bool eip712_stream_begin(const EthereumSignTypedData* msg,
+                         bool require_definition) {
   eip712_stream_abort();
 
   if (msg->address_n_count > 6) {
@@ -828,6 +831,7 @@ bool eip712_stream_begin(const EthereumSignTypedData* msg) {
 
   e712.active = true;
   e712.metamask_v4_compat = true;
+  e712.require_definition = require_definition;
   e712.address_n_count = (uint8_t)msg->address_n_count;
   memcpy(e712.address_n, msg->address_n,
          msg->address_n_count * sizeof(uint32_t));
@@ -922,6 +926,12 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck* ack) {
       if (e712.root == 1 && e712.depth == 1) {
         memcpy(e712.domain_facts.primary_type_hash, tf->type_hash, 32);
         e712.domain_facts.has_primary_type_hash = true;
+        if (e712.require_definition && !e712.definition_accepted) {
+          memzero(&next_step, sizeof(next_step));
+          next_step.kind = EIP712_REQ_DEFINITION;
+          e712.waiting = EIP712_IDLE;
+          return true;
+        }
       }
       e712.phase = PH_MEMBER;
       request_struct(e712.stack[e712.depth - 1].name);
@@ -1092,5 +1102,16 @@ bool eip712_stream_on_value(const EthereumTypedDataValueAck* ack) {
 bool eip712_stream_domain_facts(Eip712DomainFacts* facts) {
   if (!facts || !e712.active) return false;
   memcpy(facts, &e712.domain_facts, sizeof(*facts));
+  return true;
+}
+
+bool eip712_stream_definition_accepted(void) {
+  if (!e712.active || !e712.require_definition ||
+      !e712.domain_facts.has_primary_type_hash || e712.definition_accepted ||
+      next_step.kind != EIP712_REQ_DEFINITION)
+    return false;
+  e712.definition_accepted = true;
+  e712.phase = PH_MEMBER;
+  request_struct(e712.stack[e712.depth - 1].name);
   return true;
 }
