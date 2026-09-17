@@ -160,6 +160,19 @@ bool erc7730_workflow_select_condition(Erc7730Workflow* workflow,
   return begin_selection_replay(workflow, ERC7730_SELECTION_CONDITION);
 }
 
+bool erc7730_workflow_select_literal(Erc7730Workflow* workflow,
+                                     uint16_t literal_index) {
+  Erc7730ProgramSection section;
+  if (!workflow || workflow->phase != ERC7730_WORKFLOW_READY ||
+      !erc7730_program_index_section(&workflow->loader.index, 4, &section))
+    return false;
+  memzero(&workflow->selection, sizeof(workflow->selection));
+  erc7730_program_literal_begin(&workflow->selection.literal, section.length,
+                                literal_index);
+  if (workflow->selection.literal.failed) return false;
+  return begin_selection_replay(workflow, ERC7730_SELECTION_LITERAL);
+}
+
 static bool feed_selection_program(Erc7730Workflow* workflow,
                                    uint32_t program_offset,
                                    const uint8_t* program_data,
@@ -181,6 +194,9 @@ static bool feed_selection_program(Erc7730Workflow* workflow,
       break;
     case ERC7730_SELECTION_CONDITION:
       section_type = 5;
+      break;
+    case ERC7730_SELECTION_LITERAL:
+      section_type = 4;
       break;
     default:
       return false;
@@ -219,6 +235,10 @@ static bool feed_selection_program(Erc7730Workflow* workflow,
     return erc7730_program_condition_feed(&workflow->selection.condition,
                                           section_offset, overlap_data,
                                           overlap_length);
+  if (workflow->selection_kind == ERC7730_SELECTION_LITERAL)
+    return erc7730_program_literal_feed(&workflow->selection.literal,
+                                        section_offset, overlap_data,
+                                        overlap_length);
   return false;
 }
 
@@ -272,6 +292,10 @@ Erc7730CatalogResult erc7730_workflow_selection_feed(
       case ERC7730_SELECTION_CONDITION:
         selection_complete = workflow->selection.condition.complete &&
                              !workflow->selection.condition.failed;
+        break;
+      case ERC7730_SELECTION_LITERAL:
+        selection_complete = workflow->selection.literal.complete &&
+                             !workflow->selection.literal.failed;
         break;
       default:
         break;
@@ -332,6 +356,15 @@ bool erc7730_workflow_selected_condition(const Erc7730Workflow* workflow,
          workflow->selection_kind == ERC7730_SELECTION_CONDITION &&
          erc7730_program_condition_complete(&workflow->selection.condition,
                                             condition);
+}
+
+bool erc7730_workflow_selected_literal(const Erc7730Workflow* workflow,
+                                       Erc7730Literal* literal) {
+  return workflow && workflow->phase != ERC7730_WORKFLOW_IDLE &&
+         workflow->phase != ERC7730_WORKFLOW_FAILED &&
+         workflow->selection_kind == ERC7730_SELECTION_LITERAL &&
+         erc7730_program_literal_complete(&workflow->selection.literal,
+                                          literal);
 }
 
 Erc7730CatalogResult erc7730_workflow_replay_feed(

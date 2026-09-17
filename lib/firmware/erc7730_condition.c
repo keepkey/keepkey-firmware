@@ -70,6 +70,18 @@ static void canonical_unsigned(const uint8_t* value, size_t length,
   *canonical_length = length - offset;
 }
 
+static void canonical_signed(const uint8_t* value, size_t length,
+                             const uint8_t** canonical,
+                             size_t* canonical_length) {
+  size_t offset = 0;
+  while (offset + 1u < length &&
+         ((value[offset] == 0x00 && (value[offset + 1u] & 0x80u) == 0) ||
+          (value[offset] == 0xff && (value[offset + 1u] & 0x80u) != 0)))
+    offset++;
+  *canonical = value + offset;
+  *canonical_length = length - offset;
+}
+
 bool erc7730_capture_equals_literal(const Erc7730AbiProgram* program,
                                     const Erc7730AbiCapture* capture,
                                     const Erc7730Literal* literal) {
@@ -80,6 +92,9 @@ bool erc7730_capture_equals_literal(const Erc7730AbiProgram* program,
   size_t length = capture->length;
   if (literal->kind == 1 && node->kind == ERC7730_ABI_UINT && length == 32) {
     canonical_unsigned(value, length, &value, &length);
+  } else if (literal->kind == 2 && node->kind == ERC7730_ABI_INT &&
+             length == 32) {
+    canonical_signed(value, length, &value, &length);
   } else if (literal->kind == 3 && node->kind == ERC7730_ABI_FIXED_BYTES &&
              length == 32) {
     length = node->size;
@@ -98,4 +113,33 @@ bool erc7730_capture_equals_literal(const Erc7730AbiProgram* program,
   }
   return length == literal->length &&
          (length == 0 || memcmp(value, literal->value, length) == 0);
+}
+
+bool erc7730_literal_set_count(const Erc7730Literal* set, uint16_t* count) {
+  if (!set || !count || set->kind != 9 || set->length < 2) return false;
+  const uint16_t declared =
+      (uint16_t)(((uint16_t)set->value[0] << 8) | set->value[1]);
+  if (declared > 64 || set->length != 2u + 2u * declared) return false;
+  *count = declared;
+  return true;
+}
+
+bool erc7730_literal_set_index(const Erc7730Literal* set, uint16_t position,
+                               uint16_t* literal_index) {
+  uint16_t count = 0;
+  if (!literal_index || !erc7730_literal_set_count(set, &count) ||
+      position >= count)
+    return false;
+  const size_t offset = 2u + 2u * position;
+  const uint16_t index =
+      (uint16_t)(((uint16_t)set->value[offset] << 8) | set->value[offset + 1u]);
+  if (position != 0) {
+    const size_t previous_offset = offset - 2u;
+    const uint16_t previous =
+        (uint16_t)(((uint16_t)set->value[previous_offset] << 8) |
+                   set->value[previous_offset + 1u]);
+    if (index <= previous) return false;
+  }
+  *literal_index = index;
+  return true;
 }
