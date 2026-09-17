@@ -190,7 +190,8 @@ Erc7730CatalogResult erc7730_workflow_selection_feed(
 bool erc7730_workflow_selected_display(const Erc7730Workflow* workflow,
                                        Erc7730DisplayInstruction* instruction,
                                        uint16_t* instruction_count) {
-  return workflow && workflow->phase == ERC7730_WORKFLOW_READY &&
+  return workflow && workflow->phase != ERC7730_WORKFLOW_IDLE &&
+         workflow->phase != ERC7730_WORKFLOW_FAILED &&
          workflow->selection_kind == ERC7730_SELECTION_DISPLAY &&
          erc7730_program_display_complete(&workflow->selection.display,
                                           instruction, instruction_count);
@@ -198,7 +199,8 @@ bool erc7730_workflow_selected_display(const Erc7730Workflow* workflow,
 
 bool erc7730_workflow_selected_string(const Erc7730Workflow* workflow,
                                       const char** value, size_t* value_len) {
-  return workflow && workflow->phase == ERC7730_WORKFLOW_READY &&
+  return workflow && workflow->phase != ERC7730_WORKFLOW_IDLE &&
+         workflow->phase != ERC7730_WORKFLOW_FAILED &&
          workflow->selection_kind == ERC7730_SELECTION_STRING &&
          erc7730_program_string_complete(&workflow->selection.string, value,
                                          value_len);
