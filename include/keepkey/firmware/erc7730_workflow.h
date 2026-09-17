@@ -28,6 +28,7 @@ typedef enum {
   ERC7730_SELECTION_FORMATTER,
   ERC7730_SELECTION_PATH,
   ERC7730_SELECTION_CONDITION,
+  ERC7730_SELECTION_LITERAL,
 } Erc7730SelectionKind;
 
 typedef enum {
@@ -46,23 +47,24 @@ typedef struct {
   Erc7730CatalogIdentity identity;
   Erc7730TxContinuation continuation;
   Erc7730ProgramLoader loader;
-  union {
-    Erc7730ProgramDisplay display;
-    Erc7730ProgramString string;
-    Erc7730ProgramFormatter formatter;
-    Erc7730ProgramPath path;
-    Erc7730ProgramCondition condition;
-  } selection;
-  /* Display materialization precedes calldata streaming, so the two pieces of
-   * state never coexist. Overlay the two-byte formatter cursor with the much
-   * larger stream state instead of spending permanent SRAM on both. */
+  /* Signed-table selection precedes value streaming, so their bounded state
+   * never coexists. This overlay leaves room for the largest literal/set
+   * entry without increasing the workflow's fixed SRAM ceiling. */
   union {
     Erc7730AbiStream calldata;
-    uint16_t current_formatter;
+    union {
+      Erc7730ProgramDisplay display;
+      Erc7730ProgramString string;
+      Erc7730ProgramFormatter formatter;
+      Erc7730ProgramPath path;
+      Erc7730ProgramCondition condition;
+      Erc7730ProgramLiteral literal;
+    } selection;
   };
   char intent[ERC7730_PROGRAM_MAX_STRING_LENGTH + 1u];
   char label[ERC7730_PROGRAM_MAX_STRING_LENGTH + 1u];
   uint16_t display_index;
+  uint16_t current_formatter;
   uint8_t phase;
   uint8_t selection_kind : 4;
   uint8_t display_stage : 4;
@@ -96,6 +98,8 @@ bool erc7730_workflow_select_path(Erc7730Workflow* workflow,
                                   uint16_t path_index);
 bool erc7730_workflow_select_condition(Erc7730Workflow* workflow,
                                        uint16_t condition_index);
+bool erc7730_workflow_select_literal(Erc7730Workflow* workflow,
+                                     uint16_t literal_index);
 Erc7730CatalogResult erc7730_workflow_selection_feed(
     Erc7730Workflow* workflow, const EthereumClearSignDefinitionChunk* chunk,
     bool* complete);
@@ -110,6 +114,8 @@ bool erc7730_workflow_selected_path(const Erc7730Workflow* workflow,
                                     Erc7730Path* path);
 bool erc7730_workflow_selected_condition(const Erc7730Workflow* workflow,
                                          Erc7730Condition* condition);
+bool erc7730_workflow_selected_literal(const Erc7730Workflow* workflow,
+                                       Erc7730Literal* literal);
 bool erc7730_workflow_restore_and_start_calldata(Erc7730Workflow* workflow,
                                                  EthereumSignTx* tx);
 bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
