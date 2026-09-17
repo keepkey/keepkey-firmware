@@ -386,3 +386,85 @@ bool erc7730_program_path_complete(const Erc7730ProgramPath* path,
 void erc7730_program_path_clear(Erc7730ProgramPath* path) {
   if (path) memzero(path, sizeof(*path));
 }
+
+void erc7730_program_string_begin(Erc7730ProgramString* string,
+                                  uint32_t section_length,
+                                  uint16_t target_index) {
+  if (!string) return;
+  memzero(string, sizeof(*string));
+  string->section_length = section_length;
+  string->target_index = target_index;
+  if (section_length < 2) string->failed = true;
+}
+
+bool erc7730_program_string_feed(Erc7730ProgramString* string,
+                                 uint32_t section_offset, const uint8_t* data,
+                                 size_t data_len) {
+  if (!string || !data || data_len == 0 || string->failed || string->complete ||
+      section_offset != string->received ||
+      data_len > string->section_length - string->received) {
+    if (string) string->failed = true;
+    return false;
+  }
+  for (size_t i = 0; i < data_len; i++, string->received++) {
+    const uint8_t byte = data[i];
+    if (string->received < 2) {
+      string->header[string->received] = byte;
+      if (string->received == 1) {
+        string->string_count = read_be16(string->header);
+        if (string->string_count > 96 ||
+            string->target_index >= string->string_count) {
+          string->failed = true;
+          return false;
+        }
+      }
+      continue;
+    }
+    if (string->current_length == 0) {
+      string->header[string->header_received++] = byte;
+      if (string->header_received != 2) continue;
+      string->current_length = read_be16(string->header);
+      string->header_received = 0;
+      if (string->current_length == 0 ||
+          string->current_length > ERC7730_PROGRAM_MAX_STRING_LENGTH) {
+        string->failed = true;
+        return false;
+      }
+      continue;
+    }
+    if (string->string_index == string->target_index)
+      string->value[string->current_received] = byte;
+    string->current_received++;
+    if (string->current_received == string->current_length) {
+      if (string->string_index == string->target_index) {
+        string->value[string->current_length] = 0;
+        string->selected_length = string->current_length;
+        string->selected_found = true;
+      }
+      string->string_index++;
+      string->current_length = 0;
+      string->current_received = 0;
+    }
+  }
+  if (string->received == string->section_length) {
+    string->complete = !string->failed && string->selected_found &&
+                       string->string_index == string->string_count &&
+                       string->current_length == 0 &&
+                       string->header_received == 0;
+    if (!string->complete) string->failed = true;
+  }
+  return !string->failed;
+}
+
+bool erc7730_program_string_complete(const Erc7730ProgramString* string,
+                                     const char** value, size_t* value_len) {
+  if (!string || !value || !value_len || !string->complete || string->failed)
+    return false;
+  *value = (const char*)string->value;
+  *value_len = string->selected_length;
+  return true;
+}
+
+void erc7730_program_string_clear(Erc7730ProgramString* string) {
+  if (string) memzero(string, sizeof(*string));
+}

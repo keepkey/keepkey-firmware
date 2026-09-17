@@ -204,3 +204,41 @@ TEST(Erc7730ProgramPath, RejectsMissingTargetAndMalformedSteps) {
   EXPECT_FALSE(erc7730_program_path_feed(&loader, 0, duplicate_all.data(),
                                          duplicate_all.size()));
 }
+
+TEST(Erc7730ProgramString, SelectsOneBoundedStringAcrossChunks) {
+  const std::vector<uint8_t> section = {
+      0, 3, 0, 1, 'A', 0, 4, 'T', 'e', 's', 't', 0, 3, 0xe2, 0x82, 0xac};
+  for (size_t chunk : {1u, 3u, 64u}) {
+    Erc7730ProgramString loader;
+    erc7730_program_string_begin(&loader, section.size(), 1);
+    for (size_t offset = 0; offset < section.size();) {
+      const size_t length = std::min(chunk, section.size() - offset);
+      ASSERT_TRUE(erc7730_program_string_feed(&loader, offset,
+                                              section.data() + offset, length));
+      offset += length;
+    }
+    const char* value = nullptr;
+    size_t length = 0;
+    ASSERT_TRUE(erc7730_program_string_complete(&loader, &value, &length));
+    EXPECT_EQ(length, 4u);
+    EXPECT_STREQ(value, "Test");
+  }
+}
+
+TEST(Erc7730ProgramString, RejectsMissingOversizedAndTruncatedValues) {
+  std::vector<uint8_t> section = {0, 1, 0, 1, 'A'};
+  Erc7730ProgramString loader;
+  erc7730_program_string_begin(&loader, section.size(), 1);
+  EXPECT_FALSE(
+      erc7730_program_string_feed(&loader, 0, section.data(), section.size()));
+
+  section = {0, 1, 0, ERC7730_PROGRAM_MAX_STRING_LENGTH + 1};
+  erc7730_program_string_begin(&loader, section.size(), 0);
+  EXPECT_FALSE(
+      erc7730_program_string_feed(&loader, 0, section.data(), section.size()));
+
+  section = {0, 1, 0, 2, 'A'};
+  erc7730_program_string_begin(&loader, section.size(), 0);
+  EXPECT_FALSE(
+      erc7730_program_string_feed(&loader, 0, section.data(), section.size()));
+}

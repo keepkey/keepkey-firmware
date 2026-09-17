@@ -85,6 +85,25 @@ typedef struct {
   bool failed;
 } Erc7730ProgramPath;
 
+#define ERC7730_PROGRAM_MAX_STRING_LENGTH 128u
+
+typedef struct {
+  uint8_t value[ERC7730_PROGRAM_MAX_STRING_LENGTH + 1u];
+  uint32_t section_length;
+  uint32_t received;
+  uint16_t string_count;
+  uint16_t string_index;
+  uint16_t target_index;
+  uint16_t selected_length;
+  uint16_t current_length;
+  uint16_t current_received;
+  uint8_t header[2];
+  uint8_t header_received;
+  bool selected_found;
+  bool complete;
+  bool failed;
+} Erc7730ProgramString;
+
 void erc7730_program_index_begin(Erc7730ProgramIndex* index,
                                  uint32_t program_length);
 bool erc7730_program_index_feed(Erc7730ProgramIndex* index,
@@ -120,5 +139,14 @@ bool erc7730_program_path_feed(Erc7730ProgramPath* path,
 bool erc7730_program_path_complete(const Erc7730ProgramPath* path,
                                    Erc7730Path* result);
 void erc7730_program_path_clear(Erc7730ProgramPath* path);
+void erc7730_program_string_begin(Erc7730ProgramString* string,
+                                  uint32_t section_length,
+                                  uint16_t target_index);
+bool erc7730_program_string_feed(Erc7730ProgramString* string,
+                                 uint32_t section_offset, const uint8_t* data,
+                                 size_t data_len);
+bool erc7730_program_string_complete(const Erc7730ProgramString* string,
+                                     const char** value, size_t* value_len);
+void erc7730_program_string_clear(Erc7730ProgramString* string);
 
 #endif
