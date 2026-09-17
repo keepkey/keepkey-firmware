@@ -181,15 +181,19 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
     layoutHome();
     return;
   }
-  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Contract action",
-               "%s", workflow->intent)) {
-    erc7730_workflow_abort(workflow);
-    fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                    _("Signing cancelled by user"));
-    layoutHome();
-    return;
+  if (!workflow->intent_confirmed) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "Contract action", "%s", workflow->intent)) {
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled by user"));
+      layoutHome();
+      return;
+    }
+    workflow->intent_confirmed = true;
   }
-  if (workflow->label[0] != '\0') {
+  const bool had_field = workflow->label[0] != '\0';
+  if (had_field) {
     char formatted[ERC7730_FORMATTED_VALUE_MAX + 1u];
     if (!erc7730_workflow_format_captured_raw(workflow, formatted,
                                               sizeof(formatted))) {
@@ -209,6 +213,17 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
       return;
     }
     memzero(formatted, sizeof(formatted));
+  }
+  if (had_field) {
+    if (!erc7730_workflow_advance_display(workflow)) {
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 display continuation"));
+      layoutHome();
+      return;
+    }
+    send_erc7730_definition_request();
+    return;
   }
   continue_ethereum_sign_tx(tx);
 }
@@ -500,6 +515,7 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         return;
       }
       workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
+      workflow->display_index = 1;
       if (!erc7730_workflow_select_display(workflow, 1)) {
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,

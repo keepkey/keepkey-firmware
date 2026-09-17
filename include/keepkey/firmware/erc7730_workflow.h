@@ -59,10 +59,12 @@ typedef struct {
   };
   char intent[ERC7730_PROGRAM_MAX_STRING_LENGTH + 1u];
   char label[ERC7730_PROGRAM_MAX_STRING_LENGTH + 1u];
+  uint16_t display_index;
   uint8_t phase;
   uint8_t selection_kind : 4;
   uint8_t display_stage : 4;
   bool typed_data;
+  bool intent_confirmed;
 } Erc7730Workflow;
 
 /* One Ethereum workflow exists at a time. Keeping ownership here ensures FSM
@@ -129,6 +131,7 @@ bool erc7730_workflow_preserve_selected_string(Erc7730Workflow* workflow,
                                                bool intent);
 bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
                                           char* output, size_t output_size);
+bool erc7730_workflow_advance_display(Erc7730Workflow* workflow);
 void erc7730_workflow_abort(Erc7730Workflow* workflow);
 
 #endif

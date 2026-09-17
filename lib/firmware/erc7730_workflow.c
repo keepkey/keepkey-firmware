@@ -620,6 +620,19 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
   return result;
 }
 
+bool erc7730_workflow_advance_display(Erc7730Workflow* workflow) {
+  if (!workflow || workflow->typed_data ||
+      workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
+      workflow->display_index == UINT16_MAX)
+    return false;
+  memzero(workflow->label, sizeof(workflow->label));
+  erc7730_abi_stream_clear(&workflow->calldata);
+  workflow->phase = ERC7730_WORKFLOW_READY;
+  workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
+  workflow->display_index++;
+  return erc7730_workflow_select_display(workflow, workflow->display_index);
+}
+
 void erc7730_workflow_abort(Erc7730Workflow* workflow) {
   if (!workflow) return;
   if (workflow->phase != ERC7730_WORKFLOW_IDLE) erc7730_catalog_clear_preload();
