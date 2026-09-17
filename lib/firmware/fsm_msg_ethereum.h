@@ -731,6 +731,24 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     return;
   }
   if (selection_kind == ERC7730_SELECTION_STRING) {
+    if (workflow->display_stage == ERC7730_DISPLAY_FORMATTER_ARGUMENT) {
+      const char* encoding = NULL;
+      size_t encoding_length = 0;
+      if (!erc7730_workflow_selected_string(workflow, &encoding,
+                                            &encoding_length) ||
+          encoding_length != 9 || memcmp(encoding, "timestamp", 9) != 0 ||
+          !erc7730_workflow_select_path(workflow,
+                                        workflow->formatter_value_path)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Unsupported ERC-7730 date encoding"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_PATH;
+      send_erc7730_definition_request();
+      return;
+    }
     if (workflow->display_stage == ERC7730_DISPLAY_INTENT_STRING) {
       if (!erc7730_workflow_preserve_selected_string(workflow, true)) {
         erc7730_workflow_abort(workflow);
@@ -769,12 +787,9 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     Erc7730Formatter formatter;
     if (workflow->display_stage != ERC7730_DISPLAY_FORMATTER ||
         !erc7730_workflow_selected_formatter(workflow, &formatter) ||
-        (formatter.kind != 1 && formatter.kind != 2 && formatter.kind != 6 &&
-         formatter.kind != 9) ||
-        formatter.flags != 0 || formatter.argument_count != 1 ||
+        formatter.flags != 0 || formatter.argument_count == 0 ||
         formatter.arguments[0].role != 1 ||
-        formatter.arguments[0].source != 1 ||
-        !erc7730_workflow_select_path(workflow, formatter.arguments[0].index)) {
+        formatter.arguments[0].source != 1) {
       memzero(&formatter, sizeof(formatter));
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -783,6 +798,43 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     workflow->current_formatter_kind = formatter.kind;
+    if (formatter.kind == 5) {
+      if (formatter.argument_count != 2 || formatter.arguments[1].role != 9 ||
+          formatter.arguments[1].source != 3) {
+        memzero(&formatter, sizeof(formatter));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 date formatter"));
+        layoutHome();
+        return;
+      }
+      workflow->formatter_value_path = formatter.arguments[0].index;
+      workflow->formatter_auxiliary = formatter.arguments[1].index;
+      const uint16_t encoding = workflow->formatter_auxiliary;
+      memzero(&formatter, sizeof(formatter));
+      if (!erc7730_workflow_select_string(workflow, encoding)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 date encoding"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_FORMATTER_ARGUMENT;
+      send_erc7730_definition_request();
+      return;
+    }
+    if ((formatter.kind != 1 && formatter.kind != 2 && formatter.kind != 6 &&
+         formatter.kind != 9) ||
+        formatter.argument_count != 1 ||
+        !erc7730_workflow_select_path(workflow,
+                                      formatter.arguments[0].index)) {
+      memzero(&formatter, sizeof(formatter));
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unsupported ERC-7730 formatter"));
+      layoutHome();
+      return;
+    }
     memzero(&formatter, sizeof(formatter));
     workflow->display_stage = ERC7730_DISPLAY_PATH;
     send_erc7730_definition_request();

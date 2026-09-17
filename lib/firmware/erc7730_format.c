@@ -256,3 +256,86 @@ bool erc7730_format_duration(const Erc7730AbiProgram* program,
   memzero(hour_digits, sizeof(hour_digits));
   return true;
 }
+
+static void write_two_digits(char* output, uint32_t value) {
+  output[0] = (char)('0' + (value / 10u) % 10u);
+  output[1] = (char)('0' + value % 10u);
+}
+
+bool erc7730_format_timestamp(const Erc7730AbiProgram* program,
+                              const Erc7730AbiCapture* capture, char* output,
+                              size_t output_size) {
+  if (!program || !capture || !output || output_size < 21 ||
+      capture->node >= program->node_count || capture->length != 32) {
+    if (output && output_size != 0) output[0] = '\0';
+    return false;
+  }
+  const Erc7730AbiNode* node = &program->nodes[capture->node];
+  if (node->kind != ERC7730_ABI_UINT && node->kind != ERC7730_ABI_INT) {
+    output[0] = '\0';
+    return false;
+  }
+  const bool negative =
+      node->kind == ERC7730_ABI_INT && (capture->data[0] & 0x80u) != 0;
+  const uint8_t extension = negative ? 0xff : 0;
+  for (size_t i = 0; i < 24; i++)
+    if (capture->data[i] != extension) {
+      output[0] = '\0';
+      return false;
+    }
+  uint64_t encoded = 0;
+  for (size_t i = 24; i < 32; i++)
+    encoded = (encoded << 8) | capture->data[i];
+  int64_t timestamp = 0;
+  if (negative) {
+    const uint64_t magnitude = ~encoded + 1u;
+    if (magnitude > UINT64_C(0x8000000000000000)) return false;
+    timestamp = magnitude == UINT64_C(0x8000000000000000)
+                    ? INT64_MIN
+                    : -(int64_t)magnitude;
+  } else {
+    if (encoded > INT64_MAX) return false;
+    timestamp = (int64_t)encoded;
+  }
+
+  int64_t days = timestamp / 86400;
+  int64_t seconds = timestamp % 86400;
+  if (seconds < 0) {
+    seconds += 86400;
+    days--;
+  }
+  const int64_t z = days + 719468;
+  const int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+  const uint32_t doe = (uint32_t)(z - era * 146097);
+  const uint32_t yoe =
+      (doe - doe / 1460u + doe / 36524u - doe / 146096u) / 365u;
+  int64_t year = (int64_t)yoe + era * 400;
+  const uint32_t doy =
+      doe - (365u * yoe + yoe / 4u - yoe / 100u);
+  const uint32_t mp = (5u * doy + 2u) / 153u;
+  const uint32_t day = doy - (153u * mp + 2u) / 5u + 1u;
+  const uint32_t month =
+      (uint32_t)((int32_t)mp + (mp < 10 ? 3 : -9));
+  year += month <= 2;
+  if (year < 0 || year > 9999) {
+    output[0] = '\0';
+    return false;
+  }
+  output[0] = (char)('0' + (year / 1000) % 10);
+  output[1] = (char)('0' + (year / 100) % 10);
+  output[2] = (char)('0' + (year / 10) % 10);
+  output[3] = (char)('0' + year % 10);
+  output[4] = '-';
+  write_two_digits(output + 5, month);
+  output[7] = '-';
+  write_two_digits(output + 8, day);
+  output[10] = 'T';
+  write_two_digits(output + 11, (uint32_t)seconds / 3600u);
+  output[13] = ':';
+  write_two_digits(output + 14, ((uint32_t)seconds / 60u) % 60u);
+  output[16] = ':';
+  write_two_digits(output + 17, (uint32_t)seconds % 60u);
+  output[19] = 'Z';
+  output[20] = '\0';
+  return true;
+}
