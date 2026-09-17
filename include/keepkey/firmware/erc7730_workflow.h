@@ -219,6 +219,8 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
                                           char* output, size_t output_size);
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow);
 bool erc7730_workflow_advance_interpolation(Erc7730Workflow* workflow);
+bool erc7730_workflow_jump_display(Erc7730Workflow* workflow,
+                                   uint16_t instruction_index);
 bool erc7730_workflow_skip_display(Erc7730Workflow* workflow);
 void erc7730_workflow_abort(Erc7730Workflow* workflow);
 

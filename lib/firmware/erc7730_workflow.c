@@ -1174,6 +1174,17 @@ bool erc7730_workflow_advance_interpolation(Erc7730Workflow* workflow) {
   return erc7730_workflow_select_display(workflow, workflow->display_index);
 }
 
+bool erc7730_workflow_jump_display(Erc7730Workflow* workflow,
+                                   uint16_t instruction_index) {
+  if (!workflow || workflow->phase != ERC7730_WORKFLOW_READY ||
+      instruction_index <= workflow->display_index)
+    return false;
+  memzero(workflow->label, sizeof(workflow->label));
+  workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
+  workflow->display_index = instruction_index;
+  return erc7730_workflow_select_display(workflow, instruction_index);
+}
+
 bool erc7730_workflow_skip_display(Erc7730Workflow* workflow) {
   if (!workflow || workflow->phase != ERC7730_WORKFLOW_READY ||
       workflow->display_index == UINT16_MAX)

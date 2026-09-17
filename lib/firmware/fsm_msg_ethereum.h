@@ -3,6 +3,7 @@
 #include "keepkey/firmware/erc7730_condition.h"
 
 #define ERC7730_FORMATTER_INTERPOLATION_FLAG UINT16_C(0x8000)
+#define ERC7730_FORMATTER_GROUP_CONTROL UINT8_C(0xff)
 
 /*
  * This file is part of the Keepkey project
@@ -292,6 +293,49 @@ static void confirm_erc7730_replayed_field(void) {
 
 static void continue_erc7730_condition_visibility(bool visible) {
   Erc7730Workflow* workflow = erc7730_workflow_state();
+  if (workflow->current_formatter_kind == ERC7730_FORMATTER_GROUP_CONTROL) {
+    const uint16_t label_index =
+        (uint16_t)(((uint16_t)(uint8_t)workflow->label[0] << 8) |
+                   (uint8_t)workflow->label[1]);
+    const uint16_t end =
+        (uint16_t)(((uint16_t)(uint8_t)workflow->label[2] << 8) |
+                   (uint8_t)workflow->label[3]);
+    if (!visible) {
+      workflow->current_formatter_kind = 0;
+      if (end == UINT16_MAX ||
+          !erc7730_workflow_jump_display(workflow, (uint16_t)(end + 1u))) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 group jump"));
+        layoutHome();
+        return;
+      }
+      send_erc7730_definition_request();
+      return;
+    }
+    if (label_index == UINT16_MAX) {
+      workflow->current_formatter_kind = 0;
+      if (!erc7730_workflow_skip_display(workflow)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 group continuation"));
+        layoutHome();
+        return;
+      }
+      send_erc7730_definition_request();
+      return;
+    }
+    workflow->display_stage = ERC7730_DISPLAY_LABEL;
+    if (!erc7730_workflow_select_string(workflow, label_index)) {
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 group label"));
+      layoutHome();
+      return;
+    }
+    send_erc7730_definition_request();
+    return;
+  }
   if (!visible) {
     if (!erc7730_workflow_skip_display(workflow)) {
       erc7730_workflow_abort(workflow);
@@ -645,6 +689,43 @@ void fsm_msgEthereumClearSignDefinitionChunk(
          workflow->label[0] != '\0'))
       erc7730_workflow_finalize_interpolation(workflow);
     if (workflow->display_stage == ERC7730_DISPLAY_INSTRUCTION &&
+        instruction.opcode == 5 && instruction.flags == 0 &&
+        instruction.c > workflow->display_index) {
+      workflow->current_formatter_kind = ERC7730_FORMATTER_GROUP_CONTROL;
+      workflow->label[0] = (char)(instruction.a >> 8);
+      workflow->label[1] = (char)instruction.a;
+      workflow->label[2] = (char)(instruction.c >> 8);
+      workflow->label[3] = (char)instruction.c;
+      if (instruction.b != UINT16_MAX) {
+        if (!erc7730_workflow_select_condition(workflow, instruction.b)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 group condition"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_CONDITION;
+        send_erc7730_definition_request();
+        return;
+      }
+      continue_erc7730_condition_visibility(true);
+      return;
+    }
+    if (workflow->display_stage == ERC7730_DISPLAY_INSTRUCTION &&
+        instruction.opcode == 6 && instruction.flags == 0 &&
+        instruction.a < workflow->display_index &&
+        instruction.b == UINT16_MAX && instruction.c == UINT16_MAX) {
+      if (!erc7730_workflow_skip_display(workflow)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 group end"));
+        layoutHome();
+        return;
+      }
+      send_erc7730_definition_request();
+      return;
+    }
+    if (workflow->display_stage == ERC7730_DISPLAY_INSTRUCTION &&
         instruction.opcode == 10 && instruction.flags == 0 &&
         instruction.a == UINT16_MAX && instruction.b == UINT16_MAX &&
         instruction.c == UINT16_MAX) {
@@ -729,15 +810,12 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     memzero(&condition, sizeof(condition));
+    if (workflow->current_formatter_kind == ERC7730_FORMATTER_GROUP_CONTROL) {
+      continue_erc7730_condition_visibility(visible);
+      return;
+    }
     if (!visible) {
-      if (!erc7730_workflow_skip_display(workflow)) {
-        erc7730_workflow_abort(workflow);
-        fsm_sendFailure(FailureType_Failure_SyntaxError,
-                        _("Invalid ERC-7730 condition jump"));
-        layoutHome();
-        return;
-      }
-      send_erc7730_definition_request();
+      continue_erc7730_condition_visibility(false);
       return;
     }
     const uint16_t label_index =
@@ -981,6 +1059,32 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     return;
   }
   if (selection_kind == ERC7730_SELECTION_STRING) {
+    if (workflow->current_formatter_kind == ERC7730_FORMATTER_GROUP_CONTROL &&
+        workflow->display_stage == ERC7730_DISPLAY_LABEL) {
+      const char* group_label = NULL;
+      size_t group_label_length = 0;
+      if (!erc7730_workflow_selected_string(workflow, &group_label,
+                                            &group_label_length) ||
+          group_label_length == 0 ||
+          !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                   "Review group", "%s", group_label)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        _("Signing cancelled by user"));
+        layoutHome();
+        return;
+      }
+      workflow->current_formatter_kind = 0;
+      if (!erc7730_workflow_skip_display(workflow)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 group continuation"));
+        layoutHome();
+        return;
+      }
+      send_erc7730_definition_request();
+      return;
+    }
     if (workflow->display_stage == ERC7730_DISPLAY_INTERPOLATED_TEXT) {
       (void)erc7730_workflow_append_interpolated_string(workflow);
       if (!erc7730_workflow_advance_interpolation(workflow)) {
