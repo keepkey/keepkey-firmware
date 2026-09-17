@@ -317,11 +317,101 @@ TEST(Erc7730Workflow, EvaluatesVisibilityFromDeviceCapturedContainerValue) {
 TEST(Erc7730Workflow, RefusesConditionCaptureWithoutSupportedLifecycle) {
   Erc7730Workflow workflow{};
   workflow.phase = ERC7730_WORKFLOW_READY;
-  Erc7730Condition condition{6, 0, 0, 0};
+  Erc7730Condition condition{6, 0, UINT16_MAX, 0};
   EXPECT_FALSE(
       erc7730_workflow_begin_condition_capture(&workflow, &condition));
   condition = {4, 0, UINT16_MAX, 0};
   workflow.typed_data = true;
   EXPECT_FALSE(
       erc7730_workflow_begin_condition_capture(&workflow, &condition));
+}
+
+TEST(Erc7730Workflow, EvaluatesAuthenticatedMembershipAndMustMatch) {
+  Erc7730Workflow workflow{};
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  EthereumSignTx tx{};
+  tx.has_chain_id = true;
+  tx.chain_id = 1;
+  tx.has_value = true;
+  tx.value.size = 1;
+  tx.value.bytes[0] = 7;
+  tx.has_data_length = true;
+  tx.data_length = 4;
+  tx.has_data_initial_chunk = true;
+  tx.data_initial_chunk.size = 4;
+  ASSERT_TRUE(erc7730_tx_continuation_capture(&workflow.continuation, &tx));
+  Erc7730Condition condition{6, 0, 9, 0};
+  ASSERT_TRUE(
+      erc7730_workflow_begin_condition_capture(&workflow, &condition));
+  Erc7730Path value_path{};
+  value_path.source = 2;
+  value_path.source_index = 3;
+  EthereumSignTx restored{};
+  ASSERT_TRUE(erc7730_workflow_capture_tx_container(
+      &workflow, &value_path, &restored, nullptr));
+  uint16_t set_index = UINT16_MAX;
+  ASSERT_TRUE(erc7730_workflow_prepare_captured_membership(&workflow,
+                                                           &set_index));
+  EXPECT_EQ(set_index, 9u);
+
+  Erc7730Literal set{};
+  set.kind = 9;
+  set.length = 6;
+  const uint8_t encoded_set[] = {0, 2, 0, 1, 0, 4};
+  memcpy(set.value, encoded_set, sizeof(encoded_set));
+  uint16_t literal_index = UINT16_MAX;
+  ASSERT_TRUE(erc7730_workflow_load_membership_set(&workflow, &set,
+                                                   &literal_index));
+  EXPECT_EQ(literal_index, 1u);
+  Erc7730Literal literal{};
+  literal.kind = 1;
+  literal.length = 1;
+  literal.value[0] = 6;
+  bool complete = false;
+  bool visible = false;
+  ASSERT_TRUE(erc7730_workflow_observe_membership_literal(
+      &workflow, &literal, &complete, &visible, &literal_index));
+  EXPECT_FALSE(complete);
+  EXPECT_EQ(literal_index, 4u);
+  literal.value[0] = 7;
+  ASSERT_TRUE(erc7730_workflow_observe_membership_literal(
+      &workflow, &literal, &complete, &visible, &literal_index));
+  EXPECT_TRUE(complete);
+  EXPECT_TRUE(visible);
+
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  ASSERT_TRUE(erc7730_tx_continuation_capture(&workflow.continuation, &tx));
+  condition.opcode = 8;
+  ASSERT_TRUE(
+      erc7730_workflow_begin_condition_capture(&workflow, &condition));
+  ASSERT_TRUE(erc7730_workflow_capture_tx_container(
+      &workflow, &value_path, &restored, nullptr));
+  ASSERT_TRUE(erc7730_workflow_prepare_captured_membership(&workflow,
+                                                           &set_index));
+  set.length = 4;
+  const uint8_t nonmatching_set[] = {0, 1, 0, 2};
+  memcpy(set.value, nonmatching_set, sizeof(nonmatching_set));
+  ASSERT_TRUE(erc7730_workflow_load_membership_set(&workflow, &set,
+                                                   &literal_index));
+  literal.value[0] = 8;
+  EXPECT_FALSE(erc7730_workflow_observe_membership_literal(
+      &workflow, &literal, &complete, &visible, &literal_index));
+}
+
+TEST(Erc7730Workflow, HandlesCanonicalEmptyMembershipSets) {
+  Erc7730Workflow workflow{};
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  workflow.condition_capture = true;
+  workflow.pending_condition = {7, 0, 1, 0};
+  Erc7730Literal empty_set{};
+  empty_set.kind = 9;
+  empty_set.length = 2;
+  uint16_t first_literal = 0;
+  ASSERT_TRUE(erc7730_workflow_load_membership_set(
+      &workflow, &empty_set, &first_literal));
+  EXPECT_EQ(first_literal, UINT16_MAX);
+  bool visible = false;
+  ASSERT_TRUE(
+      erc7730_workflow_finish_empty_membership(&workflow, &visible));
+  EXPECT_TRUE(visible);
 }

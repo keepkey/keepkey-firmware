@@ -522,12 +522,121 @@ bool erc7730_workflow_begin_condition_capture(
     Erc7730Workflow* workflow, const Erc7730Condition* condition) {
   if (!workflow || !condition || workflow->typed_data ||
       workflow->phase != ERC7730_WORKFLOW_READY ||
-      (condition->opcode != 4 && condition->opcode != 5) ||
-      condition->path == UINT16_MAX || condition->literal_set != UINT16_MAX ||
+      condition->opcode < 4 || condition->opcode > 8 ||
+      condition->path == UINT16_MAX ||
+      ((condition->opcode <= 5) !=
+       (condition->literal_set == UINT16_MAX)) ||
       condition->flags != 0 || workflow->condition_capture)
     return false;
   workflow->pending_condition = *condition;
   workflow->condition_capture = true;
+  return true;
+}
+
+bool erc7730_workflow_prepare_captured_membership(
+    Erc7730Workflow* workflow, uint16_t* literal_set) {
+  if (!workflow || !literal_set || !workflow->condition_capture ||
+      workflow->pending_condition.opcode < 6 ||
+      workflow->pending_condition.opcode > 8 ||
+      workflow->pending_condition.literal_set == UINT16_MAX ||
+      workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
+      !erc7730_abi_stream_captured(&workflow->calldata,
+                                   &workflow->condition_value))
+    return false;
+  *literal_set = workflow->pending_condition.literal_set;
+  erc7730_abi_stream_clear(&workflow->calldata);
+  workflow->phase = ERC7730_WORKFLOW_READY;
+  workflow->condition_literal_count = 0;
+  workflow->condition_literal_position = 0;
+  workflow->condition_matched = false;
+  return true;
+}
+
+bool erc7730_workflow_load_membership_set(Erc7730Workflow* workflow,
+                                          const Erc7730Literal* set,
+                                          uint16_t* first_literal) {
+  uint16_t count = 0;
+  if (!workflow || !set || !first_literal || !workflow->condition_capture ||
+      workflow->phase != ERC7730_WORKFLOW_READY ||
+      !erc7730_literal_set_count(set, &count) || count > 64)
+    return false;
+  for (uint16_t i = 0; i < count; i++) {
+    uint16_t index = UINT16_MAX;
+    if (!erc7730_literal_set_index(set, i, &index) || index >= 64)
+      return false;
+    workflow->condition_literals[i] = (uint8_t)index;
+  }
+  workflow->condition_literal_count = count;
+  workflow->condition_literal_position = 0;
+  *first_literal = count == 0 ? UINT16_MAX : workflow->condition_literals[0];
+  return true;
+}
+
+static bool finish_membership(Erc7730Workflow* workflow, bool matched,
+                              bool* visible) {
+  const uint8_t opcode = workflow->pending_condition.opcode;
+  if (opcode == 8 && !matched) return false;
+  *visible = opcode == 6 ? matched : opcode == 7 ? !matched : false;
+  workflow->condition_capture = false;
+  workflow->condition_matched = false;
+  memzero(&workflow->pending_condition, sizeof(workflow->pending_condition));
+  memzero(&workflow->condition_value, sizeof(workflow->condition_value));
+  memzero(workflow->condition_literals, sizeof(workflow->condition_literals));
+  workflow->condition_literal_count = 0;
+  workflow->condition_literal_position = 0;
+  workflow->container_source = 0;
+  return true;
+}
+
+bool erc7730_workflow_finish_empty_membership(Erc7730Workflow* workflow,
+                                              bool* visible) {
+  return workflow && visible && workflow->condition_capture &&
+         workflow->condition_literal_count == 0 &&
+         workflow->phase == ERC7730_WORKFLOW_READY &&
+         finish_membership(workflow, false, visible);
+}
+
+bool erc7730_workflow_observe_membership_literal(
+    Erc7730Workflow* workflow, const Erc7730Literal* literal, bool* complete,
+    bool* visible, uint16_t* next_literal) {
+  Erc7730AbiProgram program;
+  Erc7730AbiNode container_node;
+  if (complete) *complete = false;
+  if (!workflow || !literal || !complete || !visible || !next_literal ||
+      !workflow->condition_capture ||
+      workflow->condition_literal_count == 0 ||
+      workflow->condition_literal_position >= workflow->condition_literal_count ||
+      workflow->phase != ERC7730_WORKFLOW_READY)
+    return false;
+  if (workflow->container_source != 0) {
+    memzero(&container_node, sizeof(container_node));
+    container_node.kind = workflow->container_source <= 2
+                              ? ERC7730_ABI_ADDRESS
+                              : ERC7730_ABI_UINT;
+    container_node.size = container_node.kind == ERC7730_ABI_UINT ? 256 : 0;
+    program.nodes = &container_node;
+    program.node_count = 1;
+    program.root = 0;
+    workflow->condition_value.node = 0;
+  } else if (!erc7730_program_loader_complete(&workflow->loader, &program)) {
+    return false;
+  }
+  workflow->condition_matched |= erc7730_capture_equals_literal(
+      &program, &workflow->condition_value, literal);
+  workflow->condition_literal_position++;
+  if (workflow->condition_literal_position < workflow->condition_literal_count) {
+    *next_literal =
+        workflow->condition_literals[workflow->condition_literal_position];
+    memzero(&container_node, sizeof(container_node));
+    return true;
+  }
+  const bool matched = workflow->condition_matched;
+  if (!finish_membership(workflow, matched, visible)) {
+    memzero(&container_node, sizeof(container_node));
+    return false;
+  }
+  *complete = true;
+  memzero(&container_node, sizeof(container_node));
   return true;
 }
 

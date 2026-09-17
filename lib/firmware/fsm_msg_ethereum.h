@@ -235,16 +235,8 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   continue_ethereum_sign_tx(tx);
 }
 
-static void continue_erc7730_condition(void) {
+static void continue_erc7730_condition_visibility(bool visible) {
   Erc7730Workflow* workflow = erc7730_workflow_state();
-  bool visible = false;
-  if (!erc7730_workflow_resolve_captured_condition(workflow, &visible)) {
-    erc7730_workflow_abort(workflow);
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Unable to evaluate ERC-7730 condition"));
-    layoutHome();
-    return;
-  }
   if (!visible) {
     if (!erc7730_workflow_skip_display(workflow)) {
       erc7730_workflow_abort(workflow);
@@ -269,6 +261,33 @@ static void continue_erc7730_condition(void) {
     return;
   }
   send_erc7730_definition_request();
+}
+
+static void continue_erc7730_condition(void) {
+  Erc7730Workflow* workflow = erc7730_workflow_state();
+  if (workflow->pending_condition.opcode >= 6) {
+    uint16_t literal_set = UINT16_MAX;
+    if (!erc7730_workflow_prepare_captured_membership(workflow, &literal_set) ||
+        !erc7730_workflow_select_literal(workflow, literal_set)) {
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unable to load ERC-7730 condition set"));
+      layoutHome();
+      return;
+    }
+    workflow->display_stage = ERC7730_DISPLAY_CONDITION_SET;
+    send_erc7730_definition_request();
+    return;
+  }
+  bool visible = false;
+  if (!erc7730_workflow_resolve_captured_condition(workflow, &visible)) {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Unable to evaluate ERC-7730 condition"));
+    layoutHome();
+    return;
+  }
+  continue_erc7730_condition_visibility(visible);
 }
 
 static void start_erc7730_calldata(Erc7730Workflow* workflow,
@@ -580,7 +599,7 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       layoutHome();
       return;
     }
-    if (condition.opcode == 4 || condition.opcode == 5) {
+    if (condition.opcode >= 4 && condition.opcode <= 8) {
       const uint16_t condition_path = condition.path;
       if (!erc7730_workflow_begin_condition_capture(workflow, &condition) ||
           !erc7730_workflow_select_path(workflow, condition_path)) {
@@ -629,6 +648,86 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     send_erc7730_definition_request();
+    return;
+  }
+  if (selection_kind == ERC7730_SELECTION_LITERAL) {
+    Erc7730Literal literal;
+    if (!erc7730_workflow_selected_literal(workflow, &literal)) {
+      memzero(&literal, sizeof(literal));
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 condition literal"));
+      layoutHome();
+      return;
+    }
+    if (workflow->display_stage == ERC7730_DISPLAY_CONDITION_SET) {
+      uint16_t first_literal = UINT16_MAX;
+      if (!erc7730_workflow_load_membership_set(workflow, &literal,
+                                                &first_literal)) {
+        memzero(&literal, sizeof(literal));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 literal set"));
+        layoutHome();
+        return;
+      }
+      memzero(&literal, sizeof(literal));
+      if (first_literal == UINT16_MAX) {
+        bool visible = false;
+        if (!erc7730_workflow_finish_empty_membership(workflow, &visible)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("ERC-7730 empty condition did not match"));
+          layoutHome();
+          return;
+        }
+        continue_erc7730_condition_visibility(visible);
+        return;
+      }
+      if (!erc7730_workflow_select_literal(workflow, first_literal)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 condition member"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_CONDITION_LITERAL;
+      send_erc7730_definition_request();
+      return;
+    }
+    if (workflow->display_stage == ERC7730_DISPLAY_CONDITION_LITERAL) {
+      bool complete = false;
+      bool visible = false;
+      uint16_t next_literal = UINT16_MAX;
+      if (!erc7730_workflow_observe_membership_literal(
+              workflow, &literal, &complete, &visible, &next_literal)) {
+        memzero(&literal, sizeof(literal));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("ERC-7730 condition did not match"));
+        layoutHome();
+        return;
+      }
+      memzero(&literal, sizeof(literal));
+      if (!complete) {
+        if (!erc7730_workflow_select_literal(workflow, next_literal)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 condition member"));
+          layoutHome();
+          return;
+        }
+        send_erc7730_definition_request();
+        return;
+      }
+      continue_erc7730_condition_visibility(visible);
+      return;
+    }
+    memzero(&literal, sizeof(literal));
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Unexpected ERC-7730 literal"));
+    layoutHome();
     return;
   }
   if (selection_kind == ERC7730_SELECTION_STRING) {
