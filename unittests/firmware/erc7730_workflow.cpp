@@ -204,8 +204,8 @@ TEST(Erc7730Workflow, CapturesDeviceOwnedTransactionContainerFacts) {
   path.source = 2;
   path.source_index = 4;
   EthereumSignTx restored{};
-  ASSERT_TRUE(
-      erc7730_workflow_capture_tx_container(&workflow, &path, &restored));
+  ASSERT_TRUE(erc7730_workflow_capture_tx_container(&workflow, &path, &restored,
+                                                    nullptr));
   EXPECT_EQ(restored.chain_id, 8453u);
   char formatted[16];
   ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
@@ -226,11 +226,21 @@ TEST(Erc7730Workflow, RefusesUnavailableOrMalformedContainerFacts) {
   ASSERT_TRUE(erc7730_tx_continuation_capture(&workflow.continuation, &tx));
   Erc7730Path path{};
   path.source = 2;
-  path.source_index = 1;  // sender requires device key derivation
+  path.source_index = 1;
   EthereumSignTx restored{};
-  EXPECT_FALSE(
-      erc7730_workflow_capture_tx_container(&workflow, &path, &restored));
+  EXPECT_FALSE(erc7730_workflow_capture_tx_container(&workflow, &path,
+                                                     &restored, nullptr));
+  uint8_t sender[20];
+  memset(sender, 0x22, sizeof(sender));
+  ASSERT_TRUE(erc7730_workflow_capture_tx_container(&workflow, &path, &restored,
+                                                    sender));
+  char formatted[43];
+  workflow.current_formatter_kind = 1;
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "0x2222222222222222222222222222222222222222");
+  workflow.phase = ERC7730_WORKFLOW_READY;
   path.source_index = 2;  // missing recipient
-  EXPECT_FALSE(
-      erc7730_workflow_capture_tx_container(&workflow, &path, &restored));
+  EXPECT_FALSE(erc7730_workflow_capture_tx_container(&workflow, &path,
+                                                     &restored, nullptr));
 }
