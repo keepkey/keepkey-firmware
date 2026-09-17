@@ -8,6 +8,8 @@
 #define ERC7730_TOKEN_CAPTURE_TICKER UINT16_C(0xfffd)
 #define ERC7730_TOKEN_CAPTURE_THRESHOLD UINT16_C(0xfffc)
 #define ERC7730_TOKEN_CAPTURE_THRESHOLD_MESSAGE UINT16_C(0xfffb)
+#define ERC7730_TOKEN_CAPTURE_CHAIN_PATH UINT16_C(0xfffa)
+#define ERC7730_TOKEN_CAPTURE_CHAIN_LITERAL UINT16_C(0xfff9)
 #define ERC7730_TOKEN_DEFAULT_THRESHOLD_MESSAGE UINT16_C(0xffff)
 
 /*
@@ -185,10 +187,59 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   Erc7730Workflow* workflow = erc7730_workflow_state();
   const bool typed_data = workflow->typed_data;
   if (workflow->current_formatter_kind == 3 &&
+      workflow->formatter_auxiliary == ERC7730_TOKEN_CAPTURE_CHAIN_PATH) {
+    uint64_t chain_id = 0;
+    if (!erc7730_workflow_captured_uint64(workflow, &chain_id) ||
+        chain_id == 0) {
+      if (typed_data) eip712_stream_abort();
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 token chain"));
+      layoutHome();
+      return;
+    }
+    for (size_t i = 0; i < 8; i++)
+      workflow->condition_literals[47 - i] = (uint8_t)(chain_id >> (i * 8));
+    workflow->condition_literals[48] = 1;
+    erc7730_abi_stream_clear(&workflow->calldata);
+    workflow->container_source = 0;
+    workflow->phase = ERC7730_WORKFLOW_READY;
+    const uint16_t threshold =
+        (uint16_t)(((uint16_t)workflow->condition_literals[37] << 8) |
+                   workflow->condition_literals[38]);
+    const uint16_t token_path =
+        (uint16_t)(((uint16_t)workflow->condition_literals[34] << 8) |
+                   workflow->condition_literals[35]);
+    workflow->formatter_auxiliary =
+        threshold == UINT16_MAX ? ERC7730_TOKEN_CAPTURE_ADDRESS
+                                : ERC7730_TOKEN_CAPTURE_THRESHOLD;
+    const bool selected = threshold == UINT16_MAX
+                              ? erc7730_workflow_select_path(workflow,
+                                                             token_path)
+                              : erc7730_workflow_select_literal(workflow,
+                                                                threshold);
+    if (!selected) {
+      if (typed_data) eip712_stream_abort();
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 token formatter"));
+      layoutHome();
+      return;
+    }
+    workflow->display_stage = threshold == UINT16_MAX
+                                  ? ERC7730_DISPLAY_PATH
+                                  : ERC7730_DISPLAY_FORMATTER_ARGUMENT;
+    send_erc7730_definition_request();
+    return;
+  }
+  if (workflow->current_formatter_kind == 3 &&
       workflow->formatter_auxiliary == ERC7730_TOKEN_CAPTURE_ADDRESS) {
     uint8_t token_address[20];
     uint64_t chain_id = 0;
-    if (typed_data) {
+    if (workflow->condition_literals[48]) {
+      for (size_t i = 40; i < 48; i++)
+        chain_id = (chain_id << 8) | workflow->condition_literals[i];
+    } else if (typed_data) {
       Eip712DomainFacts facts;
       memzero(&facts, sizeof(facts));
       if (eip712_stream_domain_facts(&facts) && facts.has_chain_id)
@@ -890,6 +941,60 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     if (workflow->current_formatter_kind == 3 &&
+        workflow->formatter_auxiliary == ERC7730_TOKEN_CAPTURE_CHAIN_LITERAL) {
+      if ((literal.kind != 1 && literal.kind != 7) || literal.length == 0 ||
+          literal.length > 8) {
+        memzero(&literal, sizeof(literal));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 token chain"));
+        layoutHome();
+        return;
+      }
+      uint64_t chain_id = 0;
+      for (size_t i = 0; i < literal.length; i++)
+        chain_id = (chain_id << 8) | literal.value[i];
+      if (chain_id == 0) {
+        memzero(&literal, sizeof(literal));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 token chain"));
+        layoutHome();
+        return;
+      }
+      for (size_t i = 0; i < 8; i++)
+        workflow->condition_literals[47 - i] =
+            (uint8_t)(chain_id >> (i * 8));
+      workflow->condition_literals[48] = 1;
+      const uint16_t threshold =
+          (uint16_t)(((uint16_t)workflow->condition_literals[37] << 8) |
+                     workflow->condition_literals[38]);
+      const uint16_t token_path =
+          (uint16_t)(((uint16_t)workflow->condition_literals[34] << 8) |
+                     workflow->condition_literals[35]);
+      memzero(&literal, sizeof(literal));
+      workflow->formatter_auxiliary =
+          threshold == UINT16_MAX ? ERC7730_TOKEN_CAPTURE_ADDRESS
+                                  : ERC7730_TOKEN_CAPTURE_THRESHOLD;
+      const bool selected = threshold == UINT16_MAX
+                                ? erc7730_workflow_select_path(workflow,
+                                                               token_path)
+                                : erc7730_workflow_select_literal(workflow,
+                                                                  threshold);
+      if (!selected) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 token formatter"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = threshold == UINT16_MAX
+                                    ? ERC7730_DISPLAY_PATH
+                                    : ERC7730_DISPLAY_FORMATTER_ARGUMENT;
+      send_erc7730_definition_request();
+      return;
+    }
+    if (workflow->current_formatter_kind == 3 &&
         workflow->formatter_auxiliary == ERC7730_TOKEN_CAPTURE_THRESHOLD) {
       if (literal.kind != 1 || literal.length == 0 || literal.length > 32) {
         memzero(&literal, sizeof(literal));
@@ -1521,18 +1626,33 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     if (formatter.kind == 3) {
-      const bool has_threshold = formatter.argument_count >= 3;
-      const bool has_threshold_message = formatter.argument_count == 4;
-      if ((formatter.argument_count != 2 && formatter.argument_count != 3 &&
-           !has_threshold_message) ||
-          formatter.arguments[1].role != 2 ||
-          formatter.arguments[1].source != 1 ||
-          (has_threshold &&
-           (formatter.arguments[2].role != 7 ||
-            formatter.arguments[2].source != 2)) ||
-          (has_threshold_message &&
-           (formatter.arguments[3].role != 8 ||
-            formatter.arguments[3].source != 3))) {
+      uint16_t token_path = UINT16_MAX;
+      uint16_t threshold = UINT16_MAX;
+      uint16_t threshold_message = UINT16_MAX;
+      uint16_t chain = UINT16_MAX;
+      uint8_t chain_source = 0;
+      bool valid = formatter.argument_count >= 2;
+      for (uint8_t i = 1; valid && i < formatter.argument_count; i++) {
+        const Erc7730FormatterArgument* argument = &formatter.arguments[i];
+        if (argument->role == 2 && argument->source == 1 &&
+            token_path == UINT16_MAX)
+          token_path = argument->index;
+        else if (argument->role == 7 && argument->source == 2 &&
+                 threshold == UINT16_MAX)
+          threshold = argument->index;
+        else if (argument->role == 8 && argument->source == 3 &&
+                 threshold_message == UINT16_MAX)
+          threshold_message = argument->index;
+        else if (argument->role == 11 &&
+                 (argument->source == 1 || argument->source == 2) &&
+                 chain == UINT16_MAX) {
+          chain = argument->index;
+          chain_source = argument->source;
+        } else
+          valid = false;
+      }
+      if (!valid || token_path == UINT16_MAX ||
+          (threshold_message != UINT16_MAX && threshold == UINT16_MAX)) {
         memzero(&formatter, sizeof(formatter));
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -1541,35 +1661,46 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         return;
       }
       workflow->formatter_value_path = formatter.arguments[0].index;
-      const uint16_t token_path = formatter.arguments[1].index;
       memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
       memzero(workflow->condition_literals,
               sizeof(workflow->condition_literals));
-      const uint16_t threshold_message =
-          has_threshold_message ? formatter.arguments[3].index : UINT16_MAX;
       workflow->condition_literals[32] = (uint8_t)(threshold_message >> 8);
       workflow->condition_literals[33] = (uint8_t)threshold_message;
       workflow->condition_literals[34] = (uint8_t)(token_path >> 8);
       workflow->condition_literals[35] = (uint8_t)token_path;
-      workflow->condition_literals[36] = has_threshold ? 1 : 0;
-      workflow->formatter_auxiliary =
-          has_threshold ? ERC7730_TOKEN_CAPTURE_THRESHOLD
-                        : ERC7730_TOKEN_CAPTURE_ADDRESS;
-      const uint16_t threshold =
-          has_threshold ? formatter.arguments[2].index : UINT16_MAX;
+      workflow->condition_literals[36] = threshold != UINT16_MAX ? 1 : 0;
+      workflow->condition_literals[37] = (uint8_t)(threshold >> 8);
+      workflow->condition_literals[38] = (uint8_t)threshold;
+      if (chain != UINT16_MAX)
+        workflow->formatter_auxiliary =
+            chain_source == 1 ? ERC7730_TOKEN_CAPTURE_CHAIN_PATH
+                              : ERC7730_TOKEN_CAPTURE_CHAIN_LITERAL;
+      else if (threshold != UINT16_MAX)
+        workflow->formatter_auxiliary = ERC7730_TOKEN_CAPTURE_THRESHOLD;
+      else
+        workflow->formatter_auxiliary = ERC7730_TOKEN_CAPTURE_ADDRESS;
       memzero(&formatter, sizeof(formatter));
-      if (has_threshold
-              ? !erc7730_workflow_select_literal(workflow, threshold)
-              : !erc7730_workflow_select_path(workflow, token_path)) {
+      const bool selected =
+          chain != UINT16_MAX
+              ? (chain_source == 1
+                     ? erc7730_workflow_select_path(workflow, chain)
+                     : erc7730_workflow_select_literal(workflow, chain))
+          : threshold != UINT16_MAX
+              ? erc7730_workflow_select_literal(workflow, threshold)
+              : erc7730_workflow_select_path(workflow, token_path);
+      if (!selected) {
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         _("Invalid ERC-7730 token path"));
         layoutHome();
         return;
       }
-      workflow->display_stage = has_threshold
-                                    ? ERC7730_DISPLAY_FORMATTER_ARGUMENT
-                                    : ERC7730_DISPLAY_PATH;
+      workflow->display_stage =
+          chain != UINT16_MAX && chain_source == 1
+              ? ERC7730_DISPLAY_PATH
+          : chain != UINT16_MAX || threshold != UINT16_MAX
+              ? ERC7730_DISPLAY_FORMATTER_ARGUMENT
+              : ERC7730_DISPLAY_PATH;
       send_erc7730_definition_request();
       return;
     }
