@@ -320,7 +320,9 @@ void fsm_msgEthereumClearSignDefinitionChunk(
   }
   bool complete = false;
   const Erc7730CatalogResult result =
-      erc7730_workflow_replay_feed(workflow, msg, &complete);
+      workflow->phase == ERC7730_WORKFLOW_SELECT
+          ? erc7730_workflow_selection_feed(workflow, msg, &complete)
+          : erc7730_workflow_replay_feed(workflow, msg, &complete);
   if (result != ERC7730_CATALOG_MORE && result != ERC7730_CATALOG_COMPLETE) {
     ethereum_signing_abort();
     eip712_stream_abort();
