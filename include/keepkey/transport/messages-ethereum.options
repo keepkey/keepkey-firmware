@@ -66,3 +66,14 @@ EthereumTypedDataStructAck.EthereumFieldType.struct_name    max_size:80
 EthereumTypedDataStructAck.EthereumFieldType.array_levels   max_count:4
 EthereumTypedDataValueRequest.member_path                   max_count:16
 EthereumTypedDataValueAck.value                             max_size:1024
+
+# ERC-7730 catalog definitions are streamed in bounded chunks. Keep every byte
+# field statically allocated; the nanopb callback fallback is forbidden.
+EthereumClearSignDefinition.definition_id                  max_size:32
+EthereumClearSignDefinition.data                           max_size:1024
+EthereumClearSignDefinitionAck.definition_id               max_size:32
+EthereumClearSignDefinitionRequest.definition_id           max_size:32
+EthereumClearSignDefinitionRequest.contract_address        max_size:20
+EthereumClearSignDefinitionRequest.selector_or_type_hash   max_size:32
+EthereumClearSignDefinitionChunk.definition_id             max_size:32
+EthereumClearSignDefinitionChunk.data                      max_size:1024
