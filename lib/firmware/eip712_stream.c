@@ -1105,6 +1105,19 @@ bool eip712_stream_domain_facts(Eip712DomainFacts* facts) {
   return true;
 }
 
+bool eip712_stream_container_hash(uint16_t source_index, uint8_t value[32]) {
+  if (!value || !e712.active) return false;
+  if (source_index == 5 && e712.have_domain_separator) {
+    memcpy(value, e712.domain_separator, 32);
+    return true;
+  }
+  if (source_index == 6 && e712.domain_facts.has_primary_type_hash) {
+    memcpy(value, e712.domain_facts.primary_type_hash, 32);
+    return true;
+  }
+  return false;
+}
+
 bool eip712_stream_definition_accepted(void) {
   if (!e712.active || !e712.require_definition ||
       !e712.domain_facts.has_primary_type_hash || e712.definition_accepted ||

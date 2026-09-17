@@ -498,6 +498,25 @@ bool erc7730_workflow_capture_tx_container(Erc7730Workflow* workflow,
   return true;
 }
 
+bool erc7730_workflow_capture_eip712_container(Erc7730Workflow* workflow,
+                                               const Erc7730Path* path,
+                                               const uint8_t value[32]) {
+  if (!workflow || !path || !value || !workflow->typed_data ||
+      workflow->phase != ERC7730_WORKFLOW_READY || path->source != 2 ||
+      path->step_count != 0 ||
+      (path->source_index != 5 && path->source_index != 6))
+    return false;
+  erc7730_abi_stream_clear(&workflow->calldata);
+  memcpy(workflow->calldata.capture.data, value, 32);
+  workflow->calldata.capture.length = 32;
+  workflow->calldata.capture_enabled = true;
+  workflow->calldata.capture_found = true;
+  workflow->calldata.complete = true;
+  workflow->container_source = (uint8_t)path->source_index;
+  workflow->phase = ERC7730_WORKFLOW_COMPLETE;
+  return true;
+}
+
 bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
                                            const Erc7730Path* path) {
   if (!workflow || !path || !workflow->typed_data ||
@@ -724,9 +743,15 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
   Erc7730AbiNode container_node;
   if (workflow->container_source != 0) {
     memzero(&container_node, sizeof(container_node));
-    container_node.kind = workflow->container_source <= 2 ? ERC7730_ABI_ADDRESS
-                                                          : ERC7730_ABI_UINT;
-    container_node.size = container_node.kind == ERC7730_ABI_UINT ? 256 : 0;
+    if (workflow->container_source <= 2)
+      container_node.kind = ERC7730_ABI_ADDRESS;
+    else if (workflow->container_source <= 4)
+      container_node.kind = ERC7730_ABI_UINT;
+    else {
+      container_node.kind = ERC7730_ABI_FIXED_BYTES;
+      container_node.size = 32;
+    }
+    if (container_node.kind == ERC7730_ABI_UINT) container_node.size = 256;
     program.nodes = &container_node;
     program.node_count = 1;
     program.root = 0;
@@ -752,8 +777,7 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
 }
 
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow) {
-  if (!workflow || workflow->typed_data ||
-      workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
+  if (!workflow || workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
       workflow->display_index == UINT16_MAX)
     return false;
   memzero(workflow->label, sizeof(workflow->label));
