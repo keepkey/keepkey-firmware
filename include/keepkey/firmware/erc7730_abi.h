@@ -61,6 +61,8 @@ typedef enum {
   ERC7730_ABI_BAD_PATH,
 } Erc7730AbiResult;
 
+Erc7730AbiResult erc7730_abi_validate_program(const Erc7730AbiProgram* p);
+
 /* Validate a complete ABI argument block (calldata excluding its selector).
  * Success proves that exactly data_len bytes are represented by the root. */
 Erc7730AbiResult erc7730_abi_validate(const Erc7730AbiProgram* program,

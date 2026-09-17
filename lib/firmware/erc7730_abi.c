@@ -106,7 +106,7 @@ static bool static_size(const Erc7730AbiProgram* p, uint16_t index,
   return true;
 }
 
-static Erc7730AbiResult validate_program(const Erc7730AbiProgram* p) {
+Erc7730AbiResult erc7730_abi_validate_program(const Erc7730AbiProgram* p) {
   if (!p || !p->nodes || p->node_count == 0 ||
       p->node_count > ERC7730_ABI_MAX_NODES || p->root >= p->node_count)
     return ERC7730_ABI_BAD_PROGRAM;
@@ -344,7 +344,7 @@ static Erc7730AbiResult validate_value(AbiContext* ctx, uint16_t node,
 
 Erc7730AbiResult erc7730_abi_validate(const Erc7730AbiProgram* program,
                                       const uint8_t* data, size_t data_len) {
-  Erc7730AbiResult r = validate_program(program);
+  Erc7730AbiResult r = erc7730_abi_validate_program(program);
   if (r != ERC7730_ABI_OK) return r;
   if (!data && data_len != 0) return ERC7730_ABI_BOUNDS;
   AbiContext ctx = {program, data, data_len, 0};
