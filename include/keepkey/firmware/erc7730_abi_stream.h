@@ -12,7 +12,7 @@
 
 typedef struct {
   uint16_t node;
-  size_t declared_offset;
+  uint32_t declared_offset;
   uint8_t path_depth;
   bool target_prefix;
 } Erc7730AbiPending;
@@ -25,8 +25,8 @@ typedef struct {
   uint16_t pending_start;
   uint16_t pending_count;
   uint16_t pending_index;
-  size_t base;
-  size_t payload_remaining;
+  uint32_t base;
+  uint32_t payload_remaining;
   uint8_t mode;
   uint8_t utf8_remaining;
   uint8_t utf8_lower;
@@ -39,7 +39,7 @@ typedef struct {
 
 typedef struct {
   uint8_t data[ERC7730_ABI_CAPTURE_MAX];
-  size_t length;
+  uint16_t length;
   uint16_t node;
 } Erc7730AbiCapture;
 
@@ -48,8 +48,8 @@ typedef struct {
   Erc7730AbiStreamFrame frames[ERC7730_ABI_MAX_DEPTH];
   Erc7730AbiPending pending[ERC7730_ABI_STREAM_MAX_PENDING];
   uint8_t word[32];
-  size_t total_length;
-  size_t received;
+  uint32_t total_length;
+  uint32_t received;
   uint32_t elements;
   int32_t capture_path[ERC7730_ABI_MAX_PATH];
   Erc7730AbiCapture capture;
