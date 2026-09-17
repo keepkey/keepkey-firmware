@@ -1045,9 +1045,22 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
     memzero(&capture, sizeof(capture));
     return false;
   }
+  if (capture.node >= program.node_count ||
+      (workflow->current_formatter_kind == 4 &&
+       program.nodes[capture.node].kind != ERC7730_ABI_UINT &&
+       program.nodes[capture.node].kind != ERC7730_ABI_INT) ||
+      ((workflow->current_formatter_kind == 10 ||
+        workflow->current_formatter_kind == 11) &&
+       program.nodes[capture.node].kind != ERC7730_ABI_ADDRESS)) {
+    memzero(&capture, sizeof(capture));
+    return false;
+  }
   bool result = false;
   if (workflow->current_formatter_kind == 1 ||
-      workflow->current_formatter_kind == 9) {
+      workflow->current_formatter_kind == 4 ||
+      workflow->current_formatter_kind == 9 ||
+      workflow->current_formatter_kind == 10 ||
+      workflow->current_formatter_kind == 11) {
     result = erc7730_format_raw(&program, &capture, output, output_size);
   } else if (workflow->current_formatter_kind == 2 &&
              workflow->identity.chain_id == 1) {

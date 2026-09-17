@@ -1145,6 +1145,20 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       send_erc7730_definition_request();
       return;
     }
+    if (formatter.kind == 4 || formatter.kind == 10 || formatter.kind == 11) {
+      const uint16_t value_path = formatter.arguments[0].index;
+      memzero(&formatter, sizeof(formatter));
+      if (!erc7730_workflow_select_path(workflow, value_path)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 fallback value path"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_PATH;
+      send_erc7730_definition_request();
+      return;
+    }
     if ((formatter.kind != 1 && formatter.kind != 2 && formatter.kind != 6 &&
          formatter.kind != 9) ||
         formatter.argument_count != 1 ||
