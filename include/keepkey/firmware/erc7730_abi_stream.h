@@ -58,6 +58,7 @@ typedef struct {
   uint8_t word_received;
   uint8_t capture_path_count;
   bool capture_enabled;
+  bool capture_array_length;
   bool capture_found;
   bool complete;
   bool failed;
@@ -72,6 +73,8 @@ Erc7730AbiResult erc7730_abi_stream_feed(Erc7730AbiStream* stream,
 Erc7730AbiResult erc7730_abi_stream_capture_path(Erc7730AbiStream* stream,
                                                  const int32_t* path,
                                                  size_t path_count);
+Erc7730AbiResult erc7730_abi_stream_capture_array_path(
+    Erc7730AbiStream* stream, const int32_t* path, size_t path_count);
 Erc7730AbiResult erc7730_abi_stream_finish(Erc7730AbiStream* stream);
 bool erc7730_abi_stream_captured(const Erc7730AbiStream* stream,
                                  Erc7730AbiCapture* capture);

@@ -88,6 +88,41 @@ TEST(Erc7730AbiStream, AcceptsCanonicalRecursiveDynamicValues) {
   EXPECT_EQ(stream(&program, gap, 17), ERC7730_ABI_NON_CANONICAL);
 }
 
+TEST(Erc7730AbiStream, CapturesAuthenticatedArrayLength) {
+  const Erc7730AbiNode nodes[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {ERC7730_ABI_ARRAY, 0, 2, 1, ERC7730_ABI_DYNAMIC_ARRAY},
+      {ERC7730_ABI_UINT, 256, 0, 0, 0},
+  };
+  const Erc7730AbiProgram program{nodes, 3, 0};
+  std::vector<uint8_t> encoded;
+  word(encoded, 32);
+  word(encoded, 3);
+  word(encoded, 7);
+  word(encoded, 8);
+  word(encoded, 9);
+
+  Erc7730AbiStream state{};
+  ASSERT_EQ(erc7730_abi_stream_begin(&state, &program, encoded.size()),
+            ERC7730_ABI_OK);
+  const int32_t path[] = {0};
+  ASSERT_EQ(erc7730_abi_stream_capture_array_path(&state, path, 1),
+            ERC7730_ABI_OK);
+  for (size_t offset = 0; offset < encoded.size();) {
+    const size_t length = std::min(size_t{5}, encoded.size() - offset);
+    ASSERT_EQ(erc7730_abi_stream_feed(&state, offset, encoded.data() + offset,
+                                      length),
+              ERC7730_ABI_OK);
+    offset += length;
+  }
+  ASSERT_EQ(erc7730_abi_stream_finish(&state), ERC7730_ABI_OK);
+  Erc7730AbiCapture capture{};
+  ASSERT_TRUE(erc7730_abi_stream_captured(&state, &capture));
+  EXPECT_EQ(capture.node, 1u);
+  ASSERT_EQ(capture.length, 32u);
+  EXPECT_EQ(capture.data[31], 3u);
+}
+
 TEST(Erc7730AbiStream, RejectsInvalidUtf8PaddingAndTruncation) {
   const Erc7730AbiNode nodes[] = {
       {ERC7730_ABI_TUPLE, 0, 1, 1, 0},

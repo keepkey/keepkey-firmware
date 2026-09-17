@@ -52,6 +52,78 @@ TEST(Erc7730Workflow, StateIsBoundedIndependentlyOfDescriptorSize) {
   EXPECT_LE(sizeof(Erc7730Workflow), 4096u);
 }
 
+TEST(Erc7730Workflow, ResolvesAndBoundsNestedArrayDisplayPaths) {
+  Erc7730Workflow workflow{};
+  workflow.display_index = 4;
+  ASSERT_TRUE(erc7730_workflow_push_array(&workflow, 2, 12, 3));
+  workflow.array_frames[0].index = 1;
+  workflow.display_index = 6;
+  ASSERT_TRUE(erc7730_workflow_push_array(&workflow, 5, 10, 2));
+
+  Erc7730Path path{};
+  path.source = 1;
+  path.source_index = UINT16_MAX;
+  path.step_count = 5;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  path.steps[1].opcode = 2;
+  path.steps[2].opcode = 1;
+  path.steps[2].first = 1;
+  path.steps[3].opcode = 2;
+  path.steps[4].opcode = 1;
+  path.steps[4].first = 2;
+  Erc7730Path resolved{};
+  ASSERT_TRUE(erc7730_workflow_resolve_array_path(&workflow, &path, false,
+                                                   &resolved));
+  ASSERT_EQ(resolved.step_count, 5u);
+  EXPECT_EQ(resolved.steps[1].opcode, 1u);
+  EXPECT_EQ(resolved.steps[1].first, 1);
+  EXPECT_EQ(resolved.steps[3].opcode, 1u);
+  EXPECT_EQ(resolved.steps[3].first, 0);
+
+  workflow.display_index = 10;
+  bool repeat = false;
+  ASSERT_TRUE(erc7730_workflow_repeat_or_pop_array(&workflow, 6, 9,
+                                                   &repeat));
+  EXPECT_TRUE(repeat);
+  EXPECT_EQ(workflow.array_frames[1].index, 1u);
+  ASSERT_TRUE(erc7730_workflow_repeat_or_pop_array(&workflow, 6, 9,
+                                                   &repeat));
+  EXPECT_FALSE(repeat);
+  EXPECT_EQ(workflow.array_depth, 1u);
+
+  workflow.array_elements = ERC7730_ABI_MAX_ARRAY_ELEMENTS;
+  workflow.display_index = 7;
+  EXPECT_FALSE(erc7730_workflow_push_array(&workflow, 7, 8, 1));
+}
+
+TEST(Erc7730Workflow, CapturesDeviceStreamedTypedArrayLength) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  workflow.loader.abi.node_count = 3;
+  workflow.loader.abi.nodes[1].kind = ERC7730_ABI_ARRAY;
+  workflow.loader.abi.nodes[1].first_child = 2;
+  workflow.loader.abi.nodes[1].child_count = 1;
+  workflow.loader.abi.nodes[1].array_length = ERC7730_ABI_DYNAMIC_ARRAY;
+  workflow.loader.abi.nodes[2].kind = ERC7730_ABI_UINT;
+  workflow.loader.abi.nodes[2].size = 256;
+  Erc7730Path path{};
+  path.source = 1;
+  path.source_index = UINT16_MAX;
+  path.step_count = 1;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_array_capture(&workflow, &path));
+  const uint32_t member_path[] = {1, 0};
+  const uint8_t length[] = {0, 3};
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(
+      &workflow, member_path, 2, length, sizeof(length)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  uint8_t captured = 0;
+  ASSERT_TRUE(erc7730_workflow_captured_array_length(&workflow, &captured));
+  EXPECT_EQ(captured, 3u);
+}
+
 TEST(Erc7730Workflow, ReportsOnlyUnvalidatedCalldataAsWaiting) {
   Erc7730Workflow workflow{};
   size_t remaining = 99;

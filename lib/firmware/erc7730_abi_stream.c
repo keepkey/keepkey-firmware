@@ -137,6 +137,15 @@ static Erc7730AbiResult prepare(Erc7730AbiStream* s) {
           f->mode = STREAM_ARRAY_LENGTH;
           return ERC7730_ABI_OK;
         }
+        if (s->capture_array_length && f->target_prefix &&
+            f->path_depth == s->capture_path_count) {
+          memzero(s->capture.data, 32);
+          s->capture.data[30] = (uint8_t)(n->array_length >> 8);
+          s->capture.data[31] = (uint8_t)n->array_length;
+          s->capture.length = 32;
+          s->capture.node = f->node;
+          s->capture_found = true;
+        }
         if (s->elements > ERC7730_ABI_MAX_ARRAY_ELEMENTS - n->array_length)
           return ERC7730_ABI_RESOURCE_LIMIT;
         s->elements += n->array_length;
@@ -334,6 +343,15 @@ static Erc7730AbiResult consume_word(Erc7730AbiStream* s) {
     if (count > ERC7730_ABI_MAX_ARRAY_ELEMENTS ||
         s->elements > ERC7730_ABI_MAX_ARRAY_ELEMENTS - count)
       return ERC7730_ABI_RESOURCE_LIMIT;
+    if (s->capture_array_length && f->target_prefix &&
+        f->path_depth == s->capture_path_count) {
+      memzero(s->capture.data, 32);
+      s->capture.data[30] = (uint8_t)(count >> 8);
+      s->capture.data[31] = (uint8_t)count;
+      s->capture.length = 32;
+      s->capture.node = f->node;
+      s->capture_found = true;
+    }
     s->elements += (uint32_t)count;
     r = make_sequence(s, f, n->first_child, (uint16_t)count, true, s->received);
   } else {
@@ -372,6 +390,14 @@ Erc7730AbiResult erc7730_abi_stream_capture_path(Erc7730AbiStream* s,
   s->capture_path_count = path_count;
   s->capture_enabled = true;
   return ERC7730_ABI_OK;
+}
+
+Erc7730AbiResult erc7730_abi_stream_capture_array_path(
+    Erc7730AbiStream* s, const int32_t* path, size_t path_count) {
+  const Erc7730AbiResult result =
+      erc7730_abi_stream_capture_path(s, path, path_count);
+  if (result == ERC7730_ABI_OK) s->capture_array_length = true;
+  return result;
 }
 
 Erc7730AbiResult erc7730_abi_stream_feed(Erc7730AbiStream* s, size_t offset,

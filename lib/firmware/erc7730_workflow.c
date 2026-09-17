@@ -518,6 +518,30 @@ bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
   return true;
 }
 
+bool erc7730_workflow_restore_and_start_array_capture(
+    Erc7730Workflow* workflow, EthereumSignTx* tx, const Erc7730Path* path) {
+  if (!workflow || !tx || !path || path->source != 1 ||
+      path->step_count == 0 || path->step_count >= ERC7730_ABI_MAX_DEPTH)
+    return false;
+  int32_t components[ERC7730_ABI_MAX_DEPTH];
+  for (uint8_t i = 0; i < path->step_count; i++) {
+    if (path->steps[i].opcode != 1) return false;
+    components[i] = path->steps[i].first;
+  }
+  if (!erc7730_workflow_restore_and_start_calldata(workflow, tx)) {
+    memzero(components, sizeof(components));
+    return false;
+  }
+  const Erc7730AbiResult result = erc7730_abi_stream_capture_array_path(
+      &workflow->calldata, components, path->step_count);
+  memzero(components, sizeof(components));
+  if (result != ERC7730_ABI_OK) {
+    fail(workflow);
+    return false;
+  }
+  return true;
+}
+
 bool erc7730_workflow_capture_tx_container(Erc7730Workflow* workflow,
                                            const Erc7730Path* path,
                                            EthereumSignTx* tx,
@@ -900,6 +924,46 @@ bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
   return true;
 }
 
+bool erc7730_workflow_start_eip712_array_capture(Erc7730Workflow* workflow,
+                                                 const Erc7730Path* path) {
+  if (!workflow || !path || !workflow->typed_data ||
+      workflow->phase != ERC7730_WORKFLOW_READY || path->source != 1 ||
+      path->step_count == 0 || path->step_count >= ERC7730_ABI_MAX_DEPTH)
+    return false;
+  Erc7730AbiProgram program;
+  if (!erc7730_program_loader_complete(&workflow->loader, &program))
+    return false;
+  uint16_t node = program.root;
+  workflow->container_source = 0;
+  memzero(&workflow->calldata, sizeof(workflow->calldata));
+  for (uint8_t i = 0; i < path->step_count; i++) {
+    if (path->steps[i].opcode != 1 || node >= program.node_count) return false;
+    const Erc7730AbiNode* parent = &program.nodes[node];
+    const int32_t requested = path->steps[i].first;
+    if (parent->kind == ERC7730_ABI_TUPLE) {
+      if (requested < 0 || (uint32_t)requested >= parent->child_count)
+        return false;
+      node = (uint16_t)(parent->first_child + (uint32_t)requested);
+    } else if (parent->kind == ERC7730_ABI_ARRAY) {
+      if (requested < 0 || requested >= ERC7730_ABI_MAX_ARRAY_ELEMENTS)
+        return false;
+      node = parent->first_child;
+    } else {
+      return false;
+    }
+    workflow->calldata.capture_path[i] = requested;
+  }
+  if (node >= program.node_count ||
+      program.nodes[node].kind != ERC7730_ABI_ARRAY)
+    return false;
+  workflow->calldata.capture_path_count = path->step_count;
+  workflow->calldata.capture.node = node;
+  workflow->calldata.capture_enabled = true;
+  workflow->calldata.capture_array_length = true;
+  workflow->phase = ERC7730_WORKFLOW_TYPED_DATA;
+  return true;
+}
+
 static bool normalize_eip712_capture(const Erc7730AbiNode* node,
                                      const uint8_t* value, size_t value_len,
                                      Erc7730AbiCapture* capture) {
@@ -951,6 +1015,33 @@ bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,
       !workflow->calldata.capture_enabled || member_path_count < 2 ||
       member_path[0] != 1)
     return false;
+  if (workflow->calldata.capture_array_length &&
+      member_path_count == workflow->calldata.capture_path_count + 1u) {
+    bool matches = true;
+    for (size_t i = 0; i < workflow->calldata.capture_path_count; i++)
+      matches &= member_path[i + 1u] ==
+                 (uint32_t)workflow->calldata.capture_path[i];
+    if (matches) {
+      Erc7730AbiProgram program;
+      const uint16_t node = workflow->calldata.capture.node;
+      if (workflow->calldata.capture_found || value_len != 2 ||
+          !erc7730_program_loader_complete(&workflow->loader, &program) ||
+          node >= program.node_count ||
+          program.nodes[node].kind != ERC7730_ABI_ARRAY)
+        return false;
+      const uint16_t count = (uint16_t)((value[0] << 8) | value[1]);
+      if (count > ERC7730_ABI_MAX_ARRAY_ELEMENTS ||
+          (program.nodes[node].array_length != ERC7730_ABI_DYNAMIC_ARRAY &&
+           count != program.nodes[node].array_length))
+        return false;
+      memzero(workflow->calldata.capture.data, 32);
+      workflow->calldata.capture.data[30] = (uint8_t)(count >> 8);
+      workflow->calldata.capture.data[31] = (uint8_t)count;
+      workflow->calldata.capture.length = 32;
+      workflow->calldata.capture_found = true;
+      return true;
+    }
+  }
   /* Array lengths are streamed at the array's own path before its elements.
    * Resolve a signed negative component from that device-validated length,
    * then compare subsequent element paths using the resulting absolute index.
@@ -1291,6 +1382,112 @@ bool erc7730_workflow_captured_uint64(const Erc7730Workflow* workflow,
   *value = decoded;
   memzero(&capture, sizeof(capture));
   return true;
+}
+
+bool erc7730_workflow_captured_array_length(const Erc7730Workflow* workflow,
+                                            uint8_t* length) {
+  Erc7730AbiProgram program;
+  Erc7730AbiCapture capture;
+  if (!workflow || !length || workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
+      workflow->container_source != 0 ||
+      !erc7730_abi_stream_captured(&workflow->calldata, &capture) ||
+      !erc7730_program_loader_complete(&workflow->loader, &program) ||
+      capture.node >= program.node_count ||
+      program.nodes[capture.node].kind != ERC7730_ABI_ARRAY ||
+      capture.length != 32)
+    return false;
+  for (size_t i = 0; i < 31; i++)
+    if (capture.data[i] != 0) return false;
+  if (capture.data[31] > ERC7730_ABI_MAX_ARRAY_ELEMENTS) return false;
+  *length = capture.data[31];
+  memzero(&capture, sizeof(capture));
+  return true;
+}
+
+bool erc7730_workflow_resolve_array_path(const Erc7730Workflow* workflow,
+                                         const Erc7730Path* path,
+                                         bool array_root,
+                                         Erc7730Path* resolved) {
+  if (!workflow || !path || !resolved || path->source != 1 ||
+      path->step_count == 0)
+    return false;
+  *resolved = *path;
+  resolved->step_count = 0;
+  uint8_t array_index = 0;
+  for (uint8_t i = 0; i < path->step_count; i++) {
+    Erc7730PathStep step = path->steps[i];
+    if (step.opcode == 2) {
+      if (array_root && i + 1u == path->step_count &&
+          array_index == workflow->array_depth)
+        continue;
+      if (array_index >= workflow->array_depth) return false;
+      step.opcode = 1;
+      step.first = workflow->array_frames[array_index].index;
+      step.second = 0;
+      step.flags = 0;
+      array_index++;
+    }
+    if (resolved->step_count >= ERC7730_ABI_MAX_PATH) return false;
+    resolved->steps[resolved->step_count++] = step;
+  }
+  if (array_index != workflow->array_depth ||
+      (array_root && resolved->step_count == path->step_count))
+    return false;
+  return resolved->step_count != 0;
+}
+
+bool erc7730_workflow_push_array(Erc7730Workflow* workflow, uint16_t path,
+                                 uint16_t end_instruction, uint8_t count) {
+  if (!workflow || count == 0 ||
+      workflow->array_depth >= ERC7730_ABI_MAX_DEPTH ||
+      workflow->array_elements > ERC7730_ABI_MAX_ARRAY_ELEMENTS - count ||
+      end_instruction <= workflow->display_index)
+    return false;
+  Erc7730ArrayFrame* frame =
+      &workflow->array_frames[workflow->array_depth++];
+  frame->begin_instruction = workflow->display_index;
+  frame->end_instruction = end_instruction;
+  frame->path = path;
+  frame->separator = UINT16_MAX;
+  frame->index = 0;
+  frame->count = count;
+  workflow->array_elements += count;
+  return true;
+}
+
+bool erc7730_workflow_repeat_or_pop_array(Erc7730Workflow* workflow,
+                                          uint16_t begin_instruction,
+                                          uint16_t separator, bool* repeat) {
+  if (!workflow || !repeat || workflow->array_depth == 0) return false;
+  Erc7730ArrayFrame* frame =
+      &workflow->array_frames[workflow->array_depth - 1u];
+  if (frame->begin_instruction != begin_instruction ||
+      frame->end_instruction != workflow->display_index)
+    return false;
+  frame->separator = separator;
+  if (frame->index + 1u < frame->count) {
+    frame->index++;
+    *repeat = true;
+    return true;
+  }
+  memzero(frame, sizeof(*frame));
+  workflow->array_depth--;
+  *repeat = false;
+  return true;
+}
+
+bool erc7730_workflow_repeat_array_display(Erc7730Workflow* workflow) {
+  if (!workflow || workflow->phase != ERC7730_WORKFLOW_READY ||
+      workflow->array_depth == 0)
+    return false;
+  const Erc7730ArrayFrame* frame =
+      &workflow->array_frames[workflow->array_depth - 1u];
+  if (frame->begin_instruction == UINT16_MAX ||
+      frame->begin_instruction >= frame->end_instruction)
+    return false;
+  workflow->display_index = (uint16_t)(frame->begin_instruction + 1u);
+  workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
+  return erc7730_workflow_select_display(workflow, workflow->display_index);
 }
 
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow) {
