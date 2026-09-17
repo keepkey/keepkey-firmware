@@ -244,3 +244,29 @@ TEST(Erc7730Workflow, RefusesUnavailableOrMalformedContainerFacts) {
   EXPECT_FALSE(erc7730_workflow_capture_tx_container(&workflow, &path,
                                                      &restored, nullptr));
 }
+
+TEST(Erc7730Workflow, FormatsOnlyDeviceProvidedEip712HashFacts) {
+  Erc7730Workflow workflow{};
+  workflow.typed_data = true;
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  workflow.current_formatter_kind = 1;
+  Erc7730Path path{};
+  path.source = 2;
+  path.source_index = 5;
+  uint8_t hash[32];
+  memset(hash, 0xab, sizeof(hash));
+  ASSERT_TRUE(
+      erc7730_workflow_capture_eip712_container(&workflow, &path, hash));
+  char formatted[67];
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_EQ(strlen(formatted), 66u);
+  EXPECT_STREQ(
+      formatted,
+      "0xabababababababababababababababababababababababababababababababab");
+
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  path.source_index = 4;
+  EXPECT_FALSE(
+      erc7730_workflow_capture_eip712_container(&workflow, &path, hash));
+}

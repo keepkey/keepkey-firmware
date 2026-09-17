@@ -175,7 +175,9 @@ static void continue_ethereum_sign_tx(EthereumSignTx* msg) {
 
 static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   Erc7730Workflow* workflow = erc7730_workflow_state();
+  const bool typed_data = workflow->typed_data;
   if (workflow->intent[0] == '\0') {
+    if (typed_data) eip712_stream_abort();
     erc7730_workflow_abort(workflow);
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Invalid ERC-7730 intent"));
@@ -185,6 +187,7 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   if (!workflow->intent_confirmed) {
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Contract action", "%s", workflow->intent)) {
+      if (typed_data) eip712_stream_abort();
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Signing cancelled by user"));
@@ -198,6 +201,7 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
     char formatted[ERC7730_FORMATTED_VALUE_MAX + 1u];
     if (!erc7730_workflow_format_captured_raw(workflow, formatted,
                                               sizeof(formatted))) {
+      if (typed_data) eip712_stream_abort();
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       _("Unable to format ERC-7730 field"));
@@ -207,6 +211,7 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, workflow->label,
                  "%s", formatted)) {
       memzero(formatted, sizeof(formatted));
+      if (typed_data) eip712_stream_abort();
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Signing cancelled by user"));
@@ -217,6 +222,7 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   }
   if (had_field) {
     if (!erc7730_workflow_advance_display(workflow)) {
+      if (typed_data) eip712_stream_abort();
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       _("Invalid ERC-7730 display continuation"));
@@ -686,6 +692,25 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     memzero(sender_address, sizeof(sender_address));
     confirm_erc7730_intent_and_continue(&tx);
     memzero(&tx, sizeof(tx));
+  } else if (workflow->typed_data && path.source == 2) {
+    uint8_t value[32];
+    EthereumSignTx unused_tx;
+    memzero(value, sizeof(value));
+    memzero(&unused_tx, sizeof(unused_tx));
+    if (!eip712_stream_container_hash(path.source_index, value) ||
+        !erc7730_workflow_capture_eip712_container(workflow, &path, value)) {
+      memzero(value, sizeof(value));
+      memzero(&path, sizeof(path));
+      eip712_stream_abort();
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unsupported ERC-7730 EIP-712 fact"));
+      layoutHome();
+      return;
+    }
+    memzero(value, sizeof(value));
+    confirm_erc7730_intent_and_continue(&unused_tx);
+    memzero(&unused_tx, sizeof(unused_tx));
   } else if (workflow->typed_data) {
     if (!erc7730_workflow_start_eip712_capture(workflow, &path) ||
         !eip712_stream_definition_accepted()) {

@@ -240,6 +240,12 @@ TEST(Eip712Stream, CertifiedWalkPausesBeforeMessageValuesUntilAccepted) {
 
   EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DEFINITION);
   EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
+  uint8_t domain_hash[32];
+  uint8_t type_hash[32];
+  EXPECT_TRUE(eip712_stream_container_hash(5, domain_hash));
+  EXPECT_TRUE(eip712_stream_container_hash(6, type_hash));
+  EXPECT_NE(memcmp(domain_hash, type_hash, sizeof(domain_hash)), 0);
+  EXPECT_FALSE(eip712_stream_container_hash(4, type_hash));
   EXPECT_TRUE(eip712_stream_definition_accepted());
   EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_STRUCT);
   EXPECT_STREQ(eip712_stream_next()->struct_name, "Mail");

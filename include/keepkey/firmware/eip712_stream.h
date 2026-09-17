@@ -129,6 +129,7 @@ bool eip712_domain_facts_observe(
     const uint8_t* value, uint16_t value_len);
 
 bool eip712_stream_domain_facts(Eip712DomainFacts* facts);
+bool eip712_stream_container_hash(uint16_t source_index, uint8_t value[32]);
 
 #endif
 
