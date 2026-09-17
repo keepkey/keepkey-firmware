@@ -1438,7 +1438,10 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     memzero(value, sizeof(value));
-    confirm_erc7730_intent_and_continue(&unused_tx);
+    if (erc7730_workflow_condition_capture_pending(workflow))
+      continue_erc7730_condition();
+    else
+      confirm_erc7730_intent_and_continue(&unused_tx);
     memzero(&unused_tx, sizeof(unused_tx));
   } else if (workflow->typed_data) {
     const bool first_pass =
@@ -1983,7 +1986,10 @@ static void eip712_pump(void) {
           layout_home();
           return;
         }
-        confirm_erc7730_replayed_field();
+        if (erc7730_workflow_condition_capture_pending(workflow))
+          continue_erc7730_condition();
+        else
+          confirm_erc7730_replayed_field();
         return;
       }
       /* sign(keccak(0x19 || 0x01 || domainSeparator || hashStruct(message))) */
