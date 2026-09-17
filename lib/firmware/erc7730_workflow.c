@@ -940,6 +940,8 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
      * decimals/ticker may be used, so they fail closed here. */
     result = erc7730_format_amount(&program, &capture, 18, "ETH", output,
                                    output_size);
+  } else if (workflow->current_formatter_kind == 6) {
+    result = erc7730_format_duration(&program, &capture, output, output_size);
   }
   memzero(&capture, sizeof(capture));
   return result;

@@ -124,6 +124,30 @@ TEST(Erc7730Workflow, FormatsAuthenticatedMainnetNativeAmountExactly) {
   EXPECT_STREQ(formatted, "1 ETH");
 }
 
+TEST(Erc7730Workflow, FormatsCapturedDurationExactly) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  workflow.current_formatter_kind = 6;
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  const uint32_t member_path[2] = {1, 0};
+  uint8_t value[32] = {0};
+  value[30] = 0x20;
+  value[31] = 0x3a;
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
+                                              sizeof(value)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  char formatted[16];
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "02:17:30");
+}
+
 TEST(Erc7730Workflow, TypedDataCaptureFailsClosedOnMissingOrWrongWidthValue) {
   Erc7730Workflow workflow{};
   prepareTypedUintWorkflow(&workflow);
