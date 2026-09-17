@@ -117,16 +117,22 @@ typedef struct {
   bool failed;
 } Erc7730CatalogVerifier;
 
-void erc7730_catalog_begin(Erc7730CatalogVerifier* verifier,
+/* Caller-owned second-pass state, suitable for a workflow scratch union. */
+typedef struct {
+  Erc7730CatalogVerifier verifier;
+  uint32_t program_length;
+} Erc7730CatalogReplay;
+
+void erc7730_catalog_begin(Erc7730CatalogVerifier* v,
                            const uint8_t definition_id[32],
                            uint32_t total_length);
 
-Erc7730CatalogResult erc7730_catalog_feed(Erc7730CatalogVerifier* verifier,
+Erc7730CatalogResult erc7730_catalog_feed(Erc7730CatalogVerifier* v,
                                           uint32_t offset, const uint8_t* data,
                                           size_t data_len,
                                           Erc7730CatalogIdentity* identity);
 
-void erc7730_catalog_abort(Erc7730CatalogVerifier* verifier);
+void erc7730_catalog_abort(Erc7730CatalogVerifier* v);
 
 /* Single offline-preload slot. Verifier storage is overlaid with the accepted
  * identity after authentication, so both never add together in .bss. */
@@ -148,6 +154,14 @@ bool erc7730_catalog_program_chunk(const Erc7730CatalogIdentity* identity,
                                    uint32_t* program_offset,
                                    const uint8_t** program_data,
                                    size_t* program_data_len);
+void erc7730_catalog_replay_begin(Erc7730CatalogReplay* replay,
+                                  const Erc7730CatalogIdentity* identity,
+                                  uint32_t total_length);
+Erc7730CatalogResult erc7730_catalog_replay_feed(
+    Erc7730CatalogReplay* replay, const uint8_t definition_id[32],
+    uint32_t offset, uint32_t total_length, const uint8_t* data,
+    size_t data_len, uint32_t* program_offset, const uint8_t** program_data,
+    size_t* program_data_len, Erc7730CatalogIdentity* accepted_identity);
 void erc7730_catalog_clear_preload(void);
 
 #endif

@@ -589,7 +589,7 @@ static bool validate_display_instruction(Erc7730CatalogVerifier* v) {
           (opcode == 6 && b != UINT16_MAX) ||
           (opcode == 8 && !optional_index(b, v->table_counts[0])))
         return false;
-      uint8_t* frame = v->signature + (v->display_depth - 1u) * 5u;
+      const uint8_t* frame = v->signature + (v->display_depth - 1u) * 5u;
       const uint16_t begin = (uint16_t)(((uint16_t)frame[1] << 8) | frame[2]);
       const uint16_t end = (uint16_t)(((uint16_t)frame[3] << 8) | frame[4]);
       if (a != begin || end != pc || (opcode == 6 && frame[0] != 5) ||
@@ -778,7 +778,7 @@ static bool consume_section_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
   return true;
 }
 
-static bool finish_section(Erc7730CatalogVerifier* v) {
+static bool finish_section(const Erc7730CatalogVerifier* v) {
   if (v->last_section == 1)
     return v->section_offset >= 2 && v->entry_index == v->entry_count &&
            v->entry_length == 0 && v->field_received == 0;
@@ -885,7 +885,7 @@ static bool consume_program_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
   return true;
 }
 
-static bool finish_program(Erc7730CatalogVerifier* v) {
+static bool finish_program(const Erc7730CatalogVerifier* v) {
   if (v->header_received != ERC7730_PROGRAM_HEADER_SIZE ||
       !validate_header(v) || v->field_received != 0 ||
       v->section_remaining != 0 || v->sections_seen != v->header[178] ||
@@ -1164,6 +1164,60 @@ bool erc7730_catalog_program_chunk(const Erc7730CatalogIdentity* identity,
   *program_data = envelope_data + (overlap_start - envelope_offset);
   *program_data_len = overlap_end - overlap_start;
   return true;
+}
+
+void erc7730_catalog_replay_begin(Erc7730CatalogReplay* replay,
+                                  const Erc7730CatalogIdentity* identity,
+                                  uint32_t total_length) {
+  if (!replay) return;
+  memzero(replay, sizeof(*replay));
+  if (!identity) {
+    replay->verifier.failed = true;
+    return;
+  }
+  replay->program_length = identity->program_length;
+  erc7730_catalog_begin(&replay->verifier, identity->definition_id,
+                        total_length);
+}
+
+Erc7730CatalogResult erc7730_catalog_replay_feed(
+    Erc7730CatalogReplay* replay, const uint8_t definition_id[32],
+    uint32_t offset, uint32_t total_length, const uint8_t* data,
+    size_t data_len, uint32_t* program_offset, const uint8_t** program_data,
+    size_t* program_data_len, Erc7730CatalogIdentity* accepted_identity) {
+  if (program_offset) *program_offset = 0;
+  if (program_data) *program_data = NULL;
+  if (program_data_len) *program_data_len = 0;
+  if (!replay || !definition_id || !program_offset || !program_data ||
+      !program_data_len || !accepted_identity ||
+      memcmp(replay->verifier.expected_id, definition_id, 32) != 0 ||
+      replay->verifier.total_length != total_length) {
+    if (replay) replay->verifier.failed = true;
+    return ERC7730_CATALOG_BAD_SEQUENCE;
+  }
+
+  Erc7730CatalogIdentity extraction_identity;
+  memzero(&extraction_identity, sizeof(extraction_identity));
+  extraction_identity.program_length = replay->program_length;
+  uint32_t candidate_offset;
+  const uint8_t* candidate_data;
+  size_t candidate_length;
+  if (!erc7730_catalog_program_chunk(&extraction_identity, offset, data,
+                                     data_len, &candidate_offset,
+                                     &candidate_data, &candidate_length)) {
+    replay->verifier.failed = true;
+    return ERC7730_CATALOG_BAD_SEQUENCE;
+  }
+
+  const Erc7730CatalogResult result = erc7730_catalog_feed(
+      &replay->verifier, offset, data, data_len, accepted_identity);
+  if (result == ERC7730_CATALOG_MORE || result == ERC7730_CATALOG_COMPLETE) {
+    *program_offset = candidate_offset;
+    *program_data = candidate_data;
+    *program_data_len = candidate_length;
+  }
+  memzero(&extraction_identity, sizeof(extraction_identity));
+  return result;
 }
 
 void erc7730_catalog_clear_preload(void) { memzero(&preload, sizeof(preload)); }

@@ -519,3 +519,47 @@ TEST(Erc7730Catalog, ExtractsProgramOnlyFromEnvelopeReplayChunks) {
   EXPECT_FALSE(erc7730_catalog_program_chunk(
       &identity, UINT32_MAX, bytes.data(), 2, &offset, &data, &length));
 }
+
+TEST(Erc7730Catalog, ReplayIsContiguousAndFailsClosedBeforeAuthentication) {
+  const auto program = minimalProgram();
+  const auto signed_envelope = envelope(program);
+  const auto id = digest(signed_envelope);
+  Erc7730CatalogIdentity expected{};
+  memcpy(expected.definition_id, id.data(), id.size());
+  expected.program_length = (uint32_t)program.size();
+  Erc7730CatalogReplay replay;
+  erc7730_catalog_replay_begin(&replay, &expected,
+                               (uint32_t)signed_envelope.size());
+  EXPECT_LE(sizeof(replay), 1024u);
+
+  Erc7730CatalogIdentity accepted{};
+  uint32_t program_offset = 99;
+  const uint8_t* program_data = reinterpret_cast<const uint8_t*>(1);
+  size_t program_length = 99;
+  ASSERT_EQ(erc7730_catalog_replay_feed(
+                &replay, id.data(), 0, (uint32_t)signed_envelope.size(),
+                signed_envelope.data(), 11, &program_offset, &program_data,
+                &program_length, &accepted),
+            ERC7730_CATALOG_MORE);
+  EXPECT_EQ(program_offset, 0u);
+  ASSERT_EQ(program_length, 1u);
+  EXPECT_EQ(*program_data, program[0]);
+
+  EXPECT_EQ(erc7730_catalog_replay_feed(
+                &replay, id.data(), 12, (uint32_t)signed_envelope.size(),
+                signed_envelope.data() + 11, 1, &program_offset, &program_data,
+                &program_length, &accepted),
+            ERC7730_CATALOG_BAD_SEQUENCE);
+  EXPECT_EQ(program_length, 0u);
+  EXPECT_EQ(program_data, nullptr);
+
+  erc7730_catalog_replay_begin(&replay, &expected,
+                               (uint32_t)signed_envelope.size());
+  EXPECT_EQ(erc7730_catalog_replay_feed(
+                &replay, id.data(), 0, (uint32_t)signed_envelope.size(),
+                signed_envelope.data(), signed_envelope.size(), &program_offset,
+                &program_data, &program_length, &accepted),
+            ERC7730_CATALOG_UNTRUSTED);
+  EXPECT_EQ(program_length, 0u);
+  EXPECT_EQ(program_data, nullptr);
+}
