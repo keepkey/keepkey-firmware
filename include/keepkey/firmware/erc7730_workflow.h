@@ -27,6 +27,7 @@ typedef enum {
   ERC7730_SELECTION_STRING,
   ERC7730_SELECTION_FORMATTER,
   ERC7730_SELECTION_PATH,
+  ERC7730_SELECTION_CONDITION,
 } Erc7730SelectionKind;
 
 typedef enum {
@@ -36,6 +37,7 @@ typedef enum {
   ERC7730_DISPLAY_LABEL,
   ERC7730_DISPLAY_FORMATTER,
   ERC7730_DISPLAY_PATH,
+  ERC7730_DISPLAY_CONDITION,
 } Erc7730DisplayStage;
 
 /* The workflow owns every pointer-bearing interpreter object. No pointer into
@@ -49,6 +51,7 @@ typedef struct {
     Erc7730ProgramString string;
     Erc7730ProgramFormatter formatter;
     Erc7730ProgramPath path;
+    Erc7730ProgramCondition condition;
   } selection;
   /* Display materialization precedes calldata streaming, so the two pieces of
    * state never coexist. Overlay the two-byte formatter cursor with the much
@@ -91,6 +94,8 @@ bool erc7730_workflow_select_formatter(Erc7730Workflow* workflow,
                                        uint16_t formatter_index);
 bool erc7730_workflow_select_path(Erc7730Workflow* workflow,
                                   uint16_t path_index);
+bool erc7730_workflow_select_condition(Erc7730Workflow* workflow,
+                                       uint16_t condition_index);
 Erc7730CatalogResult erc7730_workflow_selection_feed(
     Erc7730Workflow* workflow, const EthereumClearSignDefinitionChunk* chunk,
     bool* complete);
@@ -103,6 +108,8 @@ bool erc7730_workflow_selected_formatter(const Erc7730Workflow* workflow,
                                          Erc7730Formatter* formatter);
 bool erc7730_workflow_selected_path(const Erc7730Workflow* workflow,
                                     Erc7730Path* path);
+bool erc7730_workflow_selected_condition(const Erc7730Workflow* workflow,
+                                         Erc7730Condition* condition);
 bool erc7730_workflow_restore_and_start_calldata(Erc7730Workflow* workflow,
                                                  EthereumSignTx* tx);
 bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
@@ -132,6 +139,7 @@ bool erc7730_workflow_preserve_selected_string(Erc7730Workflow* workflow,
 bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
                                           char* output, size_t output_size);
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow);
+bool erc7730_workflow_skip_display(Erc7730Workflow* workflow);
 void erc7730_workflow_abort(Erc7730Workflow* workflow);
 
 #endif

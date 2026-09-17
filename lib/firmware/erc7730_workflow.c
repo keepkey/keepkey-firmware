@@ -147,6 +147,19 @@ bool erc7730_workflow_select_path(Erc7730Workflow* workflow,
   return begin_selection_replay(workflow, ERC7730_SELECTION_PATH);
 }
 
+bool erc7730_workflow_select_condition(Erc7730Workflow* workflow,
+                                       uint16_t condition_index) {
+  Erc7730ProgramSection section;
+  if (!workflow || workflow->phase != ERC7730_WORKFLOW_READY ||
+      !erc7730_program_index_section(&workflow->loader.index, 5, &section))
+    return false;
+  memzero(&workflow->selection, sizeof(workflow->selection));
+  erc7730_program_condition_begin(&workflow->selection.condition,
+                                  section.length, condition_index);
+  if (workflow->selection.condition.failed) return false;
+  return begin_selection_replay(workflow, ERC7730_SELECTION_CONDITION);
+}
+
 static bool feed_selection_program(Erc7730Workflow* workflow,
                                    uint32_t program_offset,
                                    const uint8_t* program_data,
@@ -165,6 +178,9 @@ static bool feed_selection_program(Erc7730Workflow* workflow,
       break;
     case ERC7730_SELECTION_PATH:
       section_type = 3;
+      break;
+    case ERC7730_SELECTION_CONDITION:
+      section_type = 5;
       break;
     default:
       return false;
@@ -199,6 +215,10 @@ static bool feed_selection_program(Erc7730Workflow* workflow,
   if (workflow->selection_kind == ERC7730_SELECTION_PATH)
     return erc7730_program_path_feed(&workflow->selection.path, section_offset,
                                      overlap_data, overlap_length);
+  if (workflow->selection_kind == ERC7730_SELECTION_CONDITION)
+    return erc7730_program_condition_feed(&workflow->selection.condition,
+                                          section_offset, overlap_data,
+                                          overlap_length);
   return false;
 }
 
@@ -248,6 +268,10 @@ Erc7730CatalogResult erc7730_workflow_selection_feed(
       case ERC7730_SELECTION_PATH:
         selection_complete = workflow->selection.path.complete &&
                              !workflow->selection.path.failed;
+        break;
+      case ERC7730_SELECTION_CONDITION:
+        selection_complete = workflow->selection.condition.complete &&
+                             !workflow->selection.condition.failed;
         break;
       default:
         break;
@@ -299,6 +323,15 @@ bool erc7730_workflow_selected_path(const Erc7730Workflow* workflow,
          workflow->phase != ERC7730_WORKFLOW_FAILED &&
          workflow->selection_kind == ERC7730_SELECTION_PATH &&
          erc7730_program_path_complete(&workflow->selection.path, path);
+}
+
+bool erc7730_workflow_selected_condition(const Erc7730Workflow* workflow,
+                                         Erc7730Condition* condition) {
+  return workflow && workflow->phase != ERC7730_WORKFLOW_IDLE &&
+         workflow->phase != ERC7730_WORKFLOW_FAILED &&
+         workflow->selection_kind == ERC7730_SELECTION_CONDITION &&
+         erc7730_program_condition_complete(&workflow->selection.condition,
+                                            condition);
 }
 
 Erc7730CatalogResult erc7730_workflow_replay_feed(
@@ -628,6 +661,16 @@ bool erc7730_workflow_advance_display(Erc7730Workflow* workflow) {
   memzero(workflow->label, sizeof(workflow->label));
   erc7730_abi_stream_clear(&workflow->calldata);
   workflow->phase = ERC7730_WORKFLOW_READY;
+  workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
+  workflow->display_index++;
+  return erc7730_workflow_select_display(workflow, workflow->display_index);
+}
+
+bool erc7730_workflow_skip_display(Erc7730Workflow* workflow) {
+  if (!workflow || workflow->phase != ERC7730_WORKFLOW_READY ||
+      workflow->display_index == UINT16_MAX)
+    return false;
+  memzero(workflow->label, sizeof(workflow->label));
   workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
   workflow->display_index++;
   return erc7730_workflow_select_display(workflow, workflow->display_index);
