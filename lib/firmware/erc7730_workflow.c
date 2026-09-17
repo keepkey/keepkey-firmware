@@ -174,6 +174,20 @@ bool erc7730_workflow_select_literal(Erc7730Workflow* workflow,
   return begin_selection_replay(workflow, ERC7730_SELECTION_LITERAL);
 }
 
+bool erc7730_workflow_select_token_metadata(Erc7730Workflow* workflow,
+                                            uint64_t chain_id,
+                                            const uint8_t address[20]) {
+  Erc7730ProgramSection section;
+  if (!workflow || workflow->phase != ERC7730_WORKFLOW_READY || !address ||
+      !erc7730_program_index_section(&workflow->loader.index, 8, &section))
+    return false;
+  memzero(&workflow->selection, sizeof(workflow->selection));
+  erc7730_program_token_metadata_begin(&workflow->selection.token_metadata,
+                                       section.length, chain_id, address);
+  if (workflow->selection.token_metadata.failed) return false;
+  return begin_selection_replay(workflow, ERC7730_SELECTION_TOKEN_METADATA);
+}
+
 static bool feed_selection_program(Erc7730Workflow* workflow,
                                    uint32_t program_offset,
                                    const uint8_t* program_data,
@@ -198,6 +212,9 @@ static bool feed_selection_program(Erc7730Workflow* workflow,
       break;
     case ERC7730_SELECTION_LITERAL:
       section_type = 4;
+      break;
+    case ERC7730_SELECTION_TOKEN_METADATA:
+      section_type = 8;
       break;
     default:
       return false;
@@ -240,6 +257,10 @@ static bool feed_selection_program(Erc7730Workflow* workflow,
     return erc7730_program_literal_feed(&workflow->selection.literal,
                                         section_offset, overlap_data,
                                         overlap_length);
+  if (workflow->selection_kind == ERC7730_SELECTION_TOKEN_METADATA)
+    return erc7730_program_token_metadata_feed(
+        &workflow->selection.token_metadata, section_offset, overlap_data,
+        overlap_length);
   return false;
 }
 
@@ -297,6 +318,10 @@ Erc7730CatalogResult erc7730_workflow_selection_feed(
       case ERC7730_SELECTION_LITERAL:
         selection_complete = workflow->selection.literal.complete &&
                              !workflow->selection.literal.failed;
+        break;
+      case ERC7730_SELECTION_TOKEN_METADATA:
+        selection_complete = workflow->selection.token_metadata.complete &&
+                             !workflow->selection.token_metadata.failed;
         break;
       default:
         break;
@@ -366,6 +391,15 @@ bool erc7730_workflow_selected_literal(const Erc7730Workflow* workflow,
          workflow->selection_kind == ERC7730_SELECTION_LITERAL &&
          erc7730_program_literal_complete(&workflow->selection.literal,
                                           literal);
+}
+
+bool erc7730_workflow_selected_token_metadata(
+    const Erc7730Workflow* workflow, Erc7730TokenMetadata* metadata) {
+  return workflow && workflow->phase != ERC7730_WORKFLOW_IDLE &&
+         workflow->phase != ERC7730_WORKFLOW_FAILED &&
+         workflow->selection_kind == ERC7730_SELECTION_TOKEN_METADATA &&
+         erc7730_program_token_metadata_complete(
+             &workflow->selection.token_metadata, metadata);
 }
 
 Erc7730CatalogResult erc7730_workflow_replay_feed(
@@ -1114,6 +1148,13 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
       workflow->current_formatter_kind == 10 ||
       workflow->current_formatter_kind == 11) {
     result = erc7730_format_raw(&program, &capture, output, output_size);
+  } else if (workflow->current_formatter_kind == 3) {
+    if (workflow->value_scratch.formatter_parameters.base[0] != '\0')
+      result = erc7730_format_amount(
+          &program, &capture,
+          workflow->value_scratch.formatter_parameters.decimals,
+          workflow->value_scratch.formatter_parameters.base, output,
+          output_size);
   } else if (workflow->current_formatter_kind == 2 &&
              workflow->identity.chain_id == 1) {
     /* Ethereum mainnet's native unit is a device-owned fact. Other networks
@@ -1145,6 +1186,27 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
   }
   memzero(&capture, sizeof(capture));
   return result;
+}
+
+bool erc7730_workflow_captured_address(const Erc7730Workflow* workflow,
+                                       uint8_t address[20]) {
+  Erc7730AbiProgram program;
+  Erc7730AbiCapture capture;
+  if (!workflow || !address || workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
+      !erc7730_abi_stream_captured(&workflow->calldata, &capture))
+    return false;
+  if (workflow->container_source != 0) {
+    if (workflow->container_source > 2 || capture.length != 32) return false;
+  } else if (!erc7730_program_loader_complete(&workflow->loader, &program) ||
+             capture.node >= program.node_count ||
+             program.nodes[capture.node].kind != ERC7730_ABI_ADDRESS ||
+             capture.length != 32) {
+    memzero(&capture, sizeof(capture));
+    return false;
+  }
+  memcpy(address, capture.data + 12, 20);
+  memzero(&capture, sizeof(capture));
+  return true;
 }
 
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow) {

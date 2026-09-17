@@ -29,6 +29,7 @@ typedef enum {
   ERC7730_SELECTION_PATH,
   ERC7730_SELECTION_CONDITION,
   ERC7730_SELECTION_LITERAL,
+  ERC7730_SELECTION_TOKEN_METADATA,
 } Erc7730SelectionKind;
 
 typedef enum {
@@ -68,6 +69,7 @@ typedef struct {
       Erc7730ProgramPath path;
       Erc7730ProgramCondition condition;
       Erc7730ProgramLiteral literal;
+      Erc7730ProgramTokenMetadata token_metadata;
     } selection;
   };
   char intent[ERC7730_PROGRAM_MAX_STRING_LENGTH + 1u];
@@ -133,6 +135,9 @@ bool erc7730_workflow_select_condition(Erc7730Workflow* workflow,
                                        uint16_t condition_index);
 bool erc7730_workflow_select_literal(Erc7730Workflow* workflow,
                                      uint16_t literal_index);
+bool erc7730_workflow_select_token_metadata(Erc7730Workflow* workflow,
+                                            uint64_t chain_id,
+                                            const uint8_t address[20]);
 Erc7730CatalogResult erc7730_workflow_selection_feed(
     Erc7730Workflow* workflow, const EthereumClearSignDefinitionChunk* chunk,
     bool* complete);
@@ -149,6 +154,8 @@ bool erc7730_workflow_selected_condition(const Erc7730Workflow* workflow,
                                          Erc7730Condition* condition);
 bool erc7730_workflow_selected_literal(const Erc7730Workflow* workflow,
                                        Erc7730Literal* literal);
+bool erc7730_workflow_selected_token_metadata(
+    const Erc7730Workflow* workflow, Erc7730TokenMetadata* metadata);
 bool erc7730_workflow_restore_and_start_calldata(Erc7730Workflow* workflow,
                                                  EthereumSignTx* tx);
 bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
@@ -217,6 +224,8 @@ void erc7730_workflow_fail_interpolation(Erc7730Workflow* workflow);
 void erc7730_workflow_finalize_interpolation(Erc7730Workflow* workflow);
 bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
                                           char* output, size_t output_size);
+bool erc7730_workflow_captured_address(const Erc7730Workflow* workflow,
+                                       uint8_t address[20]);
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow);
 bool erc7730_workflow_advance_interpolation(Erc7730Workflow* workflow);
 bool erc7730_workflow_jump_display(Erc7730Workflow* workflow,

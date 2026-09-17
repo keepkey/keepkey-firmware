@@ -1,5 +1,7 @@
 #include "keepkey/firmware/erc7730_program.h"
 
+#include <string.h>
+
 #include "memzero.h"
 
 static uint32_t read_be32(const uint8_t* p) {
@@ -699,6 +701,92 @@ bool erc7730_program_condition_complete(
 
 void erc7730_program_condition_clear(Erc7730ProgramCondition* condition) {
   if (condition) memzero(condition, sizeof(*condition));
+}
+
+void erc7730_program_token_metadata_begin(
+    Erc7730ProgramTokenMetadata* metadata, uint32_t section_length,
+    uint64_t chain_id, const uint8_t address[20]) {
+  if (!metadata) return;
+  memzero(metadata, sizeof(*metadata));
+  metadata->section_length = section_length;
+  metadata->target_chain_id = chain_id;
+  if (address) memcpy(metadata->target_address, address, 20);
+  if (!address || chain_id == 0 || section_length < 2) metadata->failed = true;
+}
+
+bool erc7730_program_token_metadata_feed(
+    Erc7730ProgramTokenMetadata* metadata, uint32_t section_offset,
+    const uint8_t* data, size_t data_len) {
+  if (!metadata || !data || data_len == 0 || metadata->failed ||
+      metadata->complete || section_offset != metadata->received ||
+      data_len > metadata->section_length - metadata->received) {
+    if (metadata) metadata->failed = true;
+    return false;
+  }
+  for (size_t i = 0; i < data_len; i++, metadata->received++) {
+    const uint8_t byte = data[i];
+    if (metadata->received < 2) {
+      metadata->header[metadata->received] = byte;
+      if (metadata->received == 1) {
+        metadata->record_count = read_be16(metadata->header);
+        if (metadata->record_count > 64) {
+          metadata->failed = true;
+          return false;
+        }
+      }
+      continue;
+    }
+    if (metadata->current_length == 0) {
+      metadata->header[metadata->header_received++] = byte;
+      if (metadata->header_received != 3) continue;
+      metadata->current_length = read_be16(metadata->header + 1);
+      metadata->header_received = 0;
+      if (metadata->current_length == 0) {
+        metadata->failed = true;
+        return false;
+      }
+      continue;
+    }
+    if (metadata->header[0] == 3 && metadata->current_length == 31)
+      metadata->payload[metadata->current_received] = byte;
+    metadata->current_received++;
+    if (metadata->current_received != metadata->current_length) continue;
+    if (metadata->header[0] == 3 && metadata->current_length == 31) {
+      uint64_t chain_id = 0;
+      for (size_t j = 0; j < 8; j++)
+        chain_id = (chain_id << 8) | metadata->payload[j];
+      if (chain_id == metadata->target_chain_id &&
+          memcmp(metadata->payload + 8, metadata->target_address, 20) == 0) {
+        if (metadata->selected_found) {
+          metadata->failed = true;
+          return false;
+        }
+        metadata->selected.ticker_string = read_be16(metadata->payload + 28);
+        metadata->selected.decimals = metadata->payload[30];
+        metadata->selected_found = true;
+      }
+    }
+    metadata->record_index++;
+    metadata->current_length = 0;
+    metadata->current_received = 0;
+  }
+  if (metadata->received == metadata->section_length) {
+    metadata->complete = !metadata->failed && metadata->selected_found &&
+                         metadata->record_index == metadata->record_count &&
+                         metadata->current_length == 0 &&
+                         metadata->header_received == 0;
+    if (!metadata->complete) metadata->failed = true;
+  }
+  return !metadata->failed;
+}
+
+bool erc7730_program_token_metadata_complete(
+    const Erc7730ProgramTokenMetadata* metadata,
+    Erc7730TokenMetadata* result) {
+  if (!metadata || !result || !metadata->complete || metadata->failed)
+    return false;
+  *result = metadata->selected;
+  return true;
 }
 
 void erc7730_program_literal_begin(Erc7730ProgramLiteral* literal,
