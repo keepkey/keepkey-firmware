@@ -24,6 +24,8 @@ enum {
 static struct {
   bool active;
   bool available;
+  bool replaying;
+  uint32_t replay_program_length;
   union {
     Erc7730CatalogVerifier verifier;
     Erc7730CatalogIdentity identity;
@@ -1111,6 +1113,103 @@ bool erc7730_catalog_preloaded(Erc7730CatalogIdentity* identity) {
   if (!identity || !preload.available) return false;
   memcpy(identity, &preload.data.identity, sizeof(*identity));
   return true;
+}
+
+bool erc7730_catalog_preloaded_replay_begin(uint8_t definition_id[32],
+                                            uint32_t* total_length) {
+  if (!definition_id || !total_length || !preload.available) return false;
+  Erc7730CatalogIdentity identity;
+  memcpy(&identity, &preload.data.identity, sizeof(identity));
+  memcpy(definition_id, identity.definition_id, 32);
+  *total_length = identity.envelope_length;
+  preload.active = false;
+  preload.available = false;
+  preload.replaying = true;
+  preload.replay_program_length = identity.program_length;
+  erc7730_catalog_begin(&preload.data.verifier, identity.definition_id,
+                        identity.envelope_length);
+  memzero(&identity, sizeof(identity));
+  if (preload.data.verifier.failed) {
+    erc7730_catalog_clear_preload();
+    return false;
+  }
+  return true;
+}
+
+bool erc7730_catalog_preloaded_replay_waiting(uint8_t definition_id[32],
+                                              uint32_t* next_offset,
+                                              uint32_t* total_length) {
+  if (!definition_id || !next_offset || !total_length || !preload.replaying ||
+      preload.data.verifier.failed) {
+    return false;
+  }
+  memcpy(definition_id, preload.data.verifier.expected_id, 32);
+  *next_offset = preload.data.verifier.received;
+  *total_length = preload.data.verifier.total_length;
+  return true;
+}
+
+Erc7730CatalogResult erc7730_catalog_preloaded_replay_feed(
+    const uint8_t definition_id[32], uint32_t offset, uint32_t total_length,
+    const uint8_t* data, size_t data_len, uint32_t* next_offset, bool* complete,
+    uint32_t* program_offset, const uint8_t** program_data,
+    size_t* program_data_len) {
+  if (!next_offset || !complete || !program_offset || !program_data ||
+      !program_data_len) {
+    return ERC7730_CATALOG_BAD_SEQUENCE;
+  }
+  *next_offset = 0;
+  *complete = false;
+  *program_offset = 0;
+  *program_data = NULL;
+  *program_data_len = 0;
+  if (!preload.replaying || !definition_id ||
+      memcmp(preload.data.verifier.expected_id, definition_id, 32) != 0 ||
+      preload.data.verifier.total_length != total_length) {
+    erc7730_catalog_clear_preload();
+    return ERC7730_CATALOG_BAD_SEQUENCE;
+  }
+
+  Erc7730CatalogIdentity extraction_identity;
+  memzero(&extraction_identity, sizeof(extraction_identity));
+  extraction_identity.program_length = preload.replay_program_length;
+  uint32_t candidate_offset;
+  const uint8_t* candidate_data;
+  size_t candidate_length;
+  if (!erc7730_catalog_program_chunk(&extraction_identity, offset, data,
+                                     data_len, &candidate_offset,
+                                     &candidate_data, &candidate_length)) {
+    memzero(&extraction_identity, sizeof(extraction_identity));
+    erc7730_catalog_clear_preload();
+    return ERC7730_CATALOG_BAD_SEQUENCE;
+  }
+  memzero(&extraction_identity, sizeof(extraction_identity));
+
+  Erc7730CatalogIdentity accepted;
+  memzero(&accepted, sizeof(accepted));
+  const Erc7730CatalogResult result = erc7730_catalog_feed(
+      &preload.data.verifier, offset, data, data_len, &accepted);
+  if (result != ERC7730_CATALOG_MORE && result != ERC7730_CATALOG_COMPLETE) {
+    memzero(&accepted, sizeof(accepted));
+    erc7730_catalog_clear_preload();
+    return result;
+  }
+  *program_offset = candidate_offset;
+  *program_data = candidate_data;
+  *program_data_len = candidate_length;
+  if (result == ERC7730_CATALOG_MORE) {
+    *next_offset = preload.data.verifier.received;
+    return result;
+  }
+
+  memzero(&preload.data.verifier, sizeof(preload.data.verifier));
+  memcpy(&preload.data.identity, &accepted, sizeof(accepted));
+  memzero(&accepted, sizeof(accepted));
+  preload.replaying = false;
+  preload.available = true;
+  *next_offset = total_length;
+  *complete = true;
+  return result;
 }
 
 bool erc7730_catalog_matches_calldata(const Erc7730CatalogIdentity* identity,
