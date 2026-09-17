@@ -197,6 +197,36 @@ TEST(Erc7730Workflow, FormatsTokenAmountOnlyFromAuthenticatedMetadata) {
                                                     sizeof(formatted)));
 }
 
+TEST(Erc7730Workflow, CapturesBoundedTokenChainId) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  const uint32_t member_path[2] = {1, 0};
+  uint8_t value[32] = {0};
+  value[24] = 1;
+  value[31] = 0x89;
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
+                                              sizeof(value)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  uint64_t chain_id = 0;
+  ASSERT_TRUE(erc7730_workflow_captured_uint64(&workflow, &chain_id));
+  EXPECT_EQ(chain_id, UINT64_C(0x0100000000000089));
+
+  value[0] = 1;
+  prepareTypedUintWorkflow(&workflow);
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
+                                              sizeof(value)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  EXPECT_FALSE(erc7730_workflow_captured_uint64(&workflow, &chain_id));
+}
+
 TEST(Erc7730Workflow, FormatsCapturedTimestampExactly) {
   Erc7730Workflow workflow{};
   prepareTypedUintWorkflow(&workflow);

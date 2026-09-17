@@ -1233,6 +1233,32 @@ bool erc7730_workflow_captured_address(const Erc7730Workflow* workflow,
   return true;
 }
 
+bool erc7730_workflow_captured_uint64(const Erc7730Workflow* workflow,
+                                      uint64_t* value) {
+  Erc7730AbiProgram program;
+  Erc7730AbiCapture capture;
+  if (!workflow || !value || workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
+      workflow->container_source != 0 ||
+      !erc7730_abi_stream_captured(&workflow->calldata, &capture) ||
+      !erc7730_program_loader_complete(&workflow->loader, &program) ||
+      capture.node >= program.node_count ||
+      program.nodes[capture.node].kind != ERC7730_ABI_UINT ||
+      capture.length != 32)
+    return false;
+  for (size_t i = 0; i < 24; i++) {
+    if (capture.data[i] != 0) {
+      memzero(&capture, sizeof(capture));
+      return false;
+    }
+  }
+  uint64_t decoded = 0;
+  for (size_t i = 24; i < 32; i++)
+    decoded = (decoded << 8) | capture.data[i];
+  *value = decoded;
+  memzero(&capture, sizeof(capture));
+  return true;
+}
+
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow) {
   if (!workflow || workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
       workflow->display_index == UINT16_MAX)
