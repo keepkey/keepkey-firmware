@@ -1080,6 +1080,16 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
         workflow->value_scratch.formatter_parameters.base,
         workflow->value_scratch.formatter_parameters.prefix, output,
         output_size);
+  } else if (workflow->current_formatter_kind == 14) {
+    const char* fallback = workflow->value_scratch.formatter_parameters.base;
+    const size_t length = strnlen(
+        fallback, sizeof(workflow->value_scratch.formatter_parameters.base));
+    if (length != 0 &&
+        length < sizeof(workflow->value_scratch.formatter_parameters.base) &&
+        length < output_size) {
+      memcpy(output, fallback, length + 1u);
+      result = true;
+    }
   }
   memzero(&capture, sizeof(capture));
   return result;

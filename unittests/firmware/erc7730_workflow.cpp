@@ -639,3 +639,32 @@ TEST(Erc7730Workflow, UsesHonestRawFallbacksForUnavailableExternalNames) {
                                                    sizeof(formatted)));
   EXPECT_STREQ(formatted, "0x2222222222222222222222222222222222222222");
 }
+
+TEST(Erc7730Workflow, NeverClaimsUnverifiedEncryptedPlaintext) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  workflow.current_formatter_kind = 14;
+  strcpy(workflow.value_scratch.formatter_parameters.base,
+         "[Encrypted Amount]");
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  const uint32_t member_path[2] = {1, 0};
+  uint8_t encrypted_handle[32];
+  memset(encrypted_handle, 0xab, sizeof(encrypted_handle));
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(
+      &workflow, member_path, 2, encrypted_handle, sizeof(encrypted_handle)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  char formatted[32];
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "[Encrypted Amount]");
+
+  workflow.value_scratch.formatter_parameters.base[0] = '\0';
+  EXPECT_FALSE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                    sizeof(formatted)));
+}
