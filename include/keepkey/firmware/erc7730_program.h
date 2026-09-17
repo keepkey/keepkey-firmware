@@ -104,6 +104,27 @@ typedef struct {
   bool failed;
 } Erc7730ProgramString;
 
+typedef struct {
+  uint8_t opcode;
+  uint8_t flags;
+  uint16_t a;
+  uint16_t b;
+  uint16_t c;
+} Erc7730DisplayInstruction;
+
+typedef struct {
+  Erc7730DisplayInstruction selected;
+  uint32_t section_length;
+  uint32_t received;
+  uint16_t instruction_count;
+  uint16_t target_index;
+  uint16_t instruction_index;
+  uint8_t entry[8];
+  uint8_t entry_received;
+  bool complete;
+  bool failed;
+} Erc7730ProgramDisplay;
+
 void erc7730_program_index_begin(Erc7730ProgramIndex* index,
                                  uint32_t program_length);
 bool erc7730_program_index_feed(Erc7730ProgramIndex* index,
@@ -148,5 +169,15 @@ bool erc7730_program_string_feed(Erc7730ProgramString* string,
 bool erc7730_program_string_complete(const Erc7730ProgramString* string,
                                      const char** value, size_t* value_len);
 void erc7730_program_string_clear(Erc7730ProgramString* string);
+void erc7730_program_display_begin(Erc7730ProgramDisplay* display,
+                                   uint32_t section_length,
+                                   uint16_t target_index);
+bool erc7730_program_display_feed(Erc7730ProgramDisplay* display,
+                                  uint32_t section_offset, const uint8_t* data,
+                                  size_t data_len);
+bool erc7730_program_display_complete(const Erc7730ProgramDisplay* display,
+                                      Erc7730DisplayInstruction* instruction,
+                                      uint16_t* instruction_count);
+void erc7730_program_display_clear(Erc7730ProgramDisplay* display);
 
 #endif

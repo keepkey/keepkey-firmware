@@ -468,3 +468,77 @@ bool erc7730_program_string_complete(const Erc7730ProgramString* string,
 void erc7730_program_string_clear(Erc7730ProgramString* string) {
   if (string) memzero(string, sizeof(*string));
 }
+
+void erc7730_program_display_begin(Erc7730ProgramDisplay* display,
+                                   uint32_t section_length,
+                                   uint16_t target_index) {
+  if (!display) return;
+  memzero(display, sizeof(*display));
+  display->section_length = section_length;
+  display->target_index = target_index;
+  if (section_length < 10 || ((section_length - 2u) % 8u) != 0)
+    display->failed = true;
+}
+
+bool erc7730_program_display_feed(Erc7730ProgramDisplay* display,
+                                  uint32_t section_offset, const uint8_t* data,
+                                  size_t data_len) {
+  if (!display || !data || data_len == 0 || display->failed ||
+      display->complete || section_offset != display->received ||
+      data_len > display->section_length - display->received) {
+    if (display) display->failed = true;
+    return false;
+  }
+  for (size_t i = 0; i < data_len; i++, display->received++) {
+    const uint8_t byte = data[i];
+    if (display->received < 2) {
+      display->entry[display->received] = byte;
+      if (display->received == 1) {
+        display->instruction_count = read_be16(display->entry);
+        if (display->instruction_count == 0 ||
+            display->instruction_count > 64 ||
+            display->target_index >= display->instruction_count ||
+            display->section_length !=
+                2u + (uint32_t)display->instruction_count * 8u) {
+          display->failed = true;
+          return false;
+        }
+      }
+      continue;
+    }
+    display->entry[display->entry_received++] = byte;
+    if (display->entry_received != sizeof(display->entry)) continue;
+    if (display->instruction_index == display->target_index) {
+      display->selected.opcode = display->entry[0];
+      display->selected.flags = display->entry[1];
+      display->selected.a = read_be16(display->entry + 2);
+      display->selected.b = read_be16(display->entry + 4);
+      display->selected.c = read_be16(display->entry + 6);
+    }
+    display->instruction_index++;
+    display->entry_received = 0;
+  }
+  if (display->received == display->section_length) {
+    display->complete =
+        !display->failed &&
+        display->instruction_index == display->instruction_count &&
+        display->entry_received == 0;
+    if (!display->complete) display->failed = true;
+  }
+  return !display->failed;
+}
+
+bool erc7730_program_display_complete(const Erc7730ProgramDisplay* display,
+                                      Erc7730DisplayInstruction* instruction,
+                                      uint16_t* instruction_count) {
+  if (!display || !instruction || !instruction_count || !display->complete ||
+      display->failed)
+    return false;
+  *instruction = display->selected;
+  *instruction_count = display->instruction_count;
+  return true;
+}
+
+void erc7730_program_display_clear(Erc7730ProgramDisplay* display) {
+  if (display) memzero(display, sizeof(*display));
+}

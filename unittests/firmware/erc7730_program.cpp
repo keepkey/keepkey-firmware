@@ -242,3 +242,41 @@ TEST(Erc7730ProgramString, RejectsMissingOversizedAndTruncatedValues) {
   EXPECT_FALSE(
       erc7730_program_string_feed(&loader, 0, section.data(), section.size()));
 }
+
+TEST(Erc7730ProgramDisplay, SelectsInstructionAcrossChunks) {
+  const std::vector<uint8_t> section = {
+      0, 3, 1, 0, 0, 2,  0xff, 0xff, 0xff, 0xff, 4,    0,    0,
+      3, 0, 7, 0, 9, 10, 0,    0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  };
+  for (size_t chunk : {1u, 7u, 64u}) {
+    Erc7730ProgramDisplay loader;
+    erc7730_program_display_begin(&loader, section.size(), 1);
+    for (size_t offset = 0; offset < section.size();) {
+      const size_t length = std::min(chunk, section.size() - offset);
+      ASSERT_TRUE(erc7730_program_display_feed(
+          &loader, offset, section.data() + offset, length));
+      offset += length;
+    }
+    Erc7730DisplayInstruction instruction;
+    uint16_t count = 0;
+    ASSERT_TRUE(
+        erc7730_program_display_complete(&loader, &instruction, &count));
+    EXPECT_EQ(count, 3u);
+    EXPECT_EQ(instruction.opcode, 4u);
+    EXPECT_EQ(instruction.a, 3u);
+    EXPECT_EQ(instruction.b, 7u);
+    EXPECT_EQ(instruction.c, 9u);
+  }
+}
+
+TEST(Erc7730ProgramDisplay, RejectsMissingTargetAndLengthMismatch) {
+  std::vector<uint8_t> section = {0,    1,    10,   0,    0xff,
+                                  0xff, 0xff, 0xff, 0xff, 0xff};
+  Erc7730ProgramDisplay loader;
+  erc7730_program_display_begin(&loader, section.size(), 1);
+  EXPECT_FALSE(
+      erc7730_program_display_feed(&loader, 0, section.data(), section.size()));
+  section.push_back(0);
+  erc7730_program_display_begin(&loader, section.size(), 0);
+  EXPECT_TRUE(loader.failed);
+}
