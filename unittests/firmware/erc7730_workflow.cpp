@@ -928,6 +928,41 @@ TEST(Erc7730Workflow, UsesHonestRawFallbacksForUnavailableExternalNames) {
   ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
                                                    sizeof(formatted)));
   EXPECT_STREQ(formatted, "0x2222222222222222222222222222222222222222");
+  workflow.current_formatter_kind = 12;
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "0x2222222222222222222222222222222222222222");
+}
+
+TEST(Erc7730Workflow, PreservesInteroperableAddressBytesWithoutLiveResolver) {
+  Erc7730Workflow workflow{};
+  workflow.typed_data = true;
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  workflow.current_formatter_kind = 12;
+  workflow.loader.abi_started = true;
+  workflow.loader.index.complete = true;
+  workflow.loader.abi.complete = true;
+  workflow.loader.abi.node_count = 2;
+  workflow.loader.abi.nodes[0].kind = ERC7730_ABI_TUPLE;
+  workflow.loader.abi.nodes[0].first_child = 1;
+  workflow.loader.abi.nodes[0].child_count = 1;
+  workflow.loader.abi.nodes[1].kind = ERC7730_ABI_BYTES;
+  const uint8_t encoded[] = {0x00, 0x01, 0x00, 0x14, 0xaa, 0xbb};
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  const uint32_t member_path[2] = {1, 0};
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(
+      &workflow, member_path, 2, encoded, sizeof(encoded)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  char formatted[32];
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "0x00010014aabb");
 }
 
 TEST(Erc7730Workflow, NeverClaimsUnverifiedEncryptedPlaintext) {
