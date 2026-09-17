@@ -1135,6 +1135,8 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
       (workflow->current_formatter_kind == 4 &&
        program.nodes[capture.node].kind != ERC7730_ABI_UINT &&
        program.nodes[capture.node].kind != ERC7730_ABI_INT) ||
+      (workflow->current_formatter_kind == 3 &&
+       program.nodes[capture.node].kind != ERC7730_ABI_UINT) ||
       ((workflow->current_formatter_kind == 10 ||
         workflow->current_formatter_kind == 11) &&
        program.nodes[capture.node].kind != ERC7730_ABI_ADDRESS)) {
@@ -1149,12 +1151,28 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
       workflow->current_formatter_kind == 11) {
     result = erc7730_format_raw(&program, &capture, output, output_size);
   } else if (workflow->current_formatter_kind == 3) {
-    if (workflow->value_scratch.formatter_parameters.base[0] != '\0')
-      result = erc7730_format_amount(
-          &program, &capture,
-          workflow->value_scratch.formatter_parameters.decimals,
-          workflow->value_scratch.formatter_parameters.base, output,
-          output_size);
+    const char* ticker = workflow->value_scratch.formatter_parameters.base;
+    const size_t ticker_length = strnlen(
+        ticker, sizeof(workflow->value_scratch.formatter_parameters.base));
+    if (ticker_length != 0 &&
+        ticker_length <
+            sizeof(workflow->value_scratch.formatter_parameters.base)) {
+      if (workflow->condition_literals[0] != 0 &&
+          memcmp(capture.data, workflow->condition_literals + 1, 32) >= 0) {
+        static const char threshold_message[] = "Unlimited ";
+        const size_t message_length = sizeof(threshold_message) - 1u;
+        if (message_length + ticker_length < output_size) {
+          memcpy(output, threshold_message, message_length);
+          memcpy(output + message_length, ticker, ticker_length + 1u);
+          result = true;
+        }
+      } else {
+        result = erc7730_format_amount(
+            &program, &capture,
+            workflow->value_scratch.formatter_parameters.decimals, ticker,
+            output, output_size);
+      }
+    }
   } else if (workflow->current_formatter_kind == 2 &&
              workflow->identity.chain_id == 1) {
     /* Ethereum mainnet's native unit is a device-owned fact. Other networks

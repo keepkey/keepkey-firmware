@@ -6,6 +6,7 @@
 #define ERC7730_FORMATTER_GROUP_CONTROL UINT8_C(0xff)
 #define ERC7730_TOKEN_CAPTURE_ADDRESS UINT16_C(0xfffe)
 #define ERC7730_TOKEN_CAPTURE_TICKER UINT16_C(0xfffd)
+#define ERC7730_TOKEN_CAPTURE_THRESHOLD UINT16_C(0xfffc)
 
 /*
  * This file is part of the Keepkey project
@@ -886,6 +887,36 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       layoutHome();
       return;
     }
+    if (workflow->current_formatter_kind == 3 &&
+        workflow->formatter_auxiliary == ERC7730_TOKEN_CAPTURE_THRESHOLD) {
+      if (literal.kind != 1 || literal.length == 0 || literal.length > 32) {
+        memzero(&literal, sizeof(literal));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 token threshold"));
+        layoutHome();
+        return;
+      }
+      workflow->condition_literals[0] = 1;
+      memzero(workflow->condition_literals + 1, 32);
+      memcpy(workflow->condition_literals + 33u - literal.length,
+             literal.value, literal.length);
+      const uint16_t token_path =
+          (uint16_t)(((uint16_t)workflow->condition_literals[34] << 8) |
+                     workflow->condition_literals[35]);
+      memzero(&literal, sizeof(literal));
+      workflow->formatter_auxiliary = ERC7730_TOKEN_CAPTURE_ADDRESS;
+      if (!erc7730_workflow_select_path(workflow, token_path)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 token path"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_PATH;
+      send_erc7730_definition_request();
+      return;
+    }
     if (workflow->display_stage == ERC7730_DISPLAY_ENUM_MAP) {
       uint16_t key_literal = UINT16_MAX;
       uint16_t value_string = UINT16_MAX;
@@ -1449,8 +1480,13 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     if (formatter.kind == 3) {
-      if (formatter.argument_count != 2 || formatter.arguments[1].role != 2 ||
-          formatter.arguments[1].source != 1) {
+      const bool has_threshold = formatter.argument_count == 3;
+      if ((formatter.argument_count != 2 && !has_threshold) ||
+          formatter.arguments[1].role != 2 ||
+          formatter.arguments[1].source != 1 ||
+          (has_threshold &&
+           (formatter.arguments[2].role != 7 ||
+            formatter.arguments[2].source != 2))) {
         memzero(&formatter, sizeof(formatter));
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -1459,18 +1495,30 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         return;
       }
       workflow->formatter_value_path = formatter.arguments[0].index;
-      workflow->formatter_auxiliary = ERC7730_TOKEN_CAPTURE_ADDRESS;
       const uint16_t token_path = formatter.arguments[1].index;
       memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+      memzero(workflow->condition_literals,
+              sizeof(workflow->condition_literals));
+      workflow->condition_literals[34] = (uint8_t)(token_path >> 8);
+      workflow->condition_literals[35] = (uint8_t)token_path;
+      workflow->formatter_auxiliary =
+          has_threshold ? ERC7730_TOKEN_CAPTURE_THRESHOLD
+                        : ERC7730_TOKEN_CAPTURE_ADDRESS;
+      const uint16_t threshold =
+          has_threshold ? formatter.arguments[2].index : UINT16_MAX;
       memzero(&formatter, sizeof(formatter));
-      if (!erc7730_workflow_select_path(workflow, token_path)) {
+      if (has_threshold
+              ? !erc7730_workflow_select_literal(workflow, threshold)
+              : !erc7730_workflow_select_path(workflow, token_path)) {
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         _("Invalid ERC-7730 token path"));
         layoutHome();
         return;
       }
-      workflow->display_stage = ERC7730_DISPLAY_PATH;
+      workflow->display_stage = has_threshold
+                                    ? ERC7730_DISPLAY_FORMATTER_ARGUMENT
+                                    : ERC7730_DISPLAY_PATH;
       send_erc7730_definition_request();
       return;
     }

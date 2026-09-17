@@ -174,6 +174,17 @@ TEST(Erc7730Workflow, FormatsTokenAmountOnlyFromAuthenticatedMetadata) {
                                                    sizeof(formatted)));
   EXPECT_STREQ(formatted, "1.234567 USDC");
 
+  workflow.condition_literals[0] = 1;
+  memcpy(workflow.condition_literals + 1, value, sizeof(value));
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "Unlimited USDC");
+
+  workflow.condition_literals[32]++;
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "1.234567 USDC");
+
   workflow.value_scratch.formatter_parameters.base[0] = '\0';
   EXPECT_FALSE(erc7730_workflow_format_captured_raw(&workflow, formatted,
                                                     sizeof(formatted)));
