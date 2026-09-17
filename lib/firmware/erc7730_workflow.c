@@ -1157,13 +1157,19 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
     if (ticker_length != 0 &&
         ticker_length <
             sizeof(workflow->value_scratch.formatter_parameters.base)) {
-      if (workflow->condition_literals[0] != 0 &&
-          memcmp(capture.data, workflow->condition_literals + 1, 32) >= 0) {
-        static const char threshold_message[] = "Unlimited ";
-        const size_t message_length = sizeof(threshold_message) - 1u;
-        if (message_length + ticker_length < output_size) {
-          memcpy(output, threshold_message, message_length);
-          memcpy(output + message_length, ticker, ticker_length + 1u);
+      if (workflow->formatter_auxiliary != 0 &&
+          memcmp(capture.data, workflow->condition_literals, 32) >= 0) {
+        static const char threshold_message[] = "Unlimited";
+        const char* message = threshold_message;
+        size_t message_length = sizeof(threshold_message) - 1u;
+        if (workflow->formatter_auxiliary != UINT16_MAX) {
+          message = (const char*)workflow->condition_literals + 32;
+          message_length = workflow->formatter_auxiliary;
+        }
+        if (message_length + 1u + ticker_length < output_size) {
+          memcpy(output, message, message_length);
+          output[message_length] = ' ';
+          memcpy(output + message_length + 1u, ticker, ticker_length + 1u);
           result = true;
         }
       } else {
