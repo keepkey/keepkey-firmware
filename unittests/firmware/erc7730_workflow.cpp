@@ -390,7 +390,7 @@ TEST(Erc7730Workflow, EvaluatesVisibilityFromDeviceCapturedContainerValue) {
   EXPECT_TRUE(visible);
 }
 
-TEST(Erc7730Workflow, RefusesConditionCaptureWithoutSupportedLifecycle) {
+TEST(Erc7730Workflow, ValidatesConditionCaptureLifecycleForBothSources) {
   Erc7730Workflow workflow{};
   workflow.phase = ERC7730_WORKFLOW_READY;
   Erc7730Condition condition{6, 0, UINT16_MAX, 0};
@@ -398,7 +398,7 @@ TEST(Erc7730Workflow, RefusesConditionCaptureWithoutSupportedLifecycle) {
       erc7730_workflow_begin_condition_capture(&workflow, &condition));
   condition = {4, 0, UINT16_MAX, 0};
   workflow.typed_data = true;
-  EXPECT_FALSE(
+  EXPECT_TRUE(
       erc7730_workflow_begin_condition_capture(&workflow, &condition));
 }
 

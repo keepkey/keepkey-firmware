@@ -520,7 +520,7 @@ bool erc7730_workflow_capture_eip712_container(Erc7730Workflow* workflow,
 
 bool erc7730_workflow_begin_condition_capture(
     Erc7730Workflow* workflow, const Erc7730Condition* condition) {
-  if (!workflow || !condition || workflow->typed_data ||
+  if (!workflow || !condition ||
       workflow->phase != ERC7730_WORKFLOW_READY ||
       condition->opcode < 4 || condition->opcode > 8 ||
       condition->path == UINT16_MAX ||
