@@ -89,6 +89,17 @@ bool erc7730_program_index_section(const Erc7730ProgramIndex* index,
   return true;
 }
 
+bool erc7730_program_index_known_section(const Erc7730ProgramIndex* index,
+                                         uint8_t section,
+                                         Erc7730ProgramSection* result) {
+  if (!index || index->failed || !result || section == 0 ||
+      section > ERC7730_PROGRAM_MAX_SECTIONS ||
+      index->sections[section].length == 0)
+    return false;
+  *result = index->sections[section];
+  return true;
+}
+
 void erc7730_program_index_clear(Erc7730ProgramIndex* index) {
   if (index) memzero(index, sizeof(*index));
 }
@@ -158,6 +169,65 @@ bool erc7730_program_abi_complete(const Erc7730ProgramAbi* abi,
 
 void erc7730_program_abi_clear(Erc7730ProgramAbi* abi) {
   if (abi) memzero(abi, sizeof(*abi));
+}
+
+void erc7730_program_loader_begin(Erc7730ProgramLoader* loader,
+                                  uint32_t program_length) {
+  if (!loader) return;
+  memzero(loader, sizeof(*loader));
+  erc7730_program_index_begin(&loader->index, program_length);
+  loader->failed = loader->index.failed;
+}
+
+bool erc7730_program_loader_feed(Erc7730ProgramLoader* loader,
+                                 uint32_t program_offset, const uint8_t* data,
+                                 size_t data_len) {
+  if (!loader || !data || data_len == 0 || loader->failed ||
+      data_len > UINT32_MAX - program_offset ||
+      !erc7730_program_index_feed(&loader->index, program_offset, data,
+                                  data_len)) {
+    if (loader) loader->failed = true;
+    return false;
+  }
+
+  Erc7730ProgramSection section;
+  if (!erc7730_program_index_known_section(
+          &loader->index, ERC7730_PROGRAM_SECTION_ABI, &section))
+    return true;
+  if (!loader->abi_started) {
+    erc7730_program_abi_begin(&loader->abi, section.length);
+    loader->abi_started = true;
+    if (loader->abi.failed) {
+      loader->failed = true;
+      return false;
+    }
+  }
+
+  const uint32_t chunk_end = program_offset + (uint32_t)data_len;
+  const uint32_t section_end = section.offset + section.length;
+  const uint32_t overlap_start =
+      program_offset > section.offset ? program_offset : section.offset;
+  const uint32_t overlap_end =
+      chunk_end < section_end ? chunk_end : section_end;
+  if (overlap_start < overlap_end &&
+      !erc7730_program_abi_feed(&loader->abi, overlap_start - section.offset,
+                                data + (overlap_start - program_offset),
+                                overlap_end - overlap_start)) {
+    loader->failed = true;
+    return false;
+  }
+  return true;
+}
+
+bool erc7730_program_loader_complete(const Erc7730ProgramLoader* loader,
+                                     Erc7730AbiProgram* program) {
+  return loader && !loader->failed && loader->abi_started &&
+         erc7730_program_index_complete(&loader->index) &&
+         erc7730_program_abi_complete(&loader->abi, program);
+}
+
+void erc7730_program_loader_clear(Erc7730ProgramLoader* loader) {
+  if (loader) memzero(loader, sizeof(*loader));
 }
 
 static void path_finish_entry(Erc7730ProgramPath* path) {

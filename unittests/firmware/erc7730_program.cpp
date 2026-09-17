@@ -109,6 +109,54 @@ TEST(Erc7730ProgramAbi, RejectsMalformedGraphAndLength) {
   EXPECT_TRUE(abi.failed);
 }
 
+TEST(Erc7730ProgramLoader, RetainsAbiDuringSingleArbitraryChunkReplay) {
+  const std::vector<uint8_t> abi = {
+      0, 2, ERC7730_ABI_TUPLE,   0, 0, 0, 1, 0, 1,
+      0, 0, ERC7730_ABI_ADDRESS, 0, 0, 0, 0, 0, 0,
+      0, 0,
+  };
+  std::vector<uint8_t> program(ERC7730_PROGRAM_HEADER_SIZE, 0);
+  program.back() = 2;
+  program.push_back(ERC7730_PROGRAM_SECTION_ABI);
+  append32(program, abi.size());
+  program.insert(program.end(), abi.begin(), abi.end());
+  program.push_back(7);
+  append32(program, 3);
+  program.insert(program.end(), {1, 2, 3});
+
+  for (size_t chunk : {1u, 5u, 17u, 1024u}) {
+    Erc7730ProgramLoader loader;
+    erc7730_program_loader_begin(&loader, program.size());
+    for (size_t offset = 0; offset < program.size();) {
+      const size_t length = std::min(chunk, program.size() - offset);
+      ASSERT_TRUE(erc7730_program_loader_feed(&loader, offset,
+                                              program.data() + offset, length));
+      offset += length;
+    }
+    Erc7730AbiProgram loaded;
+    ASSERT_TRUE(erc7730_program_loader_complete(&loader, &loaded));
+    ASSERT_EQ(loaded.node_count, 2u);
+    EXPECT_EQ(loaded.nodes[1].kind, ERC7730_ABI_ADDRESS);
+  }
+}
+
+TEST(Erc7730ProgramLoader, RefusesMissingOrMalformedAbiSection) {
+  auto missing = indexedProgram();
+  missing[ERC7730_PROGRAM_HEADER_SIZE] = 2;
+  Erc7730ProgramLoader loader;
+  erc7730_program_loader_begin(&loader, missing.size());
+  EXPECT_TRUE(
+      erc7730_program_loader_feed(&loader, 0, missing.data(), missing.size()));
+  Erc7730AbiProgram loaded;
+  EXPECT_FALSE(erc7730_program_loader_complete(&loader, &loaded));
+
+  auto malformed = indexedProgram();
+  malformed[ERC7730_PROGRAM_HEADER_SIZE + 5] = 0;
+  erc7730_program_loader_begin(&loader, malformed.size());
+  EXPECT_FALSE(erc7730_program_loader_feed(&loader, 0, malformed.data(),
+                                           malformed.size()));
+}
+
 TEST(Erc7730ProgramPath, SelectsStructuredContainerAndSlicePaths) {
   const std::vector<uint8_t> section = {
       0, 3, 1, 2,    0xff, 0xff, 1, 0xff, 0xff, 0xff, 0xff, 2, 2, 0, 0,

@@ -38,6 +38,18 @@ typedef struct {
   bool failed;
 } Erc7730ProgramAbi;
 
+/* Sections are canonical and ascending. The ABI is section 1, allowing a
+ * single authenticated replay to index the program and retain its bounded
+ * type tree even when a transport chunk spans the section header. */
+#define ERC7730_PROGRAM_SECTION_ABI 1u
+
+typedef struct {
+  Erc7730ProgramIndex index;
+  Erc7730ProgramAbi abi;
+  bool abi_started;
+  bool failed;
+} Erc7730ProgramLoader;
+
 typedef struct {
   uint8_t opcode;
   uint8_t flags;
@@ -82,6 +94,9 @@ bool erc7730_program_index_complete(const Erc7730ProgramIndex* index);
 bool erc7730_program_index_section(const Erc7730ProgramIndex* index,
                                    uint8_t section,
                                    Erc7730ProgramSection* result);
+bool erc7730_program_index_known_section(const Erc7730ProgramIndex* index,
+                                         uint8_t section,
+                                         Erc7730ProgramSection* result);
 void erc7730_program_index_clear(Erc7730ProgramIndex* index);
 void erc7730_program_abi_begin(Erc7730ProgramAbi* abi, uint32_t section_length);
 bool erc7730_program_abi_feed(Erc7730ProgramAbi* abi, uint32_t section_offset,
@@ -89,6 +104,14 @@ bool erc7730_program_abi_feed(Erc7730ProgramAbi* abi, uint32_t section_offset,
 bool erc7730_program_abi_complete(const Erc7730ProgramAbi* abi,
                                   Erc7730AbiProgram* program);
 void erc7730_program_abi_clear(Erc7730ProgramAbi* abi);
+void erc7730_program_loader_begin(Erc7730ProgramLoader* loader,
+                                  uint32_t program_length);
+bool erc7730_program_loader_feed(Erc7730ProgramLoader* loader,
+                                 uint32_t program_offset, const uint8_t* data,
+                                 size_t data_len);
+bool erc7730_program_loader_complete(const Erc7730ProgramLoader* loader,
+                                     Erc7730AbiProgram* program);
+void erc7730_program_loader_clear(Erc7730ProgramLoader* loader);
 void erc7730_program_path_begin(Erc7730ProgramPath* path,
                                 uint32_t section_length, uint16_t target_index);
 bool erc7730_program_path_feed(Erc7730ProgramPath* path,
