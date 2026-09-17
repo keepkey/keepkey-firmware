@@ -194,3 +194,65 @@ bool erc7730_format_amount(const Erc7730AbiProgram* program,
   memzero(digits, sizeof(digits));
   return true;
 }
+
+bool erc7730_format_duration(const Erc7730AbiProgram* program,
+                             const Erc7730AbiCapture* capture, char* output,
+                             size_t output_size) {
+  if (!program || !capture || !output || output_size == 0 ||
+      capture->node >= program->node_count || capture->length != 32) {
+    if (output && output_size != 0) output[0] = '\0';
+    return false;
+  }
+  const Erc7730AbiNode* node = &program->nodes[capture->node];
+  if (node->kind != ERC7730_ABI_UINT && node->kind != ERC7730_ABI_INT) {
+    output[0] = '\0';
+    return false;
+  }
+  const bool negative =
+      node->kind == ERC7730_ABI_INT && (capture->data[0] & 0x80u) != 0;
+  uint8_t hours[32];
+  memcpy(hours, capture->data, sizeof(hours));
+  if (negative) {
+    uint16_t carry = 1;
+    for (size_t i = sizeof(hours); i > 0; i--) {
+      const uint16_t converted = (uint16_t)(hours[i - 1] ^ 0xffu) + carry;
+      hours[i - 1] = (uint8_t)converted;
+      carry = converted >> 8;
+    }
+  }
+  uint32_t remainder = 0;
+  for (size_t i = 0; i < sizeof(hours); i++) {
+    const uint32_t current = remainder * 256u + hours[i];
+    hours[i] = (uint8_t)(current / 3600u);
+    remainder = current % 3600u;
+  }
+  char hour_digits[79];
+  if (!format_unsigned(hours, false, hour_digits, sizeof(hour_digits))) {
+    memzero(hours, sizeof(hours));
+    return false;
+  }
+  const size_t hour_length = strlen(hour_digits);
+  const size_t padded_hours = hour_length < 2 ? 2 : hour_length;
+  const size_t required = (negative ? 1u : 0u) + padded_hours + 6u + 1u;
+  if (output_size < required) {
+    output[0] = '\0';
+    memzero(hours, sizeof(hours));
+    memzero(hour_digits, sizeof(hour_digits));
+    return false;
+  }
+  size_t written = 0;
+  if (negative) output[written++] = '-';
+  if (hour_length < 2) output[written++] = '0';
+  memcpy(output + written, hour_digits, hour_length);
+  written += hour_length;
+  output[written++] = ':';
+  output[written++] = (char)('0' + (remainder / 60u) / 10u);
+  output[written++] = (char)('0' + (remainder / 60u) % 10u);
+  output[written++] = ':';
+  output[written++] = (char)('0' + (remainder % 60u) / 10u);
+  output[written++] = (char)('0' + (remainder % 60u) % 10u);
+  output[written] = '\0';
+  memzero(hours, sizeof(hours));
+  memzero(hour_digits, sizeof(hour_digits));
+  return true;
+}
