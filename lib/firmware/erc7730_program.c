@@ -542,3 +542,161 @@ bool erc7730_program_display_complete(const Erc7730ProgramDisplay* display,
 void erc7730_program_display_clear(Erc7730ProgramDisplay* display) {
   if (display) memzero(display, sizeof(*display));
 }
+
+void erc7730_program_formatter_begin(Erc7730ProgramFormatter* formatter,
+                                     uint32_t section_length,
+                                     uint16_t target_index) {
+  if (!formatter) return;
+  memzero(formatter, sizeof(*formatter));
+  formatter->section_length = section_length;
+  formatter->target_index = target_index;
+  if (section_length < 2) formatter->failed = true;
+}
+
+bool erc7730_program_formatter_feed(Erc7730ProgramFormatter* formatter,
+                                    uint32_t section_offset,
+                                    const uint8_t* data, size_t data_len) {
+  if (!formatter || !data || data_len == 0 || formatter->failed ||
+      formatter->complete || section_offset != formatter->received ||
+      data_len > formatter->section_length - formatter->received) {
+    if (formatter) formatter->failed = true;
+    return false;
+  }
+  for (size_t i = 0; i < data_len; i++, formatter->received++) {
+    const uint8_t byte = data[i];
+    if (formatter->received < 2) {
+      formatter->scratch[formatter->received] = byte;
+      if (formatter->received == 1) {
+        formatter->formatter_count = read_be16(formatter->scratch);
+        if (formatter->formatter_count > 64 ||
+            formatter->target_index >= formatter->formatter_count) {
+          formatter->failed = true;
+          return false;
+        }
+      }
+      continue;
+    }
+    if (formatter->header_received < 3) {
+      formatter->scratch[formatter->header_received++] = byte;
+      if (formatter->header_received != 3) continue;
+      if (formatter->scratch[2] == 0 ||
+          formatter->scratch[2] > ERC7730_FORMATTER_MAX_ARGUMENTS) {
+        formatter->failed = true;
+        return false;
+      }
+      formatter->current_argument_count = formatter->scratch[2];
+      if (formatter->formatter_index == formatter->target_index) {
+        formatter->selected.kind = formatter->scratch[0];
+        formatter->selected.flags = formatter->scratch[1];
+        formatter->selected.argument_count = formatter->scratch[2];
+      }
+      continue;
+    }
+    formatter->scratch[formatter->argument_received++] = byte;
+    if (formatter->argument_received != 4) continue;
+    if (formatter->formatter_index == formatter->target_index) {
+      Erc7730FormatterArgument* argument =
+          &formatter->selected.arguments[formatter->argument_index];
+      argument->role = formatter->scratch[0];
+      argument->source = formatter->scratch[1];
+      argument->index = read_be16(formatter->scratch + 2);
+    }
+    formatter->argument_received = 0;
+    formatter->argument_index++;
+    if (formatter->argument_index == formatter->current_argument_count) {
+      formatter->formatter_index++;
+      formatter->header_received = 0;
+      formatter->current_argument_count = 0;
+      formatter->argument_index = 0;
+    }
+  }
+  if (formatter->received == formatter->section_length) {
+    formatter->complete =
+        !formatter->failed &&
+        formatter->formatter_index == formatter->formatter_count &&
+        formatter->header_received == 0 && formatter->argument_received == 0;
+    if (!formatter->complete) formatter->failed = true;
+  }
+  return !formatter->failed;
+}
+
+bool erc7730_program_formatter_complete(
+    const Erc7730ProgramFormatter* formatter, Erc7730Formatter* result) {
+  if (!formatter || !result || !formatter->complete || formatter->failed)
+    return false;
+  *result = formatter->selected;
+  return true;
+}
+
+void erc7730_program_formatter_clear(Erc7730ProgramFormatter* formatter) {
+  if (formatter) memzero(formatter, sizeof(*formatter));
+}
+
+void erc7730_program_condition_begin(Erc7730ProgramCondition* condition,
+                                     uint32_t section_length,
+                                     uint16_t target_index) {
+  if (!condition) return;
+  memzero(condition, sizeof(*condition));
+  condition->section_length = section_length;
+  condition->target_index = target_index;
+  if (section_length < 2 || ((section_length - 2u) % 8u) != 0)
+    condition->failed = true;
+}
+
+bool erc7730_program_condition_feed(Erc7730ProgramCondition* condition,
+                                    uint32_t section_offset,
+                                    const uint8_t* data, size_t data_len) {
+  if (!condition || !data || data_len == 0 || condition->failed ||
+      condition->complete || section_offset != condition->received ||
+      data_len > condition->section_length - condition->received) {
+    if (condition) condition->failed = true;
+    return false;
+  }
+  for (size_t i = 0; i < data_len; i++, condition->received++) {
+    const uint8_t byte = data[i];
+    if (condition->received < 2) {
+      condition->entry[condition->received] = byte;
+      if (condition->received == 1) {
+        condition->condition_count = read_be16(condition->entry);
+        if (condition->condition_count > 32 ||
+            condition->target_index >= condition->condition_count ||
+            condition->section_length !=
+                2u + (uint32_t)condition->condition_count * 8u) {
+          condition->failed = true;
+          return false;
+        }
+      }
+      continue;
+    }
+    condition->entry[condition->entry_received++] = byte;
+    if (condition->entry_received != sizeof(condition->entry)) continue;
+    if (condition->condition_index == condition->target_index) {
+      condition->selected.opcode = condition->entry[0];
+      condition->selected.path = read_be16(condition->entry + 1);
+      condition->selected.literal_set = read_be16(condition->entry + 3);
+      condition->selected.flags = condition->entry[5];
+    }
+    condition->condition_index++;
+    condition->entry_received = 0;
+  }
+  if (condition->received == condition->section_length) {
+    condition->complete =
+        !condition->failed &&
+        condition->condition_index == condition->condition_count &&
+        condition->entry_received == 0;
+    if (!condition->complete) condition->failed = true;
+  }
+  return !condition->failed;
+}
+
+bool erc7730_program_condition_complete(
+    const Erc7730ProgramCondition* condition, Erc7730Condition* result) {
+  if (!condition || !result || !condition->complete || condition->failed)
+    return false;
+  *result = condition->selected;
+  return true;
+}
+
+void erc7730_program_condition_clear(Erc7730ProgramCondition* condition) {
+  if (condition) memzero(condition, sizeof(*condition));
+}

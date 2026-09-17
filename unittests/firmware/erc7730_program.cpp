@@ -280,3 +280,73 @@ TEST(Erc7730ProgramDisplay, RejectsMissingTargetAndLengthMismatch) {
   erc7730_program_display_begin(&loader, section.size(), 0);
   EXPECT_TRUE(loader.failed);
 }
+
+TEST(Erc7730ProgramFormatter, SelectsTypedArgumentsAcrossChunks) {
+  const std::vector<uint8_t> section = {
+      0, 2, 1, 0, 1, 1, 1, 0, 3, 3, 2, 3, 1, 1, 0, 4, 2, 2, 0, 7, 11, 3, 0, 9,
+  };
+  for (size_t chunk : {1u, 4u, 64u}) {
+    Erc7730ProgramFormatter loader;
+    erc7730_program_formatter_begin(&loader, section.size(), 1);
+    for (size_t offset = 0; offset < section.size();) {
+      const size_t length = std::min(chunk, section.size() - offset);
+      ASSERT_TRUE(erc7730_program_formatter_feed(
+          &loader, offset, section.data() + offset, length));
+      offset += length;
+    }
+    Erc7730Formatter formatter;
+    ASSERT_TRUE(erc7730_program_formatter_complete(&loader, &formatter));
+    EXPECT_EQ(formatter.kind, 3u);
+    EXPECT_EQ(formatter.flags, 2u);
+    ASSERT_EQ(formatter.argument_count, 3u);
+    EXPECT_EQ(formatter.arguments[0].role, 1u);
+    EXPECT_EQ(formatter.arguments[0].index, 4u);
+    EXPECT_EQ(formatter.arguments[2].source, 3u);
+    EXPECT_EQ(formatter.arguments[2].index, 9u);
+  }
+}
+
+TEST(Erc7730ProgramFormatter, RejectsMissingAndExcessArguments) {
+  std::vector<uint8_t> section = {0, 1, 1, 0, 0};
+  Erc7730ProgramFormatter loader;
+  erc7730_program_formatter_begin(&loader, section.size(), 0);
+  EXPECT_FALSE(erc7730_program_formatter_feed(&loader, 0, section.data(),
+                                              section.size()));
+  section[4] = ERC7730_FORMATTER_MAX_ARGUMENTS + 1;
+  erc7730_program_formatter_begin(&loader, section.size(), 0);
+  EXPECT_FALSE(erc7730_program_formatter_feed(&loader, 0, section.data(),
+                                              section.size()));
+}
+
+TEST(Erc7730ProgramCondition, SelectsFixedConditionAcrossChunks) {
+  const std::vector<uint8_t> section = {
+      0, 2, 1, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 6, 0, 3, 0, 7, 1, 0, 0,
+  };
+  for (size_t chunk : {1u, 5u, 64u}) {
+    Erc7730ProgramCondition loader;
+    erc7730_program_condition_begin(&loader, section.size(), 1);
+    for (size_t offset = 0; offset < section.size();) {
+      const size_t length = std::min(chunk, section.size() - offset);
+      ASSERT_TRUE(erc7730_program_condition_feed(
+          &loader, offset, section.data() + offset, length));
+      offset += length;
+    }
+    Erc7730Condition condition;
+    ASSERT_TRUE(erc7730_program_condition_complete(&loader, &condition));
+    EXPECT_EQ(condition.opcode, 6u);
+    EXPECT_EQ(condition.path, 3u);
+    EXPECT_EQ(condition.literal_set, 7u);
+    EXPECT_EQ(condition.flags, 1u);
+  }
+}
+
+TEST(Erc7730ProgramCondition, RejectsMissingTargetAndBadLength) {
+  std::vector<uint8_t> section = {0, 1, 1, 0xff, 0xff, 0xff, 0xff, 0, 0, 0};
+  Erc7730ProgramCondition loader;
+  erc7730_program_condition_begin(&loader, section.size(), 1);
+  EXPECT_FALSE(erc7730_program_condition_feed(&loader, 0, section.data(),
+                                              section.size()));
+  section.push_back(0);
+  erc7730_program_condition_begin(&loader, section.size(), 0);
+  EXPECT_TRUE(loader.failed);
+}

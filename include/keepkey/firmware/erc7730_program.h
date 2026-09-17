@@ -125,6 +125,57 @@ typedef struct {
   bool failed;
 } Erc7730ProgramDisplay;
 
+#define ERC7730_FORMATTER_MAX_ARGUMENTS 23u
+
+typedef struct {
+  uint8_t role;
+  uint8_t source;
+  uint16_t index;
+} Erc7730FormatterArgument;
+
+typedef struct {
+  uint8_t kind;
+  uint8_t flags;
+  uint8_t argument_count;
+  Erc7730FormatterArgument arguments[ERC7730_FORMATTER_MAX_ARGUMENTS];
+} Erc7730Formatter;
+
+typedef struct {
+  Erc7730Formatter selected;
+  uint32_t section_length;
+  uint32_t received;
+  uint16_t formatter_count;
+  uint16_t formatter_index;
+  uint16_t target_index;
+  uint8_t scratch[4];
+  uint8_t header_received;
+  uint8_t current_argument_count;
+  uint8_t argument_index;
+  uint8_t argument_received;
+  bool complete;
+  bool failed;
+} Erc7730ProgramFormatter;
+
+typedef struct {
+  uint8_t opcode;
+  uint16_t path;
+  uint16_t literal_set;
+  uint8_t flags;
+} Erc7730Condition;
+
+typedef struct {
+  Erc7730Condition selected;
+  uint32_t section_length;
+  uint32_t received;
+  uint16_t condition_count;
+  uint16_t condition_index;
+  uint16_t target_index;
+  uint8_t entry[8];
+  uint8_t entry_received;
+  bool complete;
+  bool failed;
+} Erc7730ProgramCondition;
+
 void erc7730_program_index_begin(Erc7730ProgramIndex* index,
                                  uint32_t program_length);
 bool erc7730_program_index_feed(Erc7730ProgramIndex* index,
@@ -179,5 +230,23 @@ bool erc7730_program_display_complete(const Erc7730ProgramDisplay* display,
                                       Erc7730DisplayInstruction* instruction,
                                       uint16_t* instruction_count);
 void erc7730_program_display_clear(Erc7730ProgramDisplay* display);
+void erc7730_program_formatter_begin(Erc7730ProgramFormatter* formatter,
+                                     uint32_t section_length,
+                                     uint16_t target_index);
+bool erc7730_program_formatter_feed(Erc7730ProgramFormatter* formatter,
+                                    uint32_t section_offset,
+                                    const uint8_t* data, size_t data_len);
+bool erc7730_program_formatter_complete(
+    const Erc7730ProgramFormatter* formatter, Erc7730Formatter* result);
+void erc7730_program_formatter_clear(Erc7730ProgramFormatter* formatter);
+void erc7730_program_condition_begin(Erc7730ProgramCondition* condition,
+                                     uint32_t section_length,
+                                     uint16_t target_index);
+bool erc7730_program_condition_feed(Erc7730ProgramCondition* condition,
+                                    uint32_t section_offset,
+                                    const uint8_t* data, size_t data_len);
+bool erc7730_program_condition_complete(
+    const Erc7730ProgramCondition* condition, Erc7730Condition* result);
+void erc7730_program_condition_clear(Erc7730ProgramCondition* condition);
 
 #endif
