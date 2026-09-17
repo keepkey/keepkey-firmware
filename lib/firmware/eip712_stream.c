@@ -44,7 +44,7 @@
 typedef EthereumTypedDataStructAck_EthereumFieldType Eip712FieldType;
 typedef EthereumTypedDataStructAck_EthereumDataType Eip712DataType;
 
-bool eip712_identifier_ok(const char *name) {
+bool eip712_identifier_ok(const char* name) {
   if (!name) return false;
   size_t len = strlen(name);
   if (len == 0 || len + 1 > EIP712_MAX_STRUCT_NAME) return false;
@@ -70,10 +70,10 @@ bool eip712_identifier_ok(const char *name) {
  * document. Spellings are canonical: "uint256", never "uint0256"; "bytes"
  * for the dynamic form, "bytes32" for the fixed one.
  */
-bool eip712_type_name(const Eip712FieldType *field, char *out, size_t out_len) {
+bool eip712_type_name(const Eip712FieldType* field, char* out, size_t out_len) {
   if (!field || !out || out_len == 0) return false;
 
-  const char *base;
+  const char* base;
   char scratch[EIP712_MAX_TYPE_NAME];
 
   switch (field->data_type) {
@@ -83,7 +83,7 @@ bool eip712_type_name(const Eip712FieldType *field, char *out, size_t out_len) {
        * outside 1..32 bytes has no canonical spelling, so refuse rather than
        * invent one. */
       if (!field->has_size || field->size < 1 || field->size > 32) return false;
-      const char *stem =
+      const char* stem =
           field->data_type == EthereumTypedDataStructAck_EthereumDataType_UINT
               ? "uint"
               : "int";
@@ -150,13 +150,13 @@ bool eip712_type_name(const Eip712FieldType *field, char *out, size_t out_len) {
  * Structs and arrays never reach here: the walker folds them first and hands
  * the parent their 32-byte digest.
  */
-static void write_rightpad32(const uint8_t *value, uint16_t value_len,
+static void write_rightpad32(const uint8_t* value, uint16_t value_len,
                              uint8_t out[32]) {
   memset(out, 0, 32);
   memcpy(out, value, value_len);
 }
 
-static void write_leftpad32(const uint8_t *value, uint16_t value_len,
+static void write_leftpad32(const uint8_t* value, uint16_t value_len,
                             bool is_signed, uint8_t out[32]) {
   /* Sign-extend a negative intN to 256 bits. An unsigned value, and a
    * zero-length one, extend with zeroes. */
@@ -168,7 +168,7 @@ static void write_leftpad32(const uint8_t *value, uint16_t value_len,
   memcpy(out + (32 - value_len), value, value_len);
 }
 
-bool eip712_encode_leaf(const Eip712FieldType *field, const uint8_t *value,
+bool eip712_encode_leaf(const Eip712FieldType* field, const uint8_t* value,
                         uint16_t value_len, uint8_t out[32]) {
   if (!field || !out) return false;
   if (value_len > 32 &&
@@ -210,7 +210,7 @@ bool eip712_encode_leaf(const Eip712FieldType *field, const uint8_t *value,
  * Runs before encoding AND before display, so nothing unvalidated ever
  * reaches the screen or the hash.
  */
-static bool is_valid_utf8_printable(const uint8_t *s, uint16_t len) {
+static bool is_valid_utf8_printable(const uint8_t* s, uint16_t len) {
   uint16_t i = 0;
   while (i < len) {
     uint8_t c = s[i];
@@ -253,7 +253,7 @@ static bool is_valid_utf8_printable(const uint8_t *s, uint16_t len) {
   return true;
 }
 
-bool eip712_validate_leaf(const Eip712FieldType *field, const uint8_t *value,
+bool eip712_validate_leaf(const Eip712FieldType* field, const uint8_t* value,
                           uint16_t value_len) {
   if (!field) return false;
   if (value_len > 0 && !value) return false;
@@ -288,6 +288,41 @@ bool eip712_validate_leaf(const Eip712FieldType *field, const uint8_t *value,
   }
 }
 
+bool eip712_domain_facts_observe(Eip712DomainFacts* facts,
+                                 const char* member_name,
+                                 const Eip712FieldType* field,
+                                 const uint8_t* value, uint16_t value_len) {
+  if (!facts || !member_name || !field || (!value && value_len != 0) ||
+      !eip712_validate_leaf(field, value, value_len))
+    return false;
+  if (strcmp(member_name, "chainId") == 0) {
+    if (facts->has_chain_id ||
+        field->data_type != EthereumTypedDataStructAck_EthereumDataType_UINT ||
+        value_len == 0 || value_len > 32)
+      return false;
+    size_t offset = 0;
+    while (offset < value_len && value[offset] == 0) offset++;
+    if (value_len - offset > sizeof(facts->chain_id)) return false;
+    uint64_t chain_id = 0;
+    for (; offset < value_len; offset++)
+      chain_id = (chain_id << 8) | value[offset];
+    if (chain_id == 0) return false;
+    facts->chain_id = chain_id;
+    facts->has_chain_id = true;
+    return true;
+  }
+  if (strcmp(member_name, "verifyingContract") == 0) {
+    if (facts->has_verifying_contract ||
+        field->data_type !=
+            EthereumTypedDataStructAck_EthereumDataType_ADDRESS ||
+        value_len != sizeof(facts->verifying_contract))
+      return false;
+    memcpy(facts->verifying_contract, value, sizeof(facts->verifying_contract));
+    facts->has_verifying_contract = true;
+  }
+  return true;
+}
+
 /* ── encodeType ──────────────────────────────────────────────────────
  *
  *   encodeType(S) = seg(S) || seg(D1) || seg(D2) || ...
@@ -310,14 +345,14 @@ typedef struct {
   uint8_t count;
 } Eip712Closure;
 
-static bool closure_contains(const Eip712Closure *c, const char *name) {
+static bool closure_contains(const Eip712Closure* c, const char* name) {
   for (uint8_t i = 0; i < c->count; i++) {
     if (strcmp(c->names[i], name) == 0) return true;
   }
   return false;
 }
 
-static bool closure_add(Eip712Closure *c, const char *name) {
+static bool closure_add(Eip712Closure* c, const char* name) {
   size_t len = strlen(name);
   if (!eip712_identifier_ok(name)) return false;
   if (closure_contains(c, name)) return true;
@@ -331,7 +366,7 @@ static bool closure_add(Eip712Closure *c, const char *name) {
  * is cheaper and far easier to audit than pulling in qsort -- and one copy of
  * the ordering rule means the walk and the offline closure cannot disagree
  * about it. */
-static void sort_closure_tail(Eip712Closure *c, uint8_t start) {
+static void sort_closure_tail(Eip712Closure* c, uint8_t start) {
   for (uint8_t i = start + 1; i < c->count; i++) {
     char key[EIP712_MAX_STRUCT_NAME];
     memcpy(key, c->names[i], EIP712_MAX_STRUCT_NAME);
@@ -348,17 +383,17 @@ static void sort_closure_tail(Eip712Closure *c, uint8_t start) {
  * Iterative: the worklist is the closure itself, walked as it grows, so a
  * cyclical schema terminates on the already-present check rather than
  * recursing. EIP-712 leaves cyclical data undefined; we simply do not loop. */
-static bool closure_collect(const char *name, Eip712StructLookup lookup,
-                            void *ctx, Eip712Closure *out) {
+static bool closure_collect(const char* name, Eip712StructLookup lookup,
+                            void* ctx, Eip712Closure* out) {
   Eip712Closure seen;
   memset(&seen, 0, sizeof(seen));
   if (!closure_add(&seen, name)) return false;
 
   for (uint8_t i = 0; i < seen.count; i++) {
-    const EthereumTypedDataStructAck *def = lookup(seen.names[i], ctx);
+    const EthereumTypedDataStructAck* def = lookup(seen.names[i], ctx);
     if (!def) return false;
     for (size_t m = 0; m < def->members_count; m++) {
-      const Eip712FieldType *ft = &def->members[m].type;
+      const Eip712FieldType* ft = &def->members[m].type;
       if (ft->data_type != EthereumTypedDataStructAck_EthereumDataType_STRUCT)
         continue;
       if (!ft->has_struct_name) return false;
@@ -378,41 +413,41 @@ static bool closure_collect(const char *name, Eip712StructLookup lookup,
 }
 
 /* Stream "Name(type1 name1,type2 name2,...)" into the hash. */
-static bool hash_segment_from_ack(const char *name,
-                                  const EthereumTypedDataStructAck *def,
-                                  SHA3_CTX *hash) {
+static bool hash_segment_from_ack(const char* name,
+                                  const EthereumTypedDataStructAck* def,
+                                  SHA3_CTX* hash) {
   if (!def || !eip712_identifier_ok(name)) return false;
 
-  keccak_Update(hash, (const uint8_t *)name, strlen(name));
-  keccak_Update(hash, (const uint8_t *)"(", 1);
+  keccak_Update(hash, (const uint8_t*)name, strlen(name));
+  keccak_Update(hash, (const uint8_t*)"(", 1);
 
   for (size_t m = 0; m < def->members_count; m++) {
     char type_name[EIP712_MAX_TYPE_NAME];
     if (!eip712_type_name(&def->members[m].type, type_name, sizeof(type_name)))
       return false;
-    const char *member_name = def->members[m].name;
+    const char* member_name = def->members[m].name;
     if (!eip712_identifier_ok(member_name)) return false;
     for (size_t prior = 0; prior < m; prior++) {
       if (strcmp(member_name, def->members[prior].name) == 0) return false;
     }
 
-    if (m > 0) keccak_Update(hash, (const uint8_t *)",", 1);
-    keccak_Update(hash, (const uint8_t *)type_name, strlen(type_name));
-    keccak_Update(hash, (const uint8_t *)" ", 1);
-    keccak_Update(hash, (const uint8_t *)member_name, strlen(member_name));
+    if (m > 0) keccak_Update(hash, (const uint8_t*)",", 1);
+    keccak_Update(hash, (const uint8_t*)type_name, strlen(type_name));
+    keccak_Update(hash, (const uint8_t*)" ", 1);
+    keccak_Update(hash, (const uint8_t*)member_name, strlen(member_name));
   }
 
-  keccak_Update(hash, (const uint8_t *)")", 1);
+  keccak_Update(hash, (const uint8_t*)")", 1);
   return true;
 }
 
-static bool hash_type_segment(const char *name, Eip712StructLookup lookup,
-                              void *ctx, SHA3_CTX *hash) {
-  const EthereumTypedDataStructAck *def = lookup(name, ctx);
+static bool hash_type_segment(const char* name, Eip712StructLookup lookup,
+                              void* ctx, SHA3_CTX* hash) {
+  const EthereumTypedDataStructAck* def = lookup(name, ctx);
   return hash_segment_from_ack(name, def, hash);
 }
 
-bool eip712_type_hash(const char *name, Eip712StructLookup lookup, void *ctx,
+bool eip712_type_hash(const char* name, Eip712StructLookup lookup, void* ctx,
                       uint8_t out[32]) {
   if (!name || !lookup || !out) return false;
   if (strlen(name) == 0 || strlen(name) + 1 > EIP712_MAX_STRUCT_NAME)
@@ -470,6 +505,9 @@ static struct {
   uint8_t address_n_count;
   char primary_type[EIP712_MAX_STRUCT_NAME];
   bool metamask_v4_compat;
+  bool require_definition;
+  bool definition_accepted;
+  Eip712DomainFacts domain_facts;
 
   /* Root 0 is the domain, root 1 the message; the domain separator is kept
    * while the message is walked. */
@@ -535,8 +573,8 @@ void eip712_stream_abort(void) { memzero(&e712, sizeof(e712)); }
  * plainly worse to read than a decimal amount, and that is a known v1
  * limitation rather than a considered end state.
  */
-static bool eip712_confirm_leaf(const char *name, const Eip712FieldType *field,
-                                const uint8_t *value, uint16_t len) {
+static bool eip712_confirm_leaf(const char* name, const Eip712FieldType* field,
+                                const uint8_t* value, uint16_t len) {
   char type_name[EIP712_MAX_TYPE_NAME];
   if (!eip712_type_name(field, type_name, sizeof(type_name))) return false;
 
@@ -585,9 +623,9 @@ static bool eip712_confirm_leaf(const char *name, const Eip712FieldType *field,
 
 static Eip712Next next_step;
 
-const Eip712Next *eip712_stream_next(void) { return &next_step; }
+const Eip712Next* eip712_stream_next(void) { return &next_step; }
 
-static void fail(const char *why) {
+static void fail(const char* why) {
   bool was_active = e712.active;
   eip712_stream_abort();
   (void)was_active;
@@ -596,7 +634,7 @@ static void fail(const char *why) {
   next_step.error = why;
 }
 
-static void request_struct(const char *name) {
+static void request_struct(const char* name) {
   memzero(&next_step, sizeof(next_step));
   next_step.kind = EIP712_REQ_STRUCT;
   strlcpy(next_step.struct_name, name, sizeof(next_step.struct_name));
@@ -619,7 +657,7 @@ static void request_value(void) {
 /* Start computing typeHash for the top frame's struct. A struct that appears
  * twice is hashed twice -- round trips are cheap here and .bss is not. */
 static void begin_type_hash(void) {
-  const Eip712Frame *f = &e712.stack[e712.depth - 1];
+  const Eip712Frame* f = &e712.stack[e712.depth - 1];
   memzero(&e712.closure, sizeof(e712.closure));
   if (!closure_add(&e712.closure, f->name)) {
     fail("EIP-712 struct name too long");
@@ -636,7 +674,7 @@ static void begin_type_hash(void) {
  *   array:  keccak(enc(e1) || ... || enc(en))   -- no typeHash, per EIP-712
  */
 static bool fold_frame(uint8_t out[32]) {
-  const Eip712Frame *f = &e712.stack[e712.depth - 1];
+  const Eip712Frame* f = &e712.stack[e712.depth - 1];
   keccak_256_Init(&e712.hash);
   if (!f->is_array) {
     if (!f->have_type_hash) return false;
@@ -662,7 +700,7 @@ static void complete_frame(void) {
   }
 
   if (e712.depth > 0) {
-    Eip712Frame *parent = &e712.stack[e712.depth - 1];
+    Eip712Frame* parent = &e712.stack[e712.depth - 1];
     memcpy(e712.pool[parent->slot_base + parent->member_index], digest, 32);
     parent->member_index++;
     advance_after_slot();
@@ -701,14 +739,14 @@ static void complete_frame(void) {
  * than by anything the host sends alongside the value: another array while
  * dimensions remain, a struct if the leaf type is one, otherwise a leaf. */
 static void drive_array_element(void) {
-  Eip712Frame *arr = &e712.stack[e712.depth - 1];
+  Eip712Frame* arr = &e712.stack[e712.depth - 1];
 
   if (arr->level_index + 1 < arr->levels_total) {
     if (e712.depth >= EIP712_MAX_DEPTH) {
       fail("EIP-712 array nests too deeply for this device");
       return;
     }
-    Eip712Frame *inner = &e712.stack[e712.depth];
+    Eip712Frame* inner = &e712.stack[e712.depth];
     memzero(inner, sizeof(*inner));
     inner->is_array = true;
     inner->slot_base = arr->slot_base + arr->array_len;
@@ -734,7 +772,7 @@ static void drive_array_element(void) {
       fail("EIP-712 array of structs has no type name");
       return;
     }
-    Eip712Frame *child = &e712.stack[e712.depth];
+    Eip712Frame* child = &e712.stack[e712.depth];
     memzero(child, sizeof(*child));
     strlcpy(child->name, arr->elem_struct, EIP712_MAX_STRUCT_NAME);
     child->slot_base = arr->slot_base + arr->array_len;
@@ -753,7 +791,7 @@ static void drive_array_element(void) {
 /* A slot was just filled. Either the frame is done, or fetch the next member.
  */
 static void advance_after_slot(void) {
-  const Eip712Frame *f = &e712.stack[e712.depth - 1];
+  const Eip712Frame* f = &e712.stack[e712.depth - 1];
   if (f->is_array) {
     if (f->member_index >= f->array_len) {
       complete_frame();
@@ -770,7 +808,8 @@ static void advance_after_slot(void) {
   request_struct(f->name);
 }
 
-bool eip712_stream_begin(const EthereumSignTypedData *msg) {
+bool eip712_stream_begin(const EthereumSignTypedData* msg,
+                         bool require_definition) {
   eip712_stream_abort();
 
   if (msg->address_n_count > 6) {
@@ -792,6 +831,7 @@ bool eip712_stream_begin(const EthereumSignTypedData *msg) {
 
   e712.active = true;
   e712.metamask_v4_compat = true;
+  e712.require_definition = require_definition;
   e712.address_n_count = (uint8_t)msg->address_n_count;
   memcpy(e712.address_n, msg->address_n,
          msg->address_n_count * sizeof(uint32_t));
@@ -806,7 +846,7 @@ bool eip712_stream_begin(const EthereumSignTypedData *msg) {
   return true;
 }
 
-bool eip712_stream_on_struct(const EthereumTypedDataStructAck *ack) {
+bool eip712_stream_on_struct(const EthereumTypedDataStructAck* ack) {
   if (!e712.active || e712.waiting != EIP712_WANT_STRUCT) {
     fail("Unexpected EIP-712 struct");
     return false;
@@ -823,7 +863,7 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck *ack) {
    * cannot smuggle controls, Unicode lookalikes or a truncated label onto the
    * review screen. Duplicate members are not a canonical struct definition. */
   for (size_t i = 0; i < ack->members_count; i++) {
-    const char *member_name = ack->members[i].name;
+    const char* member_name = ack->members[i].name;
     char type_name[EIP712_MAX_TYPE_NAME];
     if (!eip712_identifier_ok(member_name) ||
         !eip712_type_name(&ack->members[i].type, type_name,
@@ -845,7 +885,7 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck *ack) {
        * name. The closure grows while we walk it, which IS the traversal, and
        * the already-present check is what terminates a cyclical schema. */
       for (size_t m = 0; m < ack->members_count; m++) {
-        const Eip712FieldType *ft = &ack->members[m].type;
+        const Eip712FieldType* ft = &ack->members[m].type;
         if (ft->data_type != EthereumTypedDataStructAck_EthereumDataType_STRUCT)
           continue;
         if (!ft->has_struct_name ||
@@ -880,16 +920,26 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck *ack) {
         request_struct(e712.closure.names[e712.closure_index]);
         return true;
       }
-      Eip712Frame *tf = &e712.stack[e712.depth - 1];
+      Eip712Frame* tf = &e712.stack[e712.depth - 1];
       keccak_Final(&e712.hash, tf->type_hash);
       tf->have_type_hash = true;
+      if (e712.root == 1 && e712.depth == 1) {
+        memcpy(e712.domain_facts.primary_type_hash, tf->type_hash, 32);
+        e712.domain_facts.has_primary_type_hash = true;
+        if (e712.require_definition && !e712.definition_accepted) {
+          memzero(&next_step, sizeof(next_step));
+          next_step.kind = EIP712_REQ_DEFINITION;
+          e712.waiting = EIP712_IDLE;
+          return true;
+        }
+      }
       e712.phase = PH_MEMBER;
       request_struct(e712.stack[e712.depth - 1].name);
       return true;
     }
 
     case PH_MEMBER: {
-      Eip712Frame *f = &e712.stack[e712.depth - 1];
+      Eip712Frame* f = &e712.stack[e712.depth - 1];
       f->member_count = (uint8_t)ack->members_count;
       if (f->member_index >= f->member_count) {
         complete_frame();
@@ -900,7 +950,7 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck *ack) {
         return false;
       }
 
-      const EthereumTypedDataStructAck_EthereumStructMember *m =
+      const EthereumTypedDataStructAck_EthereumStructMember* m =
           &ack->members[f->member_index];
       e712.pending_data_type = (uint8_t)m->type.data_type;
       e712.pending_has_size = m->type.has_size;
@@ -916,7 +966,7 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck *ack) {
          * ask for the array's length. The frame is not pushed yet, so the
          * member_path the device sends still points AT the array rather than
          * into it -- which is exactly the path whose value is the length. */
-        Eip712Frame *arr = &e712.stack[e712.depth];
+        Eip712Frame* arr = &e712.stack[e712.depth];
         memzero(arr, sizeof(*arr));
         arr->is_array = true;
         arr->slot_base = f->slot_base + f->member_count;
@@ -945,7 +995,7 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck *ack) {
           fail("EIP-712 struct member has no type name");
           return false;
         }
-        Eip712Frame *child = &e712.stack[e712.depth];
+        Eip712Frame* child = &e712.stack[e712.depth];
         memzero(child, sizeof(*child));
         strlcpy(child->name, m->type.struct_name, EIP712_MAX_STRUCT_NAME);
         child->slot_base = f->slot_base + f->member_count;
@@ -963,7 +1013,7 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck *ack) {
   }
 }
 
-bool eip712_stream_on_value(const EthereumTypedDataValueAck *ack) {
+bool eip712_stream_on_value(const EthereumTypedDataValueAck* ack) {
   if (!e712.active || e712.waiting != EIP712_WANT_VALUE) {
     fail("Unexpected EIP-712 value");
     return false;
@@ -977,7 +1027,7 @@ bool eip712_stream_on_value(const EthereumTypedDataValueAck *ack) {
       return false;
     }
     uint16_t len = (uint16_t)((ack->value.bytes[0] << 8) | ack->value.bytes[1]);
-    Eip712Frame *arr = &e712.stack[e712.depth];
+    Eip712Frame* arr = &e712.stack[e712.depth];
 
     /* A FIXED dimension is part of the type string and therefore of typeHash.
      * Accepting a different count would sign a document whose type declares
@@ -1010,8 +1060,8 @@ bool eip712_stream_on_value(const EthereumTypedDataValueAck *ack) {
   rebuilt.data_type = (Eip712DataType)e712.pending_data_type;
   rebuilt.has_size = e712.pending_has_size;
   rebuilt.size = e712.pending_size;
-  const Eip712FieldType *field = &rebuilt;
-  const uint8_t *bytes = ack->value.bytes;
+  const Eip712FieldType* field = &rebuilt;
+  const uint8_t* bytes = ack->value.bytes;
   uint16_t len = ack->value.size;
 
   /* Validate BEFORE anything is drawn, so no unvalidated byte reaches the
@@ -1019,6 +1069,12 @@ bool eip712_stream_on_value(const EthereumTypedDataValueAck *ack) {
    * hash. */
   if (!eip712_validate_leaf(field, bytes, len)) {
     fail("EIP-712 value does not match its declared type");
+    return false;
+  }
+  if (e712.root == 0 && e712.depth == 1 &&
+      !eip712_domain_facts_observe(&e712.domain_facts, e712.pending_name, field,
+                                   bytes, len)) {
+    fail("EIP-712 domain binding is invalid");
     return false;
   }
 
@@ -1032,7 +1088,7 @@ bool eip712_stream_on_value(const EthereumTypedDataValueAck *ack) {
     return false;
   }
 
-  Eip712Frame *f = &e712.stack[e712.depth - 1];
+  Eip712Frame* f = &e712.stack[e712.depth - 1];
   if (!eip712_encode_leaf(field, bytes, len,
                           e712.pool[f->slot_base + f->member_index])) {
     fail("EIP-712 value could not be encoded");
@@ -1040,5 +1096,22 @@ bool eip712_stream_on_value(const EthereumTypedDataValueAck *ack) {
   }
   f->member_index++;
   advance_after_slot();
+  return true;
+}
+
+bool eip712_stream_domain_facts(Eip712DomainFacts* facts) {
+  if (!facts || !e712.active) return false;
+  memcpy(facts, &e712.domain_facts, sizeof(*facts));
+  return true;
+}
+
+bool eip712_stream_definition_accepted(void) {
+  if (!e712.active || !e712.require_definition ||
+      !e712.domain_facts.has_primary_type_hash || e712.definition_accepted ||
+      next_step.kind != EIP712_REQ_DEFINITION)
+    return false;
+  e712.definition_accepted = true;
+  e712.phase = PH_MEMBER;
+  request_struct(e712.stack[e712.depth - 1].name);
   return true;
 }

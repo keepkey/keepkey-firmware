@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "ecdsa.h"
+#include "memzero.h"
 #include "secp256k1.h"
 #include "sha2.h"
 #include "trezor/crypto/sha3.h"
@@ -62,12 +63,12 @@ bool clearsign_root_is_present(void) {
   return false;
 }
 
-static uint32_t be32(const uint8_t *p) {
+static uint32_t be32(const uint8_t* p) {
   return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
          ((uint32_t)p[2] << 8) | (uint32_t)p[3];
 }
 
-bool clearsign_root_verify_cert(const uint8_t *cert, size_t cert_len) {
+bool clearsign_root_verify_cert(const uint8_t* cert, size_t cert_len) {
   if (!cert || cert_len != CLEARSIGN_CERT_LEN) return false;
   if (!clearsign_root_is_present()) return false;
 
@@ -134,7 +135,7 @@ bool clearsign_root_verify_cert(const uint8_t *cert, size_t cert_len) {
                              &cert[CLEARSIGN_CERT_OFF_SIG], digest) == 0;
 }
 
-bool clearsign_root_cert_delegate(const uint8_t *cert, size_t cert_len,
+bool clearsign_root_cert_delegate(const uint8_t* cert, size_t cert_len,
                                   uint32_t expected_scope,
                                   uint8_t out_pubkey[CLEARSIGN_PUBKEY_LEN],
                                   char out_alias[CLEARSIGN_ALIAS_LEN + 1]) {
@@ -152,8 +153,8 @@ bool clearsign_root_cert_delegate(const uint8_t *cert, size_t cert_len,
 }
 
 bool clearsign_root_verify_delegate_attestation(
-    const uint8_t *cert, size_t cert_len, uint32_t expected_scope,
-    const uint8_t *data, size_t data_len, const uint8_t *sig, size_t sig_len) {
+    const uint8_t* cert, size_t cert_len, uint32_t expected_scope,
+    const uint8_t* data, size_t data_len, const uint8_t* sig, size_t sig_len) {
   if (!data || data_len == 0 || !sig || sig_len != 64) return false;
   uint8_t delegate[CLEARSIGN_PUBKEY_LEN];
   char alias[CLEARSIGN_ALIAS_LEN + 1];
@@ -167,5 +168,32 @@ bool clearsign_root_verify_delegate_attestation(
   memset(delegate, 0, sizeof(delegate));
   memset(digest, 0, sizeof(digest));
   memset(alias, 0, sizeof(alias));
+  return ok;
+}
+
+bool clearsign_root_verify_erc7730_catalog(
+    const uint8_t* cert, size_t cert_len, uint32_t expected_scope,
+    const uint8_t catalog_root[32], const uint8_t* sig, size_t sig_len,
+    char out_alias[CLEARSIGN_ALIAS_LEN + 1]) {
+  static const uint8_t purpose[] = "KEEPKEY:ERC7730:CATALOG\0";
+  if (!catalog_root || !sig || sig_len != 64 || !out_alias) return false;
+
+  uint8_t delegate[CLEARSIGN_PUBKEY_LEN];
+  if (!clearsign_root_cert_delegate(cert, cert_len, expected_scope, delegate,
+                                    out_alias)) {
+    return false;
+  }
+
+  SHA256_CTX ctx;
+  uint8_t digest[SHA256_DIGEST_LENGTH];
+  sha256_Init(&ctx);
+  /* sizeof includes the explicit protocol NUL but excludes C's implicit NUL. */
+  sha256_Update(&ctx, purpose, sizeof(purpose) - 1);
+  sha256_Update(&ctx, catalog_root, 32);
+  sha256_Final(&ctx, digest);
+  const bool ok = ecdsa_verify_digest(&secp256k1, delegate, sig, digest) == 0;
+  memzero(delegate, sizeof(delegate));
+  memzero(digest, sizeof(digest));
+  if (!ok) memzero(out_alias, CLEARSIGN_ALIAS_LEN + 1);
   return ok;
 }

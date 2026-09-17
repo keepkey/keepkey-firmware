@@ -32,6 +32,7 @@
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/ethereum_contracts.h"
+#include "keepkey/firmware/erc7730_workflow.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
 #include "keepkey/firmware/signed_metadata.h"
 #include "keepkey/firmware/ethereum_tokens.h"
@@ -364,6 +365,15 @@ static void send_signature(void) {
   uint8_t hash[32], sig[64];
   uint8_t v;
   layoutProgress(_("Signing"), 1000);
+
+  Erc7730Workflow* erc7730 = erc7730_workflow_state();
+  if (erc7730->phase != ERC7730_WORKFLOW_IDLE &&
+      !erc7730_workflow_complete(erc7730)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    "ERC-7730 calldata verification incomplete");
+    ethereum_signing_abort();
+    return;
+  }
 
   if (ethereum_tx_type == ETHEREUM_TX_TYPE_LEGACY) {
     /* legacy eip-155 replay protection */
@@ -1222,6 +1232,15 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   hash_data(msg->data_initial_chunk.bytes, msg->data_initial_chunk.size);
   data_left = data_total - msg->data_initial_chunk.size;
 
+  Erc7730Workflow* erc7730 = erc7730_workflow_state();
+  if (erc7730->phase == ERC7730_WORKFLOW_CALLDATA && data_left == 0 &&
+      erc7730_workflow_calldata_finish(erc7730) != ERC7730_ABI_OK) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("ERC-7730 calldata does not match definition"));
+    ethereum_signing_abort();
+    return;
+  }
+
   if (data_left == 0 && data_hash_pending && !confirm_ethereum_data_hash()) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Signing cancelled by user");
@@ -1261,9 +1280,26 @@ void ethereum_signing_txack(EthereumTxAck* tx) {
   if (data_hash_pending) {
     sha3_Update(&data_keccak_ctx, tx->data_chunk.bytes, tx->data_chunk.size);
   }
+  Erc7730Workflow* erc7730 = erc7730_workflow_state();
+  if (erc7730->phase == ERC7730_WORKFLOW_CALLDATA &&
+      erc7730_workflow_calldata_feed(erc7730, tx->data_chunk.bytes,
+                                     tx->data_chunk.size) != ERC7730_ABI_OK) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("ERC-7730 calldata does not match definition"));
+    ethereum_signing_abort();
+    return;
+  }
   hash_data(tx->data_chunk.bytes, tx->data_chunk.size);
 
   data_left -= tx->data_chunk.size;
+
+  if (erc7730->phase == ERC7730_WORKFLOW_CALLDATA && data_left == 0 &&
+      erc7730_workflow_calldata_finish(erc7730) != ERC7730_ABI_OK) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("ERC-7730 calldata does not match definition"));
+    ethereum_signing_abort();
+    return;
+  }
 
   if (data_left == 0 && data_hash_pending && !confirm_ethereum_data_hash()) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
@@ -1288,6 +1324,8 @@ void ethereum_signing_abort(void) {
     layoutHome();
     ethereum_signing = false;
   }
+  if (erc7730_workflow_state()->phase != ERC7730_WORKFLOW_IDLE)
+    erc7730_workflow_abort(erc7730_workflow_state());
 }
 
 /* Whether a signing flow is mid-flight. The clearsign metadata handlers

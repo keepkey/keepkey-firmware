@@ -125,13 +125,13 @@
  * longer trust, and an undescribed transaction is what 7.15 already handles.
  *
  * THE ONLY FUNCTION THAT READS THE ROOT KEY. */
-bool clearsign_root_verify_cert(const uint8_t *cert, size_t cert_len);
+bool clearsign_root_verify_cert(const uint8_t* cert, size_t cert_len);
 
 /* Verify a suppression-capable certificate and require its network scope. On
  * success copies the authenticated delegate identity. Non-EVM networks use
  * their SLIP-44 coin type; Solana is therefore scope 501. Certificates without
  * MAY_SUPPRESS_RAW are deliberately ineligible for this authority path. */
-bool clearsign_root_cert_delegate(const uint8_t *cert, size_t cert_len,
+bool clearsign_root_cert_delegate(const uint8_t* cert, size_t cert_len,
                                   uint32_t expected_scope,
                                   uint8_t out_pubkey[CLEARSIGN_PUBKEY_LEN],
                                   char out_alias[CLEARSIGN_ALIAS_LEN + 1]);
@@ -140,8 +140,17 @@ bool clearsign_root_cert_delegate(const uint8_t *cert, size_t cert_len,
  * for `expected_scope`. This is the non-EVM equivalent of the certified v3
  * schema verification path and never consults runtime signer slots. */
 bool clearsign_root_verify_delegate_attestation(
-    const uint8_t *cert, size_t cert_len, uint32_t expected_scope,
-    const uint8_t *data, size_t data_len, const uint8_t *sig, size_t sig_len);
+    const uint8_t* cert, size_t cert_len, uint32_t expected_scope,
+    const uint8_t* data, size_t data_len, const uint8_t* sig, size_t sig_len);
+
+/* Verify a catalog root under the ERC-7730-only purpose domain. `catalog_root`
+ * is the result of the definition leaf's sorted Merkle proof. Keeping this
+ * preimage construction here prevents callers from accidentally reusing the
+ * generic attestation domain for a descriptor that may suppress raw review. */
+bool clearsign_root_verify_erc7730_catalog(
+    const uint8_t* cert, size_t cert_len, uint32_t expected_scope,
+    const uint8_t catalog_root[32], const uint8_t* sig, size_t sig_len,
+    char out_alias[CLEARSIGN_ALIAS_LEN + 1]);
 
 /* True when the firmware carries no root key at all -- the mechanical 7.15
  * release gate, kept queryable so a test can assert it rather than a human

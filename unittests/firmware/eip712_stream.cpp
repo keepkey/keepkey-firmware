@@ -28,14 +28,14 @@ Field mkSized(EthereumTypedDataStructAck_EthereumDataType t, uint32_t size) {
   return f;
 }
 
-std::string nameOf(const Field &f) {
+std::string nameOf(const Field& f) {
   char out[EIP712_MAX_TYPE_NAME];
   if (!eip712_type_name(&f, out, sizeof(out))) return "<refused>";
   return std::string(out);
 }
 
-std::string hexOf(const uint8_t *b, size_t n) {
-  static const char *d = "0123456789abcdef";
+std::string hexOf(const uint8_t* b, size_t n) {
+  static const char* d = "0123456789abcdef";
   std::string s;
   for (size_t i = 0; i < n; i++) {
     s += d[b[i] >> 4];
@@ -167,7 +167,7 @@ TEST(Eip712Stream, EncodeDynamicBytesIsHashed) {
   // keccak256("") -- the canonical empty-input digest.
   Field f = mk(EthereumTypedDataStructAck_EthereumDataType_BYTES);
   uint8_t out[32];
-  ASSERT_TRUE(eip712_encode_leaf(&f, (const uint8_t *)"", 0, out));
+  ASSERT_TRUE(eip712_encode_leaf(&f, (const uint8_t*)"", 0, out));
   EXPECT_EQ(hexOf(out, 32),
             "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470");
 }
@@ -176,9 +176,75 @@ TEST(Eip712Stream, EncodeStringIsHashed) {
   // keccak256("abc")
   Field f = mk(EthereumTypedDataStructAck_EthereumDataType_STRING);
   uint8_t out[32];
-  ASSERT_TRUE(eip712_encode_leaf(&f, (const uint8_t *)"abc", 3, out));
+  ASSERT_TRUE(eip712_encode_leaf(&f, (const uint8_t*)"abc", 3, out));
   EXPECT_EQ(hexOf(out, 32),
             "4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45");
+}
+
+TEST(Eip712Stream, AccumulatesOnlyValidatedDomainBindingFacts) {
+  EXPECT_LE(sizeof(Eip712DomainFacts), 64u);
+  Eip712DomainFacts facts{};
+  Field chain = mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32);
+  uint8_t chain_id[32] = {0};
+  chain_id[31] = 1;
+  ASSERT_TRUE(eip712_domain_facts_observe(&facts, "chainId", &chain, chain_id,
+                                          sizeof(chain_id)));
+  EXPECT_TRUE(facts.has_chain_id);
+  EXPECT_EQ(facts.chain_id, 1u);
+  EXPECT_FALSE(eip712_domain_facts_observe(&facts, "chainId", &chain, chain_id,
+                                           sizeof(chain_id)));
+
+  Field address = mk(EthereumTypedDataStructAck_EthereumDataType_ADDRESS);
+  uint8_t contract[20];
+  for (size_t i = 0; i < sizeof(contract); i++) contract[i] = i;
+  ASSERT_TRUE(eip712_domain_facts_observe(&facts, "verifyingContract", &address,
+                                          contract, sizeof(contract)));
+  EXPECT_TRUE(facts.has_verifying_contract);
+  EXPECT_EQ(memcmp(facts.verifying_contract, contract, sizeof(contract)), 0);
+
+  Field name = mk(EthereumTypedDataStructAck_EthereumDataType_STRING);
+  EXPECT_TRUE(eip712_domain_facts_observe(
+      &facts, "name", &name, reinterpret_cast<const uint8_t*>("App"), 3));
+}
+
+TEST(Eip712Stream, RejectsUnrepresentableOrMalformedDomainBindings) {
+  Eip712DomainFacts facts{};
+  Field chain = mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32);
+  uint8_t too_large[32] = {0};
+  too_large[0] = 1;
+  EXPECT_FALSE(eip712_domain_facts_observe(&facts, "chainId", &chain, too_large,
+                                           sizeof(too_large)));
+  uint8_t zero[32] = {0};
+  EXPECT_FALSE(eip712_domain_facts_observe(&facts, "chainId", &chain, zero,
+                                           sizeof(zero)));
+  Field bytes = mkSized(EthereumTypedDataStructAck_EthereumDataType_BYTES, 20);
+  uint8_t contract[20] = {0};
+  EXPECT_FALSE(eip712_domain_facts_observe(&facts, "verifyingContract", &bytes,
+                                           contract, sizeof(contract)));
+}
+
+TEST(Eip712Stream, CertifiedWalkPausesBeforeMessageValuesUntilAccepted) {
+  EthereumSignTypedData begin{};
+  strcpy(begin.primary_type, "Mail");
+  ASSERT_TRUE(eip712_stream_begin(&begin, true));
+
+  EthereumTypedDataStructAck empty{};
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_STRUCT);
+  ASSERT_STREQ(eip712_stream_next()->struct_name, "EIP712Domain");
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // discover domain
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // hash domain type
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // complete domain
+  ASSERT_STREQ(eip712_stream_next()->struct_name, "Mail");
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // discover message
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // hash message type
+
+  EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DEFINITION);
+  EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
+  EXPECT_TRUE(eip712_stream_definition_accepted());
+  EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_STRUCT);
+  EXPECT_STREQ(eip712_stream_next()->struct_name, "Mail");
+  EXPECT_FALSE(eip712_stream_definition_accepted());
+  eip712_stream_abort();
 }
 
 TEST(Eip712Stream, EncodeAddressIsLeftPadded) {
@@ -223,11 +289,11 @@ TEST(Eip712Stream, ValidateIntegerWidthMustMatchDeclaration) {
 
 TEST(Eip712Stream, ValidateStringRejectsControlBytes) {
   Field f = mk(EthereumTypedDataStructAck_EthereumDataType_STRING);
-  EXPECT_TRUE(eip712_validate_leaf(&f, (const uint8_t *)"Send 1 USDC", 11));
+  EXPECT_TRUE(eip712_validate_leaf(&f, (const uint8_t*)"Send 1 USDC", 11));
   // An embedded NUL is how bytes past the terminator get signed but never
   // drawn -- the exact defect class 7.14.2 closed for message signing.
-  EXPECT_FALSE(eip712_validate_leaf(&f, (const uint8_t *)"a\0b", 3));
-  EXPECT_FALSE(eip712_validate_leaf(&f, (const uint8_t *)"a\nb", 3));
+  EXPECT_FALSE(eip712_validate_leaf(&f, (const uint8_t*)"a\0b", 3));
+  EXPECT_FALSE(eip712_validate_leaf(&f, (const uint8_t*)"a\nb", 3));
 }
 
 TEST(Eip712Stream, ValidateStringRejectsMalformedUtf8) {
@@ -264,37 +330,37 @@ struct Fixture {
   std::map<std::string, EthereumTypedDataStructAck> defs;
 };
 
-const EthereumTypedDataStructAck *fixtureLookup(const char *name, void *ctx) {
-  Fixture *f = static_cast<Fixture *>(ctx);
+const EthereumTypedDataStructAck* fixtureLookup(const char* name, void* ctx) {
+  Fixture* f = static_cast<Fixture*>(ctx);
   auto it = f->defs.find(std::string(name));
   return it == f->defs.end() ? nullptr : &it->second;
 }
 
-void addMember(EthereumTypedDataStructAck &ack, const char *mname,
-               const Field &type) {
-  auto &m = ack.members[ack.members_count++];
+void addMember(EthereumTypedDataStructAck& ack, const char* mname,
+               const Field& type) {
+  auto& m = ack.members[ack.members_count++];
   memset(&m, 0, sizeof(m));
   m.type = type;
   strcpy(m.name, mname);
 }
 
-Field structField(const char *sname) {
+Field structField(const char* sname) {
   Field f = mk(EthereumTypedDataStructAck_EthereumDataType_STRUCT);
   f.has_struct_name = true;
   strcpy(f.struct_name, sname);
   return f;
 }
 
-std::string typeHashHex(Fixture &f, const char *primary) {
+std::string typeHashHex(Fixture& f, const char* primary) {
   uint8_t out[32];
   if (!eip712_type_hash(primary, fixtureLookup, &f, out)) return "<refused>";
   return hexOf(out, 32);
 }
 
 // keccak256 of a literal, for building expectations in the test itself.
-std::string keccakHex(const std::string &s) {
+std::string keccakHex(const std::string& s) {
   uint8_t out[32];
-  keccak_256(reinterpret_cast<const uint8_t *>(s.data()), s.size(), out);
+  keccak_256(reinterpret_cast<const uint8_t*>(s.data()), s.size(), out);
   return hexOf(out, 32);
 }
 
@@ -310,13 +376,12 @@ TEST(Eip712Stream, ReviewIdentifiersAreCanonicalAndNeverTruncated) {
   EXPECT_FALSE(eip712_identifier_ok("line\nbreak"));
   EXPECT_FALSE(eip712_identifier_ok("amount%08x"));
   EXPECT_FALSE(eip712_identifier_ok("member-name"));
-  EXPECT_FALSE(eip712_identifier_ok(
-      "identifier_that_would_be_truncated"));
+  EXPECT_FALSE(eip712_identifier_ok("identifier_that_would_be_truncated"));
 }
 
 TEST(Eip712Stream, TypeHashRejectsDuplicateMemberNames) {
   Fixture f;
-  auto &permit = f.defs["Permit"];
+  auto& permit = f.defs["Permit"];
   memset(&permit, 0, sizeof(permit));
   addMember(permit, "value",
             mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
@@ -329,14 +394,14 @@ TEST(Eip712Stream, TypeHashMatchesTheSpecExample) {
   // The canonical EIP-712 example. Note Person sorts AFTER Mail's own segment
   // and is appended, not interleaved.
   Fixture f;
-  auto &person = f.defs["Person"];
+  auto& person = f.defs["Person"];
   memset(&person, 0, sizeof(person));
   addMember(person, "name",
             mk(EthereumTypedDataStructAck_EthereumDataType_STRING));
   addMember(person, "wallet",
             mk(EthereumTypedDataStructAck_EthereumDataType_ADDRESS));
 
-  auto &mail = f.defs["Mail"];
+  auto& mail = f.defs["Mail"];
   memset(&mail, 0, sizeof(mail));
   addMember(mail, "from", structField("Person"));
   addMember(mail, "to", structField("Person"));
@@ -368,17 +433,17 @@ TEST(Eip712Stream, ReferencedStructsAreSortedByName) {
   // -- is exactly the case it gets wrong. Two devices would disagree with each
   // other and both would look internally consistent.
   Fixture f;
-  auto &zebra = f.defs["Zebra"];
+  auto& zebra = f.defs["Zebra"];
   memset(&zebra, 0, sizeof(zebra));
   addMember(zebra, "stripes",
             mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
 
-  auto &apple = f.defs["Apple"];
+  auto& apple = f.defs["Apple"];
   memset(&apple, 0, sizeof(apple));
   addMember(apple, "colour",
             mk(EthereumTypedDataStructAck_EthereumDataType_STRING));
 
-  auto &m = f.defs["M"];
+  auto& m = f.defs["M"];
   memset(&m, 0, sizeof(m));
   addMember(m, "z", structField("Zebra"));  // referenced FIRST
   addMember(m, "a", structField("Apple"));  // referenced SECOND
@@ -407,14 +472,14 @@ TEST(Eip712Stream, SortIsNotMerelyReversedDiscoveryOrder) {
   // closure holds EIP712_MAX_STRUCTS names INCLUDING the primary type, so
   // three dependencies do not fit -- see RefusesADocumentWiderThanTheClosure.
   Fixture f;
-  const char *names[] = {"Alpha", "Bravo"};
-  for (const char *n : names) {
-    auto &d = f.defs[n];
+  const char* names[] = {"Alpha", "Bravo"};
+  for (const char* n : names) {
+    auto& d = f.defs[n];
     memset(&d, 0, sizeof(d));
     addMember(d, "v",
               mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
   }
-  auto &m = f.defs["M"];
+  auto& m = f.defs["M"];
   memset(&m, 0, sizeof(m));
   addMember(m, "a", structField("Alpha"));
   addMember(m, "b", structField("Bravo"));
@@ -432,14 +497,14 @@ TEST(Eip712Stream, RefusesADocumentWiderThanTheClosure) {
   // silently truncated, because a truncated closure still produces a
   // well-formed 32-byte typeHash -- one that no verifier reproduces.
   Fixture f;
-  const char *names[] = {"Alpha", "Bravo", "Charlie"};
-  for (const char *n : names) {
-    auto &d = f.defs[n];
+  const char* names[] = {"Alpha", "Bravo", "Charlie"};
+  for (const char* n : names) {
+    auto& d = f.defs[n];
     memset(&d, 0, sizeof(d));
     addMember(d, "v",
               mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
   }
-  auto &m = f.defs["M"];
+  auto& m = f.defs["M"];
   memset(&m, 0, sizeof(m));
   addMember(m, "a", structField("Alpha"));
   addMember(m, "b", structField("Bravo"));
@@ -454,16 +519,16 @@ TEST(Eip712Stream, TransitivelyReferencedStructsAreCollectedAndSorted) {
   // closure, and still sorts among the rest rather than trailing the struct
   // that introduced it.
   Fixture f;
-  auto &inner = f.defs["Aardvark"];
+  auto& inner = f.defs["Aardvark"];
   memset(&inner, 0, sizeof(inner));
   addMember(inner, "n",
             mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
 
-  auto &mid = f.defs["Zulu"];
+  auto& mid = f.defs["Zulu"];
   memset(&mid, 0, sizeof(mid));
   addMember(mid, "deep", structField("Aardvark"));  // only reachable via Zulu
 
-  auto &m = f.defs["M"];
+  auto& m = f.defs["M"];
   memset(&m, 0, sizeof(m));
   addMember(m, "z", structField("Zulu"));
 
@@ -477,12 +542,12 @@ TEST(Eip712Stream, StructReachableOnlyAsAnArrayElementIsStillInTheClosure) {
   // data_type STRUCT with array_levels set, so the collector must look at
   // struct_name regardless of the dimensions.
   Fixture f;
-  auto &person = f.defs["Person"];
+  auto& person = f.defs["Person"];
   memset(&person, 0, sizeof(person));
   addMember(person, "wallet",
             mk(EthereumTypedDataStructAck_EthereumDataType_ADDRESS));
 
-  auto &m = f.defs["Group"];
+  auto& m = f.defs["Group"];
   memset(&m, 0, sizeof(m));
   Field arr = structField("Person");
   arr.array_levels_count = 1;
@@ -497,7 +562,7 @@ TEST(Eip712Stream, Permit2PermitSingleTypeHash) {
   // The payload that started all of this. PermitSingle nests PermitDetails, so
   // any flat-structs-only implementation cannot sign a Uniswap approval.
   Fixture f;
-  auto &details = f.defs["PermitDetails"];
+  auto& details = f.defs["PermitDetails"];
   memset(&details, 0, sizeof(details));
   addMember(details, "token",
             mk(EthereumTypedDataStructAck_EthereumDataType_ADDRESS));
@@ -508,7 +573,7 @@ TEST(Eip712Stream, Permit2PermitSingleTypeHash) {
   addMember(details, "nonce",
             mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 6));
 
-  auto &single = f.defs["PermitSingle"];
+  auto& single = f.defs["PermitSingle"];
   memset(&single, 0, sizeof(single));
   addMember(single, "details", structField("PermitDetails"));
   addMember(single, "spender",
@@ -531,7 +596,7 @@ TEST(Eip712Stream, Eip2612PermitTypeHashMatchesUsdcsOwnContract) {
   // OpenZeppelin's ERC20Permit computes the same value. A flat struct, so this
   // pins field order and the atomic spellings rather than the closure.
   Fixture f;
-  auto &permit = f.defs["Permit"];
+  auto& permit = f.defs["Permit"];
   memset(&permit, 0, sizeof(permit));
   addMember(permit, "owner",
             mk(EthereumTypedDataStructAck_EthereumDataType_ADDRESS));
@@ -550,7 +615,7 @@ TEST(Eip712Stream, Eip2612PermitTypeHashMatchesUsdcsOwnContract) {
 
 TEST(Eip712Stream, TypeHashRefusesAMissingStruct) {
   Fixture f;
-  auto &m = f.defs["M"];
+  auto& m = f.defs["M"];
   memset(&m, 0, sizeof(m));
   addMember(m, "ghost", structField("NotSupplied"));
   EXPECT_EQ(typeHashHex(f, "M"), "<refused>");
@@ -560,10 +625,10 @@ TEST(Eip712Stream, TypeHashTerminatesOnACycle) {
   // EIP-712 leaves cyclical data undefined. The collector must not recurse
   // forever on a host that supplies one.
   Fixture f;
-  auto &a = f.defs["A"];
+  auto& a = f.defs["A"];
   memset(&a, 0, sizeof(a));
   addMember(a, "b", structField("B"));
-  auto &b = f.defs["B"];
+  auto& b = f.defs["B"];
   memset(&b, 0, sizeof(b));
   addMember(b, "a", structField("A"));
 

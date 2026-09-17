@@ -44,6 +44,7 @@
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/eos-contracts.h"
+#include "keepkey/firmware/erc7730_catalog.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
@@ -401,6 +402,7 @@ void fsm_abort_signing_workflows(void) {
   signing_abort();
 #if !BITCOIN_ONLY
   ethereum_signing_abort();
+  erc7730_catalog_clear_preload();
   nano_signingAbort();
   tendermint_signAbort();
   osmosis_signAbort();
