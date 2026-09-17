@@ -124,6 +124,50 @@ TEST(Erc7730Workflow, CapturesDeviceStreamedTypedArrayLength) {
   EXPECT_EQ(captured, 3u);
 }
 
+TEST(Erc7730Workflow, BoundsAndAuthenticatesEmbeddedCallStack) {
+  Erc7730Workflow workflow{};
+  workflow.identity.kind = ERC7730_DEFINITION_CALLDATA;
+  workflow.identity.chain_id = 1;
+  memset(workflow.identity.definition_id, 0x11, 32);
+  uint8_t callee[20];
+  memset(callee, 0x42, sizeof(callee));
+  const uint8_t calldata[] = {0xde, 0xad, 0xbe, 0xef, 1, 2, 3};
+  ASSERT_TRUE(erc7730_workflow_enter_embedded(
+      &workflow, callee, calldata, sizeof(calldata), 9));
+
+  Erc7730CatalogIdentity child{};
+  child.kind = ERC7730_DEFINITION_CALLDATA;
+  child.chain_id = 1;
+  memcpy(child.contract_address, callee, sizeof(callee));
+  memcpy(child.selector_or_type_hash, calldata, 4);
+  memset(child.definition_id, 0x22, 32);
+  EXPECT_TRUE(erc7730_workflow_accept_embedded_definition(&workflow, &child));
+
+  child.chain_id = 137;
+  EXPECT_FALSE(erc7730_workflow_accept_embedded_definition(&workflow, &child));
+  child.chain_id = 1;
+  child.selector_or_type_hash[0] ^= 1;
+  EXPECT_FALSE(erc7730_workflow_accept_embedded_definition(&workflow, &child));
+  child.selector_or_type_hash[0] ^= 1;
+  memcpy(child.definition_id, workflow.identity.definition_id, 32);
+  EXPECT_FALSE(erc7730_workflow_accept_embedded_definition(&workflow, &child));
+
+  uint8_t parent[32];
+  uint16_t resume = 0;
+  ASSERT_TRUE(erc7730_workflow_leave_embedded(&workflow, parent, &resume));
+  EXPECT_EQ(memcmp(parent, workflow.identity.definition_id, 32), 0);
+  EXPECT_EQ(resume, 9u);
+  EXPECT_EQ(workflow.embedded_depth, 0u);
+
+  for (uint8_t i = 0; i < ERC7730_EMBEDDED_MAX_DEPTH; i++) {
+    workflow.identity.definition_id[0] = (uint8_t)(i + 1u);
+    ASSERT_TRUE(erc7730_workflow_enter_embedded(
+        &workflow, callee, calldata, sizeof(calldata), i));
+  }
+  EXPECT_FALSE(erc7730_workflow_enter_embedded(
+      &workflow, callee, calldata, sizeof(calldata), 5));
+}
+
 TEST(Erc7730Workflow, ReportsOnlyUnvalidatedCalldataAsWaiting) {
   Erc7730Workflow workflow{};
   size_t remaining = 99;

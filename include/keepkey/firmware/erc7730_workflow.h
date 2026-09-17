@@ -63,6 +63,13 @@ typedef struct {
   uint8_t count;
 } Erc7730ArrayFrame;
 
+#define ERC7730_EMBEDDED_MAX_DEPTH 4u
+
+typedef struct {
+  uint8_t parent_definition_id[32];
+  uint16_t resume_instruction;
+} Erc7730EmbeddedFrame;
+
 /* The workflow owns every pointer-bearing interpreter object. No pointer into
  * a protobuf transport buffer survives a handler return. */
 typedef struct {
@@ -106,6 +113,11 @@ typedef struct {
    * in bytes and do not spend another 64 bytes of signing SRAM. */
   uint8_t condition_literals[64];
   Erc7730ArrayFrame array_frames[ERC7730_ABI_MAX_DEPTH];
+  Erc7730EmbeddedFrame embedded_frames[ERC7730_EMBEDDED_MAX_DEPTH];
+  uint8_t embedded_calldata[ERC7730_EMBEDDED_MAX_DEPTH]
+                           [ERC7730_ABI_CAPTURE_MAX];
+  uint8_t embedded_lengths[ERC7730_EMBEDDED_MAX_DEPTH];
+  uint8_t embedded_callee[20];
   union {
     uint16_t condition_literal_count;
     uint16_t formatter_auxiliary;
@@ -122,6 +134,7 @@ typedef struct {
   uint8_t token_native : 1;
   uint8_t array_depth : 4;
   uint8_t array_elements;
+  uint8_t embedded_depth;
 } Erc7730Workflow;
 
 /* One Ethereum workflow exists at a time. Keeping ownership here ensures FSM
@@ -266,6 +279,17 @@ bool erc7730_workflow_repeat_or_pop_array(Erc7730Workflow* workflow,
                                           uint16_t separator,
                                           bool* repeat);
 bool erc7730_workflow_repeat_array_display(Erc7730Workflow* workflow);
+bool erc7730_workflow_enter_embedded(Erc7730Workflow* workflow,
+                                     const uint8_t callee[20],
+                                     const uint8_t* calldata,
+                                     size_t calldata_length,
+                                     uint16_t resume_instruction);
+bool erc7730_workflow_accept_embedded_definition(
+    const Erc7730Workflow* workflow,
+    const Erc7730CatalogIdentity* child_identity);
+bool erc7730_workflow_leave_embedded(Erc7730Workflow* workflow,
+                                     uint8_t parent_definition_id[32],
+                                     uint16_t* resume_instruction);
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow);
 bool erc7730_workflow_advance_interpolation(Erc7730Workflow* workflow);
 bool erc7730_workflow_jump_display(Erc7730Workflow* workflow,
