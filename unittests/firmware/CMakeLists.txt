@@ -48,6 +48,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       ripple.cpp
       signed_metadata.cpp
       erc7730_abi.cpp
+      erc7730_catalog.cpp
       solana.cpp
       thorchain.cpp
       tron.cpp)

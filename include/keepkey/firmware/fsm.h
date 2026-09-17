@@ -101,6 +101,9 @@ void fsm_msgEthereumTypedDataStructAck(const EthereumTypedDataStructAck* msg);
 void fsm_msgEthereumTypedDataValueAck(const EthereumTypedDataValueAck* msg);
 void fsm_msgEthereum712TypesValues(Ethereum712TypesValues* msg);
 void fsm_msgEthereumTxMetadata(const EthereumTxMetadata* msg);
+void fsm_msgEthereumClearSignDefinition(const EthereumClearSignDefinition* msg);
+void fsm_msgEthereumClearSignDefinitionChunk(
+    const EthereumClearSignDefinitionChunk* msg);
 void fsm_msgLoadClearsignSigner(const LoadClearsignSigner* msg);
 
 void fsm_msgClearsignAttestorGetPublicKey(

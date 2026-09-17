@@ -124,6 +124,66 @@ void fsm_msgEthereumSignTx(EthereumSignTx* msg) {
 
 void fsm_msgEthereumTxAck(EthereumTxAck* msg) { ethereum_signing_txack(msg); }
 
+void fsm_msgEthereumClearSignDefinition(
+    const EthereumClearSignDefinition* msg) {
+  CHECK_INITIALIZED
+  CHECK_PIN
+
+  if (ethereum_signing_isInProgress() ||
+      eip712_stream_waiting() != EIP712_IDLE) {
+    ethereum_signing_abort();
+    eip712_stream_abort();
+    erc7730_catalog_clear_preload();
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("Definition not allowed during signing"));
+    layoutHome();
+    return;
+  }
+  if (msg->definition_id.size != 32 || msg->data.size == 0 ||
+      msg->data.size > ERC7730_TRANSPORT_CHUNK_MAX) {
+    erc7730_catalog_clear_preload();
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid ERC-7730 definition chunk"));
+    layoutHome();
+    return;
+  }
+
+  uint32_t next_offset = 0;
+  bool complete = false;
+  const Erc7730CatalogResult result = erc7730_catalog_preload_chunk(
+      msg->definition_id.bytes, msg->offset, msg->total_length, msg->data.bytes,
+      msg->data.size, &next_offset, &complete);
+  if (result != ERC7730_CATALOG_MORE && result != ERC7730_CATALOG_COMPLETE) {
+    erc7730_catalog_clear_preload();
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid certified ERC-7730 definition"));
+    layoutHome();
+    return;
+  }
+
+  RESP_INIT(EthereumClearSignDefinitionAck);
+  resp->definition_id.size = 32;
+  memcpy(resp->definition_id.bytes, msg->definition_id.bytes, 32);
+  resp->next_offset = next_offset;
+  resp->complete = complete;
+  msg_write(MessageType_MessageType_EthereumClearSignDefinitionAck, resp);
+}
+
+void fsm_msgEthereumClearSignDefinitionChunk(
+    const EthereumClearSignDefinitionChunk* msg) {
+  (void)msg;
+  /* On-demand chunks are accepted only while the ERC-7730 execution machine
+   * has a matching request outstanding. That machine is wired separately from
+   * offline preload; accepting one here would turn an unsolicited message into
+   * signing state. */
+  ethereum_signing_abort();
+  eip712_stream_abort();
+  erc7730_catalog_clear_preload();
+  fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                  _("No ERC-7730 definition requested"));
+  layoutHome();
+}
+
 void fsm_msgEthereumTxMetadata(const EthereumTxMetadata* msg) {
   CHECK_INITIALIZED
   CHECK_PIN
