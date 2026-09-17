@@ -34,6 +34,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       ethereum_contracts.c
       erc7730_abi.c
       erc7730_catalog.c
+      erc7730_program.c
       erc7730_tx.c
       ethereum_contracts/makerdao.c
       ethereum_contracts/saproxy.c
