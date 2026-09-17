@@ -1,5 +1,6 @@
 
 #include "keepkey/firmware/erc7730_workflow.h"
+#include "keepkey/firmware/erc7730_condition.h"
 
 /*
  * This file is part of the Keepkey project
@@ -485,12 +486,26 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     }
     if (workflow->display_stage != ERC7730_DISPLAY_INSTRUCTION ||
         instruction.opcode != 4 || instruction.flags != 0 ||
-        instruction.a == UINT16_MAX || instruction.b == UINT16_MAX ||
-        instruction.c != UINT16_MAX) {
+        instruction.a == UINT16_MAX || instruction.b == UINT16_MAX) {
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       _("Unsupported ERC-7730 field instruction"));
       layoutHome();
+      return;
+    }
+    if (instruction.c != UINT16_MAX) {
+      workflow->label[0] = (char)(instruction.a >> 8);
+      workflow->label[1] = (char)instruction.a;
+      workflow->current_formatter = instruction.b;
+      workflow->display_stage = ERC7730_DISPLAY_CONDITION;
+      if (!erc7730_workflow_select_condition(workflow, instruction.c)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 field condition"));
+        layoutHome();
+        return;
+      }
+      send_erc7730_definition_request();
       return;
     }
     workflow->current_formatter = instruction.b;
@@ -502,6 +517,46 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     workflow->display_stage = ERC7730_DISPLAY_LABEL;
+    send_erc7730_definition_request();
+    return;
+  }
+  if (selection_kind == ERC7730_SELECTION_CONDITION) {
+    Erc7730Condition condition;
+    bool visible = false;
+    if (workflow->display_stage != ERC7730_DISPLAY_CONDITION ||
+        !erc7730_workflow_selected_condition(workflow, &condition) ||
+        !erc7730_condition_evaluate_basic(&condition, NULL, NULL, &visible)) {
+      memzero(&condition, sizeof(condition));
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unsupported ERC-7730 field condition"));
+      layoutHome();
+      return;
+    }
+    memzero(&condition, sizeof(condition));
+    if (!visible) {
+      if (!erc7730_workflow_skip_display(workflow)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 condition jump"));
+        layoutHome();
+        return;
+      }
+      send_erc7730_definition_request();
+      return;
+    }
+    const uint16_t label_index =
+        (uint16_t)(((uint16_t)(uint8_t)workflow->label[0] << 8) |
+                   (uint8_t)workflow->label[1]);
+    memzero(workflow->label, sizeof(workflow->label));
+    workflow->display_stage = ERC7730_DISPLAY_LABEL;
+    if (!erc7730_workflow_select_string(workflow, label_index)) {
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 conditioned field"));
+      layoutHome();
+      return;
+    }
     send_erc7730_definition_request();
     return;
   }
