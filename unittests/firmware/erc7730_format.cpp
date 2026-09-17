@@ -198,3 +198,41 @@ TEST(Erc7730Format, FormatsUnixTimestampsAsCanonicalUtcRfc3339) {
   EXPECT_FALSE(
       erc7730_format_timestamp(&program, &capture, output, sizeof(output)));
 }
+
+TEST(Erc7730Format, FormatsUnitsWithDecimalsAndSiPrefixes) {
+  Erc7730AbiNode node{};
+  node.kind = ERC7730_ABI_UINT;
+  node.size = 256;
+  Erc7730AbiProgram program{&node, 1, 0};
+  Erc7730AbiCapture capture{};
+  capture.node = 0;
+  capture.length = 32;
+  char output[ERC7730_FORMATTED_VALUE_MAX + 1];
+
+  capture.data[31] = 10;
+  ASSERT_TRUE(erc7730_format_unit(&program, &capture, 0, "h", false, output,
+                                  sizeof(output)));
+  EXPECT_STREQ(output, "10h");
+  capture.data[31] = 15;
+  ASSERT_TRUE(erc7730_format_unit(&program, &capture, 1, "d", false, output,
+                                  sizeof(output)));
+  EXPECT_STREQ(output, "1.5d");
+  memset(capture.data, 0, sizeof(capture.data));
+  capture.data[30] = 0x8c;
+  capture.data[31] = 0xa0;  // 36000
+  ASSERT_TRUE(erc7730_format_unit(&program, &capture, 0, "s", true, output,
+                                  sizeof(output)));
+  EXPECT_STREQ(output, "36ks");
+  memset(capture.data, 0, sizeof(capture.data));
+  capture.data[31] = 1;
+  ASSERT_TRUE(erc7730_format_unit(&program, &capture, 5, "s", true, output,
+                                  sizeof(output)));
+  EXPECT_STREQ(output, "10\xc2\xb5s");
+
+  node.kind = ERC7730_ABI_INT;
+  memset(capture.data, 0xff, sizeof(capture.data));
+  capture.data[31] = 0xf1;  // -15
+  ASSERT_TRUE(erc7730_format_unit(&program, &capture, 1, "d", false, output,
+                                  sizeof(output)));
+  EXPECT_STREQ(output, "-1.5d");
+}

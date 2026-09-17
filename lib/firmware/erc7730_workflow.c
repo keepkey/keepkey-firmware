@@ -541,7 +541,7 @@ bool erc7730_workflow_prepare_captured_membership(
       workflow->pending_condition.literal_set == UINT16_MAX ||
       workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
       !erc7730_abi_stream_captured(&workflow->calldata,
-                                   &workflow->condition_value))
+                                   &workflow->value_scratch.condition_value))
     return false;
   *literal_set = workflow->pending_condition.literal_set;
   erc7730_abi_stream_clear(&workflow->calldata);
@@ -580,7 +580,7 @@ static bool finish_membership(Erc7730Workflow* workflow, bool matched,
   workflow->condition_capture = false;
   workflow->condition_matched = false;
   memzero(&workflow->pending_condition, sizeof(workflow->pending_condition));
-  memzero(&workflow->condition_value, sizeof(workflow->condition_value));
+  memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
   memzero(workflow->condition_literals, sizeof(workflow->condition_literals));
   workflow->condition_literal_count = 0;
   workflow->condition_literal_position = 0;
@@ -617,12 +617,12 @@ bool erc7730_workflow_observe_membership_literal(
     program.nodes = &container_node;
     program.node_count = 1;
     program.root = 0;
-    workflow->condition_value.node = 0;
+    workflow->value_scratch.condition_value.node = 0;
   } else if (!erc7730_program_loader_complete(&workflow->loader, &program)) {
     return false;
   }
   workflow->condition_matched |= erc7730_capture_equals_literal(
-      &program, &workflow->condition_value, literal);
+      &program, &workflow->value_scratch.condition_value, literal);
   workflow->condition_literal_position++;
   if (workflow->condition_literal_position < workflow->condition_literal_count) {
     *next_literal =
@@ -944,6 +944,13 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
     result = erc7730_format_duration(&program, &capture, output, output_size);
   } else if (workflow->current_formatter_kind == 5) {
     result = erc7730_format_timestamp(&program, &capture, output, output_size);
+  } else if (workflow->current_formatter_kind == 7) {
+    result = erc7730_format_unit(
+        &program, &capture,
+        workflow->value_scratch.formatter_parameters.decimals,
+        workflow->value_scratch.formatter_parameters.base,
+        workflow->value_scratch.formatter_parameters.prefix, output,
+        output_size);
   }
   memzero(&capture, sizeof(capture));
   return result;

@@ -174,6 +174,32 @@ TEST(Erc7730Workflow, FormatsCapturedTimestampExactly) {
   EXPECT_STREQ(formatted, "2024-02-29T07:27:12Z");
 }
 
+TEST(Erc7730Workflow, FormatsCapturedUnitFromAuthenticatedParameters) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  workflow.current_formatter_kind = 7;
+  strcpy(workflow.value_scratch.formatter_parameters.base, "s");
+  workflow.value_scratch.formatter_parameters.prefix = true;
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  const uint32_t member_path[2] = {1, 0};
+  uint8_t value[32] = {0};
+  value[30] = 0x8c;
+  value[31] = 0xa0;
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
+                                              sizeof(value)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  char formatted[16];
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "36ks");
+}
+
 TEST(Erc7730Workflow, TypedDataCaptureFailsClosedOnMissingOrWrongWidthValue) {
   Erc7730Workflow workflow{};
   prepareTypedUintWorkflow(&workflow);

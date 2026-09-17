@@ -195,6 +195,173 @@ bool erc7730_format_amount(const Erc7730AbiProgram* program,
   return true;
 }
 
+static int16_t floor_multiple_of_three(int16_t value) {
+  if (value >= 0) return (int16_t)((value / 3) * 3);
+  return (int16_t)(-(((-value + 2) / 3) * 3));
+}
+
+static const char* si_prefix(int16_t exponent) {
+  switch (exponent) {
+    case -30:
+      return "q";
+    case -27:
+      return "r";
+    case -24:
+      return "y";
+    case -21:
+      return "z";
+    case -18:
+      return "a";
+    case -15:
+      return "f";
+    case -12:
+      return "p";
+    case -9:
+      return "n";
+    case -6:
+      return "\xc2\xb5";
+    case -3:
+      return "m";
+    case 0:
+      return "";
+    case 3:
+      return "k";
+    case 6:
+      return "M";
+    case 9:
+      return "G";
+    case 12:
+      return "T";
+    case 15:
+      return "P";
+    case 18:
+      return "E";
+    case 21:
+      return "Z";
+    case 24:
+      return "Y";
+    case 27:
+      return "R";
+    case 30:
+      return "Q";
+    default:
+      return NULL;
+  }
+}
+
+bool erc7730_format_unit(const Erc7730AbiProgram* program,
+                         const Erc7730AbiCapture* capture, uint8_t decimals,
+                         const char* base, bool prefix, char* output,
+                         size_t output_size) {
+  if (!program || !capture || !base || !output || output_size == 0 ||
+      capture->node >= program->node_count || capture->length != 32 ||
+      base[0] == '\0') {
+    if (output && output_size != 0) output[0] = '\0';
+    return false;
+  }
+  const Erc7730AbiNode* node = &program->nodes[capture->node];
+  if (node->kind != ERC7730_ABI_UINT && node->kind != ERC7730_ABI_INT) {
+    output[0] = '\0';
+    return false;
+  }
+  const bool negative =
+      node->kind == ERC7730_ABI_INT && (capture->data[0] & 0x80u) != 0;
+  uint8_t magnitude[32];
+  memcpy(magnitude, capture->data, sizeof(magnitude));
+  if (negative) {
+    uint16_t carry = 1;
+    for (size_t i = sizeof(magnitude); i > 0; i--) {
+      const uint16_t converted =
+          (uint16_t)(magnitude[i - 1] ^ 0xffu) + carry;
+      magnitude[i - 1] = (uint8_t)converted;
+      carry = converted >> 8;
+    }
+  }
+  char digits[79];
+  if (!format_unsigned(magnitude, false, digits, sizeof(digits))) {
+    memzero(magnitude, sizeof(magnitude));
+    return false;
+  }
+  const bool zero = digits[0] == '0' && digits[1] == '\0';
+  const size_t digit_count = strlen(digits);
+  int16_t exponent = 0;
+  if (prefix && !zero) {
+    exponent = floor_multiple_of_three(
+        (int16_t)digit_count - 1 - (int16_t)decimals);
+    if (exponent < -30) exponent = -30;
+    if (exponent > 30) exponent = 30;
+  }
+  const char* symbol = si_prefix(exponent);
+  if (!symbol) return false;
+  const int16_t scale = (int16_t)decimals + exponent;
+  size_t fractional = 0;
+  size_t leading_zeroes = 0;
+  size_t integer_digits = digit_count;
+  size_t appended_zeroes = 0;
+  if (scale > 0) {
+    if (digit_count > (size_t)scale) {
+      integer_digits = digit_count - (size_t)scale;
+      fractional = (size_t)scale;
+      while (fractional != 0 &&
+             digits[integer_digits + fractional - 1u] == '0')
+        fractional--;
+    } else if (!zero) {
+      integer_digits = 1;
+      leading_zeroes = (size_t)scale - digit_count;
+      fractional = leading_zeroes + digit_count;
+      while (fractional != 0 && digits[fractional - leading_zeroes - 1u] == '0')
+        fractional--;
+    } else {
+      integer_digits = 1;
+    }
+  } else if (scale < 0 && !zero) {
+    appended_zeroes = (size_t)(-scale);
+  }
+  const size_t base_length = strlen(base);
+  const size_t symbol_length = strlen(symbol);
+  const size_t number_length =
+      integer_digits + appended_zeroes + (fractional ? 1u + fractional : 0u);
+  const size_t required = (negative ? 1u : 0u) + number_length +
+                          symbol_length + base_length + 1u;
+  if (required > output_size) {
+    output[0] = '\0';
+    memzero(magnitude, sizeof(magnitude));
+    memzero(digits, sizeof(digits));
+    return false;
+  }
+  size_t written = 0;
+  if (negative) output[written++] = '-';
+  if (scale > 0 && digit_count <= (size_t)scale) {
+    output[written++] = '0';
+    if (fractional) {
+      output[written++] = '.';
+      memset(output + written, '0', leading_zeroes);
+      written += leading_zeroes;
+      const size_t significant = fractional - leading_zeroes;
+      memcpy(output + written, digits, significant);
+      written += significant;
+    }
+  } else {
+    memcpy(output + written, digits, integer_digits);
+    written += integer_digits;
+    if (fractional) {
+      output[written++] = '.';
+      memcpy(output + written, digits + integer_digits, fractional);
+      written += fractional;
+    }
+    memset(output + written, '0', appended_zeroes);
+    written += appended_zeroes;
+  }
+  memcpy(output + written, symbol, symbol_length);
+  written += symbol_length;
+  memcpy(output + written, base, base_length);
+  written += base_length;
+  output[written] = '\0';
+  memzero(magnitude, sizeof(magnitude));
+  memzero(digits, sizeof(digits));
+  return true;
+}
+
 bool erc7730_format_duration(const Erc7730AbiProgram* program,
                              const Erc7730AbiCapture* capture, char* output,
                              size_t output_size) {
