@@ -678,11 +678,12 @@ TEST(Erc7730Workflow, BuildsInterpolatedTextAtomicallyOrKeepsFallback) {
   memcpy(workflow.selection.string.value, "Send ", 5);
   workflow.selection.string.selected_length = 5;
   ASSERT_TRUE(erc7730_workflow_append_interpolated_string(&workflow));
+  ASSERT_TRUE(erc7730_workflow_append_interpolated_value(&workflow, "42"));
   memcpy(workflow.selection.string.value, "tokens", 6);
   workflow.selection.string.selected_length = 6;
   ASSERT_TRUE(erc7730_workflow_append_interpolated_string(&workflow));
   erc7730_workflow_finalize_interpolation(&workflow);
-  EXPECT_STREQ(workflow.intent, "Send tokens");
+  EXPECT_STREQ(workflow.intent, "Send 42tokens");
 
   strcpy(workflow.intent, "Safe fallback");
   memset(workflow.selection.string.value, 'a',
