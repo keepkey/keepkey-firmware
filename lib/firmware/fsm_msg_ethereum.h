@@ -989,6 +989,29 @@ void fsm_msgEthereumClearSignDefinitionChunk(
           }
           workflow->display_stage = ERC7730_DISPLAY_PATH;
         }
+      } else if (workflow->current_formatter_kind == 14) {
+        if (encoding_length == 0 ||
+            encoding_length >=
+                sizeof(workflow->value_scratch.formatter_parameters.base)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 encrypted fallback"));
+          layoutHome();
+          return;
+        }
+        memcpy(workflow->value_scratch.formatter_parameters.base, encoding,
+               encoding_length);
+        workflow->value_scratch.formatter_parameters.base[encoding_length] =
+            '\0';
+        if (!erc7730_workflow_select_path(workflow,
+                                          workflow->formatter_value_path)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 encrypted value"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_PATH;
       } else {
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -1156,6 +1179,53 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         return;
       }
       workflow->display_stage = ERC7730_DISPLAY_PATH;
+      send_erc7730_definition_request();
+      return;
+    }
+    if (formatter.kind == 14) {
+      uint16_t fallback = UINT16_MAX;
+      bool valid = true;
+      for (uint8_t i = 1; valid && i < formatter.argument_count; i++) {
+        const Erc7730FormatterArgument* argument = &formatter.arguments[i];
+        if (argument->role == 21 && argument->source != 3)
+          valid = false;
+        else if (argument->role == 21)
+          fallback = argument->index;
+      }
+      if (!valid) {
+        memzero(&formatter, sizeof(formatter));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 encrypted formatter"));
+        layoutHome();
+        return;
+      }
+      workflow->formatter_value_path = formatter.arguments[0].index;
+      memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+      const uint16_t value_path = workflow->formatter_value_path;
+      memzero(&formatter, sizeof(formatter));
+      if (fallback != UINT16_MAX) {
+        if (!erc7730_workflow_select_string(workflow, fallback)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 encrypted fallback"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_FORMATTER_ARGUMENT;
+      } else {
+        strlcpy(workflow->value_scratch.formatter_parameters.base,
+                "[Encrypted]",
+                sizeof(workflow->value_scratch.formatter_parameters.base));
+        if (!erc7730_workflow_select_path(workflow, value_path)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 encrypted value"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_PATH;
+      }
       send_erc7730_definition_request();
       return;
     }
