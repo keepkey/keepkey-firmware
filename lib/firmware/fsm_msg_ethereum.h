@@ -183,6 +183,48 @@ static void continue_ethereum_sign_tx(EthereumSignTx* msg) {
   memzero(node, sizeof(*node));
 }
 
+static bool select_erc7730_token_metadata(Erc7730Workflow* workflow,
+                                          EthereumSignTx* tx) {
+  uint64_t chain_id = 0;
+  if (workflow->condition_literals[48]) {
+    for (size_t i = 40; i < 48; i++)
+      chain_id = (chain_id << 8) | workflow->condition_literals[i];
+  } else if (workflow->typed_data) {
+    Eip712DomainFacts facts;
+    memzero(&facts, sizeof(facts));
+    if (eip712_stream_domain_facts(&facts) && facts.has_chain_id)
+      chain_id = facts.chain_id;
+    memzero(&facts, sizeof(facts));
+  } else if (tx && tx->has_chain_id) {
+    chain_id = tx->chain_id;
+  } else {
+    chain_id = workflow->identity.chain_id;
+  }
+  if (chain_id == 0) return false;
+  workflow->formatter_auxiliary = ERC7730_TOKEN_CAPTURE_TICKER;
+  return workflow->token_native
+             ? erc7730_workflow_select_network_metadata(workflow, chain_id)
+             : erc7730_workflow_select_token_metadata(
+                   workflow, chain_id,
+                   workflow->value_scratch.condition_value.data + 12);
+}
+
+static void continue_erc7730_native_alias(Erc7730Workflow* workflow,
+                                          bool matched) {
+  workflow->token_native_alias_pending = false;
+  workflow->token_native = matched;
+  if (!select_erc7730_token_metadata(workflow, NULL)) {
+    if (workflow->typed_data) eip712_stream_abort();
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    matched ? _("Network is absent from signed ERC-7730 metadata")
+                            : _("Token is absent from signed ERC-7730 metadata"));
+    layoutHome();
+    return;
+  }
+  send_erc7730_definition_request();
+}
+
 static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   Erc7730Workflow* workflow = erc7730_workflow_state();
   const bool typed_data = workflow->typed_data;
@@ -235,22 +277,7 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   if (workflow->current_formatter_kind == 3 &&
       workflow->formatter_auxiliary == ERC7730_TOKEN_CAPTURE_ADDRESS) {
     uint8_t token_address[20];
-    uint64_t chain_id = 0;
-    if (workflow->condition_literals[48]) {
-      for (size_t i = 40; i < 48; i++)
-        chain_id = (chain_id << 8) | workflow->condition_literals[i];
-    } else if (typed_data) {
-      Eip712DomainFacts facts;
-      memzero(&facts, sizeof(facts));
-      if (eip712_stream_domain_facts(&facts) && facts.has_chain_id)
-        chain_id = facts.chain_id;
-      memzero(&facts, sizeof(facts));
-    } else if (tx->has_chain_id) {
-      chain_id = tx->chain_id;
-    }
-    if (!erc7730_workflow_captured_address(workflow, token_address) ||
-        chain_id == 0) {
-      memzero(token_address, sizeof(token_address));
+    if (!erc7730_workflow_captured_address(workflow, token_address)) {
       if (typed_data) eip712_stream_abort();
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -258,13 +285,54 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
       layoutHome();
       return;
     }
+    memcpy(workflow->value_scratch.condition_value.data + 12, token_address,
+           sizeof(token_address));
+    memzero(token_address, sizeof(token_address));
+    const uint16_t native_alias_set =
+        (uint16_t)(((uint16_t)workflow->condition_literals[50] << 8) |
+                   workflow->condition_literals[51]);
+    if (native_alias_set != UINT16_MAX) {
+      Erc7730Condition alias_condition;
+      alias_condition.opcode = 6;
+      alias_condition.path =
+          (uint16_t)(((uint16_t)workflow->condition_literals[34] << 8) |
+                     workflow->condition_literals[35]);
+      alias_condition.literal_set = native_alias_set;
+      alias_condition.flags = 0;
+      uint16_t literal_set = UINT16_MAX;
+      if (!erc7730_workflow_begin_condition_capture(workflow,
+                                                    &alias_condition) ||
+          !erc7730_workflow_prepare_captured_membership(workflow,
+                                                        &literal_set)) {
+        memzero(&alias_condition, sizeof(alias_condition));
+        if (typed_data) eip712_stream_abort();
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 native aliases"));
+        layoutHome();
+        return;
+      }
+      memzero(&alias_condition, sizeof(alias_condition));
+      memcpy(workflow->value_scratch.condition_value.data + 32,
+             workflow->condition_literals,
+             sizeof(workflow->condition_literals));
+      workflow->token_native_alias_pending = true;
+      if (!erc7730_workflow_select_literal(workflow, literal_set)) {
+        if (typed_data) eip712_stream_abort();
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 native alias set"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_CONDITION_SET;
+      send_erc7730_definition_request();
+      return;
+    }
     erc7730_abi_stream_clear(&workflow->calldata);
     workflow->container_source = 0;
     workflow->phase = ERC7730_WORKFLOW_READY;
-    workflow->formatter_auxiliary = ERC7730_TOKEN_CAPTURE_TICKER;
-    if (!erc7730_workflow_select_token_metadata(workflow, chain_id,
-                                                token_address)) {
-      memzero(token_address, sizeof(token_address));
+    if (!select_erc7730_token_metadata(workflow, tx)) {
       if (typed_data) eip712_stream_abort();
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -272,7 +340,6 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
       layoutHome();
       return;
     }
-    memzero(token_address, sizeof(token_address));
     send_erc7730_definition_request();
     return;
   }
@@ -1189,6 +1256,10 @@ void fsm_msgEthereumClearSignDefinitionChunk(
           layoutHome();
           return;
         }
+        if (workflow->token_native_alias_pending) {
+          continue_erc7730_native_alias(workflow, visible);
+          return;
+        }
         continue_erc7730_condition_visibility(visible);
         return;
       }
@@ -1228,6 +1299,10 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         send_erc7730_definition_request();
         return;
       }
+      if (workflow->token_native_alias_pending) {
+        continue_erc7730_native_alias(workflow, visible);
+        return;
+      }
       continue_erc7730_condition_visibility(visible);
       return;
     }
@@ -1238,11 +1313,15 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     layoutHome();
     return;
   }
-  if (selection_kind == ERC7730_SELECTION_TOKEN_METADATA) {
+  if (selection_kind == ERC7730_SELECTION_TOKEN_METADATA ||
+      selection_kind == ERC7730_SELECTION_NETWORK_METADATA) {
     Erc7730TokenMetadata metadata;
     if (workflow->current_formatter_kind != 3 ||
         workflow->formatter_auxiliary != ERC7730_TOKEN_CAPTURE_TICKER ||
-        !erc7730_workflow_selected_token_metadata(workflow, &metadata) ||
+        !(selection_kind == ERC7730_SELECTION_TOKEN_METADATA
+              ? erc7730_workflow_selected_token_metadata(workflow, &metadata)
+              : erc7730_workflow_selected_network_metadata(workflow,
+                                                            &metadata)) ||
         metadata.decimals > 77 ||
         !erc7730_workflow_select_string(workflow, metadata.ticker_string)) {
       memzero(&metadata, sizeof(metadata));
@@ -1630,6 +1709,7 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       uint16_t threshold = UINT16_MAX;
       uint16_t threshold_message = UINT16_MAX;
       uint16_t chain = UINT16_MAX;
+      uint16_t native_alias_set = UINT16_MAX;
       uint8_t chain_source = 0;
       bool valid = formatter.argument_count >= 2;
       for (uint8_t i = 1; valid && i < formatter.argument_count; i++) {
@@ -1648,6 +1728,9 @@ void fsm_msgEthereumClearSignDefinitionChunk(
                  chain == UINT16_MAX) {
           chain = argument->index;
           chain_source = argument->source;
+        } else if (argument->role == 22 && argument->source == 2 &&
+                   native_alias_set == UINT16_MAX) {
+          native_alias_set = argument->index;
         } else
           valid = false;
       }
@@ -1661,6 +1744,8 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         return;
       }
       workflow->formatter_value_path = formatter.arguments[0].index;
+      workflow->token_native_alias_pending = false;
+      workflow->token_native = false;
       memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
       memzero(workflow->condition_literals,
               sizeof(workflow->condition_literals));
@@ -1671,6 +1756,8 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       workflow->condition_literals[36] = threshold != UINT16_MAX ? 1 : 0;
       workflow->condition_literals[37] = (uint8_t)(threshold >> 8);
       workflow->condition_literals[38] = (uint8_t)threshold;
+      workflow->condition_literals[50] = (uint8_t)(native_alias_set >> 8);
+      workflow->condition_literals[51] = (uint8_t)native_alias_set;
       if (chain != UINT16_MAX)
         workflow->formatter_auxiliary =
             chain_source == 1 ? ERC7730_TOKEN_CAPTURE_CHAIN_PATH

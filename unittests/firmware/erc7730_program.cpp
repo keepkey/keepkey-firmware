@@ -375,6 +375,37 @@ TEST(Erc7730ProgramTokenMetadata, SelectsExactSignedChainAndAddress) {
       &missing, 0, section.data(), section.size()));
 }
 
+TEST(Erc7730ProgramTokenMetadata, SelectsExactSignedNetwork) {
+  std::vector<uint8_t> section = {0, 2};
+  section.insert(section.end(), {3, 0, 31});
+  section.insert(section.end(), 31, 0);  // unrelated token
+  section.insert(section.end(), {4, 0, 13});
+  const uint64_t chain_id = 42161;
+  for (int shift = 56; shift >= 0; shift -= 8)
+    section.push_back((uint8_t)(chain_id >> shift));
+  section.insert(section.end(), {0, 9, 0, 11, 18});
+
+  for (size_t chunk : {1u, 5u, 64u}) {
+    Erc7730ProgramTokenMetadata loader;
+    erc7730_program_network_metadata_begin(&loader, section.size(), chain_id);
+    for (size_t offset = 0; offset < section.size();) {
+      const size_t length = std::min(chunk, section.size() - offset);
+      ASSERT_TRUE(erc7730_program_token_metadata_feed(
+          &loader, offset, section.data() + offset, length));
+      offset += length;
+    }
+    Erc7730TokenMetadata metadata;
+    ASSERT_TRUE(erc7730_program_token_metadata_complete(&loader, &metadata));
+    EXPECT_EQ(metadata.ticker_string, 11u);
+    EXPECT_EQ(metadata.decimals, 18u);
+  }
+
+  Erc7730ProgramTokenMetadata missing;
+  erc7730_program_network_metadata_begin(&missing, section.size(), 1);
+  EXPECT_FALSE(erc7730_program_token_metadata_feed(
+      &missing, 0, section.data(), section.size()));
+}
+
 TEST(Erc7730ProgramCondition, RejectsMissingTargetAndBadLength) {
   std::vector<uint8_t> section = {0, 1, 1, 0xff, 0xff, 0xff, 0xff, 0, 0, 0};
   Erc7730ProgramCondition loader;

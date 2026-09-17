@@ -710,8 +710,20 @@ void erc7730_program_token_metadata_begin(
   memzero(metadata, sizeof(*metadata));
   metadata->section_length = section_length;
   metadata->target_chain_id = chain_id;
+  metadata->target_kind = 3;
   if (address) memcpy(metadata->target_address, address, 20);
   if (!address || chain_id == 0 || section_length < 2) metadata->failed = true;
+}
+
+void erc7730_program_network_metadata_begin(
+    Erc7730ProgramTokenMetadata* metadata, uint32_t section_length,
+    uint64_t chain_id) {
+  if (!metadata) return;
+  memzero(metadata, sizeof(*metadata));
+  metadata->section_length = section_length;
+  metadata->target_chain_id = chain_id;
+  metadata->target_kind = 4;
+  if (chain_id == 0 || section_length < 2) metadata->failed = true;
 }
 
 bool erc7730_program_token_metadata_feed(
@@ -747,22 +759,28 @@ bool erc7730_program_token_metadata_feed(
       }
       continue;
     }
-    if (metadata->header[0] == 3 && metadata->current_length == 31)
+    const uint16_t expected_length = metadata->target_kind == 3 ? 31 : 13;
+    if (metadata->header[0] == metadata->target_kind &&
+        metadata->current_length == expected_length)
       metadata->payload[metadata->current_received] = byte;
     metadata->current_received++;
     if (metadata->current_received != metadata->current_length) continue;
-    if (metadata->header[0] == 3 && metadata->current_length == 31) {
+    if (metadata->header[0] == metadata->target_kind &&
+        metadata->current_length == expected_length) {
       uint64_t chain_id = 0;
       for (size_t j = 0; j < 8; j++)
         chain_id = (chain_id << 8) | metadata->payload[j];
       if (chain_id == metadata->target_chain_id &&
-          memcmp(metadata->payload + 8, metadata->target_address, 20) == 0) {
+          (metadata->target_kind == 4 ||
+           memcmp(metadata->payload + 8, metadata->target_address, 20) == 0)) {
         if (metadata->selected_found) {
           metadata->failed = true;
           return false;
         }
-        metadata->selected.ticker_string = read_be16(metadata->payload + 28);
-        metadata->selected.decimals = metadata->payload[30];
+        const size_t ticker_offset = metadata->target_kind == 3 ? 28 : 10;
+        metadata->selected.ticker_string =
+            read_be16(metadata->payload + ticker_offset);
+        metadata->selected.decimals = metadata->payload[ticker_offset + 2];
         metadata->selected_found = true;
       }
     }
