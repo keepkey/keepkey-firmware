@@ -4,6 +4,8 @@
 
 #define ERC7730_FORMATTER_INTERPOLATION_FLAG UINT16_C(0x8000)
 #define ERC7730_FORMATTER_GROUP_CONTROL UINT8_C(0xff)
+#define ERC7730_TOKEN_CAPTURE_ADDRESS UINT16_C(0xfffe)
+#define ERC7730_TOKEN_CAPTURE_TICKER UINT16_C(0xfffd)
 
 /*
  * This file is part of the Keepkey project
@@ -179,6 +181,47 @@ static void continue_ethereum_sign_tx(EthereumSignTx* msg) {
 static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   Erc7730Workflow* workflow = erc7730_workflow_state();
   const bool typed_data = workflow->typed_data;
+  if (workflow->current_formatter_kind == 3 &&
+      workflow->formatter_auxiliary == ERC7730_TOKEN_CAPTURE_ADDRESS) {
+    uint8_t token_address[20];
+    uint64_t chain_id = 0;
+    if (typed_data) {
+      Eip712DomainFacts facts;
+      memzero(&facts, sizeof(facts));
+      if (eip712_stream_domain_facts(&facts) && facts.has_chain_id)
+        chain_id = facts.chain_id;
+      memzero(&facts, sizeof(facts));
+    } else if (tx->has_chain_id) {
+      chain_id = tx->chain_id;
+    }
+    if (!erc7730_workflow_captured_address(workflow, token_address) ||
+        chain_id == 0) {
+      memzero(token_address, sizeof(token_address));
+      if (typed_data) eip712_stream_abort();
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unable to resolve ERC-7730 token"));
+      layoutHome();
+      return;
+    }
+    erc7730_abi_stream_clear(&workflow->calldata);
+    workflow->container_source = 0;
+    workflow->phase = ERC7730_WORKFLOW_READY;
+    workflow->formatter_auxiliary = ERC7730_TOKEN_CAPTURE_TICKER;
+    if (!erc7730_workflow_select_token_metadata(workflow, chain_id,
+                                                token_address)) {
+      memzero(token_address, sizeof(token_address));
+      if (typed_data) eip712_stream_abort();
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Token is absent from signed ERC-7730 metadata"));
+      layoutHome();
+      return;
+    }
+    memzero(token_address, sizeof(token_address));
+    send_erc7730_definition_request();
+    return;
+  }
   if ((workflow->current_formatter & ERC7730_FORMATTER_INTERPOLATION_FLAG) !=
       0) {
     char formatted[ERC7730_FORMATTED_VALUE_MAX + 1u];
@@ -1058,6 +1101,27 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     layoutHome();
     return;
   }
+  if (selection_kind == ERC7730_SELECTION_TOKEN_METADATA) {
+    Erc7730TokenMetadata metadata;
+    if (workflow->current_formatter_kind != 3 ||
+        workflow->formatter_auxiliary != ERC7730_TOKEN_CAPTURE_TICKER ||
+        !erc7730_workflow_selected_token_metadata(workflow, &metadata) ||
+        metadata.decimals > 77 ||
+        !erc7730_workflow_select_string(workflow, metadata.ticker_string)) {
+      memzero(&metadata, sizeof(metadata));
+      if (workflow->typed_data) eip712_stream_abort();
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid signed ERC-7730 token metadata"));
+      layoutHome();
+      return;
+    }
+    workflow->value_scratch.formatter_parameters.decimals = metadata.decimals;
+    memzero(&metadata, sizeof(metadata));
+    workflow->display_stage = ERC7730_DISPLAY_FORMATTER_ARGUMENT;
+    send_erc7730_definition_request();
+    return;
+  }
   if (selection_kind == ERC7730_SELECTION_STRING) {
     if (workflow->current_formatter_kind == ERC7730_FORMATTER_GROUP_CONTROL &&
         workflow->display_stage == ERC7730_DISPLAY_LABEL) {
@@ -1122,7 +1186,32 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         layoutHome();
         return;
       }
-      if (workflow->current_formatter_kind == 5) {
+      if (workflow->current_formatter_kind == 3 &&
+          workflow->formatter_auxiliary == ERC7730_TOKEN_CAPTURE_TICKER) {
+        if (encoding_length == 0 ||
+            encoding_length >=
+                sizeof(workflow->value_scratch.formatter_parameters.base)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 token ticker"));
+          layoutHome();
+          return;
+        }
+        memcpy(workflow->value_scratch.formatter_parameters.base, encoding,
+               encoding_length);
+        workflow->value_scratch.formatter_parameters.base[encoding_length] =
+            '\0';
+        workflow->formatter_auxiliary = 0;
+        if (!erc7730_workflow_select_path(workflow,
+                                          workflow->formatter_value_path)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 token amount path"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_PATH;
+      } else if (workflow->current_formatter_kind == 5) {
         if (encoding_length != 9 || memcmp(encoding, "timestamp", 9) != 0 ||
             !erc7730_workflow_select_path(workflow,
                                           workflow->formatter_value_path)) {
@@ -1352,6 +1441,32 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         _("Invalid ERC-7730 enum value path"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_PATH;
+      send_erc7730_definition_request();
+      return;
+    }
+    if (formatter.kind == 3) {
+      if (formatter.argument_count != 2 || formatter.arguments[1].role != 2 ||
+          formatter.arguments[1].source != 1) {
+        memzero(&formatter, sizeof(formatter));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 token amount formatter"));
+        layoutHome();
+        return;
+      }
+      workflow->formatter_value_path = formatter.arguments[0].index;
+      workflow->formatter_auxiliary = ERC7730_TOKEN_CAPTURE_ADDRESS;
+      const uint16_t token_path = formatter.arguments[1].index;
+      memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+      memzero(&formatter, sizeof(formatter));
+      if (!erc7730_workflow_select_path(workflow, token_path)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 token path"));
         layoutHome();
         return;
       }

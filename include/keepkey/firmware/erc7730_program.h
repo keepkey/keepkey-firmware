@@ -176,6 +176,29 @@ typedef struct {
   bool failed;
 } Erc7730ProgramCondition;
 
+typedef struct {
+  uint16_t ticker_string;
+  uint8_t decimals;
+} Erc7730TokenMetadata;
+
+typedef struct {
+  Erc7730TokenMetadata selected;
+  uint64_t target_chain_id;
+  uint8_t target_address[20];
+  uint32_t section_length;
+  uint32_t received;
+  uint16_t record_count;
+  uint16_t record_index;
+  uint16_t current_length;
+  uint16_t current_received;
+  uint8_t header[3];
+  uint8_t payload[31];
+  uint8_t header_received;
+  bool selected_found;
+  bool complete;
+  bool failed;
+} Erc7730ProgramTokenMetadata;
+
 #define ERC7730_LITERAL_MAX_LENGTH 258u
 
 typedef struct {
@@ -271,6 +294,16 @@ bool erc7730_program_condition_feed(Erc7730ProgramCondition* condition,
 bool erc7730_program_condition_complete(
     const Erc7730ProgramCondition* condition, Erc7730Condition* result);
 void erc7730_program_condition_clear(Erc7730ProgramCondition* condition);
+
+void erc7730_program_token_metadata_begin(
+    Erc7730ProgramTokenMetadata* metadata, uint32_t section_length,
+    uint64_t chain_id, const uint8_t address[20]);
+bool erc7730_program_token_metadata_feed(
+    Erc7730ProgramTokenMetadata* metadata, uint32_t section_offset,
+    const uint8_t* data, size_t data_len);
+bool erc7730_program_token_metadata_complete(
+    const Erc7730ProgramTokenMetadata* metadata,
+    Erc7730TokenMetadata* result);
 void erc7730_program_literal_begin(Erc7730ProgramLiteral* literal,
                                    uint32_t section_length,
                                    uint16_t target_index);
