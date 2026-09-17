@@ -113,3 +113,84 @@ bool erc7730_format_raw(const Erc7730AbiProgram* program,
   }
   return false;
 }
+
+bool erc7730_format_amount(const Erc7730AbiProgram* program,
+                           const Erc7730AbiCapture* capture, uint8_t decimals,
+                           const char* ticker, char* output,
+                           size_t output_size) {
+  if (!program || !capture || !output || output_size == 0 ||
+      capture->node >= program->node_count || capture->length != 32 ||
+      program->nodes[capture->node].kind != ERC7730_ABI_UINT) {
+    if (output && output_size != 0) output[0] = '\0';
+    return false;
+  }
+  char digits[79];
+  if (!format_unsigned(capture->data, false, digits, sizeof(digits))) {
+    output[0] = '\0';
+    return false;
+  }
+  const size_t digit_count = strlen(digits);
+  const size_t ticker_length = ticker ? strlen(ticker) : 0;
+  size_t integer_length = digit_count;
+  size_t fractional_length = 0;
+  size_t leading_zeroes = 0;
+  size_t significant_length = digit_count;
+  if (decimals != 0 && digit_count > decimals) {
+    integer_length = digit_count - decimals;
+    fractional_length = decimals;
+    while (fractional_length != 0 &&
+           digits[integer_length + fractional_length - 1u] == '0')
+      fractional_length--;
+  } else if (decimals != 0) {
+    integer_length = 1;
+    leading_zeroes = decimals - digit_count;
+    while (significant_length != 0 && digits[significant_length - 1u] == '0')
+      significant_length--;
+    if (significant_length == 0) {
+      leading_zeroes = 0;
+      fractional_length = 0;
+    } else {
+      fractional_length = leading_zeroes + significant_length;
+    }
+  }
+  const size_t number_length =
+      integer_length + (fractional_length != 0 ? 1u + fractional_length : 0u);
+  const size_t suffix_length = ticker_length ? 1u + ticker_length : 0u;
+  if (number_length > SIZE_MAX - suffix_length - 1u ||
+      output_size < number_length + suffix_length + 1u) {
+    output[0] = '\0';
+    memzero(digits, sizeof(digits));
+    return false;
+  }
+
+  size_t written = 0;
+  if (decimals == 0) {
+    memcpy(output, digits, digit_count);
+    written = digit_count;
+  } else if (digit_count > decimals) {
+    memcpy(output, digits, integer_length);
+    written = integer_length;
+    if (fractional_length != 0) {
+      output[written++] = '.';
+      memcpy(output + written, digits + integer_length, fractional_length);
+      written += fractional_length;
+    }
+  } else {
+    output[written++] = '0';
+    if (fractional_length != 0) {
+      output[written++] = '.';
+      memset(output + written, '0', leading_zeroes);
+      written += leading_zeroes;
+      memcpy(output + written, digits, significant_length);
+      written += significant_length;
+    }
+  }
+  if (ticker_length != 0) {
+    output[written++] = ' ';
+    memcpy(output + written, ticker, ticker_length);
+    written += ticker_length;
+  }
+  output[written] = '\0';
+  memzero(digits, sizeof(digits));
+  return true;
+}

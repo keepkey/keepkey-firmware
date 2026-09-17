@@ -74,3 +74,60 @@ TEST(Erc7730Format, PreservesValidatedUtf8AndRejectsSmallOutput) {
   EXPECT_FALSE(format(ERC7730_ABI_STRING, 0, value, sizeof(value), small,
                       sizeof(small)));
 }
+
+TEST(Erc7730Format, FormatsDecimalAmountsWithoutFloatingPoint) {
+  const Erc7730AbiNode nodes[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {ERC7730_ABI_UINT, 256, 0, 0, 0},
+  };
+  const Erc7730AbiProgram program{nodes, 2, 0};
+  Erc7730AbiCapture capture{};
+  capture.node = 1;
+  capture.length = 32;
+  char output[128];
+
+  capture.data[24] = 0x0d;
+  capture.data[25] = 0xe0;
+  capture.data[26] = 0xb6;
+  capture.data[27] = 0xb3;
+  capture.data[28] = 0xa7;
+  capture.data[29] = 0x64;
+  capture.data[30] = 0x00;
+  capture.data[31] = 0x00;  // 1e18
+  ASSERT_TRUE(erc7730_format_amount(&program, &capture, 18, "ETH", output,
+                                    sizeof(output)));
+  EXPECT_STREQ(output, "1 ETH");
+
+  memset(capture.data, 0, sizeof(capture.data));
+  capture.data[31] = 1;
+  ASSERT_TRUE(erc7730_format_amount(&program, &capture, 6, "USDC", output,
+                                    sizeof(output)));
+  EXPECT_STREQ(output, "0.000001 USDC");
+
+  memset(capture.data, 0, sizeof(capture.data));
+  ASSERT_TRUE(erc7730_format_amount(&program, &capture, 18, nullptr, output,
+                                    sizeof(output)));
+  EXPECT_STREQ(output, "0");
+}
+
+TEST(Erc7730Format, TrimsOnlyFractionalTrailingZeroes) {
+  const Erc7730AbiNode nodes[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {ERC7730_ABI_UINT, 256, 0, 0, 0},
+  };
+  const Erc7730AbiProgram program{nodes, 2, 0};
+  Erc7730AbiCapture capture{};
+  capture.node = 1;
+  capture.length = 32;
+  capture.data[30] = 0x30;
+  capture.data[31] = 0x39;  // 12345
+  char output[32];
+  ASSERT_TRUE(erc7730_format_amount(&program, &capture, 3, nullptr, output,
+                                    sizeof(output)));
+  EXPECT_STREQ(output, "12.345");
+  capture.data[30] = 0x2e;
+  capture.data[31] = 0xe0;  // 12000
+  ASSERT_TRUE(erc7730_format_amount(&program, &capture, 3, nullptr, output,
+                                    sizeof(output)));
+  EXPECT_STREQ(output, "12");
+}

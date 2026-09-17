@@ -11,5 +11,9 @@
 bool erc7730_format_raw(const Erc7730AbiProgram* program,
                         const Erc7730AbiCapture* capture, char* output,
                         size_t output_size);
+bool erc7730_format_amount(const Erc7730AbiProgram* program,
+                           const Erc7730AbiCapture* capture, uint8_t decimals,
+                           const char* ticker, char* output,
+                           size_t output_size);
 
 #endif
