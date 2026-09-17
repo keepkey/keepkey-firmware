@@ -235,6 +235,42 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   continue_ethereum_sign_tx(tx);
 }
 
+static void continue_erc7730_condition(void) {
+  Erc7730Workflow* workflow = erc7730_workflow_state();
+  bool visible = false;
+  if (!erc7730_workflow_resolve_captured_condition(workflow, &visible)) {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Unable to evaluate ERC-7730 condition"));
+    layoutHome();
+    return;
+  }
+  if (!visible) {
+    if (!erc7730_workflow_skip_display(workflow)) {
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 condition jump"));
+      layoutHome();
+      return;
+    }
+    send_erc7730_definition_request();
+    return;
+  }
+  const uint16_t label_index =
+      (uint16_t)(((uint16_t)(uint8_t)workflow->label[0] << 8) |
+                 (uint8_t)workflow->label[1]);
+  memzero(workflow->label, sizeof(workflow->label));
+  workflow->display_stage = ERC7730_DISPLAY_LABEL;
+  if (!erc7730_workflow_select_string(workflow, label_index)) {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid ERC-7730 conditioned field"));
+    layoutHome();
+    return;
+  }
+  send_erc7730_definition_request();
+}
+
 static void start_erc7730_calldata(Erc7730Workflow* workflow,
                                    const Erc7730Path* path) {
   EthereumSignTx tx;
@@ -252,7 +288,10 @@ static void start_erc7730_calldata(Erc7730Workflow* workflow,
   if (erc7730_workflow_calldata_waiting(workflow, &remaining)) {
     send_erc7730_calldata_request();
   } else if (erc7730_workflow_calldata_finish(workflow) == ERC7730_ABI_OK) {
-    confirm_erc7730_intent_and_continue(&tx);
+    if (erc7730_workflow_condition_capture_pending(workflow))
+      continue_erc7730_condition();
+    else
+      confirm_erc7730_intent_and_continue(&tx);
   } else {
     erc7730_workflow_abort(workflow);
     fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -356,7 +395,10 @@ void fsm_msgEthereumTxAck(EthereumTxAck* msg) {
     layoutHome();
     return;
   }
-  confirm_erc7730_intent_and_continue(&tx);
+  if (erc7730_workflow_condition_capture_pending(workflow))
+    continue_erc7730_condition();
+  else
+    confirm_erc7730_intent_and_continue(&tx);
   memzero(&tx, sizeof(tx));
 }
 
@@ -530,8 +572,31 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     Erc7730Condition condition;
     bool visible = false;
     if (workflow->display_stage != ERC7730_DISPLAY_CONDITION ||
-        !erc7730_workflow_selected_condition(workflow, &condition) ||
-        !erc7730_condition_evaluate_basic(&condition, NULL, NULL, &visible)) {
+        !erc7730_workflow_selected_condition(workflow, &condition)) {
+      memzero(&condition, sizeof(condition));
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unsupported ERC-7730 field condition"));
+      layoutHome();
+      return;
+    }
+    if (condition.opcode == 4 || condition.opcode == 5) {
+      const uint16_t condition_path = condition.path;
+      if (!erc7730_workflow_begin_condition_capture(workflow, &condition) ||
+          !erc7730_workflow_select_path(workflow, condition_path)) {
+        memzero(&condition, sizeof(condition));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 condition path"));
+        layoutHome();
+        return;
+      }
+      memzero(&condition, sizeof(condition));
+      workflow->display_stage = ERC7730_DISPLAY_PATH;
+      send_erc7730_definition_request();
+      return;
+    }
+    if (!erc7730_condition_evaluate_basic(&condition, NULL, NULL, &visible)) {
       memzero(&condition, sizeof(condition));
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -690,7 +755,10 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     memzero(sender_address, sizeof(sender_address));
-    confirm_erc7730_intent_and_continue(&tx);
+    if (erc7730_workflow_condition_capture_pending(workflow))
+      continue_erc7730_condition();
+    else
+      confirm_erc7730_intent_and_continue(&tx);
     memzero(&tx, sizeof(tx));
   } else if (workflow->typed_data && path.source == 2) {
     uint8_t value[32];

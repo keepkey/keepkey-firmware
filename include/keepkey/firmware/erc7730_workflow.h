@@ -70,8 +70,10 @@ typedef struct {
   uint8_t display_stage : 4;
   uint8_t current_formatter_kind;
   uint8_t container_source;
+  Erc7730Condition pending_condition;
   bool typed_data;
   bool intent_confirmed;
+  bool condition_capture;
 } Erc7730Workflow;
 
 /* One Ethereum workflow exists at a time. Keeping ownership here ensures FSM
@@ -130,6 +132,12 @@ bool erc7730_workflow_capture_tx_container(Erc7730Workflow* workflow,
 bool erc7730_workflow_capture_eip712_container(Erc7730Workflow* workflow,
                                                const Erc7730Path* path,
                                                const uint8_t value[32]);
+bool erc7730_workflow_begin_condition_capture(
+    Erc7730Workflow* workflow, const Erc7730Condition* condition);
+bool erc7730_workflow_condition_capture_pending(
+    const Erc7730Workflow* workflow);
+bool erc7730_workflow_resolve_captured_condition(Erc7730Workflow* workflow,
+                                                 bool* visible);
 bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
                                            const Erc7730Path* path);
 bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,

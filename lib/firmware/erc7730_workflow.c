@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "keepkey/firmware/erc7730_condition.h"
 #include "memzero.h"
 
 static Erc7730Workflow active_workflow;
@@ -514,6 +515,65 @@ bool erc7730_workflow_capture_eip712_container(Erc7730Workflow* workflow,
   workflow->calldata.complete = true;
   workflow->container_source = (uint8_t)path->source_index;
   workflow->phase = ERC7730_WORKFLOW_COMPLETE;
+  return true;
+}
+
+bool erc7730_workflow_begin_condition_capture(
+    Erc7730Workflow* workflow, const Erc7730Condition* condition) {
+  if (!workflow || !condition || workflow->typed_data ||
+      workflow->phase != ERC7730_WORKFLOW_READY ||
+      (condition->opcode != 4 && condition->opcode != 5) ||
+      condition->path == UINT16_MAX || condition->literal_set != UINT16_MAX ||
+      condition->flags != 0 || workflow->condition_capture)
+    return false;
+  workflow->pending_condition = *condition;
+  workflow->condition_capture = true;
+  return true;
+}
+
+bool erc7730_workflow_condition_capture_pending(
+    const Erc7730Workflow* workflow) {
+  return workflow && workflow->condition_capture;
+}
+
+bool erc7730_workflow_resolve_captured_condition(Erc7730Workflow* workflow,
+                                                 bool* visible) {
+  Erc7730AbiProgram program;
+  Erc7730AbiCapture capture;
+  Erc7730AbiNode container_node;
+  if (!workflow || !visible || !workflow->condition_capture ||
+      workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
+      !erc7730_abi_stream_captured(&workflow->calldata, &capture)) {
+    memzero(&capture, sizeof(capture));
+    return false;
+  }
+  if (workflow->container_source != 0) {
+    memzero(&container_node, sizeof(container_node));
+    container_node.kind = workflow->container_source <= 2
+                              ? ERC7730_ABI_ADDRESS
+                              : ERC7730_ABI_UINT;
+    container_node.size = container_node.kind == ERC7730_ABI_UINT ? 256 : 0;
+    program.nodes = &container_node;
+    program.node_count = 1;
+    program.root = 0;
+    capture.node = 0;
+  } else if (!erc7730_program_loader_complete(&workflow->loader, &program)) {
+    memzero(&capture, sizeof(capture));
+    return false;
+  }
+  if (!erc7730_condition_evaluate_basic(&workflow->pending_condition, &program,
+                                        &capture, visible)) {
+    memzero(&capture, sizeof(capture));
+    memzero(&container_node, sizeof(container_node));
+    return false;
+  }
+  memzero(&capture, sizeof(capture));
+  memzero(&container_node, sizeof(container_node));
+  memzero(&workflow->pending_condition, sizeof(workflow->pending_condition));
+  workflow->condition_capture = false;
+  workflow->container_source = 0;
+  erc7730_abi_stream_clear(&workflow->calldata);
+  workflow->phase = ERC7730_WORKFLOW_READY;
   return true;
 }
 
