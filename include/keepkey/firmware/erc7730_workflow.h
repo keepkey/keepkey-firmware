@@ -50,7 +50,18 @@ typedef enum {
   ERC7730_DISPLAY_ENUM_KEY,
   ERC7730_DISPLAY_ENUM_VALUE,
   ERC7730_DISPLAY_INTERPOLATED_TEXT,
+  ERC7730_DISPLAY_ARRAY_PATH,
+  ERC7730_DISPLAY_ARRAY_SEPARATOR,
 } Erc7730DisplayStage;
+
+typedef struct {
+  uint16_t begin_instruction;
+  uint16_t end_instruction;
+  uint16_t path;
+  uint16_t separator;
+  uint8_t index;
+  uint8_t count;
+} Erc7730ArrayFrame;
 
 /* The workflow owns every pointer-bearing interpreter object. No pointer into
  * a protobuf transport buffer survives a handler return. */
@@ -78,8 +89,8 @@ typedef struct {
   uint16_t display_index;
   uint16_t current_formatter;
   uint8_t phase;
-  uint8_t selection_kind : 4;
-  uint8_t display_stage : 4;
+  uint8_t selection_kind;
+  uint8_t display_stage;
   uint8_t current_formatter_kind;
   uint8_t container_source;
   Erc7730Condition pending_condition;
@@ -94,6 +105,7 @@ typedef struct {
   /* Format 1 admits at most 64 literals, so authenticated set references fit
    * in bytes and do not spend another 64 bytes of signing SRAM. */
   uint8_t condition_literals[64];
+  Erc7730ArrayFrame array_frames[ERC7730_ABI_MAX_DEPTH];
   union {
     uint16_t condition_literal_count;
     uint16_t formatter_auxiliary;
@@ -108,6 +120,8 @@ typedef struct {
   uint8_t condition_matched : 1;
   uint8_t token_native_alias_pending : 1;
   uint8_t token_native : 1;
+  uint8_t array_depth : 4;
+  uint8_t array_elements;
 } Erc7730Workflow;
 
 /* One Ethereum workflow exists at a time. Keeping ownership here ensures FSM
@@ -166,8 +180,10 @@ bool erc7730_workflow_selected_network_metadata(
 bool erc7730_workflow_restore_and_start_calldata(Erc7730Workflow* workflow,
                                                  EthereumSignTx* tx);
 bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
-                                                EthereumSignTx* tx,
-                                                const Erc7730Path* path);
+                                                 EthereumSignTx* tx,
+                                                 const Erc7730Path* path);
+bool erc7730_workflow_restore_and_start_array_capture(
+    Erc7730Workflow* workflow, EthereumSignTx* tx, const Erc7730Path* path);
 bool erc7730_workflow_capture_tx_container(Erc7730Workflow* workflow,
                                            const Erc7730Path* path,
                                            EthereumSignTx* tx,
@@ -205,6 +221,8 @@ bool erc7730_workflow_complete_enum(Erc7730Workflow* workflow,
                                     const char* value, size_t value_len);
 bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
                                            const Erc7730Path* path);
+bool erc7730_workflow_start_eip712_array_capture(Erc7730Workflow* workflow,
+                                                 const Erc7730Path* path);
 bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,
                                      const uint32_t* member_path,
                                      size_t member_path_count,
@@ -235,6 +253,19 @@ bool erc7730_workflow_captured_address(const Erc7730Workflow* workflow,
                                        uint8_t address[20]);
 bool erc7730_workflow_captured_uint64(const Erc7730Workflow* workflow,
                                       uint64_t* value);
+bool erc7730_workflow_captured_array_length(const Erc7730Workflow* workflow,
+                                            uint8_t* length);
+bool erc7730_workflow_resolve_array_path(const Erc7730Workflow* workflow,
+                                         const Erc7730Path* path,
+                                         bool array_root,
+                                         Erc7730Path* resolved);
+bool erc7730_workflow_push_array(Erc7730Workflow* workflow, uint16_t path,
+                                 uint16_t end_instruction, uint8_t count);
+bool erc7730_workflow_repeat_or_pop_array(Erc7730Workflow* workflow,
+                                          uint16_t begin_instruction,
+                                          uint16_t separator,
+                                          bool* repeat);
+bool erc7730_workflow_repeat_array_display(Erc7730Workflow* workflow);
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow);
 bool erc7730_workflow_advance_interpolation(Erc7730Workflow* workflow);
 bool erc7730_workflow_jump_display(Erc7730Workflow* workflow,
