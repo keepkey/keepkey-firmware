@@ -122,14 +122,42 @@ TEST(Erc7730Abi, RejectsBadProgramsAndResourceExhaustion) {
             ERC7730_ABI_BAD_PROGRAM);
 
   const Erc7730AbiNode nodes[] = {
-      {ERC7730_ABI_ARRAY, 0, 1, 1, ERC7730_ABI_DYNAMIC_ARRAY},
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {ERC7730_ABI_ARRAY, 0, 2, 1, ERC7730_ABI_DYNAMIC_ARRAY},
       {ERC7730_ABI_UINT, 256, 0, 0, 0},
   };
-  Erc7730AbiProgram p{nodes, 2, 0};
+  Erc7730AbiProgram p{nodes, 3, 0};
   std::vector<uint8_t> oversized;
+  word(oversized, 32);
   word(oversized, ERC7730_ABI_MAX_ARRAY_ELEMENTS + 1);
   EXPECT_EQ(erc7730_abi_validate(&p, oversized.data(), oversized.size()),
             ERC7730_ABI_RESOURCE_LIMIT);
+}
+
+TEST(Erc7730Abi, ProgramMustBeAnExactForwardTree) {
+  const Erc7730AbiNode unreachable[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {ERC7730_ABI_UINT, 256, 0, 0, 0},
+      {ERC7730_ABI_ADDRESS, 0, 0, 0, 0},
+  };
+  Erc7730AbiProgram p{unreachable, 3, 0};
+  EXPECT_EQ(erc7730_abi_validate_program(&p), ERC7730_ABI_BAD_PROGRAM);
+
+  const Erc7730AbiNode shared[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 2, 0},
+      {ERC7730_ABI_ARRAY, 0, 3, 1, 1},
+      {ERC7730_ABI_ARRAY, 0, 3, 1, 1},
+      {ERC7730_ABI_UINT, 256, 0, 0, 0},
+  };
+  p = {shared, 4, 0};
+  EXPECT_EQ(erc7730_abi_validate_program(&p), ERC7730_ABI_BAD_PROGRAM);
+
+  const Erc7730AbiNode wrong_root[] = {
+      {ERC7730_ABI_ARRAY, 0, 1, 1, 1},
+      {ERC7730_ABI_UINT, 256, 0, 0, 0},
+  };
+  p = {wrong_root, 2, 0};
+  EXPECT_EQ(erc7730_abi_validate_program(&p), ERC7730_ABI_BAD_PROGRAM);
 }
 
 }  // namespace
