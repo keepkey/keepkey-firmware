@@ -488,3 +488,34 @@ TEST(Erc7730Catalog, CalldataIdentityMatchesExactLookupTuple) {
   EXPECT_FALSE(erc7730_catalog_matches_calldata(
       &identity, 10, identity.contract_address, selector));
 }
+
+TEST(Erc7730Catalog, ExtractsProgramOnlyFromEnvelopeReplayChunks) {
+  Erc7730CatalogIdentity identity{};
+  identity.program_length = ERC7730_PROGRAM_HEADER_SIZE;
+  std::vector<uint8_t> bytes(256);
+  for (size_t i = 0; i < bytes.size(); ++i) bytes[i] = (uint8_t)i;
+  uint32_t offset = 99;
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(1);
+  size_t length = 99;
+
+  ASSERT_TRUE(erc7730_catalog_program_chunk(&identity, 0, bytes.data(), 12,
+                                            &offset, &data, &length));
+  EXPECT_EQ(offset, 0u);
+  ASSERT_EQ(length, 2u);
+  EXPECT_EQ(data, bytes.data() + 10);
+
+  ASSERT_TRUE(erc7730_catalog_program_chunk(
+      &identity, 12, bytes.data(), bytes.size(), &offset, &data, &length));
+  EXPECT_EQ(offset, 2u);
+  ASSERT_EQ(length, ERC7730_PROGRAM_HEADER_SIZE - 2u);
+  EXPECT_EQ(data, bytes.data());
+
+  ASSERT_TRUE(
+      erc7730_catalog_program_chunk(&identity, 10 + ERC7730_PROGRAM_HEADER_SIZE,
+                                    bytes.data(), 1, &offset, &data, &length));
+  EXPECT_EQ(length, 0u);
+  EXPECT_EQ(data, nullptr);
+
+  EXPECT_FALSE(erc7730_catalog_program_chunk(
+      &identity, UINT32_MAX, bytes.data(), 2, &offset, &data, &length));
+}

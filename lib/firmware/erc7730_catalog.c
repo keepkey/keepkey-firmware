@@ -1132,4 +1132,38 @@ bool erc7730_catalog_matches_calldata(const Erc7730CatalogIdentity* identity,
                 sizeof(zero_tail)) == 0;
 }
 
+bool erc7730_catalog_program_chunk(const Erc7730CatalogIdentity* identity,
+                                   uint32_t envelope_offset,
+                                   const uint8_t* envelope_data,
+                                   size_t envelope_data_len,
+                                   uint32_t* program_offset,
+                                   const uint8_t** program_data,
+                                   size_t* program_data_len) {
+  if (!identity || !envelope_data || envelope_data_len == 0 ||
+      envelope_data_len > ERC7730_TRANSPORT_CHUNK_MAX || !program_offset ||
+      !program_data || !program_data_len ||
+      identity->program_length < ERC7730_PROGRAM_HEADER_SIZE ||
+      identity->program_length > ERC7730_PROGRAM_MAX_SIZE ||
+      envelope_offset > UINT32_MAX - envelope_data_len) {
+    return false;
+  }
+
+  *program_offset = 0;
+  *program_data = NULL;
+  *program_data_len = 0;
+  const uint32_t chunk_end = envelope_offset + (uint32_t)envelope_data_len;
+  const uint32_t program_start = 10;
+  const uint32_t program_end = program_start + identity->program_length;
+  const uint32_t overlap_start =
+      envelope_offset > program_start ? envelope_offset : program_start;
+  const uint32_t overlap_end =
+      chunk_end < program_end ? chunk_end : program_end;
+  if (overlap_start >= overlap_end) return true;
+
+  *program_offset = overlap_start - program_start;
+  *program_data = envelope_data + (overlap_start - envelope_offset);
+  *program_data_len = overlap_end - overlap_start;
+  return true;
+}
+
 void erc7730_catalog_clear_preload(void) { memzero(&preload, sizeof(preload)); }
