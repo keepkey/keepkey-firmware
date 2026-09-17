@@ -6,6 +6,7 @@ extern "C" {
 
 static void prepareTypedUintWorkflow(Erc7730Workflow* workflow) {
   workflow->typed_data = true;
+  workflow->current_formatter_kind = 1;
   workflow->phase = ERC7730_WORKFLOW_READY;
   workflow->loader.abi_started = true;
   workflow->loader.index.complete = true;
@@ -90,6 +91,37 @@ TEST(Erc7730Workflow, CapturesAndFormatsExactTypedDataLeaf) {
   ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
                                                    sizeof(formatted)));
   EXPECT_STREQ(formatted, "42");
+}
+
+TEST(Erc7730Workflow, FormatsAuthenticatedMainnetNativeAmountExactly) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  workflow.identity.chain_id = 1;
+  workflow.current_formatter_kind = 2;
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  const uint32_t member_path[2] = {1, 0};
+  uint8_t value[32] = {0};
+  value[24] = 0x0d;
+  value[25] = 0xe0;
+  value[26] = 0xb6;
+  value[27] = 0xb3;
+  value[28] = 0xa7;
+  value[29] = 0x64;
+  value[30] = 0x00;
+  value[31] = 0x00;  // 1 ETH
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
+                                              sizeof(value)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  char formatted[32];
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "1 ETH");
 }
 
 TEST(Erc7730Workflow, TypedDataCaptureFailsClosedOnMissingOrWrongWidthValue) {
