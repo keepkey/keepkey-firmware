@@ -270,3 +270,58 @@ TEST(Erc7730Workflow, FormatsOnlyDeviceProvidedEip712HashFacts) {
   EXPECT_FALSE(
       erc7730_workflow_capture_eip712_container(&workflow, &path, hash));
 }
+
+TEST(Erc7730Workflow, EvaluatesVisibilityFromDeviceCapturedContainerValue) {
+  Erc7730Workflow workflow{};
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  EthereumSignTx tx{};
+  tx.has_chain_id = true;
+  tx.chain_id = 1;
+  tx.has_data_length = true;
+  tx.data_length = 4;
+  tx.has_data_initial_chunk = true;
+  tx.data_initial_chunk.size = 4;
+  ASSERT_TRUE(erc7730_tx_continuation_capture(&workflow.continuation, &tx));
+
+  Erc7730Condition condition{4, 0, UINT16_MAX, 0};
+  ASSERT_TRUE(
+      erc7730_workflow_begin_condition_capture(&workflow, &condition));
+  EXPECT_TRUE(erc7730_workflow_condition_capture_pending(&workflow));
+  Erc7730Path value_path{};
+  value_path.source = 2;
+  value_path.source_index = 3;
+  EthereumSignTx restored{};
+  ASSERT_TRUE(erc7730_workflow_capture_tx_container(
+      &workflow, &value_path, &restored, nullptr));
+  bool visible = false;
+  ASSERT_TRUE(
+      erc7730_workflow_resolve_captured_condition(&workflow, &visible));
+  EXPECT_TRUE(visible);
+  EXPECT_FALSE(erc7730_workflow_condition_capture_pending(&workflow));
+  EXPECT_EQ(workflow.phase, ERC7730_WORKFLOW_READY);
+
+  tx.has_value = true;
+  tx.value.size = 1;
+  tx.value.bytes[0] = 1;
+  ASSERT_TRUE(erc7730_tx_continuation_capture(&workflow.continuation, &tx));
+  condition.opcode = 5;
+  ASSERT_TRUE(
+      erc7730_workflow_begin_condition_capture(&workflow, &condition));
+  ASSERT_TRUE(erc7730_workflow_capture_tx_container(
+      &workflow, &value_path, &restored, nullptr));
+  ASSERT_TRUE(
+      erc7730_workflow_resolve_captured_condition(&workflow, &visible));
+  EXPECT_TRUE(visible);
+}
+
+TEST(Erc7730Workflow, RefusesConditionCaptureWithoutSupportedLifecycle) {
+  Erc7730Workflow workflow{};
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  Erc7730Condition condition{6, 0, 0, 0};
+  EXPECT_FALSE(
+      erc7730_workflow_begin_condition_capture(&workflow, &condition));
+  condition = {4, 0, UINT16_MAX, 0};
+  workflow.typed_data = true;
+  EXPECT_FALSE(
+      erc7730_workflow_begin_condition_capture(&workflow, &condition));
+}
