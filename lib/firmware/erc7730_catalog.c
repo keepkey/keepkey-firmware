@@ -925,6 +925,7 @@ static Erc7730CatalogResult finish(Erc7730CatalogVerifier* v,
   identity->issuance_epoch = read_be32(v->header + 170);
   identity->revocation_epoch = read_be32(v->header + 174);
   identity->program_length = v->program_length;
+  identity->envelope_length = v->total_length;
   memzero(actual_id, sizeof(actual_id));
   v->state = STREAM_DONE;
   return ERC7730_CATALOG_COMPLETE;
@@ -1167,8 +1168,7 @@ bool erc7730_catalog_program_chunk(const Erc7730CatalogIdentity* identity,
 }
 
 void erc7730_catalog_replay_begin(Erc7730CatalogReplay* replay,
-                                  const Erc7730CatalogIdentity* identity,
-                                  uint32_t total_length) {
+                                  const Erc7730CatalogIdentity* identity) {
   if (!replay) return;
   memzero(replay, sizeof(*replay));
   if (!identity) {
@@ -1177,7 +1177,7 @@ void erc7730_catalog_replay_begin(Erc7730CatalogReplay* replay,
   }
   replay->program_length = identity->program_length;
   erc7730_catalog_begin(&replay->verifier, identity->definition_id,
-                        total_length);
+                        identity->envelope_length);
 }
 
 Erc7730CatalogResult erc7730_catalog_replay_feed(

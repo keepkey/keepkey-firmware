@@ -527,9 +527,9 @@ TEST(Erc7730Catalog, ReplayIsContiguousAndFailsClosedBeforeAuthentication) {
   Erc7730CatalogIdentity expected{};
   memcpy(expected.definition_id, id.data(), id.size());
   expected.program_length = (uint32_t)program.size();
+  expected.envelope_length = (uint32_t)signed_envelope.size();
   Erc7730CatalogReplay replay;
-  erc7730_catalog_replay_begin(&replay, &expected,
-                               (uint32_t)signed_envelope.size());
+  erc7730_catalog_replay_begin(&replay, &expected);
   EXPECT_LE(sizeof(replay), 1024u);
 
   Erc7730CatalogIdentity accepted{};
@@ -553,8 +553,7 @@ TEST(Erc7730Catalog, ReplayIsContiguousAndFailsClosedBeforeAuthentication) {
   EXPECT_EQ(program_length, 0u);
   EXPECT_EQ(program_data, nullptr);
 
-  erc7730_catalog_replay_begin(&replay, &expected,
-                               (uint32_t)signed_envelope.size());
+  erc7730_catalog_replay_begin(&replay, &expected);
   EXPECT_EQ(erc7730_catalog_replay_feed(
                 &replay, id.data(), 0, (uint32_t)signed_envelope.size(),
                 signed_envelope.data(), signed_envelope.size(), &program_offset,

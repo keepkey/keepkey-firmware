@@ -44,6 +44,7 @@ typedef struct {
   uint32_t issuance_epoch;
   uint32_t revocation_epoch;
   uint32_t program_length;
+  uint32_t envelope_length;
   char delegate_alias[CLEARSIGN_ALIAS_LEN + 1];
 } Erc7730CatalogIdentity;
 
@@ -155,8 +156,7 @@ bool erc7730_catalog_program_chunk(const Erc7730CatalogIdentity* identity,
                                    const uint8_t** program_data,
                                    size_t* program_data_len);
 void erc7730_catalog_replay_begin(Erc7730CatalogReplay* replay,
-                                  const Erc7730CatalogIdentity* identity,
-                                  uint32_t total_length);
+                                  const Erc7730CatalogIdentity* identity);
 Erc7730CatalogResult erc7730_catalog_replay_feed(
     Erc7730CatalogReplay* replay, const uint8_t definition_id[32],
     uint32_t offset, uint32_t total_length, const uint8_t* data,
