@@ -1311,7 +1311,11 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
        program.nodes[capture.node].kind != ERC7730_ABI_UINT) ||
       ((workflow->current_formatter_kind == 10 ||
         workflow->current_formatter_kind == 11) &&
-       program.nodes[capture.node].kind != ERC7730_ABI_ADDRESS)) {
+       program.nodes[capture.node].kind != ERC7730_ABI_ADDRESS) ||
+      (workflow->current_formatter_kind == 12 &&
+       program.nodes[capture.node].kind != ERC7730_ABI_ADDRESS &&
+       program.nodes[capture.node].kind != ERC7730_ABI_FIXED_BYTES &&
+       program.nodes[capture.node].kind != ERC7730_ABI_BYTES)) {
     memzero(&capture, sizeof(capture));
     return false;
   }
@@ -1320,7 +1324,12 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
       workflow->current_formatter_kind == 4 ||
       workflow->current_formatter_kind == 9 ||
       workflow->current_formatter_kind == 10 ||
-      workflow->current_formatter_kind == 11) {
+      workflow->current_formatter_kind == 11 ||
+      workflow->current_formatter_kind == 12) {
+    /* External resolvers may annotate NFT, address, ticker and ERC-7930
+     * values, but absence of a live result must never hide the value decoded
+     * from the signed payload.  The canonical hex/integer representation is
+     * therefore the authoritative fallback. */
     result = erc7730_format_raw(&program, &capture, output, output_size);
   } else if (workflow->current_formatter_kind == 3) {
     const char* ticker = workflow->value_scratch.formatter_parameters.base;
