@@ -130,4 +130,94 @@ TEST(Erc7730AbiStream, RejectsResourceExhaustionAndDiscontinuousInput) {
             ERC7730_ABI_BOUNDS);
 }
 
+TEST(Erc7730AbiStream, CapturesNestedDynamicValueByNegativeArrayIndex) {
+  const Erc7730AbiNode nodes[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {ERC7730_ABI_ARRAY, 0, 2, 1, ERC7730_ABI_DYNAMIC_ARRAY},
+      {ERC7730_ABI_TUPLE, 0, 3, 2, 0},
+      {ERC7730_ABI_UINT, 256, 0, 0, 0},
+      {ERC7730_ABI_STRING, 0, 0, 0, 0},
+  };
+  const Erc7730AbiProgram program{nodes, 5, 0};
+  std::vector<uint8_t> encoded;
+  word(encoded, 32);   // root -> array
+  word(encoded, 2);    // array count
+  word(encoded, 64);   // tuple 0
+  word(encoded, 192);  // tuple 1
+  word(encoded, 7);
+  word(encoded, 64);
+  dynamicBytes(encoded, {'a'});
+  word(encoded, 9);
+  word(encoded, 64);
+  dynamicBytes(encoded, {'b', 'e', 't', 'a'});
+
+  ASSERT_EQ(erc7730_abi_validate(&program, encoded.data(), encoded.size()),
+            ERC7730_ABI_OK);
+
+  Erc7730AbiStream state{};
+  ASSERT_EQ(erc7730_abi_stream_begin(&state, &program, encoded.size()),
+            ERC7730_ABI_OK);
+  const int32_t path[] = {0, -1, 1};
+  ASSERT_EQ(erc7730_abi_stream_capture_path(&state, path, 3), ERC7730_ABI_OK);
+  for (size_t offset = 0; offset < encoded.size();) {
+    SCOPED_TRACE(offset);
+    const size_t length = std::min(size_t{7}, encoded.size() - offset);
+    ASSERT_EQ(erc7730_abi_stream_feed(&state, offset, encoded.data() + offset,
+                                      length),
+              ERC7730_ABI_OK);
+    offset += length;
+  }
+  ASSERT_EQ(erc7730_abi_stream_finish(&state), ERC7730_ABI_OK);
+  Erc7730AbiCapture capture{};
+  ASSERT_TRUE(erc7730_abi_stream_captured(&state, &capture));
+  EXPECT_EQ(capture.node, 4u);
+  ASSERT_EQ(capture.length, 4u);
+  EXPECT_EQ(memcmp(capture.data, "beta", 4), 0);
+}
+
+TEST(Erc7730AbiStream, CapturesAtomicWordAndRejectsMissingOrLargeTargets) {
+  const Erc7730AbiNode atomic_nodes[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {ERC7730_ABI_UINT, 256, 0, 0, 0},
+  };
+  const Erc7730AbiProgram atomic{atomic_nodes, 2, 0};
+  std::vector<uint8_t> encoded;
+  word(encoded, 42);
+  Erc7730AbiStream state{};
+  ASSERT_EQ(erc7730_abi_stream_begin(&state, &atomic, encoded.size()),
+            ERC7730_ABI_OK);
+  const int32_t zero[] = {0};
+  ASSERT_EQ(erc7730_abi_stream_capture_path(&state, zero, 1), ERC7730_ABI_OK);
+  ASSERT_EQ(erc7730_abi_stream_feed(&state, 0, encoded.data(), encoded.size()),
+            ERC7730_ABI_OK);
+  ASSERT_EQ(erc7730_abi_stream_finish(&state), ERC7730_ABI_OK);
+  Erc7730AbiCapture capture{};
+  ASSERT_TRUE(erc7730_abi_stream_captured(&state, &capture));
+  EXPECT_EQ(capture.data[31], 42u);
+
+  ASSERT_EQ(erc7730_abi_stream_begin(&state, &atomic, encoded.size()),
+            ERC7730_ABI_OK);
+  const int32_t missing[] = {1};
+  ASSERT_EQ(erc7730_abi_stream_capture_path(&state, missing, 1),
+            ERC7730_ABI_OK);
+  ASSERT_EQ(erc7730_abi_stream_feed(&state, 0, encoded.data(), encoded.size()),
+            ERC7730_ABI_OK);
+  EXPECT_EQ(erc7730_abi_stream_finish(&state), ERC7730_ABI_BAD_PATH);
+
+  const Erc7730AbiNode bytes_nodes[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {ERC7730_ABI_BYTES, 0, 0, 0, 0},
+  };
+  const Erc7730AbiProgram bytes_program{bytes_nodes, 2, 0};
+  encoded.clear();
+  word(encoded, 32);
+  word(encoded, ERC7730_ABI_CAPTURE_MAX + 1);
+  encoded.resize(encoded.size() + 160);
+  ASSERT_EQ(erc7730_abi_stream_begin(&state, &bytes_program, encoded.size()),
+            ERC7730_ABI_OK);
+  ASSERT_EQ(erc7730_abi_stream_capture_path(&state, zero, 1), ERC7730_ABI_OK);
+  EXPECT_EQ(erc7730_abi_stream_feed(&state, 0, encoded.data(), encoded.size()),
+            ERC7730_ABI_RESOURCE_LIMIT);
+}
+
 }  // namespace
