@@ -7,6 +7,8 @@
 #define ERC7730_TOKEN_CAPTURE_ADDRESS UINT16_C(0xfffe)
 #define ERC7730_TOKEN_CAPTURE_TICKER UINT16_C(0xfffd)
 #define ERC7730_TOKEN_CAPTURE_THRESHOLD UINT16_C(0xfffc)
+#define ERC7730_TOKEN_CAPTURE_THRESHOLD_MESSAGE UINT16_C(0xfffb)
+#define ERC7730_TOKEN_DEFAULT_THRESHOLD_MESSAGE UINT16_C(0xffff)
 
 /*
  * This file is part of the Keepkey project
@@ -897,9 +899,8 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         layoutHome();
         return;
       }
-      workflow->condition_literals[0] = 1;
-      memzero(workflow->condition_literals + 1, 32);
-      memcpy(workflow->condition_literals + 33u - literal.length,
+      memzero(workflow->condition_literals, 32);
+      memcpy(workflow->condition_literals + 32u - literal.length,
              literal.value, literal.length);
       const uint16_t token_path =
           (uint16_t)(((uint16_t)workflow->condition_literals[34] << 8) |
@@ -1232,7 +1233,47 @@ void fsm_msgEthereumClearSignDefinitionChunk(
                encoding_length);
         workflow->value_scratch.formatter_parameters.base[encoding_length] =
             '\0';
-        workflow->formatter_auxiliary = 0;
+        const uint16_t threshold_message =
+            (uint16_t)(((uint16_t)workflow->condition_literals[32] << 8) |
+                       workflow->condition_literals[33]);
+        if (threshold_message != UINT16_MAX) {
+          workflow->formatter_auxiliary =
+              ERC7730_TOKEN_CAPTURE_THRESHOLD_MESSAGE;
+          if (!erc7730_workflow_select_string(workflow, threshold_message)) {
+            erc7730_workflow_abort(workflow);
+            fsm_sendFailure(FailureType_Failure_SyntaxError,
+                            _("Invalid ERC-7730 threshold message"));
+            layoutHome();
+            return;
+          }
+          send_erc7730_definition_request();
+          return;
+        }
+        workflow->formatter_auxiliary =
+            workflow->condition_literals[36]
+                ? ERC7730_TOKEN_DEFAULT_THRESHOLD_MESSAGE
+                : 0;
+        if (!erc7730_workflow_select_path(workflow,
+                                          workflow->formatter_value_path)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 token amount path"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_PATH;
+      } else if (workflow->current_formatter_kind == 3 &&
+                 workflow->formatter_auxiliary ==
+                     ERC7730_TOKEN_CAPTURE_THRESHOLD_MESSAGE) {
+        if (encoding_length == 0 || encoding_length > 32) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 threshold message"));
+          layoutHome();
+          return;
+        }
+        memcpy(workflow->condition_literals + 32, encoding, encoding_length);
+        workflow->formatter_auxiliary = (uint16_t)encoding_length;
         if (!erc7730_workflow_select_path(workflow,
                                           workflow->formatter_value_path)) {
           erc7730_workflow_abort(workflow);
@@ -1480,13 +1521,18 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       return;
     }
     if (formatter.kind == 3) {
-      const bool has_threshold = formatter.argument_count == 3;
-      if ((formatter.argument_count != 2 && !has_threshold) ||
+      const bool has_threshold = formatter.argument_count >= 3;
+      const bool has_threshold_message = formatter.argument_count == 4;
+      if ((formatter.argument_count != 2 && formatter.argument_count != 3 &&
+           !has_threshold_message) ||
           formatter.arguments[1].role != 2 ||
           formatter.arguments[1].source != 1 ||
           (has_threshold &&
            (formatter.arguments[2].role != 7 ||
-            formatter.arguments[2].source != 2))) {
+            formatter.arguments[2].source != 2)) ||
+          (has_threshold_message &&
+           (formatter.arguments[3].role != 8 ||
+            formatter.arguments[3].source != 3))) {
         memzero(&formatter, sizeof(formatter));
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -1499,8 +1545,13 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
       memzero(workflow->condition_literals,
               sizeof(workflow->condition_literals));
+      const uint16_t threshold_message =
+          has_threshold_message ? formatter.arguments[3].index : UINT16_MAX;
+      workflow->condition_literals[32] = (uint8_t)(threshold_message >> 8);
+      workflow->condition_literals[33] = (uint8_t)threshold_message;
       workflow->condition_literals[34] = (uint8_t)(token_path >> 8);
       workflow->condition_literals[35] = (uint8_t)token_path;
+      workflow->condition_literals[36] = has_threshold ? 1 : 0;
       workflow->formatter_auxiliary =
           has_threshold ? ERC7730_TOKEN_CAPTURE_THRESHOLD
                         : ERC7730_TOKEN_CAPTURE_ADDRESS;
