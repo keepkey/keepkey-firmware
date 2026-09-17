@@ -2,6 +2,8 @@
 #include "keepkey/firmware/erc7730_workflow.h"
 #include "keepkey/firmware/erc7730_condition.h"
 
+#define ERC7730_FORMATTER_INTERPOLATION_FLAG UINT16_C(0x8000)
+
 /*
  * This file is part of the Keepkey project
  *
@@ -176,6 +178,27 @@ static void continue_ethereum_sign_tx(EthereumSignTx* msg) {
 static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
   Erc7730Workflow* workflow = erc7730_workflow_state();
   const bool typed_data = workflow->typed_data;
+  if ((workflow->current_formatter & ERC7730_FORMATTER_INTERPOLATION_FLAG) !=
+      0) {
+    char formatted[ERC7730_FORMATTED_VALUE_MAX + 1u];
+    if (!erc7730_workflow_format_captured_raw(workflow, formatted,
+                                              sizeof(formatted)) ||
+        !erc7730_workflow_append_interpolated_value(workflow, formatted))
+      erc7730_workflow_fail_interpolation(workflow);
+    memzero(formatted, sizeof(formatted));
+    workflow->current_formatter = 0;
+    workflow->current_formatter_kind = 0;
+    if (!erc7730_workflow_advance_interpolation(workflow)) {
+      if (typed_data) eip712_stream_abort();
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 interpolation continuation"));
+      layoutHome();
+      return;
+    }
+    send_erc7730_definition_request();
+    return;
+  }
   if (workflow->intent[0] == '\0') {
     if (typed_data) eip712_stream_abort();
     erc7730_workflow_abort(workflow);
@@ -569,7 +592,7 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         instruction.a != UINT16_MAX && instruction.b == UINT16_MAX &&
         instruction.c == UINT16_MAX) {
       if (workflow->condition_matched) {
-        if (!erc7730_workflow_skip_display(workflow)) {
+        if (!erc7730_workflow_advance_interpolation(workflow)) {
           erc7730_workflow_abort(workflow);
           fsm_sendFailure(FailureType_Failure_SyntaxError,
                           _("Invalid ERC-7730 interpolation jump"));
@@ -593,22 +616,33 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         instruction.opcode == 3 && instruction.flags == 0 &&
         instruction.a != UINT16_MAX && instruction.b == UINT16_MAX &&
         instruction.c == UINT16_MAX) {
-      /* Value interpolation is activated in the next execution unit. Until
-       * then, the signed fallback intent remains atomic and authoritative. */
-      erc7730_workflow_fail_interpolation(workflow);
-      if (!erc7730_workflow_skip_display(workflow)) {
+      if (workflow->condition_matched) {
+        if (!erc7730_workflow_advance_interpolation(workflow)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 interpolation jump"));
+          layoutHome();
+          return;
+        }
+        send_erc7730_definition_request();
+        return;
+      }
+      workflow->current_formatter =
+          instruction.a | ERC7730_FORMATTER_INTERPOLATION_FLAG;
+      if (!erc7730_workflow_select_formatter(workflow, instruction.a)) {
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
-                        _("Invalid ERC-7730 interpolation jump"));
+                        _("Invalid ERC-7730 interpolation formatter"));
         layoutHome();
         return;
       }
+      workflow->display_stage = ERC7730_DISPLAY_FORMATTER;
       send_erc7730_definition_request();
       return;
     }
     if (workflow->display_stage == ERC7730_DISPLAY_INSTRUCTION &&
         (workflow->condition_matched ||
-         workflow->value_scratch.formatter_parameters.base[0] != '\0'))
+         workflow->label[0] != '\0'))
       erc7730_workflow_finalize_interpolation(workflow);
     if (workflow->display_stage == ERC7730_DISPLAY_INSTRUCTION &&
         instruction.opcode == 10 && instruction.flags == 0 &&
@@ -956,7 +990,7 @@ void fsm_msgEthereumClearSignDefinitionChunk(
   if (selection_kind == ERC7730_SELECTION_STRING) {
     if (workflow->display_stage == ERC7730_DISPLAY_INTERPOLATED_TEXT) {
       (void)erc7730_workflow_append_interpolated_string(workflow);
-      if (!erc7730_workflow_skip_display(workflow)) {
+      if (!erc7730_workflow_advance_interpolation(workflow)) {
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         _("Invalid ERC-7730 interpolation continuation"));
@@ -1088,7 +1122,7 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         layoutHome();
         return;
       }
-      memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+      memzero(workflow->label, sizeof(workflow->label));
       workflow->condition_matched = false;
       workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
       workflow->display_index = 1;
@@ -1294,6 +1328,22 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         formatter.argument_count != 1 ||
         !erc7730_workflow_select_path(workflow,
                                       formatter.arguments[0].index)) {
+      if ((workflow->current_formatter &
+           ERC7730_FORMATTER_INTERPOLATION_FLAG) != 0) {
+        memzero(&formatter, sizeof(formatter));
+        erc7730_workflow_fail_interpolation(workflow);
+        workflow->current_formatter = 0;
+        workflow->current_formatter_kind = 0;
+        if (!erc7730_workflow_advance_interpolation(workflow)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 interpolation continuation"));
+          layoutHome();
+          return;
+        }
+        send_erc7730_definition_request();
+        return;
+      }
       memzero(&formatter, sizeof(formatter));
       erc7730_workflow_abort(workflow);
       fsm_sendFailure(FailureType_Failure_SyntaxError,

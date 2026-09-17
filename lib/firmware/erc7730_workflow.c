@@ -1010,12 +1010,12 @@ bool erc7730_workflow_append_interpolated_string(Erc7730Workflow* workflow) {
   if (!workflow || workflow->condition_matched ||
       !erc7730_workflow_selected_string(workflow, &value, &length))
     return false;
-  char* candidate = workflow->value_scratch.formatter_parameters.base;
+  char* candidate = workflow->label;
   const size_t used = strnlen(candidate, ERC7730_PROGRAM_MAX_STRING_LENGTH + 1u);
   if (used > ERC7730_PROGRAM_MAX_STRING_LENGTH || length == 0 ||
       length > ERC7730_PROGRAM_MAX_STRING_LENGTH - used) {
     workflow->condition_matched = true;
-    memzero(candidate, ERC7730_PROGRAM_MAX_STRING_LENGTH + 1u);
+    memzero(candidate, sizeof(workflow->label));
     return false;
   }
   memcpy(candidate + used, value, length);
@@ -1023,23 +1023,37 @@ bool erc7730_workflow_append_interpolated_string(Erc7730Workflow* workflow) {
   return true;
 }
 
+bool erc7730_workflow_append_interpolated_value(Erc7730Workflow* workflow,
+                                                const char* value) {
+  if (!workflow || !value || value[0] == '\0' || workflow->condition_matched)
+    return false;
+  const size_t used = strnlen(workflow->label, sizeof(workflow->label));
+  const size_t length = strlen(value);
+  if (used >= sizeof(workflow->label) ||
+      length > ERC7730_PROGRAM_MAX_STRING_LENGTH - used) {
+    erc7730_workflow_fail_interpolation(workflow);
+    return false;
+  }
+  memcpy(workflow->label + used, value, length + 1u);
+  return true;
+}
+
 void erc7730_workflow_fail_interpolation(Erc7730Workflow* workflow) {
   if (!workflow) return;
   workflow->condition_matched = true;
-  memzero(workflow->value_scratch.formatter_parameters.base,
-          sizeof(workflow->value_scratch.formatter_parameters.base));
+  memzero(workflow->label, sizeof(workflow->label));
 }
 
 void erc7730_workflow_finalize_interpolation(Erc7730Workflow* workflow) {
   if (!workflow) return;
-  const char* candidate = workflow->value_scratch.formatter_parameters.base;
+  const char* candidate = workflow->label;
   const size_t length = strnlen(candidate, sizeof(workflow->intent));
   if (!workflow->condition_matched && length != 0 &&
       length < sizeof(workflow->intent)) {
     memcpy(workflow->intent, candidate, length + 1u);
   }
   workflow->condition_matched = false;
-  memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+  memzero(workflow->label, sizeof(workflow->label));
 }
 
 bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
@@ -1138,6 +1152,20 @@ bool erc7730_workflow_advance_display(Erc7730Workflow* workflow) {
       workflow->display_index == UINT16_MAX)
     return false;
   memzero(workflow->label, sizeof(workflow->label));
+  erc7730_abi_stream_clear(&workflow->calldata);
+  workflow->container_source = 0;
+  workflow->phase = ERC7730_WORKFLOW_READY;
+  workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
+  workflow->display_index++;
+  return erc7730_workflow_select_display(workflow, workflow->display_index);
+}
+
+bool erc7730_workflow_advance_interpolation(Erc7730Workflow* workflow) {
+  if (!workflow ||
+      (workflow->phase != ERC7730_WORKFLOW_READY &&
+       workflow->phase != ERC7730_WORKFLOW_COMPLETE) ||
+      workflow->display_index == UINT16_MAX)
+    return false;
   erc7730_abi_stream_clear(&workflow->calldata);
   workflow->container_source = 0;
   workflow->phase = ERC7730_WORKFLOW_READY;
