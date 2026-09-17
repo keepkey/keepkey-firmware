@@ -47,6 +47,7 @@ typedef enum {
   ERC7730_DISPLAY_ENUM_MAP,
   ERC7730_DISPLAY_ENUM_KEY,
   ERC7730_DISPLAY_ENUM_VALUE,
+  ERC7730_DISPLAY_INTERPOLATED_TEXT,
 } Erc7730DisplayStage;
 
 /* The workflow owns every pointer-bearing interpreter object. No pointer into
@@ -209,6 +210,9 @@ const Erc7730CatalogIdentity* erc7730_workflow_identity(
     const Erc7730Workflow* workflow);
 bool erc7730_workflow_preserve_selected_string(Erc7730Workflow* workflow,
                                                bool intent);
+bool erc7730_workflow_append_interpolated_string(Erc7730Workflow* workflow);
+void erc7730_workflow_fail_interpolation(Erc7730Workflow* workflow);
+void erc7730_workflow_finalize_interpolation(Erc7730Workflow* workflow);
 bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
                                           char* output, size_t output_size);
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow);

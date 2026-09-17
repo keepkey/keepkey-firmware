@@ -1004,6 +1004,44 @@ bool erc7730_workflow_preserve_selected_string(Erc7730Workflow* workflow,
   return true;
 }
 
+bool erc7730_workflow_append_interpolated_string(Erc7730Workflow* workflow) {
+  const char* value = NULL;
+  size_t length = 0;
+  if (!workflow || workflow->condition_matched ||
+      !erc7730_workflow_selected_string(workflow, &value, &length))
+    return false;
+  char* candidate = workflow->value_scratch.formatter_parameters.base;
+  const size_t used = strnlen(candidate, ERC7730_PROGRAM_MAX_STRING_LENGTH + 1u);
+  if (used > ERC7730_PROGRAM_MAX_STRING_LENGTH || length == 0 ||
+      length > ERC7730_PROGRAM_MAX_STRING_LENGTH - used) {
+    workflow->condition_matched = true;
+    memzero(candidate, ERC7730_PROGRAM_MAX_STRING_LENGTH + 1u);
+    return false;
+  }
+  memcpy(candidate + used, value, length);
+  candidate[used + length] = '\0';
+  return true;
+}
+
+void erc7730_workflow_fail_interpolation(Erc7730Workflow* workflow) {
+  if (!workflow) return;
+  workflow->condition_matched = true;
+  memzero(workflow->value_scratch.formatter_parameters.base,
+          sizeof(workflow->value_scratch.formatter_parameters.base));
+}
+
+void erc7730_workflow_finalize_interpolation(Erc7730Workflow* workflow) {
+  if (!workflow) return;
+  const char* candidate = workflow->value_scratch.formatter_parameters.base;
+  const size_t length = strnlen(candidate, sizeof(workflow->intent));
+  if (!workflow->condition_matched && length != 0 &&
+      length < sizeof(workflow->intent)) {
+    memcpy(workflow->intent, candidate, length + 1u);
+  }
+  workflow->condition_matched = false;
+  memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+}
+
 bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
                                           char* output, size_t output_size) {
   Erc7730AbiProgram program;
