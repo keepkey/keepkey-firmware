@@ -489,6 +489,41 @@ TEST(Erc7730Catalog, CalldataIdentityMatchesExactLookupTuple) {
       &identity, 10, identity.contract_address, selector));
 }
 
+TEST(Erc7730Catalog, Eip712IdentityMatchesOnlyDeviceProvenFacts) {
+  Erc7730CatalogIdentity identity{};
+  identity.kind = ERC7730_DEFINITION_EIP712;
+  identity.chain_id = 1;
+  memset(identity.contract_address, 0x11, sizeof(identity.contract_address));
+  memset(identity.selector_or_type_hash, 0x22,
+         sizeof(identity.selector_or_type_hash));
+
+  uint8_t contract[20];
+  uint8_t type_hash[32];
+  memset(contract, 0x11, sizeof(contract));
+  memset(type_hash, 0x22, sizeof(type_hash));
+  EXPECT_TRUE(
+      erc7730_catalog_matches_eip712(&identity, 1, contract, true, type_hash));
+  EXPECT_FALSE(
+      erc7730_catalog_matches_eip712(&identity, 2, contract, true, type_hash));
+  EXPECT_FALSE(
+      erc7730_catalog_matches_eip712(&identity, 1, contract, false, type_hash));
+  contract[0] ^= 1;
+  EXPECT_FALSE(
+      erc7730_catalog_matches_eip712(&identity, 1, contract, true, type_hash));
+  contract[0] ^= 1;
+  type_hash[0] ^= 1;
+  EXPECT_FALSE(
+      erc7730_catalog_matches_eip712(&identity, 1, contract, true, type_hash));
+
+  memset(identity.contract_address, 0, sizeof(identity.contract_address));
+  type_hash[0] ^= 1;
+  EXPECT_TRUE(
+      erc7730_catalog_matches_eip712(&identity, 1, nullptr, false, type_hash));
+  identity.kind = ERC7730_DEFINITION_CALLDATA;
+  EXPECT_FALSE(
+      erc7730_catalog_matches_eip712(&identity, 1, nullptr, false, type_hash));
+}
+
 TEST(Erc7730Catalog, ExtractsProgramOnlyFromEnvelopeReplayChunks) {
   Erc7730CatalogIdentity identity{};
   identity.program_length = ERC7730_PROGRAM_HEADER_SIZE;

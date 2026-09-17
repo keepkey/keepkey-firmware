@@ -156,6 +156,11 @@ bool erc7730_catalog_matches_calldata(const Erc7730CatalogIdentity* identity,
                                       uint64_t chain_id,
                                       const uint8_t contract_address[20],
                                       const uint8_t selector[4]);
+bool erc7730_catalog_matches_eip712(const Erc7730CatalogIdentity* identity,
+                                    uint64_t chain_id,
+                                    const uint8_t* verifying_contract,
+                                    bool has_verifying_contract,
+                                    const uint8_t primary_type_hash[32]);
 /* Returned bytes remain untrusted until a complete replay of the envelope has
  * passed erc7730_catalog_feed() for identity->definition_id. */
 bool erc7730_catalog_program_chunk(const Erc7730CatalogIdentity* identity,

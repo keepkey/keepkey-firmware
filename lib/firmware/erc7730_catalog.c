@@ -1232,6 +1232,28 @@ bool erc7730_catalog_matches_calldata(const Erc7730CatalogIdentity* identity,
                 sizeof(zero_tail)) == 0;
 }
 
+bool erc7730_catalog_matches_eip712(const Erc7730CatalogIdentity* identity,
+                                    uint64_t chain_id,
+                                    const uint8_t* verifying_contract,
+                                    bool has_verifying_contract,
+                                    const uint8_t primary_type_hash[32]) {
+  if (!identity || !primary_type_hash ||
+      identity->kind != ERC7730_DEFINITION_EIP712 ||
+      identity->chain_id != chain_id ||
+      memcmp(identity->selector_or_type_hash, primary_type_hash, 32) != 0)
+    return false;
+
+  /* A zero contract in the authenticated header means the definition is
+   * domain-wide. A nonzero contract is an additional mandatory binding fact;
+   * it can never be satisfied by a missing domain member. */
+  static const uint8_t zero_address[20] = {0};
+  if (memcmp(identity->contract_address, zero_address, sizeof(zero_address)) ==
+      0)
+    return true;
+  return has_verifying_contract && verifying_contract &&
+         memcmp(identity->contract_address, verifying_contract, 20) == 0;
+}
+
 bool erc7730_catalog_program_chunk(const Erc7730CatalogIdentity* identity,
                                    uint32_t envelope_offset,
                                    const uint8_t* envelope_data,
