@@ -131,3 +131,108 @@ TEST(Erc7730Format, TrimsOnlyFractionalTrailingZeroes) {
                                     sizeof(output)));
   EXPECT_STREQ(output, "12");
 }
+
+TEST(Erc7730Format, FormatsDurationsWithoutIntegerNarrowing) {
+  Erc7730AbiNode node{};
+  node.kind = ERC7730_ABI_UINT;
+  node.size = 256;
+  Erc7730AbiProgram program{&node, 1, 0};
+  Erc7730AbiCapture capture{};
+  capture.node = 0;
+  capture.length = 32;
+  capture.data[30] = 0x20;
+  capture.data[31] = 0x3a;  // 8250 seconds
+  char output[ERC7730_FORMATTED_VALUE_MAX + 1];
+  ASSERT_TRUE(
+      erc7730_format_duration(&program, &capture, output, sizeof(output)));
+  EXPECT_STREQ(output, "02:17:30");
+
+  capture.data[29] = 0x05;
+  capture.data[30] = 0x7e;
+  capture.data[31] = 0x3f;  // 359999 seconds
+  ASSERT_TRUE(
+      erc7730_format_duration(&program, &capture, output, sizeof(output)));
+  EXPECT_STREQ(output, "99:59:59");
+
+  node.kind = ERC7730_ABI_INT;
+  memset(capture.data, 0xff, sizeof(capture.data));
+  ASSERT_TRUE(
+      erc7730_format_duration(&program, &capture, output, sizeof(output)));
+  EXPECT_STREQ(output, "-00:00:01");
+
+  node.kind = ERC7730_ABI_ADDRESS;
+  EXPECT_FALSE(
+      erc7730_format_duration(&program, &capture, output, sizeof(output)));
+}
+
+TEST(Erc7730Format, FormatsUnixTimestampsAsCanonicalUtcRfc3339) {
+  Erc7730AbiNode node{};
+  node.kind = ERC7730_ABI_UINT;
+  node.size = 256;
+  Erc7730AbiProgram program{&node, 1, 0};
+  Erc7730AbiCapture capture{};
+  capture.node = 0;
+  capture.length = 32;
+  char output[32];
+  ASSERT_TRUE(
+      erc7730_format_timestamp(&program, &capture, output, sizeof(output)));
+  EXPECT_STREQ(output, "1970-01-01T00:00:00Z");
+
+  capture.data[28] = 0x65;
+  capture.data[29] = 0xe0;
+  capture.data[30] = 0x31;
+  capture.data[31] = 0xd0;
+  ASSERT_TRUE(
+      erc7730_format_timestamp(&program, &capture, output, sizeof(output)));
+  EXPECT_STREQ(output, "2024-02-29T07:27:12Z");
+
+  node.kind = ERC7730_ABI_INT;
+  memset(capture.data, 0xff, sizeof(capture.data));
+  ASSERT_TRUE(
+      erc7730_format_timestamp(&program, &capture, output, sizeof(output)));
+  EXPECT_STREQ(output, "1969-12-31T23:59:59Z");
+
+  node.kind = ERC7730_ABI_UINT;
+  memset(capture.data, 0, sizeof(capture.data));
+  capture.data[0] = 1;
+  EXPECT_FALSE(
+      erc7730_format_timestamp(&program, &capture, output, sizeof(output)));
+}
+
+TEST(Erc7730Format, FormatsUnitsWithDecimalsAndSiPrefixes) {
+  Erc7730AbiNode node{};
+  node.kind = ERC7730_ABI_UINT;
+  node.size = 256;
+  Erc7730AbiProgram program{&node, 1, 0};
+  Erc7730AbiCapture capture{};
+  capture.node = 0;
+  capture.length = 32;
+  char output[ERC7730_FORMATTED_VALUE_MAX + 1];
+
+  capture.data[31] = 10;
+  ASSERT_TRUE(erc7730_format_unit(&program, &capture, 0, "h", false, output,
+                                  sizeof(output)));
+  EXPECT_STREQ(output, "10h");
+  capture.data[31] = 15;
+  ASSERT_TRUE(erc7730_format_unit(&program, &capture, 1, "d", false, output,
+                                  sizeof(output)));
+  EXPECT_STREQ(output, "1.5d");
+  memset(capture.data, 0, sizeof(capture.data));
+  capture.data[30] = 0x8c;
+  capture.data[31] = 0xa0;  // 36000
+  ASSERT_TRUE(erc7730_format_unit(&program, &capture, 0, "s", true, output,
+                                  sizeof(output)));
+  EXPECT_STREQ(output, "36ks");
+  memset(capture.data, 0, sizeof(capture.data));
+  capture.data[31] = 1;
+  ASSERT_TRUE(erc7730_format_unit(&program, &capture, 5, "s", true, output,
+                                  sizeof(output)));
+  EXPECT_STREQ(output, "10\xc2\xb5s");
+
+  node.kind = ERC7730_ABI_INT;
+  memset(capture.data, 0xff, sizeof(capture.data));
+  capture.data[31] = 0xf1;  // -15
+  ASSERT_TRUE(erc7730_format_unit(&program, &capture, 1, "d", false, output,
+                                  sizeof(output)));
+  EXPECT_STREQ(output, "-1.5d");
+}

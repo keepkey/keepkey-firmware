@@ -240,10 +240,51 @@ TEST(Eip712Stream, CertifiedWalkPausesBeforeMessageValuesUntilAccepted) {
 
   EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DEFINITION);
   EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
+  uint8_t domain_hash[32];
+  uint8_t type_hash[32];
+  EXPECT_TRUE(eip712_stream_container_hash(5, domain_hash));
+  EXPECT_TRUE(eip712_stream_container_hash(6, type_hash));
+  EXPECT_NE(memcmp(domain_hash, type_hash, sizeof(domain_hash)), 0);
+  EXPECT_FALSE(eip712_stream_container_hash(4, type_hash));
   EXPECT_TRUE(eip712_stream_definition_accepted());
   EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_STRUCT);
   EXPECT_STREQ(eip712_stream_next()->struct_name, "Mail");
   EXPECT_FALSE(eip712_stream_definition_accepted());
+  eip712_stream_abort();
+}
+
+TEST(Eip712Stream, CertifiedDocumentCanBeRehashedForBoundedDisplayReplay) {
+  EthereumSignTypedData begin{};
+  strcpy(begin.primary_type, "Mail");
+  ASSERT_TRUE(eip712_stream_begin(&begin, true));
+
+  EthereumTypedDataStructAck empty{};
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // discover domain
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // hash domain type
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // finish domain
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // discover message
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // hash message type
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DEFINITION);
+  ASSERT_TRUE(eip712_stream_definition_accepted());
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // finish message
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
+  uint8_t first_domain[32];
+  uint8_t first_message[32];
+  memcpy(first_domain, eip712_stream_next()->domain_separator, 32);
+  memcpy(first_message, eip712_stream_next()->message_hash, 32);
+
+  ASSERT_TRUE(eip712_stream_replay());
+  EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_STRUCT);
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // discover domain
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // hash domain type
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // finish domain
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // discover message
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // hash message type
+  ASSERT_TRUE(eip712_stream_on_struct(&empty));  // finish message
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
+  EXPECT_EQ(memcmp(first_domain, eip712_stream_next()->domain_separator, 32),
+            0);
+  EXPECT_EQ(memcmp(first_message, eip712_stream_next()->message_hash, 32), 0);
   eip712_stream_abort();
 }
 

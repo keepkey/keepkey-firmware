@@ -194,3 +194,315 @@ bool erc7730_format_amount(const Erc7730AbiProgram* program,
   memzero(digits, sizeof(digits));
   return true;
 }
+
+static int16_t floor_multiple_of_three(int16_t value) {
+  if (value >= 0) return (int16_t)((value / 3) * 3);
+  return (int16_t)(-(((-value + 2) / 3) * 3));
+}
+
+static const char* si_prefix(int16_t exponent) {
+  switch (exponent) {
+    case -30:
+      return "q";
+    case -27:
+      return "r";
+    case -24:
+      return "y";
+    case -21:
+      return "z";
+    case -18:
+      return "a";
+    case -15:
+      return "f";
+    case -12:
+      return "p";
+    case -9:
+      return "n";
+    case -6:
+      return "\xc2\xb5";
+    case -3:
+      return "m";
+    case 0:
+      return "";
+    case 3:
+      return "k";
+    case 6:
+      return "M";
+    case 9:
+      return "G";
+    case 12:
+      return "T";
+    case 15:
+      return "P";
+    case 18:
+      return "E";
+    case 21:
+      return "Z";
+    case 24:
+      return "Y";
+    case 27:
+      return "R";
+    case 30:
+      return "Q";
+    default:
+      return NULL;
+  }
+}
+
+bool erc7730_format_unit(const Erc7730AbiProgram* program,
+                         const Erc7730AbiCapture* capture, uint8_t decimals,
+                         const char* base, bool prefix, char* output,
+                         size_t output_size) {
+  if (!program || !capture || !base || !output || output_size == 0 ||
+      capture->node >= program->node_count || capture->length != 32 ||
+      base[0] == '\0') {
+    if (output && output_size != 0) output[0] = '\0';
+    return false;
+  }
+  const Erc7730AbiNode* node = &program->nodes[capture->node];
+  if (node->kind != ERC7730_ABI_UINT && node->kind != ERC7730_ABI_INT) {
+    output[0] = '\0';
+    return false;
+  }
+  const bool negative =
+      node->kind == ERC7730_ABI_INT && (capture->data[0] & 0x80u) != 0;
+  uint8_t magnitude[32];
+  memcpy(magnitude, capture->data, sizeof(magnitude));
+  if (negative) {
+    uint16_t carry = 1;
+    for (size_t i = sizeof(magnitude); i > 0; i--) {
+      const uint16_t converted =
+          (uint16_t)(magnitude[i - 1] ^ 0xffu) + carry;
+      magnitude[i - 1] = (uint8_t)converted;
+      carry = converted >> 8;
+    }
+  }
+  char digits[79];
+  if (!format_unsigned(magnitude, false, digits, sizeof(digits))) {
+    memzero(magnitude, sizeof(magnitude));
+    return false;
+  }
+  const bool zero = digits[0] == '0' && digits[1] == '\0';
+  const size_t digit_count = strlen(digits);
+  int16_t exponent = 0;
+  if (prefix && !zero) {
+    exponent = floor_multiple_of_three(
+        (int16_t)digit_count - 1 - (int16_t)decimals);
+    if (exponent < -30) exponent = -30;
+    if (exponent > 30) exponent = 30;
+  }
+  const char* symbol = si_prefix(exponent);
+  if (!symbol) return false;
+  const int16_t scale = (int16_t)decimals + exponent;
+  size_t fractional = 0;
+  size_t leading_zeroes = 0;
+  size_t integer_digits = digit_count;
+  size_t appended_zeroes = 0;
+  if (scale > 0) {
+    if (digit_count > (size_t)scale) {
+      integer_digits = digit_count - (size_t)scale;
+      fractional = (size_t)scale;
+      while (fractional != 0 &&
+             digits[integer_digits + fractional - 1u] == '0')
+        fractional--;
+    } else if (!zero) {
+      integer_digits = 1;
+      leading_zeroes = (size_t)scale - digit_count;
+      fractional = leading_zeroes + digit_count;
+      while (fractional != 0 && digits[fractional - leading_zeroes - 1u] == '0')
+        fractional--;
+    } else {
+      integer_digits = 1;
+    }
+  } else if (scale < 0 && !zero) {
+    appended_zeroes = (size_t)(-scale);
+  }
+  const size_t base_length = strlen(base);
+  const size_t symbol_length = strlen(symbol);
+  const size_t number_length =
+      integer_digits + appended_zeroes + (fractional ? 1u + fractional : 0u);
+  const size_t required = (negative ? 1u : 0u) + number_length +
+                          symbol_length + base_length + 1u;
+  if (required > output_size) {
+    output[0] = '\0';
+    memzero(magnitude, sizeof(magnitude));
+    memzero(digits, sizeof(digits));
+    return false;
+  }
+  size_t written = 0;
+  if (negative) output[written++] = '-';
+  if (scale > 0 && digit_count <= (size_t)scale) {
+    output[written++] = '0';
+    if (fractional) {
+      output[written++] = '.';
+      memset(output + written, '0', leading_zeroes);
+      written += leading_zeroes;
+      const size_t significant = fractional - leading_zeroes;
+      memcpy(output + written, digits, significant);
+      written += significant;
+    }
+  } else {
+    memcpy(output + written, digits, integer_digits);
+    written += integer_digits;
+    if (fractional) {
+      output[written++] = '.';
+      memcpy(output + written, digits + integer_digits, fractional);
+      written += fractional;
+    }
+    memset(output + written, '0', appended_zeroes);
+    written += appended_zeroes;
+  }
+  memcpy(output + written, symbol, symbol_length);
+  written += symbol_length;
+  memcpy(output + written, base, base_length);
+  written += base_length;
+  output[written] = '\0';
+  memzero(magnitude, sizeof(magnitude));
+  memzero(digits, sizeof(digits));
+  return true;
+}
+
+bool erc7730_format_duration(const Erc7730AbiProgram* program,
+                             const Erc7730AbiCapture* capture, char* output,
+                             size_t output_size) {
+  if (!program || !capture || !output || output_size == 0 ||
+      capture->node >= program->node_count || capture->length != 32) {
+    if (output && output_size != 0) output[0] = '\0';
+    return false;
+  }
+  const Erc7730AbiNode* node = &program->nodes[capture->node];
+  if (node->kind != ERC7730_ABI_UINT && node->kind != ERC7730_ABI_INT) {
+    output[0] = '\0';
+    return false;
+  }
+  const bool negative =
+      node->kind == ERC7730_ABI_INT && (capture->data[0] & 0x80u) != 0;
+  uint8_t hours[32];
+  memcpy(hours, capture->data, sizeof(hours));
+  if (negative) {
+    uint16_t carry = 1;
+    for (size_t i = sizeof(hours); i > 0; i--) {
+      const uint16_t converted = (uint16_t)(hours[i - 1] ^ 0xffu) + carry;
+      hours[i - 1] = (uint8_t)converted;
+      carry = converted >> 8;
+    }
+  }
+  uint32_t remainder = 0;
+  for (size_t i = 0; i < sizeof(hours); i++) {
+    const uint32_t current = remainder * 256u + hours[i];
+    hours[i] = (uint8_t)(current / 3600u);
+    remainder = current % 3600u;
+  }
+  char hour_digits[79];
+  if (!format_unsigned(hours, false, hour_digits, sizeof(hour_digits))) {
+    memzero(hours, sizeof(hours));
+    return false;
+  }
+  const size_t hour_length = strlen(hour_digits);
+  const size_t padded_hours = hour_length < 2 ? 2 : hour_length;
+  const size_t required = (negative ? 1u : 0u) + padded_hours + 6u + 1u;
+  if (output_size < required) {
+    output[0] = '\0';
+    memzero(hours, sizeof(hours));
+    memzero(hour_digits, sizeof(hour_digits));
+    return false;
+  }
+  size_t written = 0;
+  if (negative) output[written++] = '-';
+  if (hour_length < 2) output[written++] = '0';
+  memcpy(output + written, hour_digits, hour_length);
+  written += hour_length;
+  output[written++] = ':';
+  output[written++] = (char)('0' + (remainder / 60u) / 10u);
+  output[written++] = (char)('0' + (remainder / 60u) % 10u);
+  output[written++] = ':';
+  output[written++] = (char)('0' + (remainder % 60u) / 10u);
+  output[written++] = (char)('0' + (remainder % 60u) % 10u);
+  output[written] = '\0';
+  memzero(hours, sizeof(hours));
+  memzero(hour_digits, sizeof(hour_digits));
+  return true;
+}
+
+static void write_two_digits(char* output, uint32_t value) {
+  output[0] = (char)('0' + (value / 10u) % 10u);
+  output[1] = (char)('0' + value % 10u);
+}
+
+bool erc7730_format_timestamp(const Erc7730AbiProgram* program,
+                              const Erc7730AbiCapture* capture, char* output,
+                              size_t output_size) {
+  if (!program || !capture || !output || output_size < 21 ||
+      capture->node >= program->node_count || capture->length != 32) {
+    if (output && output_size != 0) output[0] = '\0';
+    return false;
+  }
+  const Erc7730AbiNode* node = &program->nodes[capture->node];
+  if (node->kind != ERC7730_ABI_UINT && node->kind != ERC7730_ABI_INT) {
+    output[0] = '\0';
+    return false;
+  }
+  const bool negative =
+      node->kind == ERC7730_ABI_INT && (capture->data[0] & 0x80u) != 0;
+  const uint8_t extension = negative ? 0xff : 0;
+  for (size_t i = 0; i < 24; i++)
+    if (capture->data[i] != extension) {
+      output[0] = '\0';
+      return false;
+    }
+  uint64_t encoded = 0;
+  for (size_t i = 24; i < 32; i++)
+    encoded = (encoded << 8) | capture->data[i];
+  int64_t timestamp = 0;
+  if (negative) {
+    const uint64_t magnitude = ~encoded + 1u;
+    if (magnitude > UINT64_C(0x8000000000000000)) return false;
+    timestamp = magnitude == UINT64_C(0x8000000000000000)
+                    ? INT64_MIN
+                    : -(int64_t)magnitude;
+  } else {
+    if (encoded > INT64_MAX) return false;
+    timestamp = (int64_t)encoded;
+  }
+
+  int64_t days = timestamp / 86400;
+  int64_t seconds = timestamp % 86400;
+  if (seconds < 0) {
+    seconds += 86400;
+    days--;
+  }
+  const int64_t z = days + 719468;
+  const int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+  const uint32_t doe = (uint32_t)(z - era * 146097);
+  const uint32_t yoe =
+      (doe - doe / 1460u + doe / 36524u - doe / 146096u) / 365u;
+  int64_t year = (int64_t)yoe + era * 400;
+  const uint32_t doy =
+      doe - (365u * yoe + yoe / 4u - yoe / 100u);
+  const uint32_t mp = (5u * doy + 2u) / 153u;
+  const uint32_t day = doy - (153u * mp + 2u) / 5u + 1u;
+  const uint32_t month =
+      (uint32_t)((int32_t)mp + (mp < 10 ? 3 : -9));
+  year += month <= 2;
+  if (year < 0 || year > 9999) {
+    output[0] = '\0';
+    return false;
+  }
+  output[0] = (char)('0' + (year / 1000) % 10);
+  output[1] = (char)('0' + (year / 100) % 10);
+  output[2] = (char)('0' + (year / 10) % 10);
+  output[3] = (char)('0' + year % 10);
+  output[4] = '-';
+  write_two_digits(output + 5, month);
+  output[7] = '-';
+  write_two_digits(output + 8, day);
+  output[10] = 'T';
+  write_two_digits(output + 11, (uint32_t)seconds / 3600u);
+  output[13] = ':';
+  write_two_digits(output + 14, ((uint32_t)seconds / 60u) % 60u);
+  output[16] = ':';
+  write_two_digits(output + 17, (uint32_t)seconds % 60u);
+  output[19] = 'Z';
+  output[20] = '\0';
+  return true;
+}

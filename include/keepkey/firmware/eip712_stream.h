@@ -129,6 +129,7 @@ bool eip712_domain_facts_observe(
     const uint8_t* value, uint16_t value_len);
 
 bool eip712_stream_domain_facts(Eip712DomainFacts* facts);
+bool eip712_stream_container_hash(uint16_t source_index, uint8_t value[32]);
 
 #endif
 
@@ -187,6 +188,10 @@ const Eip712Next* eip712_stream_next(void);
 bool eip712_stream_begin(const EthereumSignTypedData* msg,
                          bool require_definition);
 bool eip712_stream_definition_accepted(void);
+/* Rewalk the exact document after a completed pass. Every replay is hashed
+ * again and must reproduce the first pass before its captured value may be
+ * displayed. This trades host round trips for bounded SRAM. */
+bool eip712_stream_replay(void);
 
 /* Feed the machine. Each returns false and tears the session down on any
  * protocol or validation error, having already sent a Failure. */

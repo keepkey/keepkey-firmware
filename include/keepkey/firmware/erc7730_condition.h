@@ -16,5 +16,11 @@ bool erc7730_condition_evaluate_basic(const Erc7730Condition* condition,
 bool erc7730_capture_equals_literal(const Erc7730AbiProgram* program,
                                     const Erc7730AbiCapture* capture,
                                     const Erc7730Literal* literal);
+bool erc7730_literal_set_count(const Erc7730Literal* set, uint16_t* count);
+bool erc7730_literal_set_index(const Erc7730Literal* set, uint16_t position,
+                               uint16_t* literal_index);
+bool erc7730_enum_map_count(const Erc7730Literal* map, uint16_t* count);
+bool erc7730_enum_map_index(const Erc7730Literal* map, uint16_t position,
+                            uint16_t* key_literal, uint16_t* value_string);
 
 #endif
