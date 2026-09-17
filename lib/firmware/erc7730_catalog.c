@@ -95,6 +95,10 @@ static bool validate_abi_node(Erc7730CatalogVerifier* v, const uint8_t* node) {
 
   if (kind < 1 || kind > 9) return false;
   if (v->abi_node_index == 0 && kind != 8) return false;
+  if (v->abi_node_index == 0) {
+    v->signature[0] = 1;
+    v->abi_max_depth = 1;
+  }
   if (kind == 1 || kind == 2) {
     if (size < 8 || size > 256 || size % 8 != 0) return false;
   } else if (kind == 5) {
@@ -117,6 +121,10 @@ static bool validate_abi_node(Erc7730CatalogVerifier* v, const uint8_t* node) {
       const uint64_t bit = UINT64_C(1) << (first_child + i);
       if ((v->abi_child_mask & bit) != 0) return false;
       v->abi_child_mask |= bit;
+      const uint8_t depth = (uint8_t)(v->signature[v->abi_node_index] + 1u);
+      if (depth > ERC7730_ABI_MAX_DEPTH) return false;
+      v->signature[first_child + i] = depth;
+      if (depth > v->abi_max_depth) v->abi_max_depth = depth;
     }
   } else if (first_child != 0 || child_count != 0 || array_length != 0) {
     return false;
@@ -124,9 +132,197 @@ static bool validate_abi_node(Erc7730CatalogVerifier* v, const uint8_t* node) {
   return true;
 }
 
+static bool consume_utf8(Erc7730CatalogVerifier* v, uint8_t byte) {
+  if (v->utf8_remaining != 0) {
+    if (byte < v->utf8_lower || byte > v->utf8_upper) return false;
+    v->utf8_lower = 0x80;
+    v->utf8_upper = 0xbf;
+    v->utf8_remaining--;
+    return true;
+  }
+  if (byte >= 0x20 && byte <= 0x7e) return true;
+  if (byte >= 0xc2 && byte <= 0xdf) {
+    v->utf8_remaining = 1;
+  } else if (byte == 0xe0) {
+    v->utf8_remaining = 2;
+    v->utf8_lower = 0xa0;
+    v->utf8_upper = 0xbf;
+  } else if (byte >= 0xe1 && byte <= 0xec) {
+    v->utf8_remaining = 2;
+  } else if (byte == 0xed) {
+    v->utf8_remaining = 2;
+    v->utf8_upper = 0x9f;
+  } else if (byte >= 0xee && byte <= 0xef) {
+    v->utf8_remaining = 2;
+  } else if (byte == 0xf0) {
+    v->utf8_remaining = 3;
+    v->utf8_lower = 0x90;
+    v->utf8_upper = 0xbf;
+  } else if (byte >= 0xf1 && byte <= 0xf3) {
+    v->utf8_remaining = 3;
+  } else if (byte == 0xf4) {
+    v->utf8_remaining = 3;
+    v->utf8_upper = 0x8f;
+  } else {
+    return false;
+  }
+  return true;
+}
+
+static bool consume_string_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
+  v->section_offset++;
+  if (v->section_offset <= 2) {
+    v->sibling[v->section_offset - 1] = byte;
+    if (v->section_offset == 2) {
+      v->entry_count = read_be16(v->sibling);
+      if (v->entry_count > 96) return false;
+      v->table_counts[0] = v->entry_count;
+    }
+    return true;
+  }
+  if (v->entry_index >= v->entry_count) return false;
+  if (v->entry_length == 0) {
+    v->sibling[v->field_received++] = byte;
+    if (v->field_received == 2) {
+      v->entry_length = read_be16(v->sibling);
+      v->field_received = 0;
+      v->entry_offset = 0;
+      v->compare_state = 0;
+      v->utf8_remaining = 0;
+      v->utf8_lower = 0x80;
+      v->utf8_upper = 0xbf;
+      if (v->entry_length == 0 || v->entry_length > 128 ||
+          v->entry_length > v->section_remaining - 1u)
+        return false;
+      if (v->entry_length > v->max_string_length)
+        v->max_string_length = (uint8_t)v->entry_length;
+    }
+    return true;
+  }
+
+  if (!consume_utf8(v, byte)) return false;
+  if (v->entry_index != 0 && v->compare_state == 0) {
+    if (v->entry_offset >= v->previous_length) {
+      v->compare_state = 1;
+    } else if (byte > v->cert[v->entry_offset]) {
+      v->compare_state = 1;
+    } else if (byte < v->cert[v->entry_offset]) {
+      return false;
+    }
+  }
+  v->cert[v->entry_offset++] = byte;
+  if (v->entry_offset == v->entry_length) {
+    if (v->utf8_remaining != 0 ||
+        (v->entry_index != 0 && v->compare_state == 0))
+      return false;
+    v->previous_length = v->entry_length;
+    v->entry_length = 0;
+    v->entry_offset = 0;
+    v->entry_index++;
+  }
+  return true;
+}
+
+static void finish_path_step(Erc7730CatalogVerifier* v) {
+  v->path_step_index++;
+  v->path_step_opcode = 0;
+  v->path_step_remaining = 0;
+  v->path_slice_flags = 0;
+  if (v->path_step_index == v->path_step_count) {
+    v->entry_index++;
+    v->field_received = 0;
+    v->path_step_index = 0;
+    v->path_step_count = 0;
+    v->path_source = 0;
+    v->path_full_seen = false;
+  }
+}
+
+static bool consume_path_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
+  v->section_offset++;
+  if (v->section_offset <= 2) {
+    v->sibling[v->section_offset - 1] = byte;
+    if (v->section_offset == 2) {
+      v->entry_count = read_be16(v->sibling);
+      if (v->entry_count > 64) return false;
+      v->table_counts[2] = v->entry_count;
+    }
+    return true;
+  }
+  if (v->entry_index >= v->entry_count) return false;
+
+  if (v->path_step_count == 0) {
+    v->sibling[v->field_received++] = byte;
+    if (v->field_received != 4) return true;
+    v->path_source = v->sibling[0];
+    v->path_step_count = v->sibling[1];
+    const uint16_t source_index = read_be16(v->sibling + 2);
+    if (v->path_source < 1 || v->path_source > 3 ||
+        v->path_step_count > ERC7730_ABI_MAX_PATH)
+      return false;
+    if (v->path_source == 1) {
+      if (source_index != UINT16_MAX || v->path_step_count == 0) return false;
+    } else {
+      if (v->path_step_count != 0) return false;
+      if ((v->path_source == 2 && (source_index == 0 || source_index > 6)) ||
+          (v->path_source == 3 && source_index == UINT16_MAX))
+        return false;
+    }
+    v->field_received = 0;
+    if (v->path_step_count == 0) {
+      v->entry_index++;
+      v->path_source = 0;
+    }
+    return true;
+  }
+
+  if (v->path_step_opcode == 0) {
+    v->path_step_opcode = byte;
+    if (byte == 1) {
+      v->path_step_remaining = 4;
+    } else if (byte == 2) {
+      if (v->path_full_seen) return false;
+      v->path_full_seen = true;
+      finish_path_step(v);
+    } else if (byte == 3) {
+      if (v->path_step_index + 1 != v->path_step_count) return false;
+      /* A zero remaining count means the next byte is the slice flags. */
+    } else {
+      return false;
+    }
+    return true;
+  }
+
+  if (v->path_step_opcode == 3 && v->path_slice_flags == 0) {
+    if (byte == 0 || (byte & (uint8_t)~0x03u) != 0) return false;
+    v->path_slice_flags = byte;
+    v->path_step_remaining =
+        (uint8_t)(((byte & 1u) ? 4u : 0u) + ((byte & 2u) ? 4u : 0u));
+    return true;
+  }
+
+  if (v->path_step_remaining == 0) return false;
+  if (--v->path_step_remaining == 0) finish_path_step(v);
+  return true;
+}
+
 static bool consume_section_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
+  if (v->last_section == 1) return consume_string_byte(v, byte);
+  if (v->last_section == 3) return consume_path_byte(v, byte);
+  if (v->last_section == 9) {
+    if (v->section_offset >= 22) return false;
+    v->sibling[v->section_offset++] = byte;
+    return true;
+  }
+
   if (v->last_section != 2) {
-    v->section_offset++;
+    if (v->section_offset < 2) {
+      v->sibling[v->section_offset] = byte;
+      if (++v->section_offset == 2)
+        v->table_counts[v->last_section - 1] = read_be16(v->sibling);
+    } else {
+      v->section_offset++;
+    }
     return true;
   }
 
@@ -134,6 +330,7 @@ static bool consume_section_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
   v->section_offset++;
   if (v->section_offset == 2) {
     v->abi_node_count = read_be16(v->sibling);
+    v->table_counts[1] = v->abi_node_count;
     v->field_received = 0;
     if (v->abi_node_count == 0 || v->abi_node_count > ERC7730_ABI_MAX_NODES ||
         v->section_remaining != (uint32_t)v->abi_node_count * 9u + 1u)
@@ -147,7 +344,26 @@ static bool consume_section_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
 }
 
 static bool finish_section(Erc7730CatalogVerifier* v) {
-  if (v->last_section != 2) return true;
+  if (v->last_section == 1)
+    return v->section_offset >= 2 && v->entry_index == v->entry_count &&
+           v->entry_length == 0 && v->field_received == 0;
+  if (v->last_section == 3)
+    return v->section_offset >= 2 && v->entry_index == v->entry_count &&
+           v->field_received == 0 && v->path_step_count == 0 &&
+           v->path_step_opcode == 0;
+  if (v->last_section == 9) {
+    if (v->section_offset != 22) return false;
+    for (uint8_t i = 0; i < 8; i++) {
+      if (read_be16(v->sibling + i * 2) != v->table_counts[i]) return false;
+    }
+    if (v->sibling[16] != v->abi_max_depth ||
+        v->sibling[17] > ERC7730_ABI_MAX_ARRAY_ELEMENTS ||
+        v->sibling[18] > ERC7730_ABI_MAX_DEPTH || v->sibling[19] > 4 ||
+        read_be16(v->sibling + 20) != v->max_string_length)
+      return false;
+    return true;
+  }
+  if (v->last_section != 2) return v->section_offset >= 2;
   if (v->field_received != 0 || v->abi_node_index != v->abi_node_count)
     return false;
   const uint64_t expected = v->abi_node_count == 64
@@ -181,7 +397,20 @@ static bool consume_program_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
       v->abi_node_count = 0;
       v->abi_node_index = 0;
       v->abi_child_mask = 0;
-      if (length == 0 && type == 2) return false;
+      v->entry_count = 0;
+      v->entry_index = 0;
+      v->entry_length = 0;
+      v->entry_offset = 0;
+      v->previous_length = 0;
+      v->path_source = 0;
+      v->path_step_count = 0;
+      v->path_step_index = 0;
+      v->path_step_opcode = 0;
+      v->path_step_remaining = 0;
+      v->path_slice_flags = 0;
+      v->path_full_seen = false;
+      if ((type == 9 && length != 22) || (type != 9 && length < 2))
+        return false;
     }
   } else {
     if (!consume_section_byte(v, byte)) return false;
@@ -205,7 +434,8 @@ static bool finish_program(Erc7730CatalogVerifier* v) {
         common | (1u << 2) | (1u << 3) | (1u << 6) | (1u << 7);
     return (v->section_mask & executable) == executable;
   }
-  return (v->section_mask & common) == common;
+  const uint16_t external_metadata = common | (1u << 4);
+  return (v->section_mask & external_metadata) == external_metadata;
 }
 
 static Erc7730CatalogResult finish(Erc7730CatalogVerifier* v,
