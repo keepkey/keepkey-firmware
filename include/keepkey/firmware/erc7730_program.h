@@ -38,10 +38,10 @@ typedef struct {
   bool failed;
 } Erc7730ProgramAbi;
 
-/* Sections are canonical and ascending. The ABI is section 1, allowing a
+/* Sections are canonical and ascending. The ABI is section 2, allowing a
  * single authenticated replay to index the program and retain its bounded
  * type tree even when a transport chunk spans the section header. */
-#define ERC7730_PROGRAM_SECTION_ABI 1u
+#define ERC7730_PROGRAM_SECTION_ABI 2u
 
 typedef struct {
   Erc7730ProgramIndex index;

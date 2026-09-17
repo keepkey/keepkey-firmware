@@ -142,7 +142,6 @@ TEST(Erc7730ProgramLoader, RetainsAbiDuringSingleArbitraryChunkReplay) {
 
 TEST(Erc7730ProgramLoader, RefusesMissingOrMalformedAbiSection) {
   auto missing = indexedProgram();
-  missing[ERC7730_PROGRAM_HEADER_SIZE] = 2;
   Erc7730ProgramLoader loader;
   erc7730_program_loader_begin(&loader, missing.size());
   EXPECT_TRUE(
@@ -151,7 +150,7 @@ TEST(Erc7730ProgramLoader, RefusesMissingOrMalformedAbiSection) {
   EXPECT_FALSE(erc7730_program_loader_complete(&loader, &loaded));
 
   auto malformed = indexedProgram();
-  malformed[ERC7730_PROGRAM_HEADER_SIZE + 5] = 0;
+  malformed[ERC7730_PROGRAM_HEADER_SIZE] = ERC7730_PROGRAM_SECTION_ABI;
   erc7730_program_loader_begin(&loader, malformed.size());
   EXPECT_FALSE(erc7730_program_loader_feed(&loader, 0, malformed.data(),
                                            malformed.size()));

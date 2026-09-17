@@ -1,4 +1,6 @@
 
+#include "keepkey/firmware/erc7730_workflow.h"
+
 /*
  * This file is part of the Keepkey project
  *
@@ -85,9 +87,71 @@ static int process_ethereum_msg(EthereumSignTx* msg, bool* needs_confirm) {
   }
 }
 
+static void send_erc7730_definition_request(void) {
+  Erc7730Workflow* workflow = erc7730_workflow_state();
+  const Erc7730CatalogIdentity* identity = erc7730_workflow_identity(workflow);
+  uint8_t definition_id[32];
+  uint32_t offset = 0, total_length = 0;
+  if (!identity ||
+      !erc7730_workflow_waiting(workflow, definition_id, &offset,
+                                &total_length) ||
+      offset >= total_length) {
+    memzero(definition_id, sizeof(definition_id));
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid ERC-7730 replay state"));
+    layoutHome();
+    return;
+  }
+  RESP_INIT(EthereumClearSignDefinitionRequest);
+  resp->kind = EthereumClearSignDefinitionKind_ERC7730_CALLDATA;
+  resp->chain_id = identity->chain_id;
+  resp->has_contract_address = true;
+  resp->contract_address.size = sizeof(identity->contract_address);
+  memcpy(resp->contract_address.bytes, identity->contract_address,
+         sizeof(identity->contract_address));
+  resp->has_selector_or_type_hash = true;
+  resp->selector_or_type_hash.size = 4;
+  memcpy(resp->selector_or_type_hash.bytes, identity->selector_or_type_hash, 4);
+  resp->has_definition_id = true;
+  resp->definition_id.size = sizeof(definition_id);
+  memcpy(resp->definition_id.bytes, definition_id, sizeof(definition_id));
+  resp->offset = offset;
+  const uint32_t remaining = total_length - offset;
+  resp->length = remaining < ERC7730_TRANSPORT_CHUNK_MAX
+                     ? remaining
+                     : ERC7730_TRANSPORT_CHUNK_MAX;
+  memzero(definition_id, sizeof(definition_id));
+  msg_write(MessageType_MessageType_EthereumClearSignDefinitionRequest, resp);
+}
+
+static void continue_ethereum_sign_tx(EthereumSignTx* msg) {
+  bool needs_confirm = true;
+  int msg_result = process_ethereum_msg(msg, &needs_confirm);
+
+  if (msg_result < TXOUT_OK) {
+    ethereum_signing_abort();
+    erc7730_workflow_abort(erc7730_workflow_state());
+    send_fsm_co_error_message(msg_result);
+    layoutHome();
+    return;
+  }
+
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+                                    msg->address_n_count, NULL);
+  if (!node) {
+    erc7730_workflow_abort(erc7730_workflow_state());
+    return;
+  }
+
+  ethereum_signing_init(msg, node, needs_confirm);
+  memzero(node, sizeof(*node));
+}
+
 void fsm_msgEthereumSignTx(EthereumSignTx* msg) {
   /* A new start supersedes any old Ethereum stream before validation. */
   ethereum_signing_abort();
+  erc7730_workflow_abort(erc7730_workflow_state());
 
   CHECK_INITIALIZED
 
@@ -113,37 +177,32 @@ void fsm_msgEthereumSignTx(EthereumSignTx* msg) {
     const bool calldata_shape = msg->has_to && msg->to.size == 20 &&
                                 msg->has_data_length && msg->data_length >= 4 &&
                                 msg->has_data_initial_chunk &&
-                                msg->data_initial_chunk.size >= 4;
+                                msg->data_initial_chunk.size == 4;
     const bool matches =
         calldata_shape && erc7730_catalog_matches_calldata(
                               &definition, msg->chain_id, msg->to.bytes,
                               msg->data_initial_chunk.bytes);
-    memzero(&definition, sizeof(definition));
     if (!matches) {
+      memzero(&definition, sizeof(definition));
       erc7730_catalog_clear_preload();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       _("ERC-7730 definition does not match transaction"));
       layoutHome();
       return;
     }
-  }
-
-  bool needs_confirm = true;
-  int msg_result = process_ethereum_msg(msg, &needs_confirm);
-
-  if (msg_result < TXOUT_OK) {
-    ethereum_signing_abort();
-    send_fsm_co_error_message(msg_result);
-    layoutHome();
+    if (!erc7730_workflow_begin(erc7730_workflow_state(), &definition, msg)) {
+      memzero(&definition, sizeof(definition));
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unable to start ERC-7730 verification"));
+      layoutHome();
+      return;
+    }
+    memzero(&definition, sizeof(definition));
+    send_erc7730_definition_request();
     return;
   }
-
-  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
-                                    msg->address_n_count, NULL);
-  if (!node) return;
-
-  ethereum_signing_init(msg, node, needs_confirm);
-  memzero(node, sizeof(*node));
+  memzero(&definition, sizeof(definition));
+  continue_ethereum_sign_tx(msg);
 }
 
 void fsm_msgEthereumTxAck(EthereumTxAck* msg) { ethereum_signing_txack(msg); }
@@ -195,17 +254,39 @@ void fsm_msgEthereumClearSignDefinition(
 
 void fsm_msgEthereumClearSignDefinitionChunk(
     const EthereumClearSignDefinitionChunk* msg) {
-  (void)msg;
-  /* On-demand chunks are accepted only while the ERC-7730 execution machine
-   * has a matching request outstanding. That machine is wired separately from
-   * offline preload; accepting one here would turn an unsolicited message into
-   * signing state. */
-  ethereum_signing_abort();
-  eip712_stream_abort();
-  erc7730_catalog_clear_preload();
-  fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
-                  _("No ERC-7730 definition requested"));
-  layoutHome();
+  Erc7730Workflow* workflow = erc7730_workflow_state();
+  if (!erc7730_workflow_active(workflow)) {
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("No ERC-7730 definition requested"));
+    layoutHome();
+    return;
+  }
+  bool complete = false;
+  const Erc7730CatalogResult result =
+      erc7730_workflow_replay_feed(workflow, msg, &complete);
+  if (result != ERC7730_CATALOG_MORE && result != ERC7730_CATALOG_COMPLETE) {
+    ethereum_signing_abort();
+    eip712_stream_abort();
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid certified ERC-7730 replay"));
+    layoutHome();
+    return;
+  }
+  if (!complete) {
+    send_erc7730_definition_request();
+    return;
+  }
+  EthereumSignTx tx;
+  if (!erc7730_workflow_restore_and_start_calldata(workflow, &tx)) {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid ERC-7730 execution program"));
+    layoutHome();
+    return;
+  }
+  continue_ethereum_sign_tx(&tx);
+  memzero(&tx, sizeof(tx));
 }
 
 void fsm_msgEthereumTxMetadata(const EthereumTxMetadata* msg) {
