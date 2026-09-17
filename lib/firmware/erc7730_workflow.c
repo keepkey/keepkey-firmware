@@ -460,7 +460,8 @@ bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
 
 bool erc7730_workflow_capture_tx_container(Erc7730Workflow* workflow,
                                            const Erc7730Path* path,
-                                           EthereumSignTx* tx) {
+                                           EthereumSignTx* tx,
+                                           const uint8_t* sender_address) {
   if (!workflow || !path || !tx || workflow->typed_data ||
       workflow->phase != ERC7730_WORKFLOW_READY || path->source != 2 ||
       path->step_count != 0 ||
@@ -469,7 +470,10 @@ bool erc7730_workflow_capture_tx_container(Erc7730Workflow* workflow,
   erc7730_abi_stream_clear(&workflow->calldata);
   Erc7730AbiCapture* capture = &workflow->calldata.capture;
   capture->length = 32;
-  if (path->source_index == 2) {
+  if (path->source_index == 1) {
+    if (!sender_address) return false;
+    memcpy(capture->data + 12, sender_address, 20);
+  } else if (path->source_index == 2) {
     if (!tx->has_to || tx->to.size != 20) return false;
     memcpy(capture->data + 12, tx->to.bytes, 20);
   } else if (path->source_index == 3) {
@@ -720,7 +724,7 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
   Erc7730AbiNode container_node;
   if (workflow->container_source != 0) {
     memzero(&container_node, sizeof(container_node));
-    container_node.kind = workflow->container_source == 2 ? ERC7730_ABI_ADDRESS
+    container_node.kind = workflow->container_source <= 2 ? ERC7730_ABI_ADDRESS
                                                           : ERC7730_ABI_UINT;
     container_node.size = container_node.kind == ERC7730_ABI_UINT ? 256 : 0;
     program.nodes = &container_node;

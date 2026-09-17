@@ -636,7 +636,45 @@ void fsm_msgEthereumClearSignDefinitionChunk(
   }
   if (!workflow->typed_data && path.source == 2) {
     EthereumSignTx tx;
-    if (!erc7730_workflow_capture_tx_container(workflow, &path, &tx)) {
+    uint8_t sender_address[20];
+    memzero(sender_address, sizeof(sender_address));
+    const uint8_t* sender = NULL;
+    if (path.source_index == 1) {
+      if (!erc7730_tx_continuation_restore(&workflow->continuation, &tx)) {
+        memzero(&path, sizeof(path));
+        memzero(&tx, sizeof(tx));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 sender path"));
+        layoutHome();
+        return;
+      }
+      HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, tx.address_n,
+                                        tx.address_n_count, NULL);
+      if (!node) {
+        memzero(sender_address, sizeof(sender_address));
+        memzero(&path, sizeof(path));
+        memzero(&tx, sizeof(tx));
+        erc7730_workflow_abort(workflow);
+        layoutHome();
+        return;
+      }
+      if (!hdnode_get_ethereum_pubkeyhash(node, sender_address)) {
+        memzero(node, sizeof(*node));
+        memzero(sender_address, sizeof(sender_address));
+        memzero(&path, sizeof(path));
+        memzero(&tx, sizeof(tx));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_Other,
+                        _("Ethereum sender derivation failed"));
+        layoutHome();
+        return;
+      }
+      memzero(node, sizeof(*node));
+      sender = sender_address;
+    }
+    if (!erc7730_workflow_capture_tx_container(workflow, &path, &tx, sender)) {
+      memzero(sender_address, sizeof(sender_address));
       memzero(&path, sizeof(path));
       memzero(&tx, sizeof(tx));
       erc7730_workflow_abort(workflow);
@@ -645,6 +683,7 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       layoutHome();
       return;
     }
+    memzero(sender_address, sizeof(sender_address));
     confirm_erc7730_intent_and_continue(&tx);
     memzero(&tx, sizeof(tx));
   } else if (workflow->typed_data) {

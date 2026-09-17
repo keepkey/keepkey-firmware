@@ -125,7 +125,8 @@ bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
                                                 const Erc7730Path* path);
 bool erc7730_workflow_capture_tx_container(Erc7730Workflow* workflow,
                                            const Erc7730Path* path,
-                                           EthereumSignTx* tx);
+                                           EthereumSignTx* tx,
+                                           const uint8_t* sender_address);
 bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
                                            const Erc7730Path* path);
 bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,
