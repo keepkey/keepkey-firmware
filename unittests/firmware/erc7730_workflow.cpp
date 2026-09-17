@@ -491,3 +491,102 @@ TEST(Erc7730Workflow, HandlesCanonicalEmptyMembershipSets) {
       erc7730_workflow_finish_empty_membership(&workflow, &visible));
   EXPECT_TRUE(visible);
 }
+
+TEST(Erc7730Workflow, ResolvesEnumOnlyThroughAuthenticatedMapAndKey) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  workflow.current_formatter_kind = 8;
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  const uint32_t member_path[2] = {1, 0};
+  uint8_t value[32] = {0};
+  value[31] = 7;
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
+                                              sizeof(value)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  ASSERT_TRUE(erc7730_workflow_prepare_enum(&workflow, 9));
+
+  Erc7730Literal map{};
+  map.kind = 8;
+  map.length = 10;
+  const uint8_t encoded[] = {0, 2, 0, 1, 0, 3, 0, 4, 0, 7};
+  memcpy(map.value, encoded, sizeof(encoded));
+  uint16_t key_index = 0;
+  uint16_t string_index = 0;
+  bool exhausted = false;
+  ASSERT_TRUE(erc7730_workflow_enum_map_next(
+      &workflow, &map, &key_index, &string_index, &exhausted));
+  EXPECT_EQ(key_index, 1u);
+  EXPECT_EQ(string_index, 3u);
+  Erc7730Literal key{};
+  key.kind = 1;
+  key.length = 1;
+  key.value[0] = 6;
+  bool matched = true;
+  ASSERT_TRUE(erc7730_workflow_enum_observe_key(&workflow, &key, &matched,
+                                                &exhausted));
+  EXPECT_FALSE(matched);
+  EXPECT_FALSE(exhausted);
+  ASSERT_TRUE(erc7730_workflow_enum_map_next(
+      &workflow, &map, &key_index, &string_index, &exhausted));
+  EXPECT_EQ(key_index, 4u);
+  EXPECT_EQ(string_index, 7u);
+  key.value[0] = 7;
+  ASSERT_TRUE(erc7730_workflow_enum_observe_key(&workflow, &key, &matched,
+                                                &exhausted));
+  EXPECT_TRUE(matched);
+  ASSERT_TRUE(erc7730_workflow_complete_enum(&workflow, "Seven", 5));
+  char formatted[16];
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "Seven");
+}
+
+TEST(Erc7730Workflow, FallsBackToRawWhenEnumHasNoMatchingKey) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  workflow.current_formatter_kind = 8;
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  const uint32_t member_path[2] = {1, 0};
+  uint8_t value[32] = {0};
+  value[31] = 7;
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
+                                              sizeof(value)));
+  ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+  ASSERT_TRUE(erc7730_workflow_prepare_enum(&workflow, 2));
+  Erc7730Literal map{};
+  map.kind = 8;
+  map.length = 6;
+  const uint8_t encoded[] = {0, 1, 0, 1, 0, 3};
+  memcpy(map.value, encoded, sizeof(encoded));
+  uint16_t key_index = 0;
+  uint16_t string_index = 0;
+  bool exhausted = false;
+  ASSERT_TRUE(erc7730_workflow_enum_map_next(
+      &workflow, &map, &key_index, &string_index, &exhausted));
+  Erc7730Literal key{};
+  key.kind = 1;
+  key.length = 1;
+  key.value[0] = 8;
+  bool matched = true;
+  ASSERT_TRUE(erc7730_workflow_enum_observe_key(&workflow, &key, &matched,
+                                                &exhausted));
+  EXPECT_FALSE(matched);
+  EXPECT_TRUE(exhausted);
+  ASSERT_TRUE(erc7730_workflow_enum_fallback_raw(&workflow));
+  char formatted[8];
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "7");
+}

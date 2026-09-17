@@ -197,6 +197,22 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
     workflow->intent_confirmed = true;
   }
   const bool had_field = workflow->label[0] != '\0';
+  if (had_field && workflow->current_formatter_kind == 8 &&
+      workflow->display_stage == ERC7730_DISPLAY_PATH) {
+    const uint16_t map_literal = workflow->formatter_auxiliary;
+    if (!erc7730_workflow_prepare_enum(workflow, map_literal) ||
+        !erc7730_workflow_select_literal(workflow, map_literal)) {
+      if (typed_data) eip712_stream_abort();
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Invalid ERC-7730 enum map"));
+      layoutHome();
+      return;
+    }
+    workflow->display_stage = ERC7730_DISPLAY_ENUM_MAP;
+    send_erc7730_definition_request();
+    return;
+  }
   if (had_field) {
     char formatted[ERC7730_FORMATTED_VALUE_MAX + 1u];
     if (!erc7730_workflow_format_captured_raw(workflow, formatted,
@@ -233,6 +249,22 @@ static void confirm_erc7730_intent_and_continue(EthereumSignTx* tx) {
     return;
   }
   continue_ethereum_sign_tx(tx);
+}
+
+static void confirm_erc7730_replayed_field(void) {
+  Erc7730Workflow* workflow = erc7730_workflow_state();
+  EthereumSignTx tx;
+  memzero(&tx, sizeof(tx));
+  if (!workflow->typed_data &&
+      !erc7730_tx_continuation_restore(&workflow->continuation, &tx)) {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Unable to resume ERC-7730 transaction"));
+    layoutHome();
+    return;
+  }
+  confirm_erc7730_intent_and_continue(&tx);
+  memzero(&tx, sizeof(tx));
 }
 
 static void continue_erc7730_condition_visibility(bool visible) {
@@ -660,6 +692,93 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       layoutHome();
       return;
     }
+    if (workflow->display_stage == ERC7730_DISPLAY_ENUM_MAP) {
+      uint16_t key_literal = UINT16_MAX;
+      uint16_t value_string = UINT16_MAX;
+      bool exhausted = false;
+      if (!erc7730_workflow_enum_map_next(
+              workflow, &literal, &key_literal, &value_string, &exhausted)) {
+        memzero(&literal, sizeof(literal));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 enum map"));
+        layoutHome();
+        return;
+      }
+      memzero(&literal, sizeof(literal));
+      if (exhausted) {
+        if (!erc7730_workflow_enum_fallback_raw(workflow)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 enum fallback"));
+          layoutHome();
+          return;
+        }
+        confirm_erc7730_replayed_field();
+        return;
+      }
+      if (key_literal >= 64 || value_string >= 96 ||
+          !erc7730_workflow_select_literal(workflow, key_literal)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 enum entry"));
+        layoutHome();
+        return;
+      }
+      workflow->condition_literals[1] = (uint8_t)value_string;
+      workflow->display_stage = ERC7730_DISPLAY_ENUM_KEY;
+      send_erc7730_definition_request();
+      return;
+    }
+    if (workflow->display_stage == ERC7730_DISPLAY_ENUM_KEY) {
+      bool matched = false;
+      bool exhausted = false;
+      if (!erc7730_workflow_enum_observe_key(workflow, &literal, &matched,
+                                             &exhausted)) {
+        memzero(&literal, sizeof(literal));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 enum key"));
+        layoutHome();
+        return;
+      }
+      memzero(&literal, sizeof(literal));
+      if (matched) {
+        if (!erc7730_workflow_select_string(
+                workflow, workflow->condition_literals[1])) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 enum value"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_ENUM_VALUE;
+        send_erc7730_definition_request();
+        return;
+      }
+      if (exhausted) {
+        if (!erc7730_workflow_enum_fallback_raw(workflow)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 enum fallback"));
+          layoutHome();
+          return;
+        }
+        confirm_erc7730_replayed_field();
+        return;
+      }
+      if (!erc7730_workflow_select_literal(workflow,
+                                            workflow->condition_literals[0])) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 enum continuation"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_ENUM_MAP;
+      send_erc7730_definition_request();
+      return;
+    }
     if (workflow->display_stage == ERC7730_DISPLAY_UNIT_DECIMALS) {
       if (literal.kind != 1 || literal.length != 1) {
         memzero(&literal, sizeof(literal));
@@ -789,6 +908,20 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     return;
   }
   if (selection_kind == ERC7730_SELECTION_STRING) {
+    if (workflow->display_stage == ERC7730_DISPLAY_ENUM_VALUE) {
+      const char* value = NULL;
+      size_t value_len = 0;
+      if (!erc7730_workflow_selected_string(workflow, &value, &value_len) ||
+          !erc7730_workflow_complete_enum(workflow, value, value_len)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 enum value"));
+        layoutHome();
+        return;
+      }
+      confirm_erc7730_replayed_field();
+      return;
+    }
     if (workflow->display_stage == ERC7730_DISPLAY_FORMATTER_ARGUMENT) {
       const char* encoding = NULL;
       size_t encoding_length = 0;
@@ -983,6 +1116,32 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         return;
       }
       workflow->display_stage = ERC7730_DISPLAY_FORMATTER_ARGUMENT;
+      send_erc7730_definition_request();
+      return;
+    }
+    if (formatter.kind == 8) {
+      if (formatter.argument_count != 2 || formatter.arguments[1].role != 10 ||
+          formatter.arguments[1].source != 2 ||
+          formatter.arguments[1].index >= 64) {
+        memzero(&formatter, sizeof(formatter));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 enum formatter"));
+        layoutHome();
+        return;
+      }
+      workflow->formatter_value_path = formatter.arguments[0].index;
+      workflow->formatter_auxiliary = formatter.arguments[1].index;
+      const uint16_t value_path = workflow->formatter_value_path;
+      memzero(&formatter, sizeof(formatter));
+      if (!erc7730_workflow_select_path(workflow, value_path)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 enum value path"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_PATH;
       send_erc7730_definition_request();
       return;
     }

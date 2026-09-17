@@ -640,6 +640,109 @@ bool erc7730_workflow_observe_membership_literal(
   return true;
 }
 
+bool erc7730_workflow_prepare_enum(Erc7730Workflow* workflow,
+                                   uint16_t map_literal) {
+  if (!workflow || workflow->current_formatter_kind != 8 ||
+      workflow->phase != ERC7730_WORKFLOW_COMPLETE || map_literal >= 64 ||
+      !erc7730_abi_stream_captured(
+          &workflow->calldata, &workflow->value_scratch.condition_value))
+    return false;
+  erc7730_abi_stream_clear(&workflow->calldata);
+  workflow->condition_literals[0] = (uint8_t)map_literal;
+  workflow->condition_literal_count = 0;
+  workflow->condition_literal_position = 0;
+  workflow->phase = ERC7730_WORKFLOW_READY;
+  return true;
+}
+
+bool erc7730_workflow_enum_map_next(Erc7730Workflow* workflow,
+                                    const Erc7730Literal* map,
+                                    uint16_t* key_literal,
+                                    uint16_t* value_string, bool* exhausted) {
+  uint16_t count = 0;
+  if (exhausted) *exhausted = false;
+  if (!workflow || !map || !key_literal || !value_string || !exhausted ||
+      workflow->current_formatter_kind != 8 ||
+      workflow->phase != ERC7730_WORKFLOW_READY ||
+      !erc7730_enum_map_count(map, &count))
+    return false;
+  if (workflow->condition_literal_position == 0)
+    workflow->condition_literal_count = count;
+  else if (workflow->condition_literal_count != count)
+    return false;
+  if (workflow->condition_literal_position >= count) {
+    *exhausted = true;
+    return true;
+  }
+  return erc7730_enum_map_index(map, workflow->condition_literal_position,
+                                key_literal, value_string);
+}
+
+bool erc7730_workflow_enum_observe_key(Erc7730Workflow* workflow,
+                                       const Erc7730Literal* key,
+                                       bool* matched, bool* exhausted) {
+  Erc7730AbiProgram program;
+  Erc7730AbiNode container_node;
+  if (matched) *matched = false;
+  if (exhausted) *exhausted = false;
+  if (!workflow || !key || !matched || !exhausted ||
+      workflow->current_formatter_kind != 8 ||
+      workflow->phase != ERC7730_WORKFLOW_READY ||
+      workflow->condition_literal_position >= workflow->condition_literal_count)
+    return false;
+  if (workflow->container_source != 0) {
+    memzero(&container_node, sizeof(container_node));
+    container_node.kind = workflow->container_source <= 2
+                              ? ERC7730_ABI_ADDRESS
+                              : ERC7730_ABI_UINT;
+    container_node.size = container_node.kind == ERC7730_ABI_UINT ? 256 : 0;
+    program.nodes = &container_node;
+    program.node_count = 1;
+    program.root = 0;
+    workflow->value_scratch.condition_value.node = 0;
+  } else if (!erc7730_program_loader_complete(&workflow->loader, &program)) {
+    return false;
+  }
+  *matched = erc7730_capture_equals_literal(
+      &program, &workflow->value_scratch.condition_value, key);
+  if (!*matched) {
+    workflow->condition_literal_position++;
+    *exhausted = workflow->condition_literal_position >=
+                 workflow->condition_literal_count;
+  }
+  memzero(&container_node, sizeof(container_node));
+  return true;
+}
+
+bool erc7730_workflow_enum_fallback_raw(Erc7730Workflow* workflow) {
+  if (!workflow || workflow->current_formatter_kind != 8 ||
+      workflow->phase != ERC7730_WORKFLOW_READY)
+    return false;
+  erc7730_abi_stream_clear(&workflow->calldata);
+  workflow->calldata.capture = workflow->value_scratch.condition_value;
+  workflow->calldata.capture_enabled = true;
+  workflow->calldata.capture_found = true;
+  workflow->calldata.complete = true;
+  memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+  workflow->current_formatter_kind = 1;
+  workflow->phase = ERC7730_WORKFLOW_COMPLETE;
+  return true;
+}
+
+bool erc7730_workflow_complete_enum(Erc7730Workflow* workflow,
+                                    const char* value, size_t value_len) {
+  if (!workflow || !value || value_len == 0 ||
+      value_len >= sizeof(workflow->value_scratch.formatter_parameters.base) ||
+      workflow->current_formatter_kind != 8 ||
+      workflow->phase != ERC7730_WORKFLOW_READY)
+    return false;
+  memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+  memcpy(workflow->value_scratch.formatter_parameters.base, value, value_len);
+  workflow->value_scratch.formatter_parameters.base[value_len] = '\0';
+  workflow->phase = ERC7730_WORKFLOW_COMPLETE;
+  return true;
+}
+
 bool erc7730_workflow_condition_capture_pending(
     const Erc7730Workflow* workflow) {
   return workflow && workflow->condition_capture;
@@ -906,7 +1009,20 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
   Erc7730AbiProgram program;
   Erc7730AbiCapture capture;
   if (!workflow || !output || output_size == 0 ||
-      workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
+      workflow->phase != ERC7730_WORKFLOW_COMPLETE)
+    return false;
+  if (workflow->current_formatter_kind == 8) {
+    const char* value = workflow->value_scratch.formatter_parameters.base;
+    const size_t length = strnlen(value, sizeof(workflow->value_scratch
+                                                    .formatter_parameters.base));
+    if (length == 0 ||
+        length >= sizeof(workflow->value_scratch.formatter_parameters.base) ||
+        length >= output_size)
+      return false;
+    memcpy(output, value, length + 1u);
+    return true;
+  }
+  if (
       !erc7730_abi_stream_captured(&workflow->calldata, &capture))
     return false;
   Erc7730AbiNode container_node;
