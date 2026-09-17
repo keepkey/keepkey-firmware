@@ -680,8 +680,17 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
       !erc7730_program_loader_complete(&workflow->loader, &program) ||
       !erc7730_abi_stream_captured(&workflow->calldata, &capture))
     return false;
-  const bool result =
-      erc7730_format_raw(&program, &capture, output, output_size);
+  bool result = false;
+  if (workflow->current_formatter_kind == 1) {
+    result = erc7730_format_raw(&program, &capture, output, output_size);
+  } else if (workflow->current_formatter_kind == 2 &&
+             workflow->identity.chain_id == 1) {
+    /* Ethereum mainnet's native unit is a device-owned fact. Other networks
+     * require an authenticated section-4 network definition before their
+     * decimals/ticker may be used, so they fail closed here. */
+    result = erc7730_format_amount(&program, &capture, 18, "ETH", output,
+                                   output_size);
+  }
   memzero(&capture, sizeof(capture));
   return result;
 }

@@ -68,6 +68,7 @@ typedef struct {
   uint8_t phase;
   uint8_t selection_kind : 4;
   uint8_t display_stage : 4;
+  uint8_t current_formatter_kind;
   bool typed_data;
   bool intent_confirmed;
 } Erc7730Workflow;

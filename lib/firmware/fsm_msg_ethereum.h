@@ -599,7 +599,7 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     Erc7730Formatter formatter;
     if (workflow->display_stage != ERC7730_DISPLAY_FORMATTER ||
         !erc7730_workflow_selected_formatter(workflow, &formatter) ||
-        formatter.kind != 1 || formatter.flags != 0 ||
+        (formatter.kind != 1 && formatter.kind != 2) || formatter.flags != 0 ||
         formatter.argument_count != 1 || formatter.arguments[0].role != 1 ||
         formatter.arguments[0].source != 1 ||
         !erc7730_workflow_select_path(workflow, formatter.arguments[0].index)) {
@@ -610,6 +610,7 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       layoutHome();
       return;
     }
+    workflow->current_formatter_kind = formatter.kind;
     memzero(&formatter, sizeof(formatter));
     workflow->display_stage = ERC7730_DISPLAY_PATH;
     send_erc7730_definition_request();
