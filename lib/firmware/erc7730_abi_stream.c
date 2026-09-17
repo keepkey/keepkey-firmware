@@ -100,7 +100,7 @@ static Erc7730AbiResult make_sequence(Erc7730AbiStream* s,
                                       uint16_t first_child,
                                       uint16_t child_count, bool repeated,
                                       size_t base) {
-  if (child_count > ERC7730_ABI_MAX_ARRAY_ELEMENTS)
+  if (child_count > ERC7730_ABI_MAX_ARRAY_ELEMENTS || base > UINT32_MAX)
     return ERC7730_ABI_RESOURCE_LIMIT;
   f->first_child = first_child;
   f->child_count = child_count;
@@ -108,7 +108,7 @@ static Erc7730AbiResult make_sequence(Erc7730AbiStream* s,
   f->pending_start = s->pending_used;
   f->pending_count = 0;
   f->pending_index = 0;
-  f->base = base;
+  f->base = (uint32_t)base;
   f->repeated = repeated;
   f->mode = STREAM_SEQUENCE_HEAD;
   return ERC7730_ABI_OK;
@@ -273,7 +273,8 @@ static Erc7730AbiResult consume_word(Erc7730AbiStream* s) {
         f->repeated ? f->first_child
                     : (uint16_t)(f->first_child + f->item_index - 1u);
     size_t declared = 0;
-    if (!word_size(s->word, &declared) || (declared & 31u) != 0)
+    if (!word_size(s->word, &declared) || declared > UINT32_MAX ||
+        (declared & 31u) != 0)
       return ERC7730_ABI_NON_CANONICAL;
     if (s->pending_used >= ERC7730_ABI_STREAM_MAX_PENDING)
       return ERC7730_ABI_RESOURCE_LIMIT;
@@ -282,7 +283,8 @@ static Erc7730AbiResult consume_word(Erc7730AbiStream* s) {
     bool target_prefix = false;
     child_target(s, f, n, item_index, &path_depth, &target_prefix);
     s->pending[s->pending_used++] =
-        (Erc7730AbiPending){child, declared, path_depth, target_prefix};
+        (Erc7730AbiPending){child, (uint32_t)declared, path_depth,
+                            target_prefix};
     f->pending_count++;
   } else if (f->mode == STREAM_BYTES_LENGTH) {
     size_t length = 0;
@@ -290,13 +292,15 @@ static Erc7730AbiResult consume_word(Erc7730AbiStream* s) {
     size_t rounded = 0;
     if (!add_size(length, 31, &rounded)) return ERC7730_ABI_BOUNDS;
     rounded &= ~(size_t)31;
-    f->payload_remaining = length;
-    f->base = rounded;
+    if (length > UINT32_MAX || rounded > UINT32_MAX)
+      return ERC7730_ABI_BOUNDS;
+    f->payload_remaining = (uint32_t)length;
+    f->base = (uint32_t)rounded;
     f->mode = STREAM_BYTES_PAYLOAD;
     f->capture = f->target_prefix && f->path_depth == s->capture_path_count;
     if (f->capture) {
       if (length > sizeof(s->capture.data)) return ERC7730_ABI_RESOURCE_LIMIT;
-      s->capture.length = length;
+      s->capture.length = (uint16_t)length;
       s->capture.node = f->node;
     }
     if (rounded == 0) {
@@ -344,12 +348,13 @@ Erc7730AbiResult erc7730_abi_stream_begin(Erc7730AbiStream* s,
   if (!s) return ERC7730_ABI_BAD_PROGRAM;
   memzero(s, sizeof(*s));
   Erc7730AbiResult r = erc7730_abi_validate_program(program);
-  if (r != ERC7730_ABI_OK || (total_length & 31u) != 0) {
+  if (r != ERC7730_ABI_OK || total_length > UINT32_MAX ||
+      (total_length & 31u) != 0) {
     s->failed = true;
     return r != ERC7730_ABI_OK ? r : ERC7730_ABI_NON_CANONICAL;
   }
   s->program = program;
-  s->total_length = total_length;
+  s->total_length = (uint32_t)total_length;
   r = push_value(s, program->root, 0, true);
   if (r != ERC7730_ABI_OK) s->failed = true;
   return r;
@@ -372,7 +377,8 @@ Erc7730AbiResult erc7730_abi_stream_capture_path(Erc7730AbiStream* s,
 Erc7730AbiResult erc7730_abi_stream_feed(Erc7730AbiStream* s, size_t offset,
                                          const uint8_t* data, size_t data_len) {
   if (!s || !data || data_len == 0 || s->failed || s->complete ||
-      offset != s->received || data_len > s->total_length - s->received) {
+      offset > UINT32_MAX || offset != s->received ||
+      data_len > s->total_length - s->received) {
     if (s) s->failed = true;
     return ERC7730_ABI_BOUNDS;
   }
