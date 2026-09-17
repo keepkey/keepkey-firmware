@@ -454,3 +454,37 @@ TEST(Erc7730Catalog, PreloadSlotFailsClosedAndCanRestartAtOffsetZero) {
             ERC7730_CATALOG_UNTRUSTED);
   EXPECT_FALSE(erc7730_catalog_preloaded(&identity));
 }
+
+TEST(Erc7730Catalog, CalldataIdentityMatchesExactLookupTuple) {
+  Erc7730CatalogIdentity identity{};
+  identity.kind = ERC7730_DEFINITION_CALLDATA;
+  identity.chain_id = 1;
+  for (size_t i = 0; i < sizeof(identity.contract_address); ++i) {
+    identity.contract_address[i] = static_cast<uint8_t>(i + 1);
+  }
+  identity.selector_or_type_hash[0] = 0xa9;
+  identity.selector_or_type_hash[1] = 0x05;
+  identity.selector_or_type_hash[2] = 0x9c;
+  identity.selector_or_type_hash[3] = 0xbb;
+  const uint8_t selector[4] = {0xa9, 0x05, 0x9c, 0xbb};
+
+  EXPECT_TRUE(erc7730_catalog_matches_calldata(
+      &identity, 1, identity.contract_address, selector));
+
+  Erc7730CatalogIdentity changed = identity;
+  changed.kind = ERC7730_DEFINITION_EIP712;
+  EXPECT_FALSE(erc7730_catalog_matches_calldata(
+      &changed, 1, identity.contract_address, selector));
+  changed = identity;
+  changed.selector_or_type_hash[31] = 1;
+  EXPECT_FALSE(erc7730_catalog_matches_calldata(
+      &changed, 1, identity.contract_address, selector));
+
+  uint8_t other_address[20];
+  memcpy(other_address, identity.contract_address, sizeof(other_address));
+  other_address[19] ^= 1;
+  EXPECT_FALSE(
+      erc7730_catalog_matches_calldata(&identity, 1, other_address, selector));
+  EXPECT_FALSE(erc7730_catalog_matches_calldata(
+      &identity, 10, identity.contract_address, selector));
+}

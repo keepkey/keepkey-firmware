@@ -135,6 +135,10 @@ Erc7730CatalogResult erc7730_catalog_preload_chunk(
     const uint8_t* data, size_t data_len, uint32_t* next_offset,
     bool* complete);
 bool erc7730_catalog_preloaded(Erc7730CatalogIdentity* identity);
+bool erc7730_catalog_matches_calldata(const Erc7730CatalogIdentity* identity,
+                                      uint64_t chain_id,
+                                      const uint8_t contract_address[20],
+                                      const uint8_t selector[4]);
 void erc7730_catalog_clear_preload(void);
 
 #endif

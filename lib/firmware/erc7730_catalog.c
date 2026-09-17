@@ -1112,4 +1112,24 @@ bool erc7730_catalog_preloaded(Erc7730CatalogIdentity* identity) {
   return true;
 }
 
+bool erc7730_catalog_matches_calldata(const Erc7730CatalogIdentity* identity,
+                                      uint64_t chain_id,
+                                      const uint8_t contract_address[20],
+                                      const uint8_t selector[4]) {
+  if (!identity || !contract_address || !selector ||
+      identity->kind != ERC7730_DEFINITION_CALLDATA ||
+      identity->chain_id != chain_id ||
+      memcmp(identity->contract_address, contract_address, 20) != 0 ||
+      memcmp(identity->selector_or_type_hash, selector, 4) != 0) {
+    return false;
+  }
+
+  /* Calldata selectors occupy exactly four bytes in the canonical header.
+   * Recheck the zero tail here so a future parser relaxation cannot make two
+   * distinct lookup keys compare as the same selector. */
+  static const uint8_t zero_tail[28] = {0};
+  return memcmp(identity->selector_or_type_hash + 4, zero_tail,
+                sizeof(zero_tail)) == 0;
+}
+
 void erc7730_catalog_clear_preload(void) { memzero(&preload, sizeof(preload)); }

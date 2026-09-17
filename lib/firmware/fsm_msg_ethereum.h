@@ -104,6 +104,30 @@ void fsm_msgEthereumSignTx(EthereumSignTx* msg) {
     return;
   }
 
+  /* A host that explicitly supplied a certified definition has selected the
+   * clear-sign path. Bind it to the exact transaction before any review UI or
+   * key derivation. A mismatch is an error, never permission to silently fall
+   * back to blind signing. */
+  Erc7730CatalogIdentity definition;
+  if (erc7730_catalog_preloaded(&definition)) {
+    const bool calldata_shape = msg->has_to && msg->to.size == 20 &&
+                                msg->has_data_length && msg->data_length >= 4 &&
+                                msg->has_data_initial_chunk &&
+                                msg->data_initial_chunk.size >= 4;
+    const bool matches =
+        calldata_shape && erc7730_catalog_matches_calldata(
+                              &definition, msg->chain_id, msg->to.bytes,
+                              msg->data_initial_chunk.bytes);
+    memzero(&definition, sizeof(definition));
+    if (!matches) {
+      erc7730_catalog_clear_preload();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("ERC-7730 definition does not match transaction"));
+      layoutHome();
+      return;
+    }
+  }
+
   bool needs_confirm = true;
   int msg_result = process_ethereum_msg(msg, &needs_confirm);
 
