@@ -125,6 +125,24 @@ static void send_erc7730_definition_request(void) {
   msg_write(MessageType_MessageType_EthereumClearSignDefinitionRequest, resp);
 }
 
+static void send_erc7730_calldata_request(void) {
+  size_t remaining = 0;
+  if (!erc7730_workflow_calldata_waiting(erc7730_workflow_state(),
+                                         &remaining)) {
+    erc7730_workflow_abort(erc7730_workflow_state());
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid ERC-7730 calldata state"));
+    layoutHome();
+    return;
+  }
+  RESP_INIT(EthereumTxRequest);
+  resp->has_data_length = true;
+  resp->data_length = remaining < ERC7730_TRANSPORT_CHUNK_MAX
+                          ? remaining
+                          : ERC7730_TRANSPORT_CHUNK_MAX;
+  msg_write(MessageType_MessageType_EthereumTxRequest, resp);
+}
+
 static void continue_ethereum_sign_tx(EthereumSignTx* msg) {
   bool needs_confirm = true;
   int msg_result = process_ethereum_msg(msg, &needs_confirm);
@@ -205,7 +223,46 @@ void fsm_msgEthereumSignTx(EthereumSignTx* msg) {
   continue_ethereum_sign_tx(msg);
 }
 
-void fsm_msgEthereumTxAck(EthereumTxAck* msg) { ethereum_signing_txack(msg); }
+void fsm_msgEthereumTxAck(EthereumTxAck* msg) {
+  Erc7730Workflow* workflow = erc7730_workflow_state();
+  if (workflow->phase != ERC7730_WORKFLOW_CALLDATA) {
+    ethereum_signing_txack(msg);
+    return;
+  }
+  size_t remaining = 0;
+  if (!erc7730_workflow_calldata_waiting(workflow, &remaining) ||
+      !msg->has_data_chunk || msg->data_chunk.size == 0 ||
+      msg->data_chunk.size > remaining ||
+      erc7730_workflow_calldata_feed(workflow, msg->data_chunk.bytes,
+                                     msg->data_chunk.size) != ERC7730_ABI_OK) {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("ERC-7730 calldata does not match definition"));
+    layoutHome();
+    return;
+  }
+  if (erc7730_workflow_calldata_waiting(workflow, &remaining)) {
+    send_erc7730_calldata_request();
+    return;
+  }
+  if (erc7730_workflow_calldata_finish(workflow) != ERC7730_ABI_OK) {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("ERC-7730 calldata does not match definition"));
+    layoutHome();
+    return;
+  }
+  EthereumSignTx tx;
+  if (!erc7730_workflow_restore_complete(workflow, &tx)) {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Unable to resume ERC-7730 transaction"));
+    layoutHome();
+    return;
+  }
+  continue_ethereum_sign_tx(&tx);
+  memzero(&tx, sizeof(tx));
+}
 
 void fsm_msgEthereumClearSignDefinition(
     const EthereumClearSignDefinition* msg) {
@@ -285,7 +342,17 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     layoutHome();
     return;
   }
-  continue_ethereum_sign_tx(&tx);
+  size_t remaining = 0;
+  if (erc7730_workflow_calldata_waiting(workflow, &remaining)) {
+    send_erc7730_calldata_request();
+  } else if (erc7730_workflow_calldata_finish(workflow) == ERC7730_ABI_OK) {
+    continue_ethereum_sign_tx(&tx);
+  } else {
+    erc7730_workflow_abort(workflow);
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("ERC-7730 calldata does not match definition"));
+    layoutHome();
+  }
   memzero(&tx, sizeof(tx));
 }
 

@@ -119,9 +119,14 @@ bool erc7730_workflow_restore_and_start_calldata(Erc7730Workflow* workflow,
     fail(workflow);
     return false;
   }
-  erc7730_tx_continuation_clear(&workflow->continuation);
   workflow->phase = ERC7730_WORKFLOW_CALLDATA;
   return true;
+}
+
+bool erc7730_workflow_restore_complete(const Erc7730Workflow* workflow,
+                                       EthereumSignTx* tx) {
+  return workflow && tx && workflow->phase == ERC7730_WORKFLOW_COMPLETE &&
+         erc7730_tx_continuation_restore(&workflow->continuation, tx);
 }
 
 Erc7730AbiResult erc7730_workflow_calldata_feed(Erc7730Workflow* workflow,
@@ -161,6 +166,15 @@ bool erc7730_workflow_active(const Erc7730Workflow* workflow) {
 
 bool erc7730_workflow_complete(const Erc7730Workflow* workflow) {
   return workflow && workflow->phase == ERC7730_WORKFLOW_COMPLETE;
+}
+
+bool erc7730_workflow_calldata_waiting(const Erc7730Workflow* workflow,
+                                       size_t* remaining) {
+  if (!workflow || !remaining || workflow->phase != ERC7730_WORKFLOW_CALLDATA ||
+      workflow->calldata.received > workflow->calldata.total_length)
+    return false;
+  *remaining = workflow->calldata.total_length - workflow->calldata.received;
+  return *remaining != 0;
 }
 
 const Erc7730CatalogIdentity* erc7730_workflow_identity(

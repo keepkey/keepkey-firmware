@@ -36,3 +36,19 @@ TEST(Erc7730Workflow, RefusesDataOutsideAuthenticatedLifecycle) {
 TEST(Erc7730Workflow, StateIsBoundedIndependentlyOfDescriptorSize) {
   EXPECT_LE(sizeof(Erc7730Workflow), 4096u);
 }
+
+TEST(Erc7730Workflow, ReportsOnlyUnvalidatedCalldataAsWaiting) {
+  Erc7730Workflow workflow{};
+  size_t remaining = 99;
+  EXPECT_FALSE(erc7730_workflow_calldata_waiting(&workflow, &remaining));
+  workflow.phase = ERC7730_WORKFLOW_CALLDATA;
+  workflow.calldata.total_length = 96;
+  workflow.calldata.received = 32;
+  ASSERT_TRUE(erc7730_workflow_calldata_waiting(&workflow, &remaining));
+  EXPECT_EQ(remaining, 64u);
+  workflow.calldata.received = 96;
+  EXPECT_FALSE(erc7730_workflow_calldata_waiting(&workflow, &remaining));
+  EXPECT_EQ(remaining, 0u);
+  workflow.calldata.received = 97;
+  EXPECT_FALSE(erc7730_workflow_calldata_waiting(&workflow, &remaining));
+}

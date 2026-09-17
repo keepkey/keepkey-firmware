@@ -45,12 +45,16 @@ Erc7730CatalogResult erc7730_workflow_replay_feed(
     bool* complete);
 bool erc7730_workflow_restore_and_start_calldata(Erc7730Workflow* workflow,
                                                  EthereumSignTx* tx);
+bool erc7730_workflow_restore_complete(const Erc7730Workflow* workflow,
+                                       EthereumSignTx* tx);
 Erc7730AbiResult erc7730_workflow_calldata_feed(Erc7730Workflow* workflow,
                                                 const uint8_t* data,
                                                 size_t data_len);
 Erc7730AbiResult erc7730_workflow_calldata_finish(Erc7730Workflow* workflow);
 bool erc7730_workflow_active(const Erc7730Workflow* workflow);
 bool erc7730_workflow_complete(const Erc7730Workflow* workflow);
+bool erc7730_workflow_calldata_waiting(const Erc7730Workflow* workflow,
+                                       size_t* remaining);
 const Erc7730CatalogIdentity* erc7730_workflow_identity(
     const Erc7730Workflow* workflow);
 void erc7730_workflow_abort(Erc7730Workflow* workflow);
