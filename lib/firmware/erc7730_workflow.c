@@ -1490,6 +1490,69 @@ bool erc7730_workflow_repeat_array_display(Erc7730Workflow* workflow) {
   return erc7730_workflow_select_display(workflow, workflow->display_index);
 }
 
+bool erc7730_workflow_enter_embedded(Erc7730Workflow* workflow,
+                                     const uint8_t callee[20],
+                                     const uint8_t* calldata,
+                                     size_t calldata_length,
+                                     uint16_t resume_instruction) {
+  if (!workflow || !callee || !calldata || calldata_length < 4 ||
+      calldata_length > ERC7730_ABI_CAPTURE_MAX ||
+      workflow->embedded_depth >= ERC7730_EMBEDDED_MAX_DEPTH ||
+      workflow->identity.kind != ERC7730_DEFINITION_CALLDATA)
+    return false;
+  const uint8_t depth = workflow->embedded_depth;
+  Erc7730EmbeddedFrame* frame = &workflow->embedded_frames[depth];
+  memcpy(frame->parent_definition_id, workflow->identity.definition_id, 32);
+  frame->resume_instruction = resume_instruction;
+  memcpy(workflow->embedded_calldata[depth], calldata, calldata_length);
+  workflow->embedded_lengths[depth] = (uint8_t)calldata_length;
+  memcpy(workflow->embedded_callee, callee, 20);
+  workflow->embedded_depth++;
+  return true;
+}
+
+bool erc7730_workflow_accept_embedded_definition(
+    const Erc7730Workflow* workflow,
+    const Erc7730CatalogIdentity* child_identity) {
+  if (!workflow || !child_identity || workflow->embedded_depth == 0 ||
+      child_identity->kind != ERC7730_DEFINITION_CALLDATA ||
+      child_identity->chain_id != workflow->identity.chain_id ||
+      memcmp(child_identity->contract_address, workflow->embedded_callee, 20) !=
+          0)
+    return false;
+  const uint8_t depth = (uint8_t)(workflow->embedded_depth - 1u);
+  if (workflow->embedded_lengths[depth] < 4 ||
+      memcmp(child_identity->selector_or_type_hash,
+             workflow->embedded_calldata[depth], 4) != 0)
+    return false;
+  if (memcmp(child_identity->definition_id, workflow->identity.definition_id,
+             32) == 0)
+    return false;
+  for (uint8_t i = 0; i < workflow->embedded_depth; i++)
+    if (memcmp(child_identity->definition_id,
+               workflow->embedded_frames[i].parent_definition_id, 32) == 0)
+      return false;
+  return true;
+}
+
+bool erc7730_workflow_leave_embedded(Erc7730Workflow* workflow,
+                                     uint8_t parent_definition_id[32],
+                                     uint16_t* resume_instruction) {
+  if (!workflow || !parent_definition_id || !resume_instruction ||
+      workflow->embedded_depth == 0)
+    return false;
+  const uint8_t depth = (uint8_t)(workflow->embedded_depth - 1u);
+  Erc7730EmbeddedFrame* frame = &workflow->embedded_frames[depth];
+  memcpy(parent_definition_id, frame->parent_definition_id, 32);
+  *resume_instruction = frame->resume_instruction;
+  memzero(frame, sizeof(*frame));
+  memzero(workflow->embedded_calldata[depth], ERC7730_ABI_CAPTURE_MAX);
+  workflow->embedded_lengths[depth] = 0;
+  workflow->embedded_depth = depth;
+  if (depth == 0) memzero(workflow->embedded_callee, 20);
+  return true;
+}
+
 bool erc7730_workflow_advance_display(Erc7730Workflow* workflow) {
   if (!workflow || workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
       workflow->display_index == UINT16_MAX)
