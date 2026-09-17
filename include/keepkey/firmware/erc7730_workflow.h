@@ -44,6 +44,9 @@ typedef enum {
   ERC7730_DISPLAY_FORMATTER_ARGUMENT,
   ERC7730_DISPLAY_UNIT_DECIMALS,
   ERC7730_DISPLAY_UNIT_PREFIX,
+  ERC7730_DISPLAY_ENUM_MAP,
+  ERC7730_DISPLAY_ENUM_KEY,
+  ERC7730_DISPLAY_ENUM_VALUE,
 } Erc7730DisplayStage;
 
 /* The workflow owns every pointer-bearing interpreter object. No pointer into
@@ -173,6 +176,18 @@ bool erc7730_workflow_finish_empty_membership(Erc7730Workflow* workflow,
 bool erc7730_workflow_observe_membership_literal(
     Erc7730Workflow* workflow, const Erc7730Literal* literal, bool* complete,
     bool* visible, uint16_t* next_literal);
+bool erc7730_workflow_prepare_enum(Erc7730Workflow* workflow,
+                                   uint16_t map_literal);
+bool erc7730_workflow_enum_map_next(Erc7730Workflow* workflow,
+                                    const Erc7730Literal* map,
+                                    uint16_t* key_literal,
+                                    uint16_t* value_string, bool* exhausted);
+bool erc7730_workflow_enum_observe_key(Erc7730Workflow* workflow,
+                                       const Erc7730Literal* key,
+                                       bool* matched, bool* exhausted);
+bool erc7730_workflow_enum_fallback_raw(Erc7730Workflow* workflow);
+bool erc7730_workflow_complete_enum(Erc7730Workflow* workflow,
+                                    const char* value, size_t value_len);
 bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
                                            const Erc7730Path* path);
 bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,

@@ -111,3 +111,22 @@ TEST(Erc7730Condition, TraversesCanonicalAuthenticatedLiteralSets) {
   set.value[7] = 7;
   EXPECT_FALSE(erc7730_literal_set_index(&set, 2, &index));
 }
+
+TEST(Erc7730Condition, TraversesCanonicalAuthenticatedEnumMaps) {
+  Erc7730Literal map{};
+  map.kind = 8;
+  map.length = 10;
+  const uint8_t encoded[] = {0, 2, 0, 1, 0, 3, 0, 4, 0, 7};
+  memcpy(map.value, encoded, sizeof(encoded));
+  uint16_t count = 0;
+  ASSERT_TRUE(erc7730_enum_map_count(&map, &count));
+  EXPECT_EQ(count, 2u);
+  uint16_t key = 0;
+  uint16_t value = 0;
+  ASSERT_TRUE(erc7730_enum_map_index(&map, 1, &key, &value));
+  EXPECT_EQ(key, 4u);
+  EXPECT_EQ(value, 7u);
+  map.value[6] = 0;
+  map.value[7] = 1;
+  EXPECT_FALSE(erc7730_enum_map_index(&map, 1, &key, &value));
+}

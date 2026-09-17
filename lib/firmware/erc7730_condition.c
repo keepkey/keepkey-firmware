@@ -143,3 +143,34 @@ bool erc7730_literal_set_index(const Erc7730Literal* set, uint16_t position,
   *literal_index = index;
   return true;
 }
+
+bool erc7730_enum_map_count(const Erc7730Literal* map, uint16_t* count) {
+  if (!map || !count || map->kind != 8 || map->length < 2) return false;
+  const uint16_t declared =
+      (uint16_t)(((uint16_t)map->value[0] << 8) | map->value[1]);
+  if (declared > 64 || map->length != 2u + 4u * declared) return false;
+  *count = declared;
+  return true;
+}
+
+bool erc7730_enum_map_index(const Erc7730Literal* map, uint16_t position,
+                            uint16_t* key_literal, uint16_t* value_string) {
+  uint16_t count = 0;
+  if (!key_literal || !value_string ||
+      !erc7730_enum_map_count(map, &count) || position >= count)
+    return false;
+  const size_t offset = 2u + 4u * position;
+  const uint16_t key =
+      (uint16_t)(((uint16_t)map->value[offset] << 8) | map->value[offset + 1u]);
+  if (position != 0) {
+    const size_t previous_offset = offset - 4u;
+    const uint16_t previous =
+        (uint16_t)(((uint16_t)map->value[previous_offset] << 8) |
+                   map->value[previous_offset + 1u]);
+    if (key <= previous) return false;
+  }
+  *key_literal = key;
+  *value_string = (uint16_t)(((uint16_t)map->value[offset + 2u] << 8) |
+                             map->value[offset + 3u]);
+  return true;
+}
