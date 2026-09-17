@@ -35,6 +35,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       erc7730_abi.c
       erc7730_abi_stream.c
       erc7730_catalog.c
+      erc7730_format.c
       erc7730_program.c
       erc7730_tx.c
       erc7730_workflow.c
