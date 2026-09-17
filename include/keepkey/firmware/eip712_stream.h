@@ -66,17 +66,26 @@
  * not occur in practice and every one costs EIP712_MAX_STRUCTS bytes. */
 #define EIP712_MAX_STRUCT_NAME 32
 
+typedef struct {
+  uint64_t chain_id;
+  uint8_t verifying_contract[20];
+  uint8_t primary_type_hash[32];
+  bool has_chain_id;
+  bool has_verifying_contract;
+  bool has_primary_type_hash;
+} Eip712DomainFacts;
+
 /* Canonical ASCII Solidity identifier. Besides being part of encodeType, a
  * member name is also the review-screen title, so this guarantees the exact
  * bytes hashed are the exact bytes rendered (no truncation/control glyphs). */
-bool eip712_identifier_ok(const char *name);
+bool eip712_identifier_ok(const char* name);
 
 /* Fetch one struct's member list by name. Returns NULL if the host has not
  * supplied it. Firmware backs this with the streaming state machine; the unit
  * tests back it with a fixture table, which is what makes encodeType testable
  * without a device. */
-typedef const EthereumTypedDataStructAck *(*Eip712StructLookup)(
-    const char *name, void *ctx);
+typedef const EthereumTypedDataStructAck* (*Eip712StructLookup)(
+    const char* name, void* ctx);
 
 /* Assemble encodeType(name) and hash it, per EIP-712:
  *
@@ -90,27 +99,36 @@ typedef const EthereumTypedDataStructAck *(*Eip712StructLookup)(
  *
  * Returns false if a referenced struct is missing, the closure exceeds
  * EIP712_MAX_STRUCTS, or any member type cannot be spelled. */
-bool eip712_type_hash(const char *name, Eip712StructLookup lookup, void *ctx,
+bool eip712_type_hash(const char* name, Eip712StructLookup lookup, void* ctx,
                       uint8_t out[32]);
 
 /* Render a field's Solidity type exactly as encodeType must spell it --
  * "uint256", "bytes32", "Person[3]", "int16[2][][4]". This string is part of
  * typeHash, so a divergence here is a divergence in the signature.
  * Returns false if the type is not expressible or would overflow `out`. */
-bool eip712_type_name(const EthereumTypedDataStructAck_EthereumFieldType *field,
-                      char *out, size_t out_len);
+bool eip712_type_name(const EthereumTypedDataStructAck_EthereumFieldType* field,
+                      char* out, size_t out_len);
 
 /* Encode one validated leaf into exactly 32 bytes, per EIP-712 encodeData.
  * `value`/`value_len` are the raw big-endian bytes from the host. */
 bool eip712_encode_leaf(
-    const EthereumTypedDataStructAck_EthereumFieldType *field,
-    const uint8_t *value, uint16_t value_len, uint8_t out[32]);
+    const EthereumTypedDataStructAck_EthereumFieldType* field,
+    const uint8_t* value, uint16_t value_len, uint8_t out[32]);
 
 /* Reject a leaf whose bytes cannot mean what its declared type says.
  * Runs BEFORE encoding and before display, so nothing unvalidated is shown. */
 bool eip712_validate_leaf(
-    const EthereumTypedDataStructAck_EthereumFieldType *field,
-    const uint8_t *value, uint16_t value_len);
+    const EthereumTypedDataStructAck_EthereumFieldType* field,
+    const uint8_t* value, uint16_t value_len);
+
+/* Retain only lookup facts that the canonical domain stream itself proves.
+ * Unknown domain fields are ignored; duplicate binding fields fail closed. */
+bool eip712_domain_facts_observe(
+    Eip712DomainFacts* facts, const char* member_name,
+    const EthereumTypedDataStructAck_EthereumFieldType* field,
+    const uint8_t* value, uint16_t value_len);
+
+bool eip712_stream_domain_facts(Eip712DomainFacts* facts);
 
 #endif
 
@@ -155,22 +173,22 @@ typedef struct {
   char struct_name[EIP712_MAX_STRUCT_NAME];
   uint32_t member_path[EIP712_MAX_DEPTH + 2];
   uint8_t member_path_len;
-  const char *error;
+  const char* error;
   uint8_t domain_separator[32];
   uint8_t message_hash[32];
   uint32_t address_n[6];
   size_t address_n_count;
 } Eip712Next;
 
-const Eip712Next *eip712_stream_next(void);
+const Eip712Next* eip712_stream_next(void);
 
 /* Begin a signing session. Fills in the first request. */
-bool eip712_stream_begin(const EthereumSignTypedData *msg);
+bool eip712_stream_begin(const EthereumSignTypedData* msg);
 
 /* Feed the machine. Each returns false and tears the session down on any
  * protocol or validation error, having already sent a Failure. */
-bool eip712_stream_on_struct(const EthereumTypedDataStructAck *ack);
-bool eip712_stream_on_value(const EthereumTypedDataValueAck *ack);
+bool eip712_stream_on_struct(const EthereumTypedDataStructAck* ack);
+bool eip712_stream_on_value(const EthereumTypedDataValueAck* ack);
 
 /* True while a session is live, so the FSM can reject an out-of-order Ack. */
 Eip712Wait eip712_stream_waiting(void);
