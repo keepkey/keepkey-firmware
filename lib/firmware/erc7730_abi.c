@@ -145,20 +145,19 @@ static Erc7730AbiResult validate_program(const Erc7730AbiProgram* p) {
     }
   }
   bool ignored = false;
-  if (!node_dynamic(p, p->root, 0, &ignored))
-    return ERC7730_ABI_RESOURCE_LIMIT;
+  if (!node_dynamic(p, p->root, 0, &ignored)) return ERC7730_ABI_RESOURCE_LIMIT;
   return ERC7730_ABI_OK;
 }
 
 static Erc7730AbiResult validate_value(AbiContext* ctx, uint16_t node,
-                                      size_t off, uint8_t depth,
-                                      size_t* encoded_len);
+                                       size_t off, uint8_t depth,
+                                       size_t* encoded_len);
 
 static Erc7730AbiResult validate_sequence(AbiContext* ctx, uint16_t first_node,
-                                         uint16_t node_count,
-                                         uint16_t repeated_node,
-                                         size_t count, size_t base,
-                                         uint8_t depth, size_t* encoded_len) {
+                                          uint16_t node_count,
+                                          uint16_t repeated_node, size_t count,
+                                          size_t base, uint8_t depth,
+                                          size_t* encoded_len) {
   if (depth > ERC7730_ABI_MAX_DEPTH) return ERC7730_ABI_RESOURCE_LIMIT;
   size_t head_size = 0;
   for (size_t i = 0; i < count; i++) {
@@ -189,7 +188,8 @@ static Erc7730AbiResult validate_sequence(AbiContext* ctx, uint16_t first_node,
       if (!read_word_size(ctx, base + head, &relative))
         return ERC7730_ABI_BOUNDS;
       /* A unique canonical encoding has monotonically packed tails. This one
-       * equality rejects head pointers, gaps, aliases, overlaps and reordering. */
+       * equality rejects head pointers, gaps, aliases, overlaps and reordering.
+       */
       if (relative != tail || (relative & 31) != 0)
         return ERC7730_ABI_NON_CANONICAL;
       size_t child_off = 0;
@@ -211,7 +211,7 @@ static Erc7730AbiResult validate_sequence(AbiContext* ctx, uint16_t first_node,
 }
 
 static Erc7730AbiResult validate_atomic(const AbiContext* ctx,
-                                       const Erc7730AbiNode* n, size_t off) {
+                                        const Erc7730AbiNode* n, size_t off) {
   if (!range_ok(ctx, off, 32)) return ERC7730_ABI_BOUNDS;
   const uint8_t* word = ctx->data + off;
   size_t used = 32;
@@ -271,16 +271,16 @@ static bool valid_utf8(const uint8_t* s, size_t len) {
       cp = (cp << 6) | (next & 0x3f);
     }
     if ((continuation == 2 && cp < 0x800) ||
-        (continuation == 3 && cp < 0x10000) ||
-        (cp >= 0xd800 && cp <= 0xdfff) || cp > 0x10ffff)
+        (continuation == 3 && cp < 0x10000) || (cp >= 0xd800 && cp <= 0xdfff) ||
+        cp > 0x10ffff)
       return false;
   }
   return true;
 }
 
 static Erc7730AbiResult validate_value(AbiContext* ctx, uint16_t node,
-                                      size_t off, uint8_t depth,
-                                      size_t* encoded_len) {
+                                       size_t off, uint8_t depth,
+                                       size_t* encoded_len) {
   if (depth > ERC7730_ABI_MAX_DEPTH) return ERC7730_ABI_RESOURCE_LIMIT;
   if (node >= ctx->program->node_count) return ERC7730_ABI_BAD_PROGRAM;
   const Erc7730AbiNode* n = &ctx->program->nodes[node];
@@ -305,8 +305,7 @@ static Erc7730AbiResult validate_value(AbiContext* ctx, uint16_t node,
       if (!add_size(32, rounded, &total) || !range_ok(ctx, off, total))
         return ERC7730_ABI_BOUNDS;
       for (size_t i = payload_len; i < rounded; i++) {
-        if (ctx->data[off + 32 + i] != 0)
-          return ERC7730_ABI_NON_CANONICAL;
+        if (ctx->data[off + 32 + i] != 0) return ERC7730_ABI_NON_CANONICAL;
       }
       if (n->kind == ERC7730_ABI_STRING &&
           !valid_utf8(ctx->data + off + 32, payload_len))
@@ -332,8 +331,8 @@ static Erc7730AbiResult validate_value(AbiContext* ctx, uint16_t node,
         return ERC7730_ABI_RESOURCE_LIMIT;
       ctx->elements += (uint32_t)count;
       size_t body = 0;
-      Erc7730AbiResult r = validate_sequence(
-          ctx, 0, 0, n->first_child, count, base, depth, &body);
+      Erc7730AbiResult r = validate_sequence(ctx, 0, 0, n->first_child, count,
+                                             base, depth, &body);
       if (r != ERC7730_ABI_OK) return r;
       if (!add_size(prefix, body, encoded_len)) return ERC7730_ABI_BOUNDS;
       return ERC7730_ABI_OK;
@@ -344,7 +343,7 @@ static Erc7730AbiResult validate_value(AbiContext* ctx, uint16_t node,
 }
 
 Erc7730AbiResult erc7730_abi_validate(const Erc7730AbiProgram* program,
-                                     const uint8_t* data, size_t data_len) {
+                                      const uint8_t* data, size_t data_len) {
   Erc7730AbiResult r = validate_program(program);
   if (r != ERC7730_ABI_OK) return r;
   if (!data && data_len != 0) return ERC7730_ABI_BOUNDS;
@@ -357,8 +356,8 @@ Erc7730AbiResult erc7730_abi_validate(const Erc7730AbiProgram* program,
 
 /* Locate one immediate child after validation has established canonicality. */
 static Erc7730AbiResult locate_child(AbiContext* ctx, uint16_t parent,
-                                    size_t parent_off, int32_t requested,
-                                    uint16_t* child_node, size_t* child_off) {
+                                     size_t parent_off, int32_t requested,
+                                     uint16_t* child_node, size_t* child_off) {
   const Erc7730AbiNode* n = &ctx->program->nodes[parent];
   size_t count = 0;
   size_t base = parent_off;
@@ -381,8 +380,7 @@ static Erc7730AbiResult locate_child(AbiContext* ctx, uint16_t parent,
   }
   int64_t selected = requested;
   if (selected < 0) selected += (int64_t)count;
-  if (selected < 0 || (uint64_t)selected >= count)
-    return ERC7730_ABI_BAD_PATH;
+  if (selected < 0 || (uint64_t)selected >= count) return ERC7730_ABI_BAD_PATH;
 
   size_t head = 0;
   size_t tail = 0;
@@ -415,9 +413,9 @@ static Erc7730AbiResult locate_child(AbiContext* ctx, uint16_t parent,
 }
 
 Erc7730AbiResult erc7730_abi_resolve(const Erc7730AbiProgram* program,
-                                    const uint8_t* data, size_t data_len,
-                                    const int32_t* path, size_t path_len,
-                                    Erc7730AbiValue* out) {
+                                     const uint8_t* data, size_t data_len,
+                                     const int32_t* path, size_t path_len,
+                                     Erc7730AbiValue* out) {
   if (!out || (!path && path_len != 0) || path_len > ERC7730_ABI_MAX_PATH)
     return ERC7730_ABI_BAD_PATH;
   Erc7730AbiResult r = erc7730_abi_validate(program, data, data_len);

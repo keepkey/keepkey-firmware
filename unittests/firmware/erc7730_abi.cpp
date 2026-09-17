@@ -36,21 +36,25 @@ TEST(Erc7730Abi, RecursivelyDecodesTupleDynamicArrayAndString) {
   };
   Erc7730AbiProgram p{nodes, 6, 0};
   std::vector<uint8_t> encoded;
-  word(encoded, 0x1234);                 // address
-  word(encoded, 64);                     // array tail
-  word(encoded, 2);                      // array length
-  word(encoded, 64); word(encoded, 192); // dynamic tuple offsets
-  word(encoded, 7); word(encoded, 64);   // tuple 0 head
+  word(encoded, 0x1234);  // address
+  word(encoded, 64);      // array tail
+  word(encoded, 2);       // array length
+  word(encoded, 64);
+  word(encoded, 192);  // dynamic tuple offsets
+  word(encoded, 7);
+  word(encoded, 64);  // tuple 0 head
   bytes(encoded, "alpha");
-  word(encoded, 9); word(encoded, 64);   // tuple 1 head
+  word(encoded, 9);
+  word(encoded, 64);  // tuple 1 head
   bytes(encoded, "beta");
   ASSERT_EQ(erc7730_abi_validate(&p, encoded.data(), encoded.size()),
             ERC7730_ABI_OK);
 
   const int32_t path[] = {1, -1, 1};
   Erc7730AbiValue value{};
-  ASSERT_EQ(erc7730_abi_resolve(&p, encoded.data(), encoded.size(), path, 3,
-                                &value), ERC7730_ABI_OK);
+  ASSERT_EQ(
+      erc7730_abi_resolve(&p, encoded.data(), encoded.size(), path, 3, &value),
+      ERC7730_ABI_OK);
   ASSERT_EQ(value.data_len, 4u);
   EXPECT_EQ(memcmp(value.data, "beta", 4), 0);
 }
@@ -63,10 +67,11 @@ TEST(Erc7730Abi, RejectsNonCanonicalOffsetOverlapGapAndTrailingData) {
   };
   Erc7730AbiProgram p{nodes, 3, 0};
   std::vector<uint8_t> good;
-  word(good, 64); word(good, 128);
-  bytes(good, "one"); bytes(good, "two");
-  EXPECT_EQ(erc7730_abi_validate(&p, good.data(), good.size()),
-            ERC7730_ABI_OK);
+  word(good, 64);
+  word(good, 128);
+  bytes(good, "one");
+  bytes(good, "two");
+  EXPECT_EQ(erc7730_abi_validate(&p, good.data(), good.size()), ERC7730_ABI_OK);
   for (uint8_t bad_offset : {uint8_t{64}, uint8_t{160}}) {
     auto bad = good;
     bad[63] = bad_offset;
@@ -88,16 +93,21 @@ TEST(Erc7730Abi, RejectsDirtyAtomicAndDynamicPadding) {
   };
   Erc7730AbiProgram p{nodes, 4, 0};
   std::vector<uint8_t> good;
-  word(good, 255); word(good, 1); word(good, 96); bytes(good, "x");
-  ASSERT_EQ(erc7730_abi_validate(&p, good.data(), good.size()),
-            ERC7730_ABI_OK);
-  auto dirty_uint = good; dirty_uint[0] = 1;
+  word(good, 255);
+  word(good, 1);
+  word(good, 96);
+  bytes(good, "x");
+  ASSERT_EQ(erc7730_abi_validate(&p, good.data(), good.size()), ERC7730_ABI_OK);
+  auto dirty_uint = good;
+  dirty_uint[0] = 1;
   EXPECT_EQ(erc7730_abi_validate(&p, dirty_uint.data(), dirty_uint.size()),
             ERC7730_ABI_NON_CANONICAL);
-  auto bad_bool = good; bad_bool[63] = 2;
+  auto bad_bool = good;
+  bad_bool[63] = 2;
   EXPECT_EQ(erc7730_abi_validate(&p, bad_bool.data(), bad_bool.size()),
             ERC7730_ABI_NON_CANONICAL);
-  auto dirty_bytes = good; dirty_bytes.back() = 1;
+  auto dirty_bytes = good;
+  dirty_bytes.back() = 1;
   EXPECT_EQ(erc7730_abi_validate(&p, dirty_bytes.data(), dirty_bytes.size()),
             ERC7730_ABI_NON_CANONICAL);
 }

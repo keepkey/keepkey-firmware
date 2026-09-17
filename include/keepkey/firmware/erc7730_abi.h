@@ -32,7 +32,7 @@ typedef enum {
  * visited bitmap or dynamic allocation. */
 typedef struct {
   uint8_t kind;
-  uint16_t size;        /* int width in bits, fixed-bytes width in bytes */
+  uint16_t size; /* int width in bits, fixed-bytes width in bytes */
   uint16_t first_child;
   uint16_t child_count;
   uint16_t array_length; /* UINT16_MAX means dynamic */
@@ -64,15 +64,15 @@ typedef enum {
 /* Validate a complete ABI argument block (calldata excluding its selector).
  * Success proves that exactly data_len bytes are represented by the root. */
 Erc7730AbiResult erc7730_abi_validate(const Erc7730AbiProgram* program,
-                                     const uint8_t* data, size_t data_len);
+                                      const uint8_t* data, size_t data_len);
 
 /* Resolve tuple fields and array elements. Negative array indices count from
  * the end. The returned view always points into the already validated input;
  * dynamic bytes/string views contain payload bytes, while other values contain
  * their canonical ABI encoding. */
 Erc7730AbiResult erc7730_abi_resolve(const Erc7730AbiProgram* program,
-                                    const uint8_t* data, size_t data_len,
-                                    const int32_t* path, size_t path_len,
-                                    Erc7730AbiValue* out);
+                                     const uint8_t* data, size_t data_len,
+                                     const int32_t* path, size_t path_len,
+                                     Erc7730AbiValue* out);
 
 #endif
