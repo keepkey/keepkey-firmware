@@ -400,6 +400,27 @@ TEST(Erc7730Catalog, ValidatesFormatterOperandsAndDisplayProgram) {
   EXPECT_EQ(feedAll(envelope(p), 31), ERC7730_CATALOG_BAD_PROGRAM);
 }
 
+TEST(Erc7730Catalog, ValidatesNestedGroupControlFlowAndRejectsBadReturns) {
+  auto p = minimalProgram();
+  const std::vector<uint8_t> display = {
+      1,  0, 0,    0,    0xff, 0xff, 0xff, 0xff,  // intent
+      5,  0, 0xff, 0xff, 0xff, 0xff, 0,    4,     // outer begin -> pc 4
+      5,  0, 0xff, 0xff, 0xff, 0xff, 0,    3,     // inner begin -> pc 3
+      6,  0, 0,    2,    0xff, 0xff, 0xff, 0xff,  // inner end -> pc 2
+      6,  0, 0,    1,    0xff, 0xff, 0xff, 0xff,  // outer end -> pc 1
+      10, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,  // end
+  };
+  p = replaceTable(p, 7, display, 6);
+  p[sectionOffset(p, 9) + 5 + 18] = 2;
+  EXPECT_EQ(feedAll(envelope(p), 17), ERC7730_CATALOG_UNTRUSTED);
+
+  auto malformed = display;
+  malformed[3 * 8 + 3] = 1;  // inner end returns to the outer begin
+  p = replaceTable(minimalProgram(), 7, malformed, 6);
+  p[sectionOffset(p, 9) + 5 + 18] = 2;
+  EXPECT_EQ(feedAll(envelope(p), 17), ERC7730_CATALOG_BAD_PROGRAM);
+}
+
 TEST(Erc7730Catalog, BindsSignedDeploymentsExactly) {
   auto p = minimalProgram();
   const size_t binding = sectionOffset(p, 8) + 5;
