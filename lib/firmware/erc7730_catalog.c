@@ -306,9 +306,444 @@ static bool consume_path_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
   return true;
 }
 
+static void finish_literal(Erc7730CatalogVerifier* v) {
+  if (v->literal_kind == 9)
+    v->literal_set_mask |= UINT64_C(1) << v->entry_index;
+  v->entry_index++;
+  v->entry_length = 0;
+  v->entry_offset = 0;
+  v->field_received = 0;
+  v->literal_kind = 0;
+  v->literal_subcount = 0;
+  v->literal_previous = UINT16_MAX;
+}
+
+static bool consume_literal_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
+  v->section_offset++;
+  if (v->section_offset <= 2) {
+    v->sibling[v->section_offset - 1] = byte;
+    if (v->section_offset == 2) {
+      v->entry_count = read_be16(v->sibling);
+      if (v->entry_count > 64) return false;
+      v->table_counts[3] = v->entry_count;
+    }
+    return true;
+  }
+  if (v->entry_index >= v->entry_count) return false;
+  if (v->entry_length == 0) {
+    v->sibling[v->field_received++] = byte;
+    if (v->field_received != 3) return true;
+    v->literal_kind = v->sibling[0];
+    v->entry_length = read_be16(v->sibling + 1);
+    v->entry_offset = 0;
+    v->field_received = 0;
+    v->literal_previous = UINT16_MAX;
+    if (v->literal_kind < 1 || v->literal_kind > 9 ||
+        v->entry_length > v->section_remaining - 1u)
+      return false;
+    if (((v->literal_kind == 1 || v->literal_kind == 2) &&
+         (v->entry_length == 0 || v->entry_length > 32)) ||
+        (v->literal_kind == 4 && v->entry_length != 2) ||
+        (v->literal_kind == 5 && v->entry_length != 20) ||
+        (v->literal_kind == 6 && v->entry_length != 1) ||
+        (v->literal_kind == 7 &&
+         (v->entry_length == 0 || v->entry_length > 8)) ||
+        ((v->literal_kind == 8 || v->literal_kind == 9) && v->entry_length < 2))
+      return false;
+    if (v->entry_length == 0) finish_literal(v);
+    return true;
+  }
+
+  if (v->entry_offset == 0) v->literal_first = byte;
+  if (v->entry_offset == 1) v->literal_second = byte;
+  if (v->literal_kind == 6 && byte > 1) return false;
+
+  if (v->literal_kind == 8 || v->literal_kind == 9) {
+    v->sibling[v->field_received++] = byte;
+    if (v->entry_offset == 1) {
+      v->literal_subcount = read_be16(v->sibling);
+      const uint32_t expected =
+          2u + (uint32_t)v->literal_subcount * (v->literal_kind == 8 ? 4u : 2u);
+      if (expected != v->entry_length) return false;
+      v->field_received = 0;
+    } else if (v->entry_offset >= 2 &&
+               v->field_received == (v->literal_kind == 8 ? 4 : 2)) {
+      const uint16_t reference = read_be16(v->sibling);
+      if (reference >= v->entry_index || (v->literal_previous != UINT16_MAX &&
+                                          reference <= v->literal_previous))
+        return false;
+      if (v->literal_kind == 8 &&
+          read_be16(v->sibling + 2) >= v->table_counts[0])
+        return false;
+      v->literal_previous = reference;
+      v->field_received = 0;
+    }
+  }
+
+  v->entry_offset++;
+  if (v->entry_offset != v->entry_length) return true;
+  if (v->literal_kind == 1 || v->literal_kind == 7) {
+    if (v->entry_length > 1 && v->literal_first == 0) return false;
+    if (v->literal_kind == 7 && v->entry_length == 1 && v->literal_first == 0)
+      return false;
+  } else if (v->literal_kind == 2 && v->entry_length > 1) {
+    if ((v->literal_first == 0 && (v->literal_second & 0x80u) == 0) ||
+        (v->literal_first == 0xff && (v->literal_second & 0x80u) != 0))
+      return false;
+  } else if (v->literal_kind == 4) {
+    const uint16_t string_index =
+        (uint16_t)(((uint16_t)v->literal_first << 8) | v->literal_second);
+    if (string_index >= v->table_counts[0]) return false;
+  }
+  finish_literal(v);
+  return true;
+}
+
+static bool validate_condition(Erc7730CatalogVerifier* v) {
+  const uint8_t opcode = v->sibling[0];
+  const uint16_t path = read_be16(v->sibling + 1);
+  const uint16_t set = read_be16(v->sibling + 3);
+  if (opcode < 1 || opcode > 8 || v->sibling[5] != 0 || v->sibling[6] != 0 ||
+      v->sibling[7] != 0)
+    return false;
+  if (opcode <= 3) return path == UINT16_MAX && set == UINT16_MAX;
+  if (path >= v->table_counts[2]) return false;
+  if (opcode <= 5) return set == UINT16_MAX;
+  return set < v->table_counts[3] &&
+         (v->literal_set_mask & (UINT64_C(1) << set)) != 0;
+}
+
+static bool consume_condition_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
+  v->section_offset++;
+  if (v->section_offset <= 2) {
+    v->sibling[v->section_offset - 1] = byte;
+    if (v->section_offset == 2) {
+      v->entry_count = read_be16(v->sibling);
+      if (v->entry_count > 32 ||
+          v->section_remaining - 1u != (uint32_t)v->entry_count * 8u)
+        return false;
+      v->table_counts[4] = v->entry_count;
+    }
+    return true;
+  }
+  v->sibling[v->field_received++] = byte;
+  if (v->field_received == 8) {
+    if (!validate_condition(v)) return false;
+    v->field_received = 0;
+    v->entry_index++;
+  }
+  return true;
+}
+
+#define FORMAT_ROLE_BIT(role) (UINT32_C(1) << (role))
+
+static uint32_t formatter_allowed_roles(uint8_t kind) {
+  const uint32_t value = FORMAT_ROLE_BIT(1);
+  switch (kind) {
+    case 1: /* raw */
+    case 2: /* native amount */
+    case 6: /* duration */
+    case 9: /* chain id */
+      return value;
+    case 3: /* token amount */
+      return value | FORMAT_ROLE_BIT(2) | FORMAT_ROLE_BIT(7) |
+             FORMAT_ROLE_BIT(8) | FORMAT_ROLE_BIT(11) | FORMAT_ROLE_BIT(22);
+    case 4: /* NFT */
+      return value | FORMAT_ROLE_BIT(3) | FORMAT_ROLE_BIT(11);
+    case 5: /* date */
+      return value | FORMAT_ROLE_BIT(9);
+    case 7: /* unit */
+      return value | FORMAT_ROLE_BIT(4) | FORMAT_ROLE_BIT(5) |
+             FORMAT_ROLE_BIT(6);
+    case 8: /* enum */
+      return value | FORMAT_ROLE_BIT(10);
+    case 10: /* address name */
+    case 12: /* interoperable address */
+      return value | FORMAT_ROLE_BIT(12) | FORMAT_ROLE_BIT(13) |
+             FORMAT_ROLE_BIT(14);
+    case 11: /* token ticker */
+      return value | FORMAT_ROLE_BIT(11);
+    case 13: /* embedded calldata */
+      return value | FORMAT_ROLE_BIT(11) | FORMAT_ROLE_BIT(15) |
+             FORMAT_ROLE_BIT(16) | FORMAT_ROLE_BIT(17) | FORMAT_ROLE_BIT(18);
+    case 14: /* encrypted value */
+      return value | FORMAT_ROLE_BIT(19) | FORMAT_ROLE_BIT(20) |
+             FORMAT_ROLE_BIT(21) | FORMAT_ROLE_BIT(23);
+    default:
+      return 0;
+  }
+}
+
+static bool finish_formatter(Erc7730CatalogVerifier* v) {
+  const uint32_t roles = v->formatter_roles;
+  if ((roles & FORMAT_ROLE_BIT(1)) == 0 ||
+      (roles & ~formatter_allowed_roles(v->formatter_kind)) != 0)
+    return false;
+  if ((v->formatter_kind == 3 && (roles & FORMAT_ROLE_BIT(2)) == 0) ||
+      (v->formatter_kind == 4 && (roles & FORMAT_ROLE_BIT(3)) == 0) ||
+      (v->formatter_kind == 8 && (roles & FORMAT_ROLE_BIT(10)) == 0) ||
+      (v->formatter_kind == 13 && (roles & FORMAT_ROLE_BIT(15)) == 0) ||
+      (v->formatter_kind == 14 &&
+       (roles &
+        (FORMAT_ROLE_BIT(19) | FORMAT_ROLE_BIT(20) | FORMAT_ROLE_BIT(23))) !=
+           (FORMAT_ROLE_BIT(19) | FORMAT_ROLE_BIT(20) | FORMAT_ROLE_BIT(23))))
+    return false;
+  v->entry_index++;
+  v->formatter_kind = 0;
+  v->formatter_arg_count = 0;
+  v->formatter_arg_index = 0;
+  v->formatter_last_role = 0;
+  v->formatter_roles = 0;
+  v->field_received = 0;
+  return true;
+}
+
+static bool consume_formatter_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
+  v->section_offset++;
+  if (v->section_offset <= 2) {
+    v->sibling[v->section_offset - 1] = byte;
+    if (v->section_offset == 2) {
+      v->entry_count = read_be16(v->sibling);
+      if (v->entry_count > 64) return false;
+      v->table_counts[5] = v->entry_count;
+    }
+    return true;
+  }
+  if (v->entry_index >= v->entry_count) return false;
+  if (v->formatter_kind == 0) {
+    v->sibling[v->field_received++] = byte;
+    if (v->field_received != 3) return true;
+    v->formatter_kind = v->sibling[0];
+    v->formatter_arg_count = v->sibling[2];
+    v->field_received = 0;
+    if (v->formatter_kind < 1 || v->formatter_kind > 14 || v->sibling[1] != 0 ||
+        v->formatter_arg_count == 0 || v->formatter_arg_count > 23)
+      return false;
+    return true;
+  }
+
+  v->sibling[v->field_received++] = byte;
+  if (v->field_received != 4) return true;
+  const uint8_t role = v->sibling[0];
+  const uint8_t source = v->sibling[1];
+  const uint16_t index = read_be16(v->sibling + 2);
+  if (role == 0 || role > 23 || role <= v->formatter_last_role || source == 0 ||
+      source > 3 || (role == 1 && source != 1) ||
+      (source == 1 && index >= v->table_counts[2]) ||
+      (source == 2 && index >= v->table_counts[3]) ||
+      (source == 3 && index >= v->table_counts[0]))
+    return false;
+  v->formatter_last_role = role;
+  v->formatter_roles |= FORMAT_ROLE_BIT(role);
+  v->formatter_arg_index++;
+  v->field_received = 0;
+  if (v->formatter_arg_index == v->formatter_arg_count)
+    return finish_formatter(v);
+  return true;
+}
+
+static bool optional_index(uint16_t index, uint16_t count) {
+  return index == UINT16_MAX || index < count;
+}
+
+static bool validate_display_instruction(Erc7730CatalogVerifier* v) {
+  const uint8_t opcode = v->sibling[0];
+  const uint8_t flags = v->sibling[1];
+  const uint16_t a = read_be16(v->sibling + 2);
+  const uint16_t b = read_be16(v->sibling + 4);
+  const uint16_t c = read_be16(v->sibling + 6);
+  const uint16_t pc = v->entry_index;
+  if (opcode < 1 || opcode > 10 || flags != 0) return false;
+  switch (opcode) {
+    case 1:
+      return a < v->table_counts[0] && optional_index(b, v->table_counts[4]) &&
+             c == UINT16_MAX;
+    case 2:
+      return a < v->table_counts[0] && b == UINT16_MAX && c == UINT16_MAX;
+    case 3:
+      return a < v->table_counts[5] && b == UINT16_MAX && c == UINT16_MAX;
+    case 4:
+      return a < v->table_counts[0] && b < v->table_counts[5] &&
+             optional_index(c, v->table_counts[4]);
+    case 5:
+    case 7: {
+      if ((opcode == 5 && !optional_index(a, v->table_counts[0])) ||
+          (opcode == 7 && a >= v->table_counts[2]) ||
+          !optional_index(b, v->table_counts[4]) || c <= pc ||
+          c >= v->entry_count || v->display_depth >= ERC7730_ABI_MAX_DEPTH)
+        return false;
+      uint8_t* frame = v->signature + v->display_depth * 5u;
+      frame[0] = opcode;
+      frame[1] = (uint8_t)(pc >> 8);
+      frame[2] = (uint8_t)pc;
+      frame[3] = (uint8_t)(c >> 8);
+      frame[4] = (uint8_t)c;
+      v->display_depth++;
+      if (v->display_depth > v->display_max_depth)
+        v->display_max_depth = v->display_depth;
+      return true;
+    }
+    case 6:
+    case 8: {
+      if (v->display_depth == 0 || c != UINT16_MAX ||
+          (opcode == 6 && b != UINT16_MAX) ||
+          (opcode == 8 && !optional_index(b, v->table_counts[0])))
+        return false;
+      uint8_t* frame = v->signature + (v->display_depth - 1u) * 5u;
+      const uint16_t begin = (uint16_t)(((uint16_t)frame[1] << 8) | frame[2]);
+      const uint16_t end = (uint16_t)(((uint16_t)frame[3] << 8) | frame[4]);
+      if (a != begin || end != pc || (opcode == 6 && frame[0] != 5) ||
+          (opcode == 8 && frame[0] != 7))
+        return false;
+      v->display_depth--;
+      return true;
+    }
+    case 9:
+      return optional_index(a, v->table_counts[0]) && b < v->table_counts[5] &&
+             optional_index(c, v->table_counts[4]);
+    case 10:
+      return pc + 1u == v->entry_count && v->display_depth == 0 &&
+             a == UINT16_MAX && b == UINT16_MAX && c == UINT16_MAX;
+  }
+  return false;
+}
+
+static bool consume_display_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
+  v->section_offset++;
+  if (v->section_offset <= 2) {
+    v->sibling[v->section_offset - 1] = byte;
+    if (v->section_offset == 2) {
+      v->entry_count = read_be16(v->sibling);
+      if (v->entry_count > 192 ||
+          v->section_remaining - 1u != (uint32_t)v->entry_count * 8u)
+        return false;
+      v->table_counts[6] = v->entry_count;
+    }
+    return true;
+  }
+  v->sibling[v->field_received++] = byte;
+  if (v->field_received == 8) {
+    if (!validate_display_instruction(v)) return false;
+    v->field_received = 0;
+    v->entry_index++;
+  }
+  return true;
+}
+
+static bool finish_binding(Erc7730CatalogVerifier* v) {
+  const uint8_t* payload = v->cert;
+  if (v->entry_index != 0 && v->compare_state == 0) return false;
+  switch (v->binding_kind) {
+    case 1: {
+      const uint64_t chain_id = read_be64(payload);
+      if (chain_id == 0 || chain_id > UINT32_MAX || all_zero(payload + 8, 20))
+        return false;
+      const uint8_t* header_address = v->header + 18;
+      if (chain_id == read_be64(v->header + 10) &&
+          (all_zero(header_address, 20) ||
+           memcmp(header_address, payload + 8, 20) == 0))
+        v->binding_header_match = true;
+      break;
+    }
+    case 2: {
+      const uint8_t field = payload[0];
+      const uint8_t operation = payload[1];
+      const uint16_t literal = read_be16(payload + 2);
+      if (field == 0 || field > 5 || operation == 0 || operation > 2 ||
+          (operation == 1 && literal >= v->table_counts[3]) ||
+          (operation == 2 && literal != UINT16_MAX))
+        return false;
+      break;
+    }
+    case 3: {
+      const uint64_t chain_id = read_be64(payload);
+      if (chain_id == 0 || chain_id > UINT32_MAX || all_zero(payload + 8, 20) ||
+          read_be16(payload + 28) >= v->table_counts[0])
+        return false;
+      if (v->header[7] == ERC7730_DEFINITION_TOKEN &&
+          chain_id == read_be64(v->header + 10) &&
+          memcmp(v->header + 18, payload + 8, 20) == 0)
+        v->binding_header_match = true;
+      break;
+    }
+    case 4:
+      if (read_be64(payload) == 0 || read_be64(payload) > UINT32_MAX ||
+          read_be16(payload + 8) >= v->table_counts[0] ||
+          read_be16(payload + 10) >= v->table_counts[0])
+        return false;
+      if (v->header[7] == ERC7730_DEFINITION_NETWORK &&
+          read_be64(payload) == read_be64(v->header + 10))
+        v->binding_header_match = true;
+      break;
+    default:
+      return false;
+  }
+  v->binding_previous_kind = v->binding_kind;
+  v->binding_previous_length = v->entry_length;
+  v->entry_index++;
+  v->binding_kind = 0;
+  v->entry_length = 0;
+  v->entry_offset = 0;
+  v->field_received = 0;
+  v->compare_state = 0;
+  return true;
+}
+
+static bool consume_binding_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
+  v->section_offset++;
+  if (v->section_offset <= 2) {
+    v->sibling[v->section_offset - 1] = byte;
+    if (v->section_offset == 2) {
+      v->entry_count = read_be16(v->sibling);
+      if (v->entry_count > 64) return false;
+      v->table_counts[7] = v->entry_count;
+    }
+    return true;
+  }
+  if (v->entry_index >= v->entry_count) return false;
+  if (v->binding_kind == 0) {
+    v->sibling[v->field_received++] = byte;
+    if (v->field_received != 3) return true;
+    v->binding_kind = v->sibling[0];
+    v->entry_length = read_be16(v->sibling + 1);
+    v->field_received = 0;
+    v->entry_offset = 0;
+    v->compare_state =
+        v->entry_index != 0 && v->binding_kind > v->binding_previous_kind ? 1
+                                                                          : 0;
+    const uint16_t expected = v->binding_kind == 1   ? 28
+                              : v->binding_kind == 2 ? 4
+                              : v->binding_kind == 3 ? 31
+                              : v->binding_kind == 4 ? 13
+                                                     : 0;
+    if (expected == 0 || v->entry_length != expected ||
+        v->entry_length > v->section_remaining - 1u ||
+        (v->entry_index != 0 && v->binding_kind < v->binding_previous_kind))
+      return false;
+    return true;
+  }
+
+  if (v->entry_index != 0 && v->compare_state == 0 &&
+      v->binding_kind == v->binding_previous_kind) {
+    if (v->entry_offset >= v->binding_previous_length ||
+        byte > v->cert[v->entry_offset])
+      v->compare_state = 1;
+    else if (byte < v->cert[v->entry_offset])
+      return false;
+  }
+  v->cert[v->entry_offset++] = byte;
+  if (v->entry_offset == v->entry_length) return finish_binding(v);
+  return true;
+}
+
 static bool consume_section_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
   if (v->last_section == 1) return consume_string_byte(v, byte);
   if (v->last_section == 3) return consume_path_byte(v, byte);
+  if (v->last_section == 4) return consume_literal_byte(v, byte);
+  if (v->last_section == 5) return consume_condition_byte(v, byte);
+  if (v->last_section == 6) return consume_formatter_byte(v, byte);
+  if (v->last_section == 7) return consume_display_byte(v, byte);
+  if (v->last_section == 8) return consume_binding_byte(v, byte);
   if (v->last_section == 9) {
     if (v->section_offset >= 22) return false;
     v->sibling[v->section_offset++] = byte;
@@ -351,6 +786,22 @@ static bool finish_section(Erc7730CatalogVerifier* v) {
     return v->section_offset >= 2 && v->entry_index == v->entry_count &&
            v->field_received == 0 && v->path_step_count == 0 &&
            v->path_step_opcode == 0;
+  if (v->last_section == 4)
+    return v->section_offset >= 2 && v->entry_index == v->entry_count &&
+           v->entry_length == 0 && v->field_received == 0;
+  if (v->last_section == 5)
+    return v->section_offset >= 2 && v->entry_index == v->entry_count &&
+           v->field_received == 0;
+  if (v->last_section == 6)
+    return v->section_offset >= 2 && v->entry_index == v->entry_count &&
+           v->formatter_kind == 0 && v->field_received == 0;
+  if (v->last_section == 7)
+    return v->section_offset >= 2 && v->entry_index == v->entry_count &&
+           v->field_received == 0 && v->display_depth == 0;
+  if (v->last_section == 8)
+    return v->section_offset >= 2 && v->entry_index == v->entry_count &&
+           v->binding_kind == 0 && v->field_received == 0 &&
+           v->binding_header_match;
   if (v->last_section == 9) {
     if (v->section_offset != 22) return false;
     for (uint8_t i = 0; i < 8; i++) {
@@ -358,7 +809,7 @@ static bool finish_section(Erc7730CatalogVerifier* v) {
     }
     if (v->sibling[16] != v->abi_max_depth ||
         v->sibling[17] > ERC7730_ABI_MAX_ARRAY_ELEMENTS ||
-        v->sibling[18] > ERC7730_ABI_MAX_DEPTH || v->sibling[19] > 4 ||
+        v->sibling[18] != v->display_max_depth || v->sibling[19] > 4 ||
         read_be16(v->sibling + 20) != v->max_string_length)
       return false;
     return true;
@@ -409,6 +860,19 @@ static bool consume_program_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
       v->path_step_remaining = 0;
       v->path_slice_flags = 0;
       v->path_full_seen = false;
+      v->literal_kind = 0;
+      v->literal_subcount = 0;
+      v->literal_previous = UINT16_MAX;
+      v->formatter_kind = 0;
+      v->formatter_arg_count = 0;
+      v->formatter_arg_index = 0;
+      v->formatter_last_role = 0;
+      v->formatter_roles = 0;
+      v->display_depth = 0;
+      v->binding_kind = 0;
+      v->binding_previous_kind = 0;
+      v->binding_previous_length = 0;
+      v->binding_header_match = false;
       if ((type == 9 && length != 22) || (type != 9 && length < 2))
         return false;
     }
