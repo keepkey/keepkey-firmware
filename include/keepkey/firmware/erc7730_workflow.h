@@ -42,6 +42,8 @@ typedef enum {
   ERC7730_DISPLAY_CONDITION_SET,
   ERC7730_DISPLAY_CONDITION_LITERAL,
   ERC7730_DISPLAY_FORMATTER_ARGUMENT,
+  ERC7730_DISPLAY_UNIT_DECIMALS,
+  ERC7730_DISPLAY_UNIT_PREFIX,
 } Erc7730DisplayStage;
 
 /* The workflow owns every pointer-bearing interpreter object. No pointer into
@@ -74,7 +76,14 @@ typedef struct {
   uint8_t current_formatter_kind;
   uint8_t container_source;
   Erc7730Condition pending_condition;
-  Erc7730AbiCapture condition_value;
+  union {
+    Erc7730AbiCapture condition_value;
+    struct {
+      char base[ERC7730_ABI_CAPTURE_MAX + 1u];
+      uint8_t decimals;
+      bool prefix;
+    } formatter_parameters;
+  } value_scratch;
   /* Format 1 admits at most 64 literals, so authenticated set references fit
    * in bytes and do not spend another 64 bytes of signing SRAM. */
   uint8_t condition_literals[64];

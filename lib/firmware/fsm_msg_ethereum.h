@@ -660,6 +660,64 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       layoutHome();
       return;
     }
+    if (workflow->display_stage == ERC7730_DISPLAY_UNIT_DECIMALS) {
+      if (literal.kind != 1 || literal.length != 1) {
+        memzero(&literal, sizeof(literal));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 unit decimals"));
+        layoutHome();
+        return;
+      }
+      workflow->value_scratch.formatter_parameters.decimals = literal.value[0];
+      memzero(&literal, sizeof(literal));
+      if (workflow->condition_literals[1] != UINT8_MAX) {
+        if (!erc7730_workflow_select_literal(
+                workflow, workflow->condition_literals[1])) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 unit prefix"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_UNIT_PREFIX;
+      } else {
+        if (!erc7730_workflow_select_path(workflow,
+                                          workflow->formatter_value_path)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 unit value"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_PATH;
+      }
+      send_erc7730_definition_request();
+      return;
+    }
+    if (workflow->display_stage == ERC7730_DISPLAY_UNIT_PREFIX) {
+      if (literal.kind != 6 || literal.length != 1 || literal.value[0] > 1) {
+        memzero(&literal, sizeof(literal));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 unit prefix"));
+        layoutHome();
+        return;
+      }
+      workflow->value_scratch.formatter_parameters.prefix = literal.value[0];
+      memzero(&literal, sizeof(literal));
+      if (!erc7730_workflow_select_path(workflow,
+                                        workflow->formatter_value_path)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 unit value"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_PATH;
+      send_erc7730_definition_request();
+      return;
+    }
     if (workflow->display_stage == ERC7730_DISPLAY_CONDITION_SET) {
       uint16_t first_literal = UINT16_MAX;
       if (!erc7730_workflow_load_membership_set(workflow, &literal,
@@ -735,17 +793,76 @@ void fsm_msgEthereumClearSignDefinitionChunk(
       const char* encoding = NULL;
       size_t encoding_length = 0;
       if (!erc7730_workflow_selected_string(workflow, &encoding,
-                                            &encoding_length) ||
-          encoding_length != 9 || memcmp(encoding, "timestamp", 9) != 0 ||
-          !erc7730_workflow_select_path(workflow,
-                                        workflow->formatter_value_path)) {
+                                            &encoding_length)) {
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
-                        _("Unsupported ERC-7730 date encoding"));
+                        _("Invalid ERC-7730 formatter argument"));
         layoutHome();
         return;
       }
-      workflow->display_stage = ERC7730_DISPLAY_PATH;
+      if (workflow->current_formatter_kind == 5) {
+        if (encoding_length != 9 || memcmp(encoding, "timestamp", 9) != 0 ||
+            !erc7730_workflow_select_path(workflow,
+                                          workflow->formatter_value_path)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Unsupported ERC-7730 date encoding"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_PATH;
+      } else if (workflow->current_formatter_kind == 7) {
+        if (encoding_length == 0 ||
+            encoding_length >=
+                sizeof(workflow->value_scratch.formatter_parameters.base)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid ERC-7730 unit base"));
+          layoutHome();
+          return;
+        }
+        memcpy(workflow->value_scratch.formatter_parameters.base, encoding,
+               encoding_length);
+        workflow->value_scratch.formatter_parameters.base[encoding_length] =
+            '\0';
+        if (workflow->condition_literals[0] != UINT8_MAX) {
+          if (!erc7730_workflow_select_literal(
+                  workflow, workflow->condition_literals[0])) {
+            erc7730_workflow_abort(workflow);
+            fsm_sendFailure(FailureType_Failure_SyntaxError,
+                            _("Invalid ERC-7730 unit decimals"));
+            layoutHome();
+            return;
+          }
+          workflow->display_stage = ERC7730_DISPLAY_UNIT_DECIMALS;
+        } else if (workflow->condition_literals[1] != UINT8_MAX) {
+          if (!erc7730_workflow_select_literal(
+                  workflow, workflow->condition_literals[1])) {
+            erc7730_workflow_abort(workflow);
+            fsm_sendFailure(FailureType_Failure_SyntaxError,
+                            _("Invalid ERC-7730 unit prefix"));
+            layoutHome();
+            return;
+          }
+          workflow->display_stage = ERC7730_DISPLAY_UNIT_PREFIX;
+        } else {
+          if (!erc7730_workflow_select_path(workflow,
+                                            workflow->formatter_value_path)) {
+            erc7730_workflow_abort(workflow);
+            fsm_sendFailure(FailureType_Failure_SyntaxError,
+                            _("Invalid ERC-7730 unit value"));
+            layoutHome();
+            return;
+          }
+          workflow->display_stage = ERC7730_DISPLAY_PATH;
+        }
+      } else {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Unexpected ERC-7730 formatter argument"));
+        layoutHome();
+        return;
+      }
       send_erc7730_definition_request();
       return;
     }
@@ -816,6 +933,52 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         _("Invalid ERC-7730 date encoding"));
+        layoutHome();
+        return;
+      }
+      workflow->display_stage = ERC7730_DISPLAY_FORMATTER_ARGUMENT;
+      send_erc7730_definition_request();
+      return;
+    }
+    if (formatter.kind == 7) {
+      uint16_t base = UINT16_MAX;
+      uint16_t decimals = UINT16_MAX;
+      uint16_t prefix = UINT16_MAX;
+      bool valid = formatter.argument_count >= 2;
+      for (uint8_t i = 1; valid && i < formatter.argument_count; i++) {
+        const Erc7730FormatterArgument* argument = &formatter.arguments[i];
+        if (argument->role == 4 && argument->source == 2)
+          decimals = argument->index;
+        else if (argument->role == 5 && argument->source == 3)
+          base = argument->index;
+        else if (argument->role == 6 && argument->source == 2)
+          prefix = argument->index;
+        else
+          valid = false;
+      }
+      if (!valid || base == UINT16_MAX ||
+          (decimals != UINT16_MAX && decimals >= 64) ||
+          (prefix != UINT16_MAX && prefix >= 64)) {
+        memzero(&formatter, sizeof(formatter));
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 unit formatter"));
+        layoutHome();
+        return;
+      }
+      workflow->formatter_value_path = formatter.arguments[0].index;
+      workflow->formatter_auxiliary = base;
+      workflow->condition_literals[0] =
+          decimals == UINT16_MAX ? UINT8_MAX : (uint8_t)decimals;
+      workflow->condition_literals[1] =
+          prefix == UINT16_MAX ? UINT8_MAX : (uint8_t)prefix;
+      memzero(&workflow->value_scratch, sizeof(workflow->value_scratch));
+      memzero(&formatter, sizeof(formatter));
+      if (!erc7730_workflow_select_string(workflow,
+                                          workflow->formatter_auxiliary)) {
+        erc7730_workflow_abort(workflow);
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid ERC-7730 unit base"));
         layoutHome();
         return;
       }
