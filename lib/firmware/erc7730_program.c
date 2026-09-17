@@ -700,3 +700,82 @@ bool erc7730_program_condition_complete(
 void erc7730_program_condition_clear(Erc7730ProgramCondition* condition) {
   if (condition) memzero(condition, sizeof(*condition));
 }
+
+void erc7730_program_literal_begin(Erc7730ProgramLiteral* literal,
+                                   uint32_t section_length,
+                                   uint16_t target_index) {
+  if (!literal) return;
+  memzero(literal, sizeof(*literal));
+  literal->section_length = section_length;
+  literal->target_index = target_index;
+  if (section_length < 2) literal->failed = true;
+}
+
+bool erc7730_program_literal_feed(Erc7730ProgramLiteral* literal,
+                                  uint32_t section_offset, const uint8_t* data,
+                                  size_t data_len) {
+  if (!literal || !data || data_len == 0 || literal->failed ||
+      literal->complete || section_offset != literal->received ||
+      data_len > literal->section_length - literal->received) {
+    if (literal) literal->failed = true;
+    return false;
+  }
+  for (size_t i = 0; i < data_len; i++, literal->received++) {
+    const uint8_t byte = data[i];
+    if (literal->received < 2) {
+      literal->header[literal->received] = byte;
+      if (literal->received == 1) {
+        literal->literal_count = read_be16(literal->header);
+        if (literal->literal_count > 64 ||
+            literal->target_index >= literal->literal_count) {
+          literal->failed = true;
+          return false;
+        }
+      }
+      continue;
+    }
+    if (literal->current_length == 0) {
+      literal->header[literal->header_received++] = byte;
+      if (literal->header_received != 3) continue;
+      literal->current_length = read_be16(literal->header + 1);
+      literal->header_received = 0;
+      if (literal->current_length == 0 ||
+          literal->current_length > ERC7730_LITERAL_MAX_LENGTH) {
+        literal->failed = true;
+        return false;
+      }
+      if (literal->literal_index == literal->target_index) {
+        literal->selected.kind = literal->header[0];
+        literal->selected.length = literal->current_length;
+      }
+      continue;
+    }
+    if (literal->literal_index == literal->target_index)
+      literal->selected.value[literal->current_received] = byte;
+    literal->current_received++;
+    if (literal->current_received == literal->current_length) {
+      literal->literal_index++;
+      literal->current_length = 0;
+      literal->current_received = 0;
+    }
+  }
+  if (literal->received == literal->section_length) {
+    literal->complete =
+        !literal->failed && literal->literal_index == literal->literal_count &&
+        literal->current_length == 0 && literal->header_received == 0;
+    if (!literal->complete) literal->failed = true;
+  }
+  return !literal->failed;
+}
+
+bool erc7730_program_literal_complete(const Erc7730ProgramLiteral* literal,
+                                      Erc7730Literal* result) {
+  if (!literal || !result || !literal->complete || literal->failed)
+    return false;
+  *result = literal->selected;
+  return true;
+}
+
+void erc7730_program_literal_clear(Erc7730ProgramLiteral* literal) {
+  if (literal) memzero(literal, sizeof(*literal));
+}

@@ -350,3 +350,41 @@ TEST(Erc7730ProgramCondition, RejectsMissingTargetAndBadLength) {
   erc7730_program_condition_begin(&loader, section.size(), 0);
   EXPECT_TRUE(loader.failed);
 }
+
+TEST(Erc7730ProgramLiteral, SelectsTypedLiteralAcrossChunks) {
+  const std::vector<uint8_t> section = {
+      0, 3, 1, 0, 1, 7, 3, 0, 3, 0xaa, 0xbb, 0xcc, 6, 0, 1, 1,
+  };
+  for (size_t chunk : {1u, 5u, 64u}) {
+    Erc7730ProgramLiteral loader;
+    erc7730_program_literal_begin(&loader, section.size(), 1);
+    for (size_t offset = 0; offset < section.size();) {
+      const size_t length = std::min(chunk, section.size() - offset);
+      ASSERT_TRUE(erc7730_program_literal_feed(
+          &loader, offset, section.data() + offset, length));
+      offset += length;
+    }
+    Erc7730Literal literal;
+    ASSERT_TRUE(erc7730_program_literal_complete(&loader, &literal));
+    EXPECT_EQ(literal.kind, 3u);
+    ASSERT_EQ(literal.length, 3u);
+    EXPECT_EQ(literal.value[0], 0xaau);
+    EXPECT_EQ(literal.value[2], 0xccu);
+  }
+}
+
+TEST(Erc7730ProgramLiteral, RejectsMissingOversizedAndTruncatedValues) {
+  std::vector<uint8_t> section = {0, 1, 1, 0, 1, 7};
+  Erc7730ProgramLiteral loader;
+  erc7730_program_literal_begin(&loader, section.size(), 1);
+  EXPECT_FALSE(
+      erc7730_program_literal_feed(&loader, 0, section.data(), section.size()));
+  section = {0, 1, 3, 1, 3};
+  erc7730_program_literal_begin(&loader, section.size(), 0);
+  EXPECT_FALSE(
+      erc7730_program_literal_feed(&loader, 0, section.data(), section.size()));
+  section = {0, 1, 3, 0, 2, 0xaa};
+  erc7730_program_literal_begin(&loader, section.size(), 0);
+  EXPECT_FALSE(
+      erc7730_program_literal_feed(&loader, 0, section.data(), section.size()));
+}
