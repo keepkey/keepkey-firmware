@@ -599,8 +599,9 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     Erc7730Formatter formatter;
     if (workflow->display_stage != ERC7730_DISPLAY_FORMATTER ||
         !erc7730_workflow_selected_formatter(workflow, &formatter) ||
-        (formatter.kind != 1 && formatter.kind != 2) || formatter.flags != 0 ||
-        formatter.argument_count != 1 || formatter.arguments[0].role != 1 ||
+        (formatter.kind != 1 && formatter.kind != 2 && formatter.kind != 9) ||
+        formatter.flags != 0 || formatter.argument_count != 1 ||
+        formatter.arguments[0].role != 1 ||
         formatter.arguments[0].source != 1 ||
         !erc7730_workflow_select_path(workflow, formatter.arguments[0].index)) {
       memzero(&formatter, sizeof(formatter));
@@ -633,7 +634,20 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     layoutHome();
     return;
   }
-  if (workflow->typed_data) {
+  if (!workflow->typed_data && path.source == 2) {
+    EthereumSignTx tx;
+    if (!erc7730_workflow_capture_tx_container(workflow, &path, &tx)) {
+      memzero(&path, sizeof(path));
+      memzero(&tx, sizeof(tx));
+      erc7730_workflow_abort(workflow);
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      _("Unsupported ERC-7730 transaction fact"));
+      layoutHome();
+      return;
+    }
+    confirm_erc7730_intent_and_continue(&tx);
+    memzero(&tx, sizeof(tx));
+  } else if (workflow->typed_data) {
     if (!erc7730_workflow_start_eip712_capture(workflow, &path) ||
         !eip712_stream_definition_accepted()) {
       memzero(&path, sizeof(path));

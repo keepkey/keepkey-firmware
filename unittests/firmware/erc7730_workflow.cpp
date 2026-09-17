@@ -183,3 +183,54 @@ TEST(Erc7730Workflow, ResolvesNegativeTypedArrayIndexFromStreamedLength) {
                                               value, sizeof(value)));
   EXPECT_TRUE(erc7730_workflow_eip712_finish(&workflow));
 }
+
+TEST(Erc7730Workflow, CapturesDeviceOwnedTransactionContainerFacts) {
+  Erc7730Workflow workflow{};
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  workflow.current_formatter_kind = 9;
+  EthereumSignTx tx{};
+  tx.has_chain_id = true;
+  tx.chain_id = 8453;
+  tx.has_to = true;
+  tx.to.size = 20;
+  memset(tx.to.bytes, 0x11, tx.to.size);
+  tx.has_data_length = true;
+  tx.data_length = 4;
+  tx.has_data_initial_chunk = true;
+  tx.data_initial_chunk.size = 4;
+  ASSERT_TRUE(erc7730_tx_continuation_capture(&workflow.continuation, &tx));
+
+  Erc7730Path path{};
+  path.source = 2;
+  path.source_index = 4;
+  EthereumSignTx restored{};
+  ASSERT_TRUE(
+      erc7730_workflow_capture_tx_container(&workflow, &path, &restored));
+  EXPECT_EQ(restored.chain_id, 8453u);
+  char formatted[16];
+  ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
+                                                   sizeof(formatted)));
+  EXPECT_STREQ(formatted, "8453");
+}
+
+TEST(Erc7730Workflow, RefusesUnavailableOrMalformedContainerFacts) {
+  Erc7730Workflow workflow{};
+  workflow.phase = ERC7730_WORKFLOW_READY;
+  EthereumSignTx tx{};
+  tx.has_chain_id = true;
+  tx.chain_id = 1;
+  tx.has_data_length = true;
+  tx.data_length = 4;
+  tx.has_data_initial_chunk = true;
+  tx.data_initial_chunk.size = 4;
+  ASSERT_TRUE(erc7730_tx_continuation_capture(&workflow.continuation, &tx));
+  Erc7730Path path{};
+  path.source = 2;
+  path.source_index = 1;  // sender requires device key derivation
+  EthereumSignTx restored{};
+  EXPECT_FALSE(
+      erc7730_workflow_capture_tx_container(&workflow, &path, &restored));
+  path.source_index = 2;  // missing recipient
+  EXPECT_FALSE(
+      erc7730_workflow_capture_tx_container(&workflow, &path, &restored));
+}

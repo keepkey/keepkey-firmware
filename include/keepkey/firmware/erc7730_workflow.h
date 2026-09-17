@@ -69,6 +69,7 @@ typedef struct {
   uint8_t selection_kind : 4;
   uint8_t display_stage : 4;
   uint8_t current_formatter_kind;
+  uint8_t container_source;
   bool typed_data;
   bool intent_confirmed;
 } Erc7730Workflow;
@@ -122,6 +123,9 @@ bool erc7730_workflow_restore_and_start_calldata(Erc7730Workflow* workflow,
 bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
                                                 EthereumSignTx* tx,
                                                 const Erc7730Path* path);
+bool erc7730_workflow_capture_tx_container(Erc7730Workflow* workflow,
+                                           const Erc7730Path* path,
+                                           EthereumSignTx* tx);
 bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
                                            const Erc7730Path* path);
 bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,

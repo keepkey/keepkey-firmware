@@ -421,6 +421,7 @@ bool erc7730_workflow_restore_and_start_calldata(Erc7730Workflow* workflow,
     return false;
   }
   Erc7730AbiProgram program;
+  workflow->container_source = 0;
   if (tx->data_length < 4 ||
       !erc7730_program_loader_complete(&workflow->loader, &program) ||
       erc7730_abi_stream_begin(&workflow->calldata, &program,
@@ -457,6 +458,42 @@ bool erc7730_workflow_restore_and_start_capture(Erc7730Workflow* workflow,
   return true;
 }
 
+bool erc7730_workflow_capture_tx_container(Erc7730Workflow* workflow,
+                                           const Erc7730Path* path,
+                                           EthereumSignTx* tx) {
+  if (!workflow || !path || !tx || workflow->typed_data ||
+      workflow->phase != ERC7730_WORKFLOW_READY || path->source != 2 ||
+      path->step_count != 0 ||
+      !erc7730_tx_continuation_restore(&workflow->continuation, tx))
+    return false;
+  erc7730_abi_stream_clear(&workflow->calldata);
+  Erc7730AbiCapture* capture = &workflow->calldata.capture;
+  capture->length = 32;
+  if (path->source_index == 2) {
+    if (!tx->has_to || tx->to.size != 20) return false;
+    memcpy(capture->data + 12, tx->to.bytes, 20);
+  } else if (path->source_index == 3) {
+    if (tx->value.size > 32) return false;
+    memcpy(capture->data + 32u - tx->value.size, tx->value.bytes,
+           tx->value.size);
+  } else if (path->source_index == 4) {
+    if (!tx->has_chain_id || tx->chain_id == 0) return false;
+    uint64_t chain_id = tx->chain_id;
+    for (size_t i = 0; i < sizeof(chain_id); i++) {
+      capture->data[31u - i] = (uint8_t)chain_id;
+      chain_id >>= 8;
+    }
+  } else {
+    return false;
+  }
+  workflow->container_source = (uint8_t)path->source_index;
+  workflow->calldata.capture_enabled = true;
+  workflow->calldata.capture_found = true;
+  workflow->calldata.complete = true;
+  workflow->phase = ERC7730_WORKFLOW_COMPLETE;
+  return true;
+}
+
 bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
                                            const Erc7730Path* path) {
   if (!workflow || !path || !workflow->typed_data ||
@@ -467,6 +504,7 @@ bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
   if (!erc7730_program_loader_complete(&workflow->loader, &program))
     return false;
   uint16_t node = program.root;
+  workflow->container_source = 0;
   memzero(&workflow->calldata, sizeof(workflow->calldata));
   for (uint8_t i = 0; i < path->step_count; i++) {
     if (path->steps[i].opcode != 1 || node >= program.node_count) return false;
@@ -677,11 +715,25 @@ bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,
   Erc7730AbiCapture capture;
   if (!workflow || !output || output_size == 0 ||
       workflow->phase != ERC7730_WORKFLOW_COMPLETE ||
-      !erc7730_program_loader_complete(&workflow->loader, &program) ||
       !erc7730_abi_stream_captured(&workflow->calldata, &capture))
     return false;
+  Erc7730AbiNode container_node;
+  if (workflow->container_source != 0) {
+    memzero(&container_node, sizeof(container_node));
+    container_node.kind = workflow->container_source == 2 ? ERC7730_ABI_ADDRESS
+                                                          : ERC7730_ABI_UINT;
+    container_node.size = container_node.kind == ERC7730_ABI_UINT ? 256 : 0;
+    program.nodes = &container_node;
+    program.node_count = 1;
+    program.root = 0;
+    capture.node = 0;
+  } else if (!erc7730_program_loader_complete(&workflow->loader, &program)) {
+    memzero(&capture, sizeof(capture));
+    return false;
+  }
   bool result = false;
-  if (workflow->current_formatter_kind == 1) {
+  if (workflow->current_formatter_kind == 1 ||
+      workflow->current_formatter_kind == 9) {
     result = erc7730_format_raw(&program, &capture, output, output_size);
   } else if (workflow->current_formatter_kind == 2 &&
              workflow->identity.chain_id == 1) {
@@ -702,6 +754,7 @@ bool erc7730_workflow_advance_display(Erc7730Workflow* workflow) {
     return false;
   memzero(workflow->label, sizeof(workflow->label));
   erc7730_abi_stream_clear(&workflow->calldata);
+  workflow->container_source = 0;
   workflow->phase = ERC7730_WORKFLOW_READY;
   workflow->display_stage = ERC7730_DISPLAY_INSTRUCTION;
   workflow->display_index++;
