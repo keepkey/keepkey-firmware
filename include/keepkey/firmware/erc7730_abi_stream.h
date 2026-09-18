@@ -18,15 +18,14 @@ typedef struct {
 } Erc7730AbiPending;
 
 typedef struct {
-  uint16_t node;
-  uint16_t first_child;
-  uint16_t child_count;
-  uint16_t item_index;
-  uint16_t pending_start;
-  uint16_t pending_count;
-  uint16_t pending_index;
   uint32_t base;
   uint32_t payload_remaining;
+  uint16_t node;
+  uint8_t child_count;
+  uint8_t item_index;
+  uint8_t pending_start;
+  uint8_t pending_count;
+  uint8_t pending_index;
   uint8_t mode;
   uint8_t utf8_remaining;
   uint8_t utf8_lower;
@@ -53,7 +52,7 @@ typedef struct {
   uint32_t elements;
   int32_t capture_path[ERC7730_ABI_MAX_PATH];
   Erc7730AbiCapture capture;
-  uint16_t pending_used;
+  uint8_t pending_used;
   uint8_t depth;
   uint8_t word_received;
   uint8_t capture_path_count;

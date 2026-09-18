@@ -8,7 +8,7 @@
 /* Resource limits are part of the compiled-descriptor ABI. Raising one is a
  * protocol and firmware review decision, not a host-controlled parameter. */
 #define ERC7730_ABI_MAX_NODES 64
-#define ERC7730_ABI_MAX_DEPTH 8
+#define ERC7730_ABI_MAX_DEPTH 12
 #define ERC7730_ABI_MAX_ARRAY_ELEMENTS 64
 #define ERC7730_ABI_MAX_PATH 16
 

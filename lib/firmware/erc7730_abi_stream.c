@@ -102,8 +102,8 @@ static Erc7730AbiResult make_sequence(Erc7730AbiStream* s,
                                       size_t base) {
   if (child_count > ERC7730_ABI_MAX_ARRAY_ELEMENTS || base > UINT32_MAX)
     return ERC7730_ABI_RESOURCE_LIMIT;
-  f->first_child = first_child;
-  f->child_count = child_count;
+  (void)first_child;
+  f->child_count = (uint8_t)child_count;
   f->item_index = 0;
   f->pending_start = s->pending_used;
   f->pending_count = 0;
@@ -162,8 +162,8 @@ static Erc7730AbiResult prepare(Erc7730AbiStream* s) {
         continue;
       }
       const uint16_t child = f->repeated
-                                 ? f->first_child
-                                 : (uint16_t)(f->first_child + f->item_index);
+                                 ? n->first_child
+                                 : (uint16_t)(n->first_child + f->item_index);
       const uint16_t item_index = f->item_index++;
       uint8_t path_depth = 0;
       bool target_prefix = false;
@@ -279,8 +279,8 @@ static Erc7730AbiResult consume_word(Erc7730AbiStream* s) {
     }
   } else if (f->mode == STREAM_SEQUENCE_HEAD) {
     const uint16_t child =
-        f->repeated ? f->first_child
-                    : (uint16_t)(f->first_child + f->item_index - 1u);
+        f->repeated ? n->first_child
+                    : (uint16_t)(n->first_child + f->item_index - 1u);
     size_t declared = 0;
     if (!word_size(s->word, &declared) || declared > UINT32_MAX ||
         (declared & 31u) != 0)
