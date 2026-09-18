@@ -337,8 +337,8 @@ TEST(Erc7730Catalog, ValidatesTypedPathsSlicesAndFullArraySteps) {
   EXPECT_EQ(feedAll(envelope(p), 23), ERC7730_CATALOG_BAD_PROGRAM);
 
   entries = {1, 2, 0xff, 0xff, 2, 2};
-  p = programWithPaths(entries, 1);  // two full-array selectors
-  EXPECT_EQ(feedAll(envelope(p), 23), ERC7730_CATALOG_BAD_PROGRAM);
+  p = programWithPaths(entries, 1);  // nested full-array selectors
+  EXPECT_EQ(feedAll(envelope(p), 1), ERC7730_CATALOG_UNTRUSTED);
 
   entries = {2, 1, 0, 2, 1, 0, 0, 0, 0};
   p = programWithPaths(entries, 1);  // container paths have no steps
