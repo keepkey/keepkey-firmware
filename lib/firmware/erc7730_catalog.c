@@ -283,7 +283,6 @@ static bool consume_path_byte(Erc7730CatalogVerifier* v, uint8_t byte) {
     if (byte == 1) {
       v->path_step_remaining = 4;
     } else if (byte == 2) {
-      if (v->path_full_seen) return false;
       v->path_full_seen = true;
       finish_path_step(v);
     } else if (byte == 3) {
