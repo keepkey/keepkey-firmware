@@ -290,6 +290,13 @@ TEST(Erc7730Catalog, RejectsMalformedOrAliasedAbiGraphsWhileStreaming) {
   EXPECT_EQ(feedAll(envelope(p), 43), ERC7730_CATALOG_BAD_PROGRAM);
 }
 
+TEST(Erc7730Catalog, AcceptsCanonicalEmptyRootTupleForArgumentlessCall) {
+  auto p = replaceTable(minimalProgram(), 2,
+                        {8, 0, 0, 0, 0, 0, 0, 0, 0}, 1);
+  p[p.size() - 6] = 1;  // exact ABI depth for the empty root tuple
+  EXPECT_EQ(feedAll(envelope(p), 1), ERC7730_CATALOG_UNTRUSTED);
+}
+
 TEST(Erc7730Catalog, RecomputesSignedResourceDeclaration) {
   auto p = minimalProgram();
   p[p.size() - 22] = 1;  // claims 256 strings instead of zero

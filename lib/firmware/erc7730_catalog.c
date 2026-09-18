@@ -110,10 +110,15 @@ static bool validate_abi_node(Erc7730CatalogVerifier* v, const uint8_t* node) {
   }
 
   if (kind == 8 || kind == 9) {
-    if (first_child <= v->abi_node_index || child_count == 0 ||
-        first_child > v->abi_node_count ||
-        child_count > v->abi_node_count - first_child)
+    if (child_count == 0) {
+      if (kind != 8 || v->abi_node_index != 0 || first_child != 0 ||
+          v->abi_node_count != 1)
+        return false;
+    } else if (first_child <= v->abi_node_index ||
+               first_child > v->abi_node_count ||
+               child_count > v->abi_node_count - first_child) {
       return false;
+    }
     if (kind == 9 && (child_count != 1 || array_length == 0 ||
                       (array_length > ERC7730_ABI_MAX_ARRAY_ELEMENTS &&
                        array_length != UINT16_MAX)))
