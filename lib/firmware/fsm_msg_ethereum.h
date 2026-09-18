@@ -1940,7 +1940,7 @@ void fsm_msgEthereumClearSignDefinitionChunk(
     if (formatter.kind == 13) {
       uint16_t callee_path = UINT16_MAX;
       uint16_t calldata_path = UINT16_MAX;
-      bool valid = formatter.argument_count >= 2;
+      bool valid = formatter.argument_count >= 1;
       for (uint8_t i = 0; valid && i < formatter.argument_count; i++) {
         const Erc7730FormatterArgument* argument = &formatter.arguments[i];
         if (argument->role == 1 && argument->source == 1 &&
@@ -2104,13 +2104,37 @@ void fsm_msgEthereumClearSignDefinitionChunk(
         } else
           valid = false;
       }
-      if (!valid || token_path == UINT16_MAX ||
+      if (!valid ||
           (threshold_message != UINT16_MAX && threshold == UINT16_MAX)) {
         memzero(&formatter, sizeof(formatter));
         erc7730_workflow_abort(workflow);
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         _("Invalid ERC-7730 token amount formatter"));
         layoutHome();
+        return;
+      }
+      if (token_path == UINT16_MAX) {
+        if (threshold != UINT16_MAX || threshold_message != UINT16_MAX ||
+            chain != UINT16_MAX || native_alias_set != UINT16_MAX) {
+          memzero(&formatter, sizeof(formatter));
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid unknown-token formatter"));
+          layoutHome();
+          return;
+        }
+        const uint16_t value_path = formatter.arguments[0].index;
+        workflow->current_formatter_kind = 1;
+        memzero(&formatter, sizeof(formatter));
+        if (!erc7730_workflow_select_path(workflow, value_path)) {
+          erc7730_workflow_abort(workflow);
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          _("Invalid unknown-token value"));
+          layoutHome();
+          return;
+        }
+        workflow->display_stage = ERC7730_DISPLAY_PATH;
+        send_erc7730_definition_request();
         return;
       }
       workflow->formatter_value_path = formatter.arguments[0].index;

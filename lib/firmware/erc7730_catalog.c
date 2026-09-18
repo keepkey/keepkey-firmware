@@ -485,8 +485,7 @@ static bool finish_formatter(Erc7730CatalogVerifier* v) {
   if ((roles & FORMAT_ROLE_BIT(1)) == 0 ||
       (roles & ~formatter_allowed_roles(v->formatter_kind)) != 0)
     return false;
-  if ((v->formatter_kind == 3 && (roles & FORMAT_ROLE_BIT(2)) == 0) ||
-      (v->formatter_kind == 4 && (roles & FORMAT_ROLE_BIT(3)) == 0) ||
+  if ((v->formatter_kind == 4 && (roles & FORMAT_ROLE_BIT(3)) == 0) ||
       (v->formatter_kind == 8 && (roles & FORMAT_ROLE_BIT(10)) == 0) ||
       (v->formatter_kind == 13 && (roles & FORMAT_ROLE_BIT(15)) == 0) ||
       (v->formatter_kind == 14 &&
