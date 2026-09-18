@@ -392,6 +392,14 @@ TEST(Erc7730Catalog, ValidatesFormatterOperandsAndDisplayProgram) {
   p = replaceTable(p, 7, display, 3);
   EXPECT_EQ(feedAll(envelope(p), 1), ERC7730_CATALOG_UNTRUSTED);
 
+  // tokenAmount without a token operand is canonical and displays the
+  // device-decoded integer as an unknown-token fallback.
+  const std::vector<uint8_t> unknown_token = {3, 0, 1, 1, 1, 0, 0};
+  p = programWithPaths(path, 1);
+  p = replaceTable(p, 6, unknown_token, 1);
+  p = replaceTable(p, 7, display, 3);
+  EXPECT_EQ(feedAll(envelope(p), 1), ERC7730_CATALOG_UNTRUSTED);
+
   auto bad_formatter = formatter;
   bad_formatter[4] = 3;
   bad_formatter[6] = 1;  // value operand claims a missing string index
