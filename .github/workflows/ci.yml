@@ -71,6 +71,18 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Every job here only reads the repository: checkout, build, and run tests.
+# Artifacts move between jobs over the run-scoped artifact token, the GHCR
+# mirror read is anonymous with an explicit fallback, and the DockerHub push
+# authenticates with its own credentials -- nothing needs a writable
+# GITHUB_TOKEN. Declaring the floor once at the workflow level applies it to
+# all jobs, so a new job cannot silently inherit write scope.
+#
+# This closes code-scanning rule actions/missing-workflow-permissions, which
+# had one alert open per job.
+permissions:
+  contents: read
+
 env:
   BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
   # Pulls of the 650 MB base image from Docker Hub cost ~34s per job. The
@@ -374,6 +386,9 @@ jobs:
 
       - name: Build emulator image
         run: |
+          # Point FROM at whatever the mirror step resolved. Without this the
+          # Dockerfile's digest default is pulled straight from Docker Hub and
+          # the GHCR mirror above buys nothing on the heaviest job in the run.
           docker build \
             --build-arg BASE_IMAGE="${RESOLVED_BASE}" \
             -t ${{ env.EMU_IMAGE }} \
