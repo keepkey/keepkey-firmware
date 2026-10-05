@@ -56,7 +56,7 @@ jobs:
           FW_VERSION: ${{ steps.version.outputs.fw_version }}
         run: |
           gh api --method GET \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/release-candidate-audit.yml/runs" \
             -f head_sha="$GITHUB_SHA" -f status=success -f per_page=100 \
             > /tmp/ci-runs.json
           python3 - <<'PY'
