@@ -306,9 +306,10 @@ jobs:
         if: steps.cache-base.outputs.cache-hit == 'true'
         run: docker load -i /tmp/base-image.tar
 
-      - name: Build and test emulator
+      - name: Build and test emulator (bitcoin-only, the published image)
         run: |
-          docker build -t kkemu-release -f scripts/emulator/Dockerfile .
+          docker build -t kkemu-release --build-arg coinsupport="-DKK_BITCOIN_ONLY=ON" \
+            -f scripts/emulator/Dockerfile .
           docker run --rm --entrypoint /bin/sh kkemu-release \
             -c "make xunit; RC=\$?; exit \$RC"
 
