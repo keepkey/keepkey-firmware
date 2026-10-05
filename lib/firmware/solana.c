@@ -800,10 +800,9 @@ void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
 }
 
 /* Solana's own default when a transaction carries no SetComputeUnitLimit:
-   200,000 compute units per instruction, or 3,000 for a BUILTIN one, capped at
-   1,400,000. See the runtime's compute_budget_processor and SIMD-0170. */
+   200,000 compute units per non-ComputeBudget instruction, capped at
+   1,400,000. See the runtime's compute_budget_processor. */
 #define SOL_DEFAULT_CU_PER_INSTRUCTION 200000u
-#define SOL_BUILTIN_CU_PER_INSTRUCTION 3000u
 #define SOL_MAX_CU_LIMIT 1400000u
 
 static bool solana_isComputeBudgetInstruction(uint8_t type) {
@@ -843,32 +842,15 @@ bool solana_calculatePriorityFee(const SolanaParsedTx* tx, uint64_t* fee_out,
     /* Not the 1,400,000 cap.
      *
      * Assuming the cap whenever SetComputeUnitLimit was absent overstated the
-     * screen badly: a transfer plus a unit-price instruction is charged on a
-     * small fraction of it, and the device showed the full 1,400,000 as the
-     * "Maximum priority fee". It is an upper bound, so nothing was ever
-     * understated -- but a maximum the runtime will never reach is not the
-     * transaction's maximum, and this release line is about screens that
-     * describe the thing being signed.
-     *
-     * The ComputeBudget instructions are not free, though, and charging them
-     * nothing is how deriving the limit turned into an UNDERSTATEMENT. Under
-     * SIMD-0170 the runtime gives every builtin instruction 3,000 CUs and
-     * every non-builtin one 200,000, and the ComputeBudget program is itself a
-     * builtin -- so [SetComputeUnitPrice, TransferChecked], the ordinary
-     * clear-signed token send, is charged on 203,000 CUs and was shown as
-     * 200,000. Counting every instruction, the non-budget ones at 200,000 and
-     * the budget ones at 3,000, is >= what the runtime charges under the old
-     * rule and under SIMD-0170 alike (a builtin the device over-counts at
-     * 200,000 only widens the margin), so the screen is an upper bound again.
-     * num_instructions is a uint8_t, so this cannot overflow. */
-    limit = non_budget_instructions * SOL_DEFAULT_CU_PER_INSTRUCTION +
-            (tx->num_instructions - non_budget_instructions) *
-                SOL_BUILTIN_CU_PER_INSTRUCTION;
+     * screen badly: a transfer plus a unit-price instruction is charged on
+     * 200,000 CUs, and the device showed seven times that as the "Maximum
+     * priority fee". It is an upper bound, so nothing was ever understated --
+     * but a maximum the runtime will never reach is not the transaction's
+     * maximum, and this release line is about screens that describe the thing
+     * being signed. num_instructions is a uint8_t, so this cannot overflow. */
+    limit = non_budget_instructions * SOL_DEFAULT_CU_PER_INSTRUCTION;
+    if (limit > SOL_MAX_CU_LIMIT) limit = SOL_MAX_CU_LIMIT;
   }
-
-  /* Solana caps explicit limits too; do not quote a host request above the
-   * runtime ceiling as a fee the signed transaction can incur. */
-  if (limit > SOL_MAX_CU_LIMIT) limit = SOL_MAX_CU_LIMIT;
 
   if (!seen_price || price == 0) return true;
 

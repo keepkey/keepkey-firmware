@@ -384,13 +384,6 @@ void keepkey_before_message_dispatch(MessageType msg_id) {
       if (!mayachain_signingIsInited()) fsm_abort_signing_workflows();
       return;
 #endif
-#if defined(ZCASH_PRIVACY) && ZCASH_PRIVACY
-    case MessageType_MessageType_ZcashPCZTAction:
-    case MessageType_MessageType_ZcashTransparentOutput:
-    case MessageType_MessageType_ZcashTransparentInput:
-      fsm_abort_signing_workflows();
-      return;
-#endif
     default:
       /* A new signing operation may replace an old signer, but it must never
        * coexist with recovery/reset and borrow that ceremony's progress or
@@ -400,37 +393,6 @@ void keepkey_before_message_dispatch(MessageType msg_id) {
         case MessageType_MessageType_SignMessage:
         case MessageType_MessageType_SignIdentity:
         case MessageType_MessageType_CipherKeyValue:
-#if !BITCOIN_ONLY
-        case MessageType_MessageType_EthereumSignTx:
-        case MessageType_MessageType_EthereumSignMessage:
-        case MessageType_MessageType_EthereumSignTypedHash:
-        case MessageType_MessageType_NanoSignTx:
-        case MessageType_MessageType_CosmosSignTx:
-        case MessageType_MessageType_OsmosisSignTx:
-        case MessageType_MessageType_BinanceSignTx:
-        case MessageType_MessageType_EosSignTx:
-        case MessageType_MessageType_RippleSignTx:
-        case MessageType_MessageType_ThorchainSignTx:
-        case MessageType_MessageType_MayachainSignTx:
-        case MessageType_MessageType_GetBip85Mnemonic:
-        case MessageType_MessageType_TronSignTx:
-        case MessageType_MessageType_TronSignMessage:
-        case MessageType_MessageType_TronSignTypedHash:
-        case MessageType_MessageType_TonSignTx:
-        case MessageType_MessageType_TonSignMessage:
-        case MessageType_MessageType_SolanaSignTx:
-        case MessageType_MessageType_SolanaSignMessage:
-        case MessageType_MessageType_SolanaSignOffchainMessage:
-        case MessageType_MessageType_HiveSignTx:
-        case MessageType_MessageType_HiveSignAccountCreate:
-        case MessageType_MessageType_HiveSignAccountUpdate:
-        case MessageType_MessageType_HiveSignMessage:
-        case MessageType_MessageType_HiveSignOperations:
-        case MessageType_MessageType_ClearsignAttestorSign:
-#endif
-#if defined(ZCASH_PRIVACY) && ZCASH_PRIVACY
-        case MessageType_MessageType_ZcashSignPCZT:
-#endif
           setup_abort();
           break;
         default:

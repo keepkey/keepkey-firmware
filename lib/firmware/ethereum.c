@@ -151,16 +151,6 @@ bool ethereumFormatTransferAmount(const EthereumSignTx* msg, char* buf,
   size_t value_size;
   const TokenType* token;
 
-  /* ethereumFormatAmount() keys the " WAN" ticker off the module's
-   * wanchain_tx_type, which ethereum_signing_init() sets -- and on the
-   * transfer path that has not run yet. Set it from THIS message, or a
-   * previous Wanchain transaction's type names the asset on this one's amount
-   * screen. signing_init() assigns the same value again later. */
-  wanchain_tx_type =
-      (msg->has_tx_type && (msg->tx_type == 1 || msg->tx_type == 6))
-          ? msg->tx_type
-          : 0;
-
   if (ethereum_isStandardERC20Transfer(msg)) {
     value_bytes = msg->data_initial_chunk.bytes + 4 + 32;
     value_size = 32;
@@ -304,8 +294,6 @@ static int rlp_calculate_number_length(uint32_t number) {
 }
 
 static void send_request_chunk(void) {
-  /* The previous chunk was validated and hashed before requesting more. */
-  note_workflow_progress();
   layoutProgress(_("Signing"), (data_total - data_left) * 1000 / data_total);
   msg_tx_request.has_data_length = true;
   msg_tx_request.data_length = data_left <= 1024 ? data_left : 1024;

@@ -31,13 +31,14 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
 
   const CoinType* coin = fsm_getCoin(true, "Ripple");
 
-  char ripple_addr[MAX_ADDR_SIZE];
-  if (!ripple_getAddress(node->public_key, ripple_addr)) {
+  if (!ripple_getAddress(node->public_key, resp->address)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_Other, _("Address derivation failed"));
     layoutHome();
     return;
   }
+
+  resp->has_address = true;
 
   if (msg->has_show_display && msg->show_display) {
     char node_str[NODE_STRING_LENGTH];
@@ -50,7 +51,7 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
       memset(node_str, 0, sizeof(node_str));
     }
 
-    if (!confirm_ethereum_address(node_str, ripple_addr)) {
+    if (!confirm_ethereum_address(node_str, resp->address)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Show address cancelled"));
@@ -59,9 +60,6 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
     }
   }
 
-  /* Debug state requests during confirmation reuse the response arena. */
-  strlcpy(resp->address, ripple_addr, sizeof(resp->address));
-  resp->has_address = true;
   memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_RippleAddress, resp);
   layoutHome();
@@ -71,12 +69,6 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
   RESP_INIT(RippleSignedTx);
 
   CHECK_INITIALIZED
-
-  if (msg->has_memo && msg->memo[0] != '\0') {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Ripple memos require firmware 7.15 or later"));
-    return;
-  }
 
   CHECK_PIN
 

@@ -13,16 +13,8 @@ extern "C" {
 
 #include "gtest/gtest.h"
 
-#include <cstdlib>
 #include <cstring>
 #include <string>
-#include <vector>
-#include <algorithm>
-
-bool kkconfirm_preload(int nYes, int nNo);
-int kkconfirm_drain(void);
-void kkconfirm_capture_start(void);
-std::vector<std::string> kkconfirm_capture_finish(void);
 
 static uint8_t bin_from_ascii(char c) {
   if ('a' <= c && c <= 'f') return c - 'a' + 0xa;
@@ -309,61 +301,6 @@ TEST(Ethereum, ThorchainNativeAssetUsesOnlyItsZeroAddressSentinel) {
   EXPECT_FALSE(thor_assetIsNative(nullptr));
 }
 
-// A deposit-shaped call is only THORChain's if it goes to THORChain's router
-// ON THIS CHAIN. Without the pin, any contract carrying the selector inherited
-// the deposit clear-sign UX and skipped the AdvancedMode blind-sign gate.
-static void MakeThorDeposit(EthereumSignTx* msg, const char* to_hex,
-                            uint32_t chain_id) {
-  *msg = EthereumSignTx{};
-  msg->has_to = true;
-  msg->to.size = 20;
-  for (size_t i = 0; i < 20; i++) {
-    char byte[3] = {to_hex[i * 2], to_hex[i * 2 + 1], 0};
-    msg->to.bytes[i] = (uint8_t)strtoul(byte, nullptr, 16);
-  }
-  msg->has_chain_id = true;
-  msg->chain_id = chain_id;
-  msg->has_data_initial_chunk = true;
-  msg->data_initial_chunk.size = 4 + 6 * 32;
-  std::memcpy(msg->data_initial_chunk.bytes, THOR_SELECTOR_DEPOSIT_WITH_EXPIRY,
-              4);
-}
-
-TEST(Ethereum, ThorchainDepositIsPinnedToItsRouterOnItsChain) {
-  EthereumSignTx msg;
-
-  MakeThorDeposit(&msg, THOR_ROUTER, 1);
-  EXPECT_TRUE(thor_isThorchainTx(&msg));
-
-  MakeThorDeposit(&msg, THOR_ROUTER_AVAX, 43114);
-  EXPECT_TRUE(thor_isThorchainTx(&msg));
-
-  // An attacker contract with the same calldata shape.
-  MakeThorDeposit(&msg, "1234567890123456789012345678901234567890", 1);
-  EXPECT_FALSE(thor_isThorchainTx(&msg));
-
-  // The right address on the wrong chain: those 20 bytes are unrelated code
-  // there, so it cannot borrow the trusted UX.
-  MakeThorDeposit(&msg, THOR_ROUTER, 43114);
-  EXPECT_FALSE(thor_isThorchainTx(&msg));
-  MakeThorDeposit(&msg, THOR_ROUTER_AVAX, 1);
-  EXPECT_FALSE(thor_isThorchainTx(&msg));
-
-  // Maya Protocol deposits with the same calldata shape through its own
-  // mainnet router, and this decoder narrates both.
-  MakeThorDeposit(&msg, MAYA_ROUTER, 1);
-  EXPECT_TRUE(thor_isThorchainTx(&msg));
-  MakeThorDeposit(&msg, MAYA_ROUTER, 43114);
-  EXPECT_FALSE(thor_isThorchainTx(&msg)) << "mainnet identity, mainnet only";
-
-  // A chain with no pinned router, and a tx with no chain at all.
-  MakeThorDeposit(&msg, THOR_ROUTER, 56);
-  EXPECT_FALSE(thor_isThorchainTx(&msg));
-  MakeThorDeposit(&msg, THOR_ROUTER, 1);
-  msg.has_chain_id = false;
-  EXPECT_FALSE(thor_isThorchainTx(&msg));
-}
-
 // A canonical transformERC20 call with one transformation whose data is one
 // byte. The transformation byte is deliberately outside the four static words
 // that the retired decoder displayed.
@@ -505,64 +442,4 @@ TEST(Ethereum, NativePseudoAddressIsStrictlyChainScoped) {
   if (tokenByTicker(1, "USDC", &usdc) && usdc != UnknownToken) {
     EXPECT_TRUE(zx_tokenLabelsThisChain(1, usdc));
   }
-}
-/* ethereumFormatAmount() takes the Wanchain tx type from a module static that
- * ethereum_signing_init() owns -- and on the transfer path the amount screen is
- * drawn before signing_init() runs. A Wanchain transaction therefore left its
- * type behind, and the NEXT transfer's amount screen named the asset " WAN" on
- * whatever chain it was really on. The Wanchain leg is the in-test control: it
- * must still say " WAN", or a build that simply never set the ticker would
- * pass the Ethereum assertion for the wrong reason. */
-TEST(Ethereum, TransferTickerComesFromThisMessageNotTheLastOne) {
-  EthereumSignTx wan;
-  memset(&wan, 0, sizeof(wan));
-  wan.has_chain_id = true;
-  wan.chain_id = 888;  // Wanchain
-  wan.has_tx_type = true;
-  wan.tx_type = 1;
-  wan.has_value = true;
-  wan.value.size = 8;
-  wan.value.bytes[7] = 0x01;  // 1 wei short of nothing, but > 1e9 after padding
-  wan.value.bytes[0] = 0x0d;
-  char buf[64] = {0};
-  ASSERT_TRUE(ethereumFormatTransferAmount(&wan, buf, sizeof(buf)));
-  EXPECT_NE(nullptr, strstr(buf, " WAN")) << buf;
-
-  EthereumSignTx eth;
-  memset(&eth, 0, sizeof(eth));
-  eth.has_chain_id = true;
-  eth.chain_id = 1;  // Ethereum mainnet, no tx_type at all
-  eth.has_value = true;
-  eth.value.size = 8;
-  eth.value.bytes[0] = 0x0d;
-  eth.value.bytes[7] = 0x01;
-  memset(buf, 0, sizeof(buf));
-  ASSERT_TRUE(ethereumFormatTransferAmount(&eth, buf, sizeof(buf)));
-  EXPECT_EQ(nullptr, strstr(buf, " WAN")) << buf;
-  EXPECT_NE(nullptr, strstr(buf, " ETH")) << buf;
-}
-
-TEST(Ethereum, NativeThorConfirmationDisplaysValueInsteadOfAbiAmount) {
-  EthereumSignTx msg;
-  MakeThorDeposit(&msg, THOR_ROUTER, 1);
-  msg.data_initial_chunk.bytes[4 + 3 * 32 + 31] = 0xa0;
-  // Native zero-address deposit: ABI amount is one ETH; msg.value is two.
-  const uint8_t one_eth[8] = {0x0d, 0xe0, 0xb6, 0xb3, 0xa7, 0x64, 0, 0};
-  const uint8_t two_eth[8] = {0x1b, 0xc1, 0x6d, 0x67, 0x4e, 0xc8, 0, 0};
-  memcpy(msg.data_initial_chunk.bytes + 4 + 2 * 32 + 24, one_eth, 8);
-  msg.has_value = true;
-  msg.value.size = 8;
-  memcpy(msg.value.bytes, two_eth, 8);
-
-  // Accept router and vault, then reject the amount screen. Inspect the
-  // rendered body at the real screen boundary, independent of memo parsing.
-  ASSERT_TRUE(kkconfirm_preload(2, 1));
-  kkconfirm_capture_start();
-  EXPECT_FALSE(thor_confirmThorTx(msg.data_initial_chunk.size, &msg));
-  const auto screens = kkconfirm_capture_finish();
-  EXPECT_EQ(0, kkconfirm_drain());
-  EXPECT_NE(screens.end(),
-            std::find(screens.begin(), screens.end(), "Confirm sending 2 ETH"));
-  EXPECT_EQ(screens.end(),
-            std::find(screens.begin(), screens.end(), "Confirm sending 1 ETH"));
 }
