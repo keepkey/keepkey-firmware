@@ -44,6 +44,7 @@
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
+#include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/transport/interface.h"
@@ -135,8 +136,12 @@ uint32_t storage_nextU2FCounter(void) {
   return shadow_config.storage.pub.u2f_counter;
 }
 
-void storage_setU2FCounter(uint32_t u2f_counter) {
+void storage_stageU2FCounter(uint32_t u2f_counter) {
   shadow_config.storage.pub.u2f_counter = u2f_counter;
+}
+
+void storage_setU2FCounter(uint32_t u2f_counter) {
+  storage_stageU2FCounter(u2f_counter);
   storage_commit();
 }
 
@@ -1460,6 +1465,14 @@ clear:
 }
 
 void storage_commit(void) {
+  /* This is the only door to flash, so it is where the ceremony invariant is
+   * enforced rather than in each handler. setup_commit() disarms before it
+   * calls us, so anything still armed here is a DIFFERENT operation
+   * persisting: end the ceremony rather than let its staged settings, or its
+   * arming, outlive a write it did not make. setup_abort() touches no
+   * storage, so this cannot recurse. */
+  if (setup_isArmed()) setup_abort();
+
   // Temporary storage for marshalling secrets in & out of flash.
   // Size of v17 storage layout (2525 bytes) + size of meta (44 bytes) + 1
   static char flash_temp[2570];

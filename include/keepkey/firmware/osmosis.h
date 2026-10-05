@@ -5,6 +5,7 @@
 #include "trezor/crypto/bip32.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct _OsmosisSignTx OsmosisSignTx;
@@ -16,7 +17,8 @@ void debug_intermediate_hash(void);
 
 bool osmosis_signTxInit(const HDNode* _node, const OsmosisSignTx* _msg);
 
-bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address);
+bool osmosis_signTxUpdateMsgSend(const char* amount, const char* to_address,
+                                 const char* denom);
 
 bool osmosis_signTxUpdateMsgDelegate(const char* amount,
                                      const char* delegator_address,
@@ -71,5 +73,22 @@ bool osmosis_signingIsInited(void);
 bool osmosis_signingIsFinished(void);
 void osmosis_signAbort(void);
 const OsmosisSignTx* osmosis_getOsmosisSignTx(void);
+
+/// Required protobuf strings must be present and non-empty before any review.
+bool osmosis_validate_required_text(bool has_value, const char* value);
+
+/// Amino coin amounts are non-empty unsigned base-10 integer strings.
+bool osmosis_validate_amount(bool has_value, const char* value);
+
+/// Safe text AND a bech32 account address on this session's network.
+bool osmosis_validate_account_address(bool has_value, const char* value);
+
+/// Safe text AND a bech32 "<prefix>valoper" operator address on this session's
+/// network.
+bool osmosis_validate_validator_address(bool has_value, const char* value);
+
+/// True iff `address` is the account this session's key signs as. Use for
+/// `sender` fields, which are signed verbatim but never displayed.
+bool osmosis_address_is_signer(const char* address);
 
 #endif

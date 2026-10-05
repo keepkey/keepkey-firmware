@@ -57,6 +57,13 @@ bool pin_protect(const char* prompt);
 /// \returns true iff the pin was correct (or already cached).
 bool pin_protect_cached(void);
 
+/// Ask for a new PIN twice and hand it back WITHOUT touching storage, so a
+/// setup ceremony can stage it until its commit point.
+/// \param out      receives the confirmed PIN.
+/// \param out_len  size of \a out (use PIN_BUF).
+/// \returns true iff both entries were given and matched.
+bool change_pin_staged(char* out, size_t out_len);
+
 /// Prompt for PIN regardless of whether it was cached
 /// \returns true iff the pin was correct (or the device does not
 ///          require a pin).

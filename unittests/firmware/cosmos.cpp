@@ -3,11 +3,99 @@ extern "C" {
 #include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/tendermint.h"
+#include "messages-tendermint.pb.h"
 #include "trezor/crypto/secp256k1.h"
 }
 
 #include "gtest/gtest.h"
 #include <cstring>
+
+TEST(Cosmos, HostTextMustBeSafeForJsonAndDisplay) {
+  EXPECT_FALSE(tendermint_validateSafeText(nullptr));
+  EXPECT_FALSE(tendermint_validateSafeText(""));
+  EXPECT_FALSE(tendermint_validateSafeText("chain id"));
+  EXPECT_FALSE(tendermint_validateSafeText("chain\nname"));
+  EXPECT_FALSE(tendermint_validateSafeText("chain\"name"));
+  EXPECT_FALSE(tendermint_validateSafeText("chain\\name"));
+  EXPECT_TRUE(tendermint_validateSafeText("cosmoshub-4"));
+  EXPECT_TRUE(tendermint_validateSafeText("ibc/ABC.DEF_123"));
+
+  EXPECT_TRUE(tendermint_validateBech32Address(
+      "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "cosmos"));
+  EXPECT_FALSE(tendermint_validateBech32Address(
+      "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "thor"));
+
+  /* A good checksum and the right HRP do not make it an account address. An
+     account is a 20-byte hash == 32 five-bit groups; every other payload
+     length must be refused, or a deposit signer could be an operator address
+     or an arbitrary blob. These three carry valid bech32 checksums. */
+  EXPECT_TRUE(tendermint_validateBech32Address(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a", "cosmos"));
+  EXPECT_FALSE(tendermint_validateBech32Address(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnl07mr", "cosmos"));
+  EXPECT_FALSE(tendermint_validateBech32Address(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqe9efq6", "cosmos"));
+
+  /* Well-formedness with an arbitrary HRP, for IBC receivers on counterparty
+     chains. Still bounded, still checksum-checked. */
+  EXPECT_TRUE(tendermint_bech32IsWellFormed(
+      "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v"));
+  EXPECT_TRUE(tendermint_bech32IsWellFormed(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a"));
+  EXPECT_FALSE(tendermint_bech32IsWellFormed(nullptr));
+  EXPECT_FALSE(tendermint_bech32IsWellFormed(""));
+  EXPECT_FALSE(tendermint_bech32IsWellFormed("not-bech32"));
+  /* A bad checksum on an otherwise well-shaped string. */
+  EXPECT_FALSE(tendermint_bech32IsWellFormed(
+      "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20w"));
+
+  /* Validator operators carry the same 20-byte payload under a "<chain>valoper"
+     HRP. They are serialized with the same bare "%s" as the delegator, so they
+     get the same gate. */
+  EXPECT_TRUE(tendermint_validateValidatorAddress(
+      "cosmosvaloper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkh52tw", "cosmos"));
+  /* A plain account address is not an operator address. */
+  EXPECT_FALSE(tendermint_validateValidatorAddress(
+      "cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a", "cosmos"));
+  /* Right shape, wrong network. */
+  EXPECT_FALSE(tendermint_validateValidatorAddress(
+      "cosmosvaloper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkh52tw", "osmo"));
+  /* Right prefix, wrong payload length. */
+  EXPECT_FALSE(tendermint_validateValidatorAddress(
+      "cosmosvaloper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmzjrgd",
+      "cosmos"));
+  EXPECT_FALSE(tendermint_validateValidatorAddress(nullptr, "cosmos"));
+  EXPECT_FALSE(tendermint_validateValidatorAddress(
+      "cosmosvaloper1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkh52tw", ""));
+}
+
+TEST(Cosmos, ChainNameIsNotTheBech32Prefix) {
+  /* coinByName() matches case-insensitively, so a TendermintSignTx naming
+     "Cosmos", "cosmos" or "COSMOS" all resolve to the same coin -- but only
+     one spelling is the HRP. Using chain_name for address work therefore made
+     correctness depend on the case the host happened to send: valid cosmos1...
+     recipients would be rejected and a "Cosmos1..." sender derived. The
+     handlers use coin->bech32_prefix for both instead. */
+  for (const char* spelling : {"Cosmos", "cosmos", "COSMOS"}) {
+    const CoinType* coin = coinByName(spelling);
+    ASSERT_NE(nullptr, coin) << spelling;
+    /* NOTE: has_bech32_prefix is FALSE for the tendermint family even though
+       the string is populated (coins.def has Cosmos as `false, "cosmos"`).
+       Anything gating on that flag would refuse every Cosmos transaction, so
+       the handlers gate on the string being non-empty. */
+    EXPECT_FALSE(coin->has_bech32_prefix) << spelling;
+    EXPECT_STREQ("cosmos", coin->bech32_prefix) << spelling;
+
+    /* A real mainnet account address validates against the prefix... */
+    EXPECT_TRUE(tendermint_validateBech32Address(
+        "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", coin->bech32_prefix))
+        << spelling;
+  }
+
+  /* ...and would NOT have validated against the capitalized chain_name. */
+  EXPECT_FALSE(tendermint_validateBech32Address(
+      "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "Cosmos"));
+}
 
 TEST(Cosmos, CosmosGetAddress) {
   HDNode node = {
@@ -54,10 +142,14 @@ TEST(Cosmos, CosmosSignTx) {
       true, 0,              // sequence
       true, 1               // msg_count
   };
-  ASSERT_TRUE(tendermint_signTxInit(&node, &msg, sizeof(CosmosSignTx), "uatom"));
+  ASSERT_TRUE(tendermint_signTxInit(&node, &msg, sizeof(CosmosSignTx), "uatom",
+                                    TENDERMINT_SIGNING_COSMOS));
+  EXPECT_TRUE(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS));
+  EXPECT_FALSE(tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC));
 
-  ASSERT_TRUE(tendermint_signTxUpdateMsgSend(100000, "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "cosmos", "uatom", "cosmos-sdk"));
-
+  ASSERT_TRUE(tendermint_signTxUpdateMsgSend(
+      100000, "cosmos18vhdczjut44gpsy804crfhnd5nq003nz0nf20v", "cosmos",
+      "uatom", "cosmos-sdk"));
 
   uint8_t public_key[33];
   uint8_t signature[64];
@@ -65,10 +157,76 @@ TEST(Cosmos, CosmosSignTx) {
 
   EXPECT_TRUE(
       memcmp(signature,
-             (uint8_t *)"\x41\x99\x66\x30\x08\xef\xea\x75\x93\x56\x35\xe6\x1a"
-                        "\x11\xdf\xa3\x3c\xeb\xeb\x91\xc1\xca\xed\xc6\x0e\x5e"
-                        "\xef\x3c\xa2\xc0\x1f\x83\x48\x08\x36\xe6\x21\x89\x51"
-                        "\x14\x36\x64\x7f\xac\x5a\xbd\xc2\x9f\x54\xae\x3d\x7e"
-                        "\x47\x56\x43\xca\x33\xc7\xad\x2c\x8a\x53\x2b\x39",
+             (uint8_t*)"\x41\x99\x66\x30\x08\xef\xea\x75\x93\x56\x35\xe6\x1a"
+                       "\x11\xdf\xa3\x3c\xeb\xeb\x91\xc1\xca\xed\xc6\x0e\x5e"
+                       "\xef\x3c\xa2\xc0\x1f\x83\x48\x08\x36\xe6\x21\x89\x51"
+                       "\x14\x36\x64\x7f\xac\x5a\xbd\xc2\x9f\x54\xae\x3d\x7e"
+                       "\x47\x56\x43\xca\x33\xc7\xad\x2c\x8a\x53\x2b\x39",
              64) == 0);
+}
+
+TEST(Cosmos, TendermintSessionBindsProtocolAndAssetConfiguration) {
+  HDNode node = {};
+  node.curve = &secp256k1_info;
+  TendermintSignTx msg = {};
+  msg.has_account_number = true;
+  msg.has_chain_id = true;
+  strcpy(msg.chain_id, "chain-1");
+  msg.has_fee_amount = true;
+  msg.fee_amount = 1;
+  msg.has_gas = true;
+  msg.gas = 1;
+  msg.has_sequence = true;
+  msg.has_msg_count = true;
+  msg.msg_count = 1;
+  msg.has_chain_name = true;
+  strcpy(msg.chain_name, "Cosmos");
+  msg.has_denom = true;
+  strcpy(msg.denom, "uatom");
+  msg.has_message_type_prefix = true;
+  strcpy(msg.message_type_prefix, "cosmos-sdk");
+
+  ASSERT_TRUE(tendermint_signTxInit(&node, &msg, sizeof(msg), msg.denom,
+                                    TENDERMINT_SIGNING_GENERIC));
+  EXPECT_TRUE(tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC));
+  EXPECT_FALSE(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS));
+  EXPECT_TRUE(tendermint_signingConfigMatches("Cosmos", "uatom", "cosmos-sdk"));
+  EXPECT_FALSE(
+      tendermint_signingConfigMatches("Cosmos", "uosmo", "cosmos-sdk"));
+  EXPECT_FALSE(
+      tendermint_signingConfigMatches("Osmosis", "uatom", "cosmos-sdk"));
+  EXPECT_FALSE(
+      tendermint_signingConfigMatches("Cosmos", "uatom", "other-prefix"));
+  tendermint_signAbort();
+}
+
+TEST(Cosmos, TendermintSessionRejectsUnsafeEnvelopeConfiguration) {
+  HDNode node = {};
+  node.curve = &secp256k1_info;
+  TendermintSignTx msg = {};
+  msg.has_chain_id = true;
+  strcpy(msg.chain_id, "chain-1");
+  msg.has_msg_count = true;
+  msg.msg_count = 1;
+  msg.has_chain_name = true;
+  strcpy(msg.chain_name, "Cosmos");
+  msg.has_denom = true;
+  strcpy(msg.denom, "uatom");
+  msg.has_message_type_prefix = true;
+  strcpy(msg.message_type_prefix, "cosmos-sdk");
+
+  strcpy(msg.chain_id, "");
+  EXPECT_FALSE(tendermint_signTxInit(&node, &msg, sizeof(msg), msg.denom,
+                                     TENDERMINT_SIGNING_GENERIC));
+  strcpy(msg.chain_id, "chain\n1");
+  EXPECT_FALSE(tendermint_signTxInit(&node, &msg, sizeof(msg), msg.denom,
+                                     TENDERMINT_SIGNING_GENERIC));
+  strcpy(msg.chain_id, "chain-1");
+  strcpy(msg.denom, "u\"atom");
+  EXPECT_FALSE(tendermint_signTxInit(&node, &msg, sizeof(msg), msg.denom,
+                                     TENDERMINT_SIGNING_GENERIC));
+  strcpy(msg.denom, "uatom");
+  strcpy(msg.message_type_prefix, "cosmos\\sdk");
+  EXPECT_FALSE(tendermint_signTxInit(&node, &msg, sizeof(msg), msg.denom,
+                                     TENDERMINT_SIGNING_GENERIC));
 }

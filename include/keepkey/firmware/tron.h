@@ -87,5 +87,6 @@ int tron_message_verify(const TronVerifyMessage* msg);
  */
 bool tron_typed_hash_sign(const HDNode* node, const TronSignTypedHash* msg,
                           TronTypedDataSignature* resp);
+bool tron_typed_hash_policy_allows(bool advanced_mode);
 
 #endif

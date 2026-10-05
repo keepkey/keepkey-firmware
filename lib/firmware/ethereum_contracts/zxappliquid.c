@@ -98,14 +98,29 @@ bool zx_confirmApproveLiquidity(uint32_t data_total,
   }
 
   const char *appStr = "uniswap approve liquidity";
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr, "Amount: %s",
-          amt);
-  confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
-          "approve for pool %s %s", tikstr, poolstr);
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
+               "Amount: %s", amt)) {
+    return false;
+  }
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, appStr,
+               "approve for pool %s %s", tikstr, poolstr)) {
+    return false;
+  }
   return true;
 }
 
 bool zx_isZxApproveLiquid(const EthereumSignTx *msg) {
+  /* UNISWAP_ROUTER_ADDRESS (as ERC20 approve spender) is an Ethereum-mainnet
+   * identity. See GH #431. */
+  if (!msg->has_chain_id || msg->chain_id != 1) return false;
+  /* approve(address,uint256) is exactly 68 bytes and has no dynamic argument.
+   * Check the extent BEFORE reading the spender word at offset 16: the chunk
+   * buffer keeps bytes from an earlier message past .size, so on a short
+   * calldata the comparison below would be made against stale data. And a
+   * longer calldata is hashed in full while only the allowance is drawn, so
+   * the tail would be signed unseen -- refusing sends it to the raw-calldata
+   * path instead. */
+  if (msg->data_initial_chunk.size != 4 + 2 * 32) return false;
   if (memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4) == 0)
     if (memcmp((uint8_t *)(msg->data_initial_chunk.bytes + 4 + 32 - 20),
                UNISWAP_ROUTER_ADDRESS, 20) == 0)

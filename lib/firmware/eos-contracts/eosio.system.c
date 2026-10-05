@@ -35,11 +35,19 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+/* EOS_eosio only. Accepting EOS_eosio_token here let a host compile a system
+ * action against the token contract -- eosio.token::newaccount drew an ordinary
+ * "New Account" screen, and no confirmation in this file names the contract, so
+ * nothing on the OLED distinguished it from the real eosio::newaccount. It also
+ * bypassed the AdvancedMode gate that arbitrary actions go through, because the
+ * structured path never calls eos_compileActionUnknown(). eosio.token.c is
+ * already scoped to its own account; this makes the pair check symmetric.
+ *
+ * eos_isSupportedAction() lists exactly these pairs and must stay in step. */
 #define CHECK_COMMON(ACTION)                                                   \
   do {                                                                         \
-    CHECK_PARAM_RET(                                                           \
-        common->account == EOS_eosio || common->account == EOS_eosio_token,    \
-        "Incorrect account name", false);                                      \
+    CHECK_PARAM_RET(common->account == EOS_eosio, "Incorrect account name",    \
+                    false);                                                    \
     CHECK_PARAM_RET(common->name == (ACTION), "Incorrect action name", false); \
   } while (0)
 

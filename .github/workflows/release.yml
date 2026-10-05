@@ -1,8 +1,8 @@
 # KeepKey Firmware Release Pipeline
 #
 # Triggered by version tags (v*) on master.
-# Builds firmware, computes reproducible hashes,
-# and creates a draft GitHub Release with all artifacts.
+# Verifies and packages the exact binaries from successful presign CI,
+# then creates a draft GitHub Release with their evidence.
 #
 # Git-flow: tag master after merging a release/* or hotfix/* branch.
 #
@@ -18,10 +18,11 @@ on:
       - 'v*'
 
 env:
-  BASE_IMAGE: kktech/firmware:v15
+  BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   validate:
@@ -29,6 +30,8 @@ jobs:
     timeout-minutes: 3
     outputs:
       fw_version: ${{ steps.version.outputs.fw_version }}
+      ci_run_id: ${{ steps.evidence.outputs.ci_run_id }}
+      arm_artifact: ${{ steps.evidence.outputs.arm_artifact }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -45,47 +48,160 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve exact-commit presign evidence
+        id: evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FW_VERSION: ${{ steps.version.outputs.fw_version }}
+        run: |
+          gh api --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+            -f head_sha="$GITHUB_SHA" -f status=success -f per_page=100 \
+            > /tmp/ci-runs.json
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open('/tmp/ci-runs.json', encoding='utf-8') as handle:
+              runs = json.load(handle).get('workflow_runs', [])
+          runs = [run for run in runs
+                  if run.get('head_sha') == os.environ['GITHUB_SHA']
+                  and run.get('conclusion') == 'success']
+          if not runs:
+              raise SystemExit('no successful CI run exists for the tagged commit')
+          run = max(runs, key=lambda item: item.get('created_at', ''))
+          run_id = str(run['id'])
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('ci_run_id=%s\n' % run_id)
+          with open('/tmp/ci-run-id', 'w', encoding='ascii') as output:
+              output.write(run_id)
+          PY
+          RUN_ID=$(cat /tmp/ci-run-id)
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/artifacts?per_page=100" \
+            > /tmp/ci-artifacts.json
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open('/tmp/ci-artifacts.json', encoding='utf-8') as handle:
+              artifacts = json.load(handle).get('artifacts', [])
+          names = [item['name'] for item in artifacts
+                   if not item.get('expired')]
+          if 'test-report' not in names:
+              raise SystemExit('exact-commit CI has no test-report artifact')
+          prefix = 'firmware-v%s-' % os.environ['FW_VERSION']
+          arm = [name for name in names if name.startswith(prefix)]
+          if len(arm) != 1:
+              raise SystemExit('expected one exact ARM artifact, found %r' % arm)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('arm_artifact=%s\n' % arm[0])
+          PY
+
+      - name: Verify audited source and binary hashes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ steps.evidence.outputs.ci_run_id }}
+          ARM_ARTIFACT: ${{ steps.evidence.outputs.arm_artifact }}
+        run: |
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name test-report --dir audited-report
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "$ARM_ARTIFACT" --dir audited-arm
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          def digest(path):
+              value = hashlib.sha256()
+              with path.open('rb') as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                      value.update(chunk)
+              return value.hexdigest()
+
+          report_dir = Path('audited-report')
+          arm_dir = Path('audited-arm')
+          with (report_dir / 'test-report-manifest.json').open(
+                  encoding='utf-8') as handle:
+              manifest = json.load(handle)
+          if manifest.get('firmware_sha') != os.environ['GITHUB_SHA']:
+              raise SystemExit('presign manifest is for a different commit')
+          python_sha = subprocess.check_output(
+              ['git', 'rev-parse', 'HEAD:deps/python-keepkey'],
+              text=True).strip()
+          if manifest.get('python_sha') != python_sha:
+              raise SystemExit('presign manifest has a different Python pin')
+          run_id = os.environ['CI_RUN_ID']
+          if not manifest.get('run_url', '').endswith('/' + run_id):
+              raise SystemExit('presign manifest names a different CI run')
+          pdf = report_dir / manifest['pdf']['path']
+          if digest(pdf) != manifest['pdf']['sha256']:
+              raise SystemExit('presign PDF hash mismatch')
+          arm_manifest = arm_dir / 'arm-build-manifest.json'
+          if digest(arm_manifest) != manifest['arm']['manifest_sha256']:
+              raise SystemExit('ARM manifest hash mismatch')
+          expected = {item['name']: item['sha256']
+                      for item in manifest['arm']['files']}
+          actual = {path.name: digest(path)
+                    for path in arm_dir.iterdir()
+                    if path.suffix in ('.bin', '.elf')}
+          if not expected or actual != expected:
+              raise SystemExit('audited ARM artifact set or hash mismatch')
+          print('exact presign evidence and ARM binaries verified')
+          PY
+
   build-firmware:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
-        with:
-          submodules: recursive
 
-      - name: Cache base image
-        id: cache-base
-        uses: actions/cache@v5
-        with:
-          path: /tmp/base-image.tar
-          key: base-image-${{ env.BASE_IMAGE }}
-
-      - name: Pull and cache base image
-        if: steps.cache-base.outputs.cache-hit != 'true'
+      - name: Download audited release inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ needs.validate.outputs.ci_run_id }}
+          ARM_ARTIFACT: ${{ needs.validate.outputs.arm_artifact }}
         run: |
-          docker pull ${{ env.BASE_IMAGE }}
-          docker save ${{ env.BASE_IMAGE }} -o /tmp/base-image.tar
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name test-report --dir audited-report
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "$ARM_ARTIFACT" --dir audited-arm
 
-      - name: Load base image from cache
-        if: steps.cache-base.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/base-image.tar
-
-      - name: Cross-compile firmware
+      - name: Prepare the audited binaries
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/root/keepkey-firmware:z \
-            ${{ env.BASE_IMAGE }} /bin/sh -c "\
-              mkdir /root/build && cd /root/build && \
-              cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
-                -DCMAKE_BUILD_TYPE=MinSizeRel \
-                -DCMAKE_COLOR_MAKEFILE=ON && \
-              make && \
-              mkdir -p /root/keepkey-firmware/release && \
-              cp bin/firmware.keepkey.bin /root/keepkey-firmware/release/ && \
-              cp bin/firmware.keepkey.elf /root/keepkey-firmware/release/ && \
-              cp bin/bootloader.bin /root/keepkey-firmware/release/ 2>/dev/null || true && \
-              chmod -R a+rw /root/keepkey-firmware/release"
+          python3 - <<'PY'
+          import shutil
+          from pathlib import Path
+
+          report_dir = Path('audited-report')
+          arm_dir = Path('audited-arm')
+          release = Path('release')
+          release.mkdir()
+          mappings = {
+              '-firmware.keepkey.bin': 'firmware.keepkey.bin',
+              '-firmware.keepkey.elf': 'firmware.keepkey.elf',
+              '-bootloader.bin': 'bootloader.bin',
+          }
+          copied = set()
+          for source in arm_dir.iterdir():
+              for suffix, target in mappings.items():
+                  if source.name.endswith(suffix):
+                      if target in copied:
+                          raise SystemExit('duplicate audited artifact: ' + target)
+                      shutil.copyfile(str(source), str(release / target))
+                      copied.add(target)
+          required = {'firmware.keepkey.bin', 'firmware.keepkey.elf'}
+          if not required.issubset(copied):
+              raise SystemExit('audited firmware bin/elf are missing')
+          shutil.copyfile(str(report_dir / 'test-report.pdf'),
+                          str(release / 'presign-test-report.pdf'))
+          shutil.copyfile(str(report_dir / 'test-report-manifest.json'),
+                          str(release / 'presign-evidence-manifest.json'))
+          PY
 
       - name: Compute hashes
         working-directory: release
@@ -169,7 +285,8 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          cp artifacts/*.bin artifacts/*.elf artifacts/HASHES.txt release-assets/
+          cp artifacts/*.bin artifacts/*.elf artifacts/*.pdf artifacts/*.json \
+            artifacts/HASHES.txt release-assets/
           ls -lh release-assets/
 
       - name: Generate release body
@@ -183,6 +300,9 @@ jobs:
           ./scripts/build/docker/device/release.sh
           tail -c +257 bin/firmware.keepkey.bin | shasum -a 256
           \`\`\`
+
+          Presign evidence and its exact audited binary manifest are attached.
+          CI evidence run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ needs.validate.outputs.ci_run_id }}
 
           > **DRAFT** — firmware must be signed by 3/5 key holders before publishing.
 

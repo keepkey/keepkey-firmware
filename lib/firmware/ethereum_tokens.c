@@ -42,7 +42,8 @@ const TokenType* tokenIter(int32_t* ctr) {
   return &(tokens[*ctr - 1]);
 }
 
-const TokenType* tokenByChainAddress(uint8_t chain_id, const uint8_t* address) {
+const TokenType* tokenByChainAddress(uint32_t chain_id,
+                                     const uint8_t* address) {
   if (!address) return 0;
   for (int i = 0; i < TOKENS_COUNT; i++) {
     if (chain_id == tokens[i].chain_id &&
@@ -50,27 +51,34 @@ const TokenType* tokenByChainAddress(uint8_t chain_id, const uint8_t* address) {
       return &(tokens[i]);
     }
   }
-  if (memcmp(address, Ethtest.address, 20) == 0) {
+  /* 0xeeee..eeee is an Ethereum-mainnet token-table sentinel, not a
+   * chain-independent contract identity.  Routers that use the same bytes to
+   * mean a chain's native asset must resolve that meaning themselves. */
+  if (chain_id == Ethtest.chain_id &&
+      memcmp(address, Ethtest.address, 20) == 0) {
     return EthTestToken;
   }
 
   return UnknownToken;
 }
 
-bool tokenByTicker(uint8_t chain_id, const char* ticker,
+bool tokenByTicker(uint32_t chain_id, const char* ticker,
                    const TokenType** token) {
   *token = NULL;
 
-  // First look in the legacy table, confirming that the entry also exists in
-  // the new table:
-  for (int i = 0; i < COINS_COUNT; i++) {
-    if (!coins[i].has_contract_address) {
-      continue;
-    }
-    if (strcmp(ticker, coins[i].coin_shortcut) == 0) {
-      *token = tokenByChainAddress(1, coins[i].contract_address.bytes);
-      if (*token == UnknownToken) return false;
-      return true;
+  // The legacy coin table contains Ethereum-mainnet contracts only. Do not
+  // let a caller on another chain borrow one merely because its ticker
+  // matches.
+  if (chain_id == 1) {
+    for (int i = 0; i < COINS_COUNT; i++) {
+      if (!coins[i].has_contract_address) {
+        continue;
+      }
+      if (strcmp(ticker, coins[i].coin_shortcut) == 0) {
+        *token = tokenByChainAddress(1, coins[i].contract_address.bytes);
+        if (*token == UnknownToken) return false;
+        return true;
+      }
     }
   }
 

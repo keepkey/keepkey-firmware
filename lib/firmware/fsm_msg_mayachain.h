@@ -80,16 +80,19 @@ void fsm_msgMayachainGetAddress(const MayachainGetAddress* msg) {
 
 void fsm_msgMayachainSignTx(const MayachainSignTx* msg) {
   CHECK_INITIALIZED
-  CHECK_PIN
 
   if (!msg->has_account_number || !msg->has_chain_id || !msg->has_fee_amount ||
-      !msg->has_gas || !msg->has_sequence) {
+      !msg->has_gas || !msg->has_sequence || !msg->has_msg_count ||
+      msg->msg_count == 0 || !tendermint_validateSafeText(msg->chain_id)) {
     mayachain_signAbort();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    "Missing Fields On Message");
+                    "Missing or Invalid Fields On Message");
     layoutHome();
     return;
   }
+
+  /* Reject malformed envelopes before authentication or key derivation. */
+  CHECK_PIN
 
   HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
@@ -145,11 +148,46 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     switch (msg->send.address_type) {
       case OutputAddressType_TRANSFER:
       default: {
-        char amount_str[32];
-        char denom_str[71];
-        sprintf(denom_str, " %s", msg->send.denom);
-        bn_format_uint64(msg->send.amount, NULL, denom_str, 10, 0, false,
-                         amount_str, sizeof(amount_str));
+        /* The denomination buffer being big enough does not make the DISPLAYED
+         * amount safe: bn_format() writes into amount_str, and on overflow it
+         * zeroes the whole buffer and returns 0. Ignoring that return put an
+         * EMPTY amount on the confirmation screen and signed anyway -- an
+         * amount of 1 with a 19-character denomination already needs 33 bytes,
+         * and the signer's 65-byte segment accepts far longer ones.
+         *
+         * Size for the protocol maximum instead of hoping: a uint64 rendered
+         * at 10 decimals is at most 20 digits plus a point (21), the suffix is
+         * ' ' + 68 visible chars of denom (69), plus NUL. Then CHECK the
+         * result and fail closed, as fsm_msg_binance.h does. See GH #437. */
+        char amount_str[21 + MAYACHAIN_DENOM_SUFFIX_LEN + 1];
+        /* MayachainMsgSend.denom max_size:69 (messages-mayachain.options) ->
+         * 68 visible chars + NUL. ' ' + 68 + NUL = 70 bytes; 71 keeps a 1-byte
+         * margin. The prior code used unbounded sprintf(); switch to a bounded
+         * snprintf so a future max_size bump can't silently overflow. */
+        if (!mayachain_formatAmount(msg->send.amount, msg->send.denom,
+                                    amount_str, sizeof(amount_str))) {
+          mayachain_signAbort();
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          "Invalid MAYAChain send amount");
+          layoutHome();
+          return;
+        }
+        /* Validate the recipient BEFORE the screen, not in the serializer.
+           mayachain_signTxUpdateMsgSend() already refuses a
+           malformed or wrong-network address, but it runs after this
+           confirmation, so the owner approved a transfer that was then
+           rejected. This release line's rule is that an invalid signed value
+           fails before approval, so the same check moves ahead of the
+           screen. */
+        if (!tendermint_validateBech32Address(
+                msg->send.to_address,
+                sign_tx->has_testnet && sign_tx->testnet ? "smaya" : "maya")) {
+          mayachain_signAbort();
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          "Invalid MAYAChain recipient address");
+          layoutHome();
+          return;
+        }
         if (!confirm_transaction_output(
                 ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
                 msg->send.to_address)) {
@@ -172,12 +210,38 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     }
 
   } else if (msg->has_deposit) {
-    char amount_str[32];
-    char asset_str[21];
-    asset_str[0] = ' ';
-    strlcpy(&(asset_str[1]), msg->deposit.asset, sizeof(asset_str) - 1);
-    bn_format_uint64(msg->deposit.amount, NULL, asset_str, 10, 0, false,
-                     amount_str, sizeof(amount_str));
+    const char* const signer_prefix =
+        sign_tx->has_testnet && sign_tx->testnet ? "smaya" : "maya";
+    /* The signer must be THIS session's account, not merely a well-formed
+       address on the right network. MsgDeposit serializes `signer` verbatim as
+       the message authority, so a valid-but-foreign address produced a signed
+       document the device's key cannot authorize -- and the confirmation below
+       labels that address as though it were a destination, so the screen would
+       not have given it away. */
+    if (!tendermint_validateSafeText(msg->deposit.asset) ||
+        !tendermint_validateBech32Address(msg->deposit.signer, signer_prefix) ||
+        !mayachain_addressIsSigner(msg->deposit.signer)) {
+      mayachain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid MAYAChain deposit fields");
+      layoutHome();
+      return;
+    }
+
+    /* Same defect as the send path above, one field narrower:
+     * MayachainMsgDeposit.asset is max_size:20, so the suffix reaches 20
+     * characters and 21 + 20 + 1 = 42 does not fit a 32-byte amount_str.
+     * bn_format() then zeroed it and returned 0, and the ignored return let an
+     * empty amount reach the screen. */
+    char amount_str[21 + MAYACHAIN_ASSET_SUFFIX_LEN + 1];
+    if (!mayachain_formatAmount(msg->deposit.amount, msg->deposit.asset,
+                                amount_str, sizeof(amount_str))) {
+      mayachain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid MAYAChain deposit amount");
+      layoutHome();
+      return;
+    }
     if (!confirm_transaction_output(
             ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
             msg->deposit.signer)) {
@@ -189,11 +253,29 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
 
     if (msg->deposit.has_memo) {
       // See if we can parse the memo
-      if (!mayachain_parseConfirmMemo(msg->deposit.memo,
-                                      sizeof(msg->deposit.memo))) {
+      /* strnlen, not sizeof: the capacity of a fixed array is not the length
+         of the memo in it. Mirrors the THORChain path. */
+      MayachainMemoResult memo_result = mayachain_parseConfirmMemo(
+          msg->deposit.memo,
+          strnlen(msg->deposit.memo, sizeof(msg->deposit.memo)));
+      if (memo_result == MAYACHAIN_MEMO_CANCELLED) {
+        // A memo screen was refused: a refusal to sign, not a parse failure.
+        // Re-asking with the raw-bytes screen would launder that "no" into a
+        // second chance to say yes.
+        mayachain_signAbort();
+        fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+        layoutHome();
+        return;
+      }
+      if (memo_result == MAYACHAIN_MEMO_UNPARSED) {
         // Memo not recognizable, ask to confirm it
-        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
-                     "%s", msg->deposit.memo)) {
+        /* confirm_bytes, not confirm("%s"): "%s" stops at the first NUL, so
+           an unparsed memo with an embedded zero would be signed with its tail
+           hidden. Takes an explicit length and escapes non-printables. */
+        if (!confirm_bytes(
+                ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                (const uint8_t*)msg->deposit.memo,
+                strnlen(msg->deposit.memo, sizeof(msg->deposit.memo)))) {
           mayachain_signAbort();
           fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
           layoutHome();
@@ -217,13 +299,32 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     return;
   }
 
-  if (sign_tx->has_memo && !msg->deposit.has_memo) {
-    // See if we can parse the tx memo. This memo ignored if deposit msg has
-    // memo
-    if (!mayachain_parseConfirmMemo(sign_tx->memo, sizeof(sign_tx->memo))) {
-      // Memo not recognizable, ask to confirm it
-      if (!confirm(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"), "%s",
-                   sign_tx->memo)) {
+  /* Review the OUTER transaction memo whenever it is present -- including when
+   * the deposit carries one of its own.
+   *
+   * These are two different strings in the signed document, not one superseding
+   * the other: mayachain_signTxInit() hashes sign_tx->memo into the StdSignDoc
+   * "memo" field, and the MsgDeposit value below hashes deposit.memo
+   * separately. Skipping this review when deposit.has_memo let a host show a
+   * benign deposit memo while a different outer memo was signed unseen -- the
+   * exact thing this release line exists to prevent. Both are signed, so both
+   * are shown. */
+  if (sign_tx->has_memo) {
+    // See if we can parse the tx memo.
+    MayachainMemoResult memo_result = mayachain_parseConfirmMemo(
+        sign_tx->memo, strnlen(sign_tx->memo, sizeof(sign_tx->memo)));
+    if (memo_result == MAYACHAIN_MEMO_CANCELLED) {
+      // A memo screen was refused: a refusal to sign, not a parse failure.
+      mayachain_signAbort();
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
+    if (memo_result == MAYACHAIN_MEMO_UNPARSED) {
+      // Memo not recognizable, ask to confirm it -- length-aware, see above.
+      if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                         (const uint8_t*)sign_tx->memo,
+                         strnlen(sign_tx->memo, sizeof(sign_tx->memo)))) {
         mayachain_signAbort();
         fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
         layoutHome();
@@ -243,9 +344,9 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign this %s transaction on %s? "
-               "Additional network fees apply.",
-               msg->has_send ? msg->send.denom : "CACAO", sign_tx->chain_id)) {
+               "Sign %s on %s? Fee: %" PRIu32 " cacao. Gas: %" PRIu32 ".",
+               msg->has_send ? msg->send.denom : "CACAO", sign_tx->chain_id,
+               sign_tx->fee_amount, sign_tx->gas)) {
     mayachain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();

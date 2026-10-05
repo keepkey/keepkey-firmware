@@ -32,12 +32,12 @@
 */
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/eip712.h"
-#include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/tiny-json.h"
 #include "trezor/crypto/sha3.h"
 #include "trezor/crypto/memzero.h"
@@ -46,6 +46,42 @@ static const char* udefList[MAX_USERDEF_TYPES] = {0};
 static dm confirmProp;
 
 static const char* nameForValue;
+
+static int hex_nibble(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+static bool decode_address(const char* string, uint8_t decoded[20]) {
+  if (!string || strlen(string) != ADDRESS_SIZE || string[0] != '0' ||
+      string[1] != 'x') {
+    return false;
+  }
+
+  for (size_t i = 0; i < 20; i++) {
+    const int high = hex_nibble(string[2 + 2 * i]);
+    const int low = hex_nibble(string[3 + 2 * i]);
+    if (high < 0 || low < 0) return false;
+    decoded[i] = (uint8_t)((high << 4) | low);
+  }
+  return true;
+}
+
+/* Append value to dest, a caller-allocated, NUL-terminated buffer of
+   STRBUFSIZE+1 bytes. Returns false and leaves dest untouched if the result
+   would not fit. Deliberately never truncates: a truncated encodeType string
+   hashes to a typehash the host did not ask for, and two distinct type sets
+   sharing a prefix would collide, so callers must fail closed instead. */
+static bool append_type_string(char* dest, const char* value) {
+  if (!dest || !value) return false;
+  const size_t used = strnlen(dest, STRBUFSIZE + 1);
+  const size_t added = strlen(value);
+  if (used > STRBUFSIZE || added > STRBUFSIZE - used) return false;
+  memcpy(dest + used, value, added + 1);
+  return true;
+}
 
 int encodableType(const char* typeStr) {
   int ctr;
@@ -134,8 +170,10 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
     return JSON_TYPE_S_NAMEERR;
   }
 
-  strncat(typeStr, nameTest, STRBUFSIZE - strlen((const char*)typeStr));
-  strncat(typeStr, "(", STRBUFSIZE - strlen((const char*)typeStr));
+  if (!append_type_string(typeStr, nameTest) ||
+      !append_type_string(typeStr, "(")) {
+    return UDEF_NAME_ERROR;
+  }
 
   tarray = json_getChild(jType);
   while (tarray != 0) {
@@ -189,10 +227,12 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
       if (NULL == pVal) {
         return JSON_NOPAIRVAL;
       }
-      strncat(typeStr, typeType, STRBUFSIZE - strlen((const char*)typeStr));
-      strncat(typeStr, " ", STRBUFSIZE - strlen((const char*)typeStr));
-      strncat(typeStr, pVal, STRBUFSIZE - strlen((const char*)typeStr));
-      strncat(typeStr, ",", STRBUFSIZE - strlen((const char*)typeStr));
+      if (!append_type_string(typeStr, typeType) ||
+          !append_type_string(typeStr, " ") ||
+          !append_type_string(typeStr, pVal) ||
+          !append_type_string(typeStr, ",")) {
+        return UDEF_NAME_ERROR;
+      }
     }
     tarray = json_getSibling(tarray);
   }
@@ -202,33 +242,30 @@ int parseType(const json_t* eip712Types, const char* typeS, char* typeStr) {
     typeStr[strlen(typeStr) - 1] = ')';
   } else {
     // append paren, there are no parameters
-    strncat(typeStr, ")", STRBUFSIZE - 1);
+    if (!append_type_string(typeStr, ")")) {
+      return UDEF_NAME_ERROR;
+    }
   }
   if (strlen(append) > 0) {
-    strncat(typeStr, append, STRBUFSIZE - strlen((const char*)append));
+    if (!append_type_string(typeStr, append)) {
+      return UDEF_NAME_ERROR;
+    }
   }
 
   return SUCCESS;
 }
 
 int encAddress(const char* string, uint8_t* encoded) {
-  unsigned ctr;
-  char byteStrBuf[3] = {0};
-
   if (string == NULL) {
     return ADDR_STRING_NULL;
   }
-  if (ADDRESS_SIZE < strlen(string)) {
+  uint8_t decoded[20];
+  if (!decode_address(string, decoded)) {
     return ADDR_STRING_VFLOW;
   }
 
-  for (ctr = 0; ctr < 12; ctr++) {
-    encoded[ctr] = '\0';
-  }
-  for (ctr = 12; ctr < 32; ctr++) {
-    strncpy(byteStrBuf, &string[2 * ((ctr - 12)) + 2], 2);
-    encoded[ctr] = (uint8_t)(strtol(byteStrBuf, NULL, 16));
-  }
+  memset(encoded, 0, 12);
+  memcpy(encoded + 12, decoded, sizeof(decoded));
   return SUCCESS;
 }
 
@@ -285,24 +322,58 @@ int encodeBytesN(const char* typeT, const char* string, uint8_t* encoded) {
   return SUCCESS;
 }
 
+/* These screens were review(), which calls confirm_helper() and then returns
+   true unconditionally. confirm_helper() returns false when the host sends a
+   Cancel or Initialize tiny message, so a host could refuse every field screen
+   and encode() would still hash typed data the user never saw. They are
+   confirm() now and refusal is reported to parseVals() as USER_CANCELLED, so
+   no hash is produced at all. */
 int confirmName(const char* name, bool valAvailable) {
   if (valAvailable) {
     nameForValue = name;
   } else {
-    (void)review(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA",
-                 "Press button to continue for\n\"%s\" values", name);
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA",
+                 "Press button to continue for\n\"%s\" values", name)) {
+      return USER_CANCELLED;
+    }
   }
   return SUCCESS;
 }
 
 int confirmValue(const char* value) {
-  (void)review(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA", "%s %s",
-               nameForValue, value);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "MESSAGE DATA", "%s %s",
+               nameForValue, value)) {
+    return USER_CANCELLED;
+  }
   return SUCCESS;
 }
 
 static const char *dsname = NULL, *dsversion = NULL, *dschainId = NULL,
                   *dsverifyingContract = NULL;
+
+bool eip712_parse_canonical_u32(const char* text, uint32_t* value) {
+  if (!text || !value || text[0] == '\0') return false;
+  if (text[0] == '0' && text[1] != '\0') return false;
+
+  uint32_t parsed = 0;
+  for (const char* p = text; *p != '\0'; p++) {
+    if (*p < '0' || *p > '9') return false;
+    const uint32_t digit = (uint32_t)(*p - '0');
+    if (parsed > (UINT32_MAX - digit) / 10) return false;
+    parsed = parsed * 10 + digit;
+  }
+
+  *value = parsed;
+  return true;
+}
+
+static void clearDsVals(void) {
+  dsname = NULL;
+  dsversion = NULL;
+  dschainId = NULL;
+  dsverifyingContract = NULL;
+}
+
 void marshallDsVals(const char* value) {
   if (0 == strncmp(nameForValue, "name", sizeof("name"))) {
     dsname = value;
@@ -320,15 +391,9 @@ void marshallDsVals(const char* value) {
   return;
 }
 
-void dsConfirm(void) {
-  // First check if we recognize the contract
-  const TokenType* assetToken;
-  uint8_t addrHexStr[20] = {0};
+int dsConfirm(void) {
   char name[41] = {0};
   char version[11] = {0};
-  uint32_t chainInt;
-  bool noChain = true;
-  int ctr;
   IconType iconNum = NO_ICON;
   char title[64] = {0};
   char* fillerStr = "";
@@ -343,34 +408,47 @@ void dsConfirm(void) {
   }
 
   if (dsverifyingContract != NULL) {
-    for (ctr = 2; ctr < 42; ctr += 2) {
-      sscanf((char*)&dsverifyingContract[ctr], "%2hhx",
-             &addrHexStr[(ctr - 2) / 2]);
+    /* EIP-712 types are host-controlled, so verifyingContract may reach this
+     * function without having passed through the address encoder. Validate it
+     * before any fixed-offset read or display.
+     *
+     * Merge note (#439 vs #440/GH #436): both branches fixed the same OOB read.
+     * This one is kept because it is strictly stronger — it validates the hex
+     * digits as well as the length and prefix, and it fails closed. The other
+     * checked only length and "0x", then set dsverifyingContract = NULL and
+     * fell through to a raw display, so a value like "0xZZZZ..." still reached
+     * sscanf and a malformed contract was shown rather than refused. */
+    /* Scoped to this block: cppcheck's variableScope rightly flagged it at
+       function scope, and CI treats that as fatal. Twenty bytes exactly, the
+       destination decode_address() validates into. */
+    uint8_t addrHexStr[20] = {0};
+    if (!decode_address(dsverifyingContract, addrHexStr)) {
+      clearDsVals();
+      return ADDR_STRING_VFLOW;
     }
-    strcat(verifyingContract, "Verifying Contract: ");
-    strncat(verifyingContract, dsverifyingContract,
-            sizeof(verifyingContract) - sizeof("Verifying Contract: "));
+    (void)addrHexStr;
+    snprintf(verifyingContract, sizeof(verifyingContract),
+             "Verifying Contract: %s", dsverifyingContract);
   }
 
   if (NULL != dschainId) {
-    noChain = false;
-#ifdef EMULATOR
-    sscanf((char*)dschainId, "%u", &chainInt);
-#else
-    sscanf((char*)dschainId, "%ld", &chainInt);
-#endif
+    /* Merge note: the release branch parsed this with sscanf("%" SCNu32),
+     * which accepts a trailing space, a leading '+', and non-canonical forms
+     * like "007", and cannot report overflow. eip712_parse_canonical_u32()
+     * rejects all of those and fails closed, so it is used instead. See the
+     * cases in unittests/firmware/ethereum.cpp. */
+    uint32_t chainInt = 0;
+    if (!eip712_parse_canonical_u32(dschainId, &chainInt)) {
+      clearDsVals();
+      return GENERAL_ERROR;
+    }
+    (void)chainInt;
     // As more chains are supported, add icon choice below
     // TBD: not implemented for first release
     // if (chainInt == 1) {
     //     iconNum = ETHEREUM_ICON;
     // }
   }
-  if (noChain == false && dsverifyingContract != NULL) {
-    assetToken = tokenByChainAddress(chainInt, (uint8_t*)addrHexStr);
-    (void)assetToken;
-    fillerStr = "";
-  }
-
   strncpy(title, name, 40);
   if (NULL != dsversion) {
     strncat(title, " Ver: ", 63 - strlen(title));
@@ -380,12 +458,13 @@ void dsConfirm(void) {
     snprintf(chainStr, 32, "chain %s,  ", dschainId);
   }
   // snprintf(contractStr, 64, "verifyingContract: %s", verifyingContract);
-  (void)review_with_icon(ButtonRequestType_ButtonRequest_Other, iconNum, title,
-                         "%s %s%s", chainStr, verifyingContract, fillerStr);
-  dsname = NULL;
-  dsversion = NULL;
-  dschainId = NULL;
-  dsverifyingContract = NULL;
+  bool confirmed =
+      confirm_with_icon(ButtonRequestType_ButtonRequest_Other, iconNum, title,
+                        "%s %s%s", chainStr, verifyingContract, fillerStr);
+  /* Clear the marshalled domain values on the refusal path too: they are file
+     statics and a later attempt must not inherit them. */
+  clearDsVals();
+  return confirmed ? SUCCESS : USER_CANCELLED;
 }
 
 /*
@@ -448,7 +527,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
 
       bool hasValue = (JSON_TEXT == json_getType(walkVals) ||
                        JSON_INTEGER == json_getType(walkVals));
-      confirmName(typeName, hasValue);
+      errRet = confirmName(typeName, hasValue);
+      if (SUCCESS != errRet) {
+        return errRet;
+      }
 
       if (walkVals == 0) {
         return JSON_TYPE_WNOVAL;
@@ -464,7 +546,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
               if (ds_vals) {
                 marshallDsVals(json_getValue(addrVals));
               } else {
-                confirmValue(json_getValue(addrVals));
+                errRet = confirmValue(json_getValue(addrVals));
+                if (SUCCESS != errRet) {
+                  return errRet;
+                }
               }
 
               errRet = encAddress(json_getValue(addrVals), encBytes);
@@ -479,7 +564,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             if (ds_vals) {
               marshallDsVals(valStr);
             } else {
-              confirmValue(valStr);
+              errRet = confirmValue(valStr);
+              if (SUCCESS != errRet) {
+                return errRet;
+              }
             }
             errRet = encAddress(valStr, encBytes);
             if (SUCCESS != errRet) {
@@ -499,7 +587,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
               if (ds_vals) {
                 marshallDsVals(json_getValue(stringVals));
               } else {
-                confirmValue(json_getValue(stringVals));
+                errRet = confirmValue(json_getValue(stringVals));
+                if (SUCCESS != errRet) {
+                  return errRet;
+                }
               }
               errRet = encString(json_getValue(stringVals), strEncBytes);
               if (SUCCESS != errRet) {
@@ -513,7 +604,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             if (ds_vals) {
               marshallDsVals(valStr);
             } else {
-              confirmValue(valStr);
+              errRet = confirmValue(valStr);
+              if (SUCCESS != errRet) {
+                return errRet;
+              }
             }
             errRet = encString(valStr, encBytes);
             if (SUCCESS != errRet) {
@@ -529,7 +623,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             if (ds_vals) {
               marshallDsVals(valStr);
             } else {
-              confirmValue(valStr);
+              errRet = confirmValue(valStr);
+              if (SUCCESS != errRet) {
+                return errRet;
+              }
             }
             uint8_t negInt = 0;  // 0 is positive, 1 is negative
             if (0 == strncmp("int", typeType, strlen("int") - 1)) {
@@ -568,7 +665,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             if (ds_vals) {
               marshallDsVals(valStr);
             } else {
-              confirmValue(valStr);
+              errRet = confirmValue(valStr);
+              if (SUCCESS != errRet) {
+                return errRet;
+              }
             }
             if (0 == strcmp(typeType, "bytes")) {
               errRet = encodeBytes(valStr, encBytes);
@@ -591,7 +691,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
             if (ds_vals) {
               marshallDsVals(valStr);
             } else {
-              confirmValue(valStr);
+              errRet = confirmValue(valStr);
+              if (SUCCESS != errRet) {
+                return errRet;
+              }
             }
             for (ctr = 0; ctr < 32; ctr++) {
               // leading zeros in bool
@@ -699,7 +802,10 @@ int parseVals(const json_t* eip712Types, const json_t* jType,
     tarray = json_getSibling(tarray);
   }
   if (ds_vals) {
-    dsConfirm();
+    errRet = dsConfirm();
+    if (SUCCESS != errRet) {
+      return errRet;
+    }
   }
 
   return SUCCESS;

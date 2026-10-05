@@ -23,6 +23,8 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
+#include "trezor/crypto/bip32.h"
+
 #define UNISWAP_ROUTER_ADDRESS                                               \
   "\x7a\x25\x0d\x56\x30\xB4\xcF\x53\x97\x39\xdF\x2C\x5d\xAc\xb4\xc6\x59\xF2" \
   "\x48\x8D"
@@ -30,6 +32,7 @@
 typedef struct _EthereumSignTx EthereumSignTx;
 
 bool zx_isZxLiquidTx(const EthereumSignTx* msg);
-bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg);
+bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg,
+                          const HDNode* node);
 
 #endif

@@ -221,7 +221,9 @@ bool ton_get_address(const ed25519_public_key public_key, bool bounceable,
 void ton_formatAmount(char* buf, size_t len, uint64_t amount) {
   bignum256 val;
   bn_read_uint64(amount, &val);
-  bn_format(&val, NULL, " TON", TON_DECIMALS, 0, false, buf, len);
+  if (!bn_format(&val, NULL, " TON", TON_DECIMALS, 0, false, buf, len)) {
+    strlcpy(buf, "AMOUNT TOO LARGE TO DISPLAY", len);
+  }
 }
 
 /**

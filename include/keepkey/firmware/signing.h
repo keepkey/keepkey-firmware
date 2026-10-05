@@ -28,6 +28,7 @@
 void signing_init(const SignTx* msg, const CoinType* _coin,
                   const HDNode* _root);
 void signing_abort(void);
+bool signing_is_active(void);
 void signing_txack(TransactionType* tx);
 void send_fsm_co_error_message(int co_error);
 

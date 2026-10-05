@@ -28,6 +28,22 @@
 #define KEEPKEY_DISPLAY_HEIGHT 64
 #define KEEPKEY_DISPLAY_WIDTH 256
 
+/* DebugLink and dylib evidence use a 1-bit transport for the physical
+ * grayscale OLED. Treating every nonzero shade as lit erases foreground text
+ * drawn over dim animation backgrounds (PIN and recovery cipher grids), while
+ * a hard threshold can erase an entire dim animation frame. Ordered dithering
+ * retains both the frame and the security-relevant foreground distinction. */
+static inline bool display_mono_pixel_is_lit(uint8_t pixel, uint16_t x,
+                                             uint16_t y) {
+  static const uint8_t threshold[4][4] = {
+      {0, 128, 32, 160},
+      {192, 64, 224, 96},
+      {48, 176, 16, 144},
+      {240, 112, 208, 80},
+  };
+  return pixel > threshold[y & 3][x & 3];
+}
+
 #define DEFAULT_DISPLAY_BRIGHTNESS 100 /* Percent */
 
 void display_hw_init(void);

@@ -81,19 +81,58 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
   if (!node) return;
   hdnode_fill_public_key(node);
 
+  /* Absent fields are not zero-valued fields. Without these, an omitted
+     payment/amount/destination reached the screens as 0 XRP to an empty
+     address, and ripple_serialize() simply omitted what was missing -- so the
+     owner approved one transaction and the device signed another. The
+     destination is checked here too: ripple_serializeAddress() enforces the
+     21-byte decode with assert(), which is compiled out of release builds, and
+     runs only after both confirmations. */
+  if (!msg->has_payment || !msg->payment.has_amount ||
+      !msg->payment.has_destination ||
+      !ripple_validateAddress(msg->payment.destination)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Payment amount and destination are required"));
+    layoutHome();
+    return;
+  }
+
   if (!msg->has_fee || msg->fee < RIPPLE_MIN_FEE || msg->fee > RIPPLE_MAX_FEE) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Fee must be between 10 and 1,000,000 drops"));
+    layoutHome();
     return;
   }
 
-  char amount_string[20 + 4 + 1];
-  ripple_formatAmount(amount_string, sizeof(amount_string),
-                      msg->payment.amount);
+  /* Above RIPPLE_MAX_DROPS the serializer's own bound is exceeded; it guarded
+     that with assert(), which is compiled out of release builds, so the amount
+     would be encoded differently from the one supplied. Refuse here instead,
+     before anything is shown. */
+  if (msg->payment.amount > RIPPLE_MAX_DROPS) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Amount exceeds the largest XRP value this device can "
+                      "sign"));
+    layoutHome();
+    return;
+  }
 
+  /* Both renders must succeed BEFORE any confirmation. These used to be void
+     calls, so an unrenderable amount put "AMOUNT TOO LARGE TO DISPLAY" on the
+     screen and the numeric amount into the signature. */
+  char amount_string[20 + 4 + 1];
   char fee_string[20 + 4 + 1];
-  ripple_formatAmount(fee_string, sizeof(fee_string), msg->fee);
+  if (!ripple_formatAmount(amount_string, sizeof(amount_string),
+                           msg->payment.amount) ||
+      !ripple_formatAmount(fee_string, sizeof(fee_string), msg->fee)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Cannot display this XRP amount"));
+    layoutHome();
+    return;
+  }
 
   if (needs_confirm) {
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Send",
@@ -118,7 +157,15 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
     return;
   }
 
-  ripple_signTx(node, msg, resp);
+  /* A failed sign left has_signature/has_serialized_tx false, and the response
+     went out anyway -- the host saw an empty success where an error belonged.
+   */
+  if (!ripple_signTx(node, msg, resp)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other, _("Ripple signing failed"));
+    layoutHome();
+    return;
+  }
   memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_RippleSignedTx, resp);
   layoutHome();
