@@ -31,7 +31,6 @@ jobs:
     outputs:
       fw_version: ${{ steps.version.outputs.fw_version }}
       ci_run_id: ${{ steps.evidence.outputs.ci_run_id }}
-      arm_full_artifact: ${{ steps.evidence.outputs.arm_full_artifact }}
       arm_bitcoin_artifact: ${{ steps.evidence.outputs.arm_bitcoin_artifact }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -91,30 +90,25 @@ jobs:
                    if not item.get('expired')]
           if 'test-report' not in names:
               raise SystemExit('exact-commit CI has no test-report artifact')
+          # 7.14.3 publishes the bitcoin-only image alone. CI still builds and
+          # tests the full image, but it is not signed or released here.
           prefix = 'firmware-v%s-' % os.environ['FW_VERSION']
           arm = [name for name in names if name.startswith(prefix)]
-          variants = {
-              variant: [name for name in arm if name.endswith('-' + variant)]
-              for variant in ('full', 'bitcoin-only')
-          }
-          if any(len(found) != 1 for found in variants.values()):
-              raise SystemExit('expected exact full and bitcoin-only ARM artifacts, found %r' % arm)
+          bitcoin = [name for name in arm if name.endswith('-bitcoin-only')]
+          if len(bitcoin) != 1:
+              raise SystemExit('expected exactly one bitcoin-only ARM artifact, found %r' % arm)
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write('arm_full_artifact=%s\n' % variants['full'][0])
-              output.write('arm_bitcoin_artifact=%s\n' % variants['bitcoin-only'][0])
+              output.write('arm_bitcoin_artifact=%s\n' % bitcoin[0])
           PY
 
       - name: Verify audited source and binary hashes
         env:
           GH_TOKEN: ${{ github.token }}
           CI_RUN_ID: ${{ steps.evidence.outputs.ci_run_id }}
-          ARM_FULL_ARTIFACT: ${{ steps.evidence.outputs.arm_full_artifact }}
           ARM_BITCOIN_ARTIFACT: ${{ steps.evidence.outputs.arm_bitcoin_artifact }}
         run: |
           gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name test-report --dir audited-report
-          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name "$ARM_FULL_ARTIFACT" --dir audited-arm/full
           gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name "$ARM_BITCOIN_ARTIFACT" --dir audited-arm/bitcoin-only
           python3 - <<'PY'
@@ -150,27 +144,31 @@ jobs:
           if digest(pdf) != manifest['pdf']['sha256']:
               raise SystemExit('presign PDF hash mismatch')
           variants = manifest.get('arm', {}).get('variants', {})
-          if set(variants) != {'full', 'bitcoin-only'}:
-              raise SystemExit('presign manifest does not bind both ARM products')
-          manifest_hashes = {}
-          for variant, evidence in variants.items():
-              variant_dir = arm_dir / variant
-              arm_manifest = variant_dir / 'arm-build-manifest.json'
-              manifest_hashes[variant] = digest(arm_manifest)
-              if manifest_hashes[variant] != evidence['manifest_sha256']:
-                  raise SystemExit('%s ARM manifest hash mismatch' % variant)
-              expected = {item['name']: item['sha256']
-                          for item in evidence['files']}
-              actual = {path.name: digest(path)
-                        for path in variant_dir.iterdir()
-                        if path.suffix in ('.bin', '.elf')}
-              if not expected or actual != expected:
-                  raise SystemExit('%s audited ARM artifact set or hash mismatch' % variant)
+          if 'bitcoin-only' not in variants:
+              raise SystemExit('presign manifest does not bind the bitcoin-only ARM product')
+          # Only the bitcoin-only product is downloaded and published. The
+          # set hash still covers every variant the run audited, so recompute
+          # it from this file's digest and the recorded digest of the rest.
+          manifest_hashes = {variant: evidence['manifest_sha256']
+                             for variant, evidence in variants.items()}
+          evidence = variants['bitcoin-only']
+          variant_dir = arm_dir / 'bitcoin-only'
+          manifest_hashes['bitcoin-only'] = digest(
+              variant_dir / 'arm-build-manifest.json')
+          if manifest_hashes['bitcoin-only'] != evidence['manifest_sha256']:
+              raise SystemExit('bitcoin-only ARM manifest hash mismatch')
+          expected = {item['name']: item['sha256']
+                      for item in evidence['files']}
+          actual = {path.name: digest(path)
+                    for path in variant_dir.iterdir()
+                    if path.suffix in ('.bin', '.elf')}
+          if not expected or actual != expected:
+              raise SystemExit('bitcoin-only audited ARM artifact set or hash mismatch')
           combined = hashlib.sha256(json.dumps(
               manifest_hashes, sort_keys=True).encode('ascii')).hexdigest()
           if combined != manifest['arm']['manifest_set_sha256']:
               raise SystemExit('ARM manifest-set hash mismatch')
-          print('exact presign evidence and both ARM products verified')
+          print('exact presign evidence and the bitcoin-only ARM product verified')
           PY
 
   build-firmware:
@@ -181,14 +179,8 @@ jobs:
       matrix:
         include:
           # 'suffix' names the published files; 'variant' is the internal build
-          # selector. The default build takes an EMPTY suffix so its assets keep
-          # the names every previous release used (v7.14.x shipped
-          # firmware.keepkey.bin). Only bitcoin-only is qualified, because it is
-          # the unusual one.
-          - variant: full
-            arm_output: arm_full_artifact
-            suffix: ""
-            cmake_flags: ""
+          # selector. 7.14.3 is a bitcoin-only release: the full image is
+          # built and tested by CI but not published, so it has no leg here.
           - variant: bitcoin-only
             arm_output: arm_bitcoin_artifact
             suffix: "-bitcoin-only"
@@ -349,21 +341,13 @@ jobs:
 
           ### Reproducible Build Verification
 
-          Regular image — \`firmware.keepkey.v${VER}.bin\`, hashes in
-          \`HASHES.txt\`. From the repository root:
-          \`\`\`bash
-          ./scripts/build/docker/device/release.sh
-          tail -c +257 bin/firmware.keepkey.bin | shasum -a 256
-          \`\`\`
-
-          Bitcoin-only image — \`firmware.keepkey.v${VER}-bitcoin-only.bin\`,
-          hashes in \`HASHES-bitcoin-only.txt\`. \`release.sh\` takes no variant
+          This release publishes the bitcoin-only image only —
+          \`firmware.keepkey.v${VER}-bitcoin-only.bin\`, hashes in
+          \`HASHES-bitcoin-only.txt\`. \`release.sh\` takes no variant
           argument on this release line and always builds the regular image, so
-          running it and comparing against the bitcoin-only manifest mismatches
-          by construction — and comparing against \`HASHES.txt\` instead would
-          "match" while saying nothing about the binary you meant to check.
-          Drive the same pinned builder image directly, adding the one cmake
-          flag CI used for this asset:
+          running it and comparing against this manifest mismatches by
+          construction. Drive the same pinned builder image directly, adding
+          the one cmake flag CI used for this asset:
           \`\`\`bash
           docker run --rm -v "\$PWD:/root/keepkey-firmware:z" ${BASE_IMAGE} \\
             /bin/sh -c 'mkdir /root/build && cd /root/build &&
@@ -379,14 +363,13 @@ jobs:
           > **DRAFT** — firmware must be signed by 3/5 key holders before publishing.
 
           ### Signing Checklist
-          - [ ] Both variants built on multiple machines, each payload hash
-                matched against its own manifest (\`HASHES.txt\` for the regular
-                image, \`HASHES-bitcoin-only.txt\` for the bitcoin-only one)
+          - [ ] Bitcoin-only image built on multiple machines, payload hash
+                matched against \`HASHES-bitcoin-only.txt\`
           - [ ] Signed on air-gapped machine (3/5 signers)
           - [ ] Storage upgrade tested on production device
           - [ ] Signed .bin uploaded, replacing unsigned
-          - [ ] All three signatures verified on each final firmware image
-          - [ ] HASHES manifests regenerated from the final signed binaries,
+          - [ ] All three signatures verified on the final firmware image
+          - [ ] HASHES manifest regenerated from the final signed binaries,
                 using the attached versioned filenames, and re-uploaded.
                 Signing changes the full-image hash; the attached presign
                 hashes must not be presented as hashes of the signed image.
