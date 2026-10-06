@@ -363,7 +363,13 @@ void fsm_msgPing(Ping* msg) {
   }
 
   msg_write(MessageType_MessageType_Success, resp);
-  layoutHome();
+  /* Ping may arrive mid-workflow; going home would hide an armed recovery
+   * cipher or a signer's screen while the workflow stays live. */
+  if (setup_isArmedAs(SETUP_RECOVERY)) {
+    recovery_cipher_redraw();
+  } else if (!fsm_workflowInProgress()) {
+    layoutHome();
+  }
 }
 
 void fsm_msgChangePin(ChangePin* msg) {

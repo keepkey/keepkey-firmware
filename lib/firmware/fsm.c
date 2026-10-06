@@ -316,6 +316,22 @@ static void sendFailureWrapper(FailureType code, const char* text) {
   fsm_sendFailure(code, text);
 }
 
+/* True while a setup ceremony is armed or any signer waits for the host. */
+static bool fsm_workflowInProgress(void) {
+  if (setup_isArmed() || signing_is_active()) return true;
+#if !BITCOIN_ONLY
+  if (ethereum_signing_isInProgress() ||
+      tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS) ||
+      tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC) ||
+      osmosis_signingIsInited() || binance_signingIsInited() ||
+      eos_signingIsInited() || thorchain_signingIsInited() ||
+      mayachain_signingIsInited()) {
+    return true;
+  }
+#endif
+  return false;
+}
+
 /* A continuation ACK reaches its handler only while its own workflow runs.
  * Otherwise the handler would end whatever else is armed (setup_require() and
  * the recovery check abort on a kind mismatch) or draw home over it. Answer
@@ -410,6 +426,27 @@ bool keepkey_before_message_dispatch(MessageType msg_id) {
         case MessageType_MessageType_SignMessage:
         case MessageType_MessageType_SignIdentity:
         case MessageType_MessageType_CipherKeyValue:
+#if !BITCOIN_ONLY
+        case MessageType_MessageType_EthereumSignTx:
+        case MessageType_MessageType_EthereumSignMessage:
+        case MessageType_MessageType_EthereumSignTypedHash:
+        case MessageType_MessageType_NanoSignTx:
+        case MessageType_MessageType_CosmosSignTx:
+        case MessageType_MessageType_OsmosisSignTx:
+        case MessageType_MessageType_BinanceSignTx:
+        case MessageType_MessageType_EosSignTx:
+        case MessageType_MessageType_RippleSignTx:
+        case MessageType_MessageType_ThorchainSignTx:
+        case MessageType_MessageType_MayachainSignTx:
+        case MessageType_MessageType_TronSignTx:
+        case MessageType_MessageType_TronSignMessage:
+        case MessageType_MessageType_TronSignTypedHash:
+        case MessageType_MessageType_TonSignTx:
+        case MessageType_MessageType_TonSignMessage:
+        case MessageType_MessageType_SolanaSignTx:
+        case MessageType_MessageType_SolanaSignMessage:
+        case MessageType_MessageType_SolanaSignOffchainMessage:
+#endif
           setup_abort();
           break;
         default:

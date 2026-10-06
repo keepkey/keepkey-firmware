@@ -21,6 +21,8 @@ extern "C" {
 bool kkconfirm_preload(int nYes, int nNo);
 int kkconfirm_drain(void);
 
+extern "C" bool keepkey_before_message_dispatch(MessageType msg_id);
+
 static void ensure_recovery_storage_ready(void) {
   static bool ready = false;
   if (!ready) {
@@ -153,6 +155,49 @@ TEST(Recovery, UnrelatedTransportFailureKeepsCurrentCipherVisible) {
   EXPECT_EQ(cipher_before,
             std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
       << "the same substitution cipher must remain visible for the next word";
+
+  setup_abort();
+  (void)kkconfirm_drain();
+  layoutHomeForced();
+}
+
+// A plain Ping during recovery answers without hiding the cipher, and a
+// signing request ends the ceremony instead of running beside it.
+TEST(Recovery, PingKeepsTheCipherAndSigningEndsTheCeremony) {
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  ensure_recovery_storage_ready();
+  setup_abort();
+  recovery_cipher_init(/*word_count=*/12, /*passphrase_protection=*/false,
+                       /*pin_protection=*/false, "english", "recovery",
+                       /*enforce_wordlist=*/true, /*auto_lock_delay_ms=*/0,
+                       /*u2f_counter=*/0, /*dry_run=*/false);
+  ASSERT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
+  const Canvas* canvas = layout_get_canvas();
+  ASSERT_NE(nullptr, canvas);
+  for (int frame = 0; frame < 20; ++frame) {
+    force_animation_start();
+    animate();
+  }
+  const size_t bytes = canvas->width * canvas->height;
+  std::vector<uint8_t> cipher_before(canvas->buffer, canvas->buffer + bytes);
+
+  Ping ping = {};
+  fsm_msgPing(&ping);
+  for (int frame = 0; frame < 20; ++frame) {
+    force_animation_start();
+    animate();
+  }
+  EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
+  EXPECT_EQ(cipher_before,
+            std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
+      << "Ping must not draw home over the recovery cipher";
+
+#if !BITCOIN_ONLY
+  EXPECT_TRUE(keepkey_before_message_dispatch(
+      MessageType_MessageType_EthereumSignTx));
+  EXPECT_FALSE(setup_isArmed())
+      << "a signing request must end the ceremony, not run beside it";
+#endif
 
   setup_abort();
   (void)kkconfirm_drain();
