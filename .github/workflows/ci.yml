@@ -211,7 +211,32 @@ jobs:
           gitleaks version
 
       - name: Run gitleaks
-        run: gitleaks detect --source . --verbose --redact
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          # fetch-depth: 0 makes every fork ref available. An unscoped scan
+          # therefore walks disconnected keepkey-stack histories that are not
+          # ancestors of this firmware change (#544). Scan only the revisions
+          # introduced by the triggering event.
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            LOG_OPTS="${PR_BASE_SHA}..${PR_HEAD_SHA}"
+          elif [ "$EVENT_NAME" = "push" ] &&
+               [[ ! "$PUSH_BEFORE_SHA" =~ ^0+$ ]]; then
+            LOG_OPTS="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            LOG_OPTS="${GITHUB_SHA}"
+          else
+            gitleaks detect --source . --no-git --verbose --redact
+            exit 0
+          fi
+
+          echo "Scanning revision range: ${LOG_OPTS}"
+          gitleaks detect --source . --log-opts="${LOG_OPTS}" --verbose --redact
 
   static-analysis:
     runs-on: ubuntu-latest
