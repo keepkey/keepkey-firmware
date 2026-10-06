@@ -161,9 +161,10 @@ TEST(Recovery, UnrelatedTransportFailureKeepsCurrentCipherVisible) {
   layoutHomeForced();
 }
 
-// A plain Ping during recovery answers without hiding the cipher, and a
-// signing request ends the ceremony instead of running beside it.
-TEST(Recovery, PingKeepsTheCipherAndSigningEndsTheCeremony) {
+// A plain Ping or a second ceremony start during recovery is answered without
+// hiding the cipher, and a signing request ends the ceremony instead of
+// running beside it.
+TEST(Recovery, UnrelatedRequestsKeepTheCipherAndSigningEndsTheCeremony) {
   ASSERT_TRUE(kkconfirm_preload(1, 0));
   ensure_recovery_storage_ready();
   setup_abort();
@@ -191,6 +192,18 @@ TEST(Recovery, PingKeepsTheCipherAndSigningEndsTheCeremony) {
   EXPECT_EQ(cipher_before,
             std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
       << "Ping must not draw home over the recovery cipher";
+
+  // A second ceremony start is refused without hiding the armed one.
+  RecoveryDevice again = {};
+  fsm_msgRecoveryDevice(&again);
+  for (int frame = 0; frame < 20; ++frame) {
+    force_animation_start();
+    animate();
+  }
+  EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
+  EXPECT_EQ(cipher_before,
+            std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
+      << "a refused RecoveryDevice must not draw home over the cipher";
 
 #if !BITCOIN_ONLY
   EXPECT_TRUE(keepkey_before_message_dispatch(

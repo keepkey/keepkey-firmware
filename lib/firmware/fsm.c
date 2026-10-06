@@ -177,13 +177,14 @@ FailureType fsm_test_lastFailureCode(void) { return fsm_test_failure_code; }
  * anything is handled structurally instead: storage_commit() aborts an armed
  * ceremony, so a handler that writes can never have its write consumed by
  * one -- the worst it can do is end it. */
-#define CHECK_NO_CEREMONY                                       \
-  if (setup_isArmed()) {                                        \
-    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,      \
-                    _("Device is in the middle of setup. Send " \
-                      "Initialize or Cancel first."));          \
-    layoutHome();                                               \
-    return;                                                     \
+#define CHECK_NO_CEREMONY                                                \
+  if (setup_isArmed()) {                                                 \
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,               \
+                    _("Device is in the middle of setup. Send "          \
+                      "Initialize or Cancel first."));                   \
+    /* Keep the armed ceremony on screen; its ACKs still continue it. */ \
+    if (setup_isArmedAs(SETUP_RECOVERY)) recovery_cipher_redraw();       \
+    return;                                                              \
   }
 
 #define CHECK_PIN              \
