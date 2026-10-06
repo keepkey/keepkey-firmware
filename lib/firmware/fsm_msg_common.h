@@ -200,6 +200,18 @@ bool checkPassphrase(void) {
 }
 
 void fsm_msgPing(Ping* msg) {
+  /* During a setup ceremony only a plain Ping is answered: a protected one
+   * would draw its prompt over the ceremony and go home on cancel. */
+  if (setup_isArmed() &&
+      ((msg->has_button_protection && msg->button_protection) ||
+       (msg->has_pin_protection && msg->pin_protection) ||
+       (msg->has_passphrase_protection && msg->passphrase_protection))) {
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("Device is in the middle of setup. Send "
+                      "Initialize or Cancel first."));
+    return;
+  }
+
   RESP_INIT(Success);
 
   // If device is in manufacture mode, turn if off, lock it, and program the

@@ -421,7 +421,10 @@ bool keepkey_before_message_dispatch(MessageType msg_id) {
     default:
       /* A new signing operation may replace an old signer, but it must never
        * coexist with recovery/reset and borrow that ceremony's progress or
-       * blocking screens. Administrative requests still preserve ceremonies. */
+       * blocking screens. While a ceremony is armed, anything else that could
+       * draw over it is refused without touching the screen; only requests
+       * that end it (Initialize, Cancel, ClearSession) or are refused by the
+       * handler itself (a second ResetDevice/RecoveryDevice) get through. */
       switch (msg_id) {
         case MessageType_MessageType_SignTx:
         case MessageType_MessageType_SignMessage:
@@ -450,7 +453,19 @@ bool keepkey_before_message_dispatch(MessageType msg_id) {
 #endif
           setup_abort();
           break;
+        case MessageType_MessageType_Initialize:
+        case MessageType_MessageType_Cancel:
+        case MessageType_MessageType_ClearSession:
+        case MessageType_MessageType_ResetDevice:
+        case MessageType_MessageType_RecoveryDevice:
+          break;
         default:
+          if (setup_isArmed()) {
+            fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                            _("Device is in the middle of setup. Send "
+                              "Initialize or Cancel first."));
+            return false;
+          }
           break;
       }
       fsm_abort_signing_workflows();

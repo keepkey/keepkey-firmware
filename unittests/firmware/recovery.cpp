@@ -205,6 +205,27 @@ TEST(Recovery, UnrelatedRequestsKeepTheCipherAndSigningEndsTheCeremony) {
             std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
       << "a refused RecoveryDevice must not draw home over the cipher";
 
+  // Requests that would draw over the ceremony are refused untouched.
+  EXPECT_FALSE(
+      keepkey_before_message_dispatch(MessageType_MessageType_GetAddress));
+  Ping protected_ping = {};
+  protected_ping.has_button_protection = true;
+  protected_ping.button_protection = true;
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  fsm_msgPing(&protected_ping);
+  EXPECT_EQ(0, kkconfirm_drain()) << "no prompt may be drawn mid-ceremony";
+  for (int frame = 0; frame < 20; ++frame) {
+    force_animation_start();
+    animate();
+  }
+  EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
+  EXPECT_EQ(cipher_before,
+            std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
+      << "a refused request must leave the cipher on screen";
+  // Requests that end the ceremony still reach their handlers.
+  EXPECT_TRUE(
+      keepkey_before_message_dispatch(MessageType_MessageType_Initialize));
+
 #if !BITCOIN_ONLY
   EXPECT_TRUE(keepkey_before_message_dispatch(
       MessageType_MessageType_EthereumSignTx));
