@@ -32,7 +32,9 @@
 
 /* True while unwinding a handler already answered by a tiny receive Failure. */
 bool msg_handler_rejected(void);
-void keepkey_before_message_dispatch(MessageType msg_id);
+/* Runs before each normal message's handler; false means the firmware has
+ * already answered and the handler must not run. */
+bool keepkey_before_message_dispatch(MessageType msg_id);
 
 #define MSG_IN(ID, STRUCT_NAME, PROCESS_FUNC)                        \
   [ID].msg_id = (ID), [ID].type = (NORMAL_MSG), [ID].dir = (IN_MSG), \

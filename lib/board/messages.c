@@ -121,8 +121,9 @@ static bool pb_parse(const MessagesMap_t* entry, const uint8_t* msg,
 
 /* Firmware may end stale workflows before a new top-level request runs.
  * Board-only targets keep the no-op default. */
-__attribute__((weak)) void keepkey_before_message_dispatch(MessageType msg_id) {
+__attribute__((weak)) bool keepkey_before_message_dispatch(MessageType msg_id) {
   (void)msg_id;
+  return true;
 }
 
 /*
@@ -153,8 +154,9 @@ static void dispatch(const MessagesMap_t* entry, const uint8_t* msg,
     goto cleanup;
   }
 
-  if (entry->type == NORMAL_MSG) {
-    keepkey_before_message_dispatch(entry->msg_id);
+  if (entry->type == NORMAL_MSG &&
+      !keepkey_before_message_dispatch(entry->msg_id)) {
+    goto cleanup;
   }
   entry->process_func(decode_buffer);
 
@@ -184,8 +186,9 @@ static void raw_dispatch(const MessagesMap_t* entry, const uint8_t* msg,
   raw_msg.length = msg_size;
 
   if (entry->process_func) {
-    if (entry->type == NORMAL_MSG) {
-      keepkey_before_message_dispatch(entry->msg_id);
+    if (entry->type == NORMAL_MSG &&
+        !keepkey_before_message_dispatch(entry->msg_id)) {
+      return;
     }
     ((raw_msg_handler_t)(void*)entry->process_func)(&raw_msg, frame_length);
   }

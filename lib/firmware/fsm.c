@@ -316,6 +316,24 @@ static void sendFailureWrapper(FailureType code, const char* text) {
   fsm_sendFailure(code, text);
 }
 
+/* A continuation ACK reaches its handler only while its own workflow runs.
+ * Otherwise the handler would end whatever else is armed (setup_require() and
+ * the recovery check abort on a kind mismatch) or draw home over it. Answer
+ * here instead, with the handler's own text, and leave an armed reset or
+ * recovery intact and on screen. */
+static bool fsm_continuation(bool active, const char* text) {
+  if (active) return true;
+  fsm_abort_signing_workflows();
+  fsm_sendFailure(FailureType_Failure_UnexpectedMessage, text);
+  if (setup_isArmedAs(SETUP_RECOVERY)) {
+    /* Signing aborts may have drawn home over the cipher. */
+    recovery_cipher_redraw();
+  } else if (!setup_isArmed()) {
+    layoutHome();
+  }
+  return false;
+}
+
 void fsm_init(void) {
   msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
   set_msg_failure_handler(&sendFailureWrapper);
@@ -345,44 +363,43 @@ void fsm_init(void) {
  * EthereumSignTx that needs them. Idle locking stays with toggle_screensaver.
  * Metadata loaded before a sign survives: ethereum_signing_abort() only clears
  * it while a stream is active. */
-void keepkey_before_message_dispatch(MessageType msg_id) {
+bool keepkey_before_message_dispatch(MessageType msg_id) {
   switch (msg_id) {
     case MessageType_MessageType_GetFeatures:
     case MessageType_MessageType_GetCoinTable:
     case MessageType_MessageType_Ping:
-      return;
+      return true;
     case MessageType_MessageType_TxAck:
-      if (!signing_is_active()) fsm_abort_signing_workflows();
-      return;
+      return fsm_continuation(signing_is_active(), _("Not in Signing mode"));
     case MessageType_MessageType_EntropyAck:
-      if (!setup_isArmedAs(SETUP_RESET)) fsm_abort_signing_workflows();
-      return;
+      return fsm_continuation(setup_isArmedAs(SETUP_RESET),
+                              _("Not in Reset mode"));
     case MessageType_MessageType_CharacterAck:
-      if (!setup_isArmedAs(SETUP_RECOVERY)) fsm_abort_signing_workflows();
-      return;
+      return fsm_continuation(setup_isArmedAs(SETUP_RECOVERY),
+                              "Not in Recovery mode");
 #if !BITCOIN_ONLY
     case MessageType_MessageType_EthereumTxAck:
-      if (!ethereum_signing_isInProgress()) fsm_abort_signing_workflows();
-      return;
+      return fsm_continuation(ethereum_signing_isInProgress(),
+                              _("Not in Ethereum signing mode"));
     case MessageType_MessageType_CosmosMsgAck:
-      if (!tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS))
-        fsm_abort_signing_workflows();
-      return;
+      return fsm_continuation(
+          tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS),
+          "Cosmos signing not in progress");
     case MessageType_MessageType_OsmosisMsgAck:
-      if (!osmosis_signingIsInited()) fsm_abort_signing_workflows();
-      return;
+      return fsm_continuation(osmosis_signingIsInited(),
+                              "Signing not in progress");
     case MessageType_MessageType_BinanceTransferMsg:
-      if (!binance_signingIsInited()) fsm_abort_signing_workflows();
-      return;
+      return fsm_continuation(binance_signingIsInited(),
+                              "Signing not in progress?");
     case MessageType_MessageType_EosTxActionAck:
-      if (!eos_signingIsInited()) fsm_abort_signing_workflows();
-      return;
+      return fsm_continuation(eos_signingIsInited(),
+                              "Must call EosSignTx to initiate signing");
     case MessageType_MessageType_ThorchainMsgAck:
-      if (!thorchain_signingIsInited()) fsm_abort_signing_workflows();
-      return;
+      return fsm_continuation(thorchain_signingIsInited(),
+                              "Signing not in progress");
     case MessageType_MessageType_MayachainMsgAck:
-      if (!mayachain_signingIsInited()) fsm_abort_signing_workflows();
-      return;
+      return fsm_continuation(mayachain_signingIsInited(),
+                              "Signing not in progress");
 #endif
     default:
       /* A new signing operation may replace an old signer, but it must never
@@ -399,7 +416,7 @@ void keepkey_before_message_dispatch(MessageType msg_id) {
           break;
       }
       fsm_abort_signing_workflows();
-      return;
+      return true;
   }
 }
 
