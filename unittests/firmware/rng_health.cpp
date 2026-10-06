@@ -260,12 +260,8 @@ TEST(RngHealth, PersistentHardwareFaultLatchesBeforeReset) {
   rng_health_force_verdict(true);
 }
 
-// THE CONTINUOUS TEST, ON THE DEFAULT PATH. The boot gate only says the source
-// was healthy once; the RCT and APT exist to notice one that goes degenerate
-// afterwards. An earlier revision folded bytes into the continuous state only
-// inside random_buffer_checked(), so the ordinary path -- which is the one
-// RedPallas, ECDSA blinding and SecAESSTM32 take -- enforced the boot verdict
-// and nothing else.
+// After the boot gate passes, a degenerate run seen by rng_health_observe()
+// (called from random_buffer_checked()) must latch the verdict to failed.
 TEST(RngHealth, DegenerateOutputAfterTheGateLatchesFailure) {
   rng_health_force_verdict(true);
   ASSERT_TRUE(rng_health_check());
@@ -279,8 +275,8 @@ TEST(RngHealth, DegenerateOutputAfterTheGateLatchesFailure) {
   rng_health_force_verdict(true);
 }
 
-// And the same at the unit level: the call that trips reports the failure,
-// which is what random32() branches on.
+// The observing call that trips the test must itself return false, so
+// random_buffer_checked() can refuse those bytes.
 TEST(RngHealth, ObserveReportsTheTrippingCall) {
   rng_health_force_verdict(true);
   const uint8_t fine[4] = {0x01, 0x02, 0x03, 0x04};

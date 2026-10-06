@@ -96,7 +96,6 @@ bool rng_health_analyze(const uint8_t* buf, size_t len);
 ///                                        upgrade path that mints one
 ///   - the U2F key-handle derivation path generateKeyHandle()
 ///   - the one-shot OTP randomness block  flash_collectHWEntropy()
-///   - the RedPallas spend-auth T          fsm_msg_zcash.h, the is_spend path
 ///
 /// NOT covered: everything else in the tree and in deps/, because plain
 /// random_buffer() and random32() are unchecked exactly as on develop.

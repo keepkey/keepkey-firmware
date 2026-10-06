@@ -149,9 +149,8 @@ bool rng_source_live(void) {
  * convention: under NIST's inclusive counter the same derivation gives 17 at
  * alpha = 2^-30 and 14 at alpha = 2^-20.)
  *
- * Both tests run as STREAMING state so no sample buffer exists. The device has
- * a 16 KiB reserve gate and a history of boot faults from large automatic
- * buffers; a 1 KiB stack frame here is not worth a constant-space alternative.
+ * Both tests keep streaming state, so no sample buffer exists: large automatic
+ * buffers have caused boot faults on this device.
  */
 
 void rng_health_init(RngHealthCtx* ctx) {
