@@ -165,7 +165,13 @@ void toggle_screensaver(void) {
  * OUTPUT
  *     none
  */
-void increment_idle_time(uint32_t increment_ms) { idle_time += increment_ms; }
+void increment_idle_time(uint32_t increment_ms) {
+  /* Saturate: a wrap after ~49.7 days idle would read as fresh activity and
+   * wake the locked screen. Only reset_idle_time() may lower it. */
+  idle_time = (increment_ms > UINT32_MAX - idle_time)
+                  ? UINT32_MAX
+                  : idle_time + increment_ms;
+}
 
 /*
  * reset_idle_time() - Resets idle time

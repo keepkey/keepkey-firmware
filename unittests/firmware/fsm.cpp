@@ -205,6 +205,14 @@ TEST(Fsm, AutoLockKeepsTheScreensaverAfterAbortingSigning) {
   EXPECT_EQ(SCREENSAVER, home_get_state())
       << "a locked device must stay on the screensaver, not wake to home";
 
+  // ~49.7 days of further idling must not wrap the counter into "activity".
+  // It holds STORAGE_MIN_SCREENSAVER_TIMEOUT + 1000 here; this brings an
+  // unsaturated counter to exactly 0.
+  increment_idle_time(UINT32_MAX - (STORAGE_MIN_SCREENSAVER_TIMEOUT + 1000) + 1);
+  toggle_screensaver();
+  EXPECT_EQ(SCREENSAVER, home_get_state())
+      << "the idle counter wrapped and woke the locked screen";
+
   layoutHomeForced();
 }
 
