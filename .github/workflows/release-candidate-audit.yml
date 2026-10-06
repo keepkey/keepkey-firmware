@@ -887,6 +887,20 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # One report per product, each from that variant's own test results.
+    # The full report keeps the `test-report` name release.yml reads.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: full
+            python_artifact: python-test-results
+            oled_artifact: oled-screenshots
+            report_artifact: test-report
+          - variant: bitcoin-only
+            python_artifact: python-test-results-bitcoin-only
+            oled_artifact: oled-screenshots-bitcoin-only
+            report_artifact: test-report-bitcoin-only
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -896,19 +910,19 @@ jobs:
       - name: Download unit test results
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: unit-test-results
+          name: firmware-unit-results-${{ matrix.variant }}
           path: test-reports/firmware-unit/
 
       - name: Download python test results
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: python-test-results
+          name: ${{ matrix.python_artifact }}
           path: test-reports/python-keepkey/
 
       - name: Download OLED screenshots
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: oled-screenshots
+          name: ${{ matrix.oled_artifact }}
           path: test-reports/screenshots/
 
       - name: Download dylib test results
@@ -947,13 +961,14 @@ jobs:
           KK_WORKFLOW_EVENT: ${{ github.event_name }}
           KK_FIRMWARE_PR: ${{ github.event.pull_request.html_url }}
           KK_PYTHON_PR: https://github.com/keepkey/python-keepkey/pull/197
+          KK_REPORT_VARIANT: ${{ matrix.variant }}
         run: python3 scripts/generate-test-report.py
 
       - name: Upload test report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: test-report
+          name: ${{ matrix.report_artifact }}
           path: test-report/
           retention-days: 90
           if-no-files-found: error

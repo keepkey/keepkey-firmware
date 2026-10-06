@@ -21,7 +21,13 @@ REPORT_DIR = ROOT / "test-report"
 REPORT_PDF = REPORT_DIR / "test-report.pdf"
 MERGED_JUNIT = REPORT_DIR / "junit-merged.xml"
 
+# Every variant must pass these; the full image also the EVM/Osmosis ones.
 REQUIRED_CASES = {
+    "test_msg_recoverydevice_cipher.TestDeviceRecovery."
+    "test_unknown_word_count_failure_aborts_recovery",
+}
+
+FULL_REQUIRED_CASES = {
     "Ethereum.TransferAmountUsesTheRequestsSigningChain",
     "Osmosis.RequiredValuesRejectEmptyAndNonDecimalAmounts",
     "test_msg_ethereum_signtx_xfer.TestMsgEthereumSigntx."
@@ -30,9 +36,10 @@ REQUIRED_CASES = {
     "test_present_but_empty_amount_is_rejected_before_review",
     "test_msg_osmosis_validation.TestOsmosisValidation."
     "test_ibc_omitted_amount_and_receiver_are_rejected_before_review",
-    "test_msg_recoverydevice_cipher.TestDeviceRecovery."
-    "test_unknown_word_count_failure_aborts_recovery",
 }
+
+# Which product this report describes; each audit matrix leg sets it.
+VARIANT = os.environ.get("KK_REPORT_VARIANT", "full")
 
 
 def fail(message):
@@ -105,13 +112,15 @@ def canonical_case_name(case):
 
 
 def validate_cases(cases):
+    required_cases = REQUIRED_CASES | (
+        FULL_REQUIRED_CASES if VARIANT == "full" else set())
     failures = [case for case in cases
                 if case["status"] in ("fail", "error")]
     if failures:
         fail("authoritative JUnit has %d failure/error case(s)" % len(failures))
     passed = {canonical_case_name(case) for case in cases
               if case["status"] == "pass"}
-    missing = sorted(required for required in REQUIRED_CASES
+    missing = sorted(required for required in required_cases
                      if not any(name.endswith(required) for name in passed))
     if missing:
         fail("required 7.14.2 controls missing or not passing: %s" %
@@ -212,6 +221,8 @@ def require_native_junit(root):
 
 
 def main():
+    if VARIANT not in ("full", "bitcoin-only"):
+        fail("KK_REPORT_VARIANT must be full or bitcoin-only")
     if not REPORT_GENERATOR.is_file():
         fail("report generator submodule is not initialized")
 
@@ -261,6 +272,7 @@ def main():
     subprocess.run([
         sys.executable, str(REPORT_GENERATOR),
         "--screenshot-audit=%s" % screenshot_root,
+        "--variant=%s" % VARIANT,
         "--audit-junit=%s" % screenshot_junit,
         "--fw-version=%s" % fw_version,
     ], cwd=str(ROOT), check=True)
@@ -268,6 +280,7 @@ def main():
     subprocess.run([
         sys.executable, str(REPORT_GENERATOR),
         "--validate-junit",
+        "--variant=%s" % VARIANT,
         "--junit=%s" % MERGED_JUNIT,
         "--fw-version=%s" % fw_version,
     ], cwd=str(ROOT), check=True)
@@ -275,6 +288,7 @@ def main():
     subprocess.run([
         sys.executable, str(REPORT_GENERATOR),
         "--output=%s" % REPORT_PDF,
+        "--variant=%s" % VARIANT,
         "--junit=%s" % MERGED_JUNIT,
         "--screenshots=%s" % screenshot_root,
         "--fw-version=%s" % fw_version,
