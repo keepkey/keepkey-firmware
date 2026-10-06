@@ -316,6 +316,7 @@ def main():
         "firmware_pr": os.environ.get("KK_FIRMWARE_PR", ""),
         "python_pr": os.environ.get("KK_PYTHON_PR", ""),
         "run_url": run_url,
+        "report_variant": VARIANT,
         "workflow_event": os.environ.get("KK_WORKFLOW_EVENT", ""),
         "generators": {
             "combined_sha256": generator_hash,

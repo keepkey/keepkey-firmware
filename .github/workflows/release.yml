@@ -88,8 +88,10 @@ jobs:
               artifacts = json.load(handle).get('artifacts', [])
           names = [item['name'] for item in artifacts
                    if not item.get('expired')]
-          if 'test-report' not in names:
-              raise SystemExit('exact-commit CI has no test-report artifact')
+          # 7.14.3 ships only the bitcoin-only image, so its evidence is the
+          # bitcoin-only report.
+          if 'test-report-bitcoin-only' not in names:
+              raise SystemExit('exact-commit CI has no test-report-bitcoin-only artifact')
           # 7.14.3 publishes the bitcoin-only image alone. CI still builds and
           # tests the full image, but it is not signed or released here.
           prefix = 'firmware-v%s-' % os.environ['FW_VERSION']
@@ -108,7 +110,7 @@ jobs:
           ARM_BITCOIN_ARTIFACT: ${{ steps.evidence.outputs.arm_bitcoin_artifact }}
         run: |
           gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name test-report --dir audited-report
+            --name test-report-bitcoin-only --dir audited-report
           gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name "$ARM_BITCOIN_ARTIFACT" --dir audited-arm/bitcoin-only
           python3 - <<'PY'
@@ -140,6 +142,8 @@ jobs:
           run_id = os.environ['CI_RUN_ID']
           if not manifest.get('run_url', '').endswith('/' + run_id):
               raise SystemExit('presign manifest names a different CI run')
+          if manifest.get('report_variant') != 'bitcoin-only':
+              raise SystemExit('presign report does not describe the bitcoin-only product')
           pdf = report_dir / manifest['pdf']['path']
           if digest(pdf) != manifest['pdf']['sha256']:
               raise SystemExit('presign PDF hash mismatch')
@@ -196,7 +200,7 @@ jobs:
           ARM_ARTIFACT: ${{ needs.validate.outputs[matrix.arm_output] }}
         run: |
           gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name test-report --dir audited-report
+            --name test-report-bitcoin-only --dir audited-report
           gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name "$ARM_ARTIFACT" --dir audited-arm
 
