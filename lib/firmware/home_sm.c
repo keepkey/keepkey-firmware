@@ -125,9 +125,9 @@ void toggle_screensaver(void) {
    * only validated workflow progress renews the deadline. Unrelated host
    * polls and incomplete frames cannot keep a stalled session unlocked. */
   if (home_state != SCREENSAVER && idle_time >= storage_getAutoLockDelayMs()) {
-    /* signing_abort() and ethereum_signing_abort() draw the home screen, and
-     * layoutHomeForced() resets the idle timer. Restore it, or the screensaver
-     * drawn below is replaced by the home screen on the very next tick. */
+    /* Aborts may draw the home screen, so finish them before drawing the
+     * screensaver, and keep the lock time so nothing they do counts as
+     * activity that would replace the screensaver on the next tick. */
     const uint32_t locked_at = idle_time;
     fsm_abort_workflows();
     session_clear(/*clear_pin=*/true);

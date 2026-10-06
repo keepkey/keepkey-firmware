@@ -22,6 +22,8 @@ static bool corrupt_commit_tail;
 static unsigned payload_writes;
 static int marker_fault;
 static unsigned marker_writes;
+void kk_test_board_init(void);  // test_board.cpp
+
 extern "C" bool emulator_flash_write_completed(Allocation group,
                                                uint32_t offset, uint32_t len) {
   if (offset == STORAGE_MAGIC_LEN && len > 2564) {
@@ -50,10 +52,7 @@ class PassphraseTransition : public ::testing::Test {
     static bool initialized = false;
     if (!initialized) {
       setup();
-      if (layout_get_canvas() == nullptr) {
-        timer_init();
-        layout_init(display_canvas_init());
-      }
+      kk_test_board_init();  // the one guarded bootstrap (test_board.cpp)
       storage_init();
       initialized = true;
     }
