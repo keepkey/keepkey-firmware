@@ -269,6 +269,10 @@ void fsm_msgPing(Ping* msg) {
 
   if (authMsg < NUM_AUTHMESSAGES) {
     // this is an authenticator message
+    /* Account changes persist, and storage_commit() writes nothing while a
+     * bitcoin-only wallet is locked, so refuse rather than report success. */
+    CHECK_NOT_BITCOIN_ONLY_LOCKED
+
     unsigned errcode;
     char otp[9] = {0};  // allow room for an 8 digit otp
     char acc[DOMAIN_SIZE + ACCOUNT_SIZE + 2] = {

@@ -727,6 +727,18 @@ TEST(Fsm, BitcoinOnlyLockRefusesSettingsHandlersBeforeAnyConfirm) {
   EXPECT_EQ(0, kkconfirm_drain())
       << "ChangePin ran the Create PIN ceremony on a device it cannot write";
 
+  // Authenticator account changes persist too; storage_commit() would drop
+  // them silently, so the command must be refused rather than succeed.
+  Ping auth = {};
+  auth.has_message = true;
+  std::strcpy(auth.message, "\x15initializeAuth:JBSWY3DPEHPK3PXP");
+  fsm_test_clearLastFailure();
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  fsm_msgPing(&auth);
+  EXPECT_EQ(0, kkconfirm_drain());
+  EXPECT_EQ(FailureType_Failure_UnexpectedMessage, fsm_test_lastFailureCode())
+      << "an authenticator write on a locked wallet must be refused";
+
   storage_wipe();
   EXPECT_FALSE(storage_isBitcoinOnlyLocked());
   layoutHomeForced();
