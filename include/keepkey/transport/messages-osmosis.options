@@ -26,7 +26,6 @@ OsmosisMsgRedelegate.validator_src_address              max_size:53
 OsmosisMsgRedelegate.validator_dst_address              max_size:53
 OsmosisMsgRedelegate.denom                              max_size:69
 OsmosisMsgRedelegate.amount                             max_size:33
-OsmosisMsgRedelegate.amount                             max_size:33
 
 OsmosisMsgRewards.delegator_address                     max_size:53
 OsmosisMsgRewards.validator_address                     max_size:53

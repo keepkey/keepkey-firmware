@@ -19,7 +19,10 @@
 
 #include "keepkey/firmware/solana.h"
 
+#include "keepkey/firmware/signed_metadata.h"
+#include "trezor/crypto/ed25519-donna/ed25519-donna.h"
 #include "trezor/crypto/memzero.h"
+#include "trezor/crypto/sha2.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -73,6 +76,18 @@ const uint8_t SOL_MEMO_PROGRAM[SOL_PUBKEY_SIZE] = {
     0x71, 0x60, 0xda, 0x38, 0x7c, 0x7c, 0x35, 0xb5, 0xdd, 0xbc, 0x92,
     0xbb, 0x81, 0xe4, 0x1f, 0xa8, 0x40, 0x41, 0x05, 0x44, 0x8d};
 
+/* Circle's mainnet SPL USDC mint:
+ * EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v. */
+static const SolanaKnownToken SOL_KNOWN_TOKENS[] = {{
+    {0xc6, 0xfa, 0x7a, 0xf3, 0xbe, 0xdb, 0xad, 0x3a, 0x3d, 0x65, 0xf3,
+     0x6a, 0xab, 0xc9, 0x74, 0x31, 0xb1, 0xbb, 0xe4, 0xc2, 0xd2, 0xf6,
+     0xe0, 0xe4, 0x7c, 0xa6, 0x02, 0x03, 0x45, 0x2f, 0x5d, 0x61},
+    "USDC",
+    6,
+}};
+
+static const char SOL_PDA_MARKER[] = "ProgramDerivedAddress";
+
 /* ------------------------------------------------------------------ */
 /*  Compact-u16 decoder (Solana transaction format)                    */
 /* ------------------------------------------------------------------ */
@@ -122,10 +137,13 @@ static void copy_account(uint8_t out[SOL_PUBKEY_SIZE], const SolanaParsedTx* tx,
   }
 }
 
+/* allow_external_indices: v0 lookup-table accounts (index >= static list)
+ * cannot be verified, so they force the tx opaque. Never valid in legacy. */
 static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
                                      size_t* pos_io, SolanaParsedTx* tx,
                                      uint16_t num_accounts, bool* has_unknown,
-                                     bool* force_opaque) {
+                                     bool* force_opaque,
+                                     bool allow_external_indices) {
   size_t pos = *pos_io;
   uint16_t num_instructions;
   int n = read_compact_u16(raw + pos, raw_len - pos, &num_instructions);
@@ -133,19 +151,24 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
   pos += n;
 
   if (num_instructions > SOL_MAX_INSTRUCTIONS) {
+    /* Too many to display: opaque, but keep walking for structural checks. */
     *force_opaque = true;
     tx->num_instructions = 0;
-    /* Don't attempt to parse instruction data — treat as opaque. */
-    *pos_io = raw_len;
-    return 0;
   } else {
     tx->num_instructions = (uint8_t)num_instructions;
   }
 
+  bool seen_compute_limit = false;
+  bool seen_compute_price = false;
+
   for (uint16_t i = 0; i < num_instructions; i++) {
     if (pos >= raw_len) return -1;
     uint8_t program_idx = raw[pos++];
-    if (program_idx >= num_accounts) return -1;
+    bool external = false;
+    if (program_idx >= num_accounts) {
+      if (!allow_external_indices) return -1;
+      external = true;
+    }
 
     uint16_t num_acct_indices;
     n = read_compact_u16(raw + pos, raw_len - pos, &num_acct_indices);
@@ -157,7 +180,10 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
     pos += num_acct_indices;
 
     for (uint16_t j = 0; j < num_acct_indices; j++) {
-      if (acct_indices[j] >= num_accounts) return -1;
+      if (acct_indices[j] >= num_accounts) {
+        if (!allow_external_indices) return -1;
+        external = true;
+      }
     }
 
     uint16_t data_len;
@@ -169,11 +195,27 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
     const uint8_t* instr_data = raw + pos;
     pos += data_len;
 
-    if (i >= SOL_MAX_INSTRUCTIONS) {
+    if (i >= SOL_MAX_INSTRUCTIONS || tx->num_instructions == 0) {
       continue;
     }
 
     SolanaParsedInstruction* pi = &tx->instructions[i];
+
+    /* For KKSOLSC1 schemas; both point into the caller's raw buffer. */
+    pi->data = instr_data;
+    pi->data_len = data_len;
+    pi->acct_indices = acct_indices;
+    pi->num_acct_indices =
+        num_acct_indices > 255 ? 255 : (uint8_t)num_acct_indices;
+
+    if (external) {
+      /* Accounts resolved via lookup tables: unverifiable on-device. */
+      pi->type = SOL_INSTR_UNKNOWN;
+      pi->external = true;
+      *force_opaque = true;
+      continue;
+    }
+
     memcpy(pi->program_id, tx->accounts[program_idx], SOL_PUBKEY_SIZE);
 
     /* Classify and decode */
@@ -275,13 +317,10 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
                    0 ||
                memcmp(pi->program_id, SOL_TOKEN_2022_PROGRAM,
                       SOL_PUBKEY_SIZE) == 0) {
-      bool is_token_2022 =
+      /* Token-2022 hooks and fees cannot be shown: opaque (AdvancedMode). */
+      const bool is_token2022 =
           memcmp(pi->program_id, SOL_TOKEN_2022_PROGRAM, SOL_PUBKEY_SIZE) == 0;
-      /* Token-2022 extensions (fees, hooks and their extra accounts) are not
-       * authenticated or displayed by this decoder. Never present any
-       * Token-2022 operation as verified; AdvancedMode remains available for
-       * an explicit opaque signature. */
-      if (is_token_2022) *force_opaque = true;
+      if (is_token2022) *force_opaque = true;
       if (data_len >= 1) {
         uint8_t token_instr = instr_data[0];
         if (token_instr == SOL_TOKEN_TRANSFER_IX && data_len == 9 &&
@@ -296,6 +335,8 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           *force_opaque = true;
         } else if (token_instr == SOL_TOKEN_TRANSFER_CHECKED_IX &&
                    data_len == 10 && num_acct_indices >= 4) {
+          /* Canonical only: opcode + amount(8) + decimals(1), accounts
+           * [source, mint, dest, authority]; anything else is UNKNOWN. */
           pi->type = SOL_INSTR_TOKEN_TRANSFER_CHECKED;
           pi->amount = read_le64(instr_data + 1);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -424,6 +465,7 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 4);
         } else if (stake_instr == SOL_STAKE_AUTHORIZE_IX && data_len == 40 &&
                    num_acct_indices >= 3) {
+          /* new_authority(32) at +4 then authorize_type(le32) at +36. */
           uint32_t role = read_le32(instr_data + 36);
           if (role <= 1) {
             pi->type = SOL_INSTR_STAKE_AUTHORIZE;
@@ -488,6 +530,8 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
         } else if (vote_instr == SOL_VOTE_UPDATE_VALIDATOR_IX &&
                    data_len == 4 && num_acct_indices >= 3) {
+          /* No data payload: the new validator is account 1, never trailing
+           * data bytes. */
           pi->type = SOL_INSTR_VOTE_UPDATE_VALIDATOR;
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
           copy_account(pi->extra, tx, acct_indices, num_acct_indices, 1);
@@ -507,20 +551,19 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
         *has_unknown = true;
       }
     } else if (memcmp(pi->program_id, SOL_ATA_PROGRAM, SOL_PUBKEY_SIZE) == 0) {
-      if ((data_len == 0 || (data_len == 1 && instr_data[0] == 0)) &&
-          num_acct_indices >= 6) {
+      /* Empty or 0 = Create, 1 = CreateIdempotent (same accounts and effect,
+       * so it displays identically). */
+      if (data_len == 0 ||
+          (data_len == 1 && (instr_data[0] == 0 || instr_data[0] == 1))) {
         pi->type = SOL_INSTR_ATA_CREATE;
         copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
         copy_account(pi->to, tx, acct_indices, num_acct_indices, 1);
         copy_account(pi->authority, tx, acct_indices, num_acct_indices, 2);
         copy_account(pi->mint, tx, acct_indices, num_acct_indices, 3);
-        pi->has_mint = true;
-        /* Canonical ATA Create then names the System and Token programs. A
-         * Token-2022 program here creates a materially different account even
-         * though the instruction itself targets the ATA program. Until the
-         * Token-2022 semantics can be disclosed, only the exact legacy pair is
-         * clear-signed. */
-        if (memcmp(tx->accounts[acct_indices[4]], SOL_SYSTEM_PROGRAM,
+        pi->has_mint = (num_acct_indices >= 4);
+        /* Only the canonical six-account legacy-token form is verified. */
+        if (num_acct_indices < 6 ||
+            memcmp(tx->accounts[acct_indices[4]], SOL_SYSTEM_PROGRAM,
                    SOL_PUBKEY_SIZE) != 0 ||
             memcmp(tx->accounts[acct_indices[5]], SOL_TOKEN_PROGRAM,
                    SOL_PUBKEY_SIZE) != 0) {
@@ -538,9 +581,13 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           pi->type = SOL_INSTR_COMPUTE_BUDGET_HEAP_FRAME;
           pi->extra_value = read_le32(instr_data + 1);
         } else if (cb_instr == SOL_CB_SET_COMPUTE_UNIT_LIMIT && data_len == 5) {
+          if (seen_compute_limit) return -1;
+          seen_compute_limit = true;
           pi->type = SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT;
           pi->extra_value = read_le32(instr_data + 1);
         } else if (cb_instr == SOL_CB_SET_COMPUTE_UNIT_PRICE && data_len == 9) {
+          if (seen_compute_price) return -1;
+          seen_compute_price = true;
           pi->type = SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE;
           pi->extra_value = read_le64(instr_data + 1);
         } else if (cb_instr == SOL_CB_SET_LOADED_ACCOUNTS_SIZE &&
@@ -608,7 +655,8 @@ static SolanaTxReview solana_parseLegacyTx(const uint8_t* raw, size_t raw_len,
   pos += SOL_PUBKEY_SIZE;
 
   n = parse_instruction_section(raw, raw_len, &pos, tx, num_accounts,
-                                &has_unknown, &force_opaque);
+                                &has_unknown, &force_opaque,
+                                /*allow_external_indices=*/false);
   if (n < 0) return SOL_TX_REVIEW_MALFORMED;
 
   /* Reject if there are unconsumed bytes — prevents hidden trailing data */
@@ -620,13 +668,22 @@ static SolanaTxReview solana_parseLegacyTx(const uint8_t* raw, size_t raw_len,
   return SOL_TX_REVIEW_VERIFIED;
 }
 
+/* Solana's message sanitize rules for the header: a writable signer (the fee
+ * payer) exists, and the signer and read-only unsigned ranges fit inside the
+ * static keys without overlapping. */
+static bool solana_header_ok(const SolanaParsedTx* tx) {
+  return tx->num_readonly_signed < tx->num_required_sigs &&
+         (uint16_t)tx->num_required_sigs + tx->num_readonly_unsigned <=
+             tx->num_accounts;
+}
+
 static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
                                               size_t raw_len,
                                               SolanaParsedTx* tx) {
   memset(tx, 0, sizeof(*tx));
   size_t pos = 0;
   bool has_unknown = false;
-  bool force_opaque = true;
+  bool force_opaque = false;
 
   if (raw_len < 1) return SOL_TX_REVIEW_MALFORMED;
   uint8_t version_prefix = raw[pos++];
@@ -657,13 +714,18 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
   pos += SOL_PUBKEY_SIZE;
 
   n = parse_instruction_section(raw, raw_len, &pos, tx, num_accounts,
-                                &has_unknown, &force_opaque);
+                                &has_unknown, &force_opaque,
+                                /*allow_external_indices=*/true);
   if (n < 0) return SOL_TX_REVIEW_MALFORMED;
 
   uint16_t lookup_table_count;
   n = read_compact_u16(raw + pos, raw_len - pos, &lookup_table_count);
   if (n < 0) return SOL_TX_REVIEW_MALFORMED;
   pos += n;
+  if (lookup_table_count != 0) {
+    /* Any ALT section needs unresolved chain state: opaque. */
+    force_opaque = true;
+  }
 
   for (uint16_t i = 0; i < lookup_table_count; i++) {
     uint16_t writable_count, readonly_count;
@@ -684,46 +746,243 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
   }
 
   if (pos != raw_len) return SOL_TX_REVIEW_MALFORMED;
-  return SOL_TX_REVIEW_OPAQUE;
+  /* Zero-LUT v0 messages can verify, so their header must be well formed. */
+  if (!solana_header_ok(tx)) return SOL_TX_REVIEW_MALFORMED;
+
+  /* A zero-LUT v0 message verifies like legacy. */
+  if (tx->num_instructions == 0 || has_unknown || force_opaque) {
+    return SOL_TX_REVIEW_OPAQUE;
+  }
+  return SOL_TX_REVIEW_VERIFIED;
 }
 
-static bool solana_messageBytes(const uint8_t* raw, size_t raw_len,
-                                const uint8_t** message, size_t* message_len) {
-  if (!raw || raw_len == 0 || !message || !message_len) return false;
-  if (raw[0] == 0) {
-    if (raw_len == 1) return false;
+/* Strip an unsigned tx's 0x00 signature-count prefix so parsing and signing
+ * use the IDENTICAL message slice. */
+static void solana_message_slice(const uint8_t* raw, size_t raw_len,
+                                 const uint8_t** msg_out, size_t* len_out) {
+  if (raw_len > 1 && raw[0] == 0) {
     raw++;
     raw_len--;
   }
-  *message = raw;
-  *message_len = raw_len;
-  return true;
+  *msg_out = raw;
+  *len_out = raw_len;
 }
 
 SolanaTxReview solana_inspectTx(const uint8_t* raw, size_t raw_len,
                                 SolanaParsedTx* tx) {
-  const uint8_t* message;
-  size_t message_len;
-  if (!solana_messageBytes(raw, raw_len, &message, &message_len)) {
+  if (!raw || raw_len == 0) {
     memset(tx, 0, sizeof(*tx));
     return SOL_TX_REVIEW_MALFORMED;
   }
 
-  /* Clients may send either a serialized message or a full unsigned
-   * transaction whose compact-u16 signature count is zero. Solana signatures
-   * cover the message, not that transaction prefix. solana_signTx() performs
-   * the identical normalization before signing. */
-  raw = message;
-  raw_len = message_len;
+  const uint8_t* msg;
+  size_t msg_len;
+  solana_message_slice(raw, raw_len, &msg, &msg_len);
 
   /* Versioned Solana messages set the top bit in byte 0.
    * Parse them structurally so malformed v0/ALT payloads fail closed,
    * but keep the result opaque until the firmware can verify semantics. */
-  if (raw[0] & SOL_VERSION_FLAG) {
-    return solana_parseVersionedTx(raw, raw_len, tx);
+  if (msg[0] & SOL_VERSION_FLAG) {
+    return solana_parseVersionedTx(msg, msg_len, tx);
   }
 
-  return solana_parseLegacyTx(raw, raw_len, tx);
+  return solana_parseLegacyTx(msg, msg_len, tx);
+}
+
+/* ------------------------------------------------------------------ */
+/*  KKSOLSC1 reusable instruction schemas                              */
+/* ------------------------------------------------------------------ */
+
+/* Display-safe: printable ASCII, and no '%' so a label can never smuggle a
+ * conversion specifier into a format string. */
+static bool schema_text_ok(const uint8_t* v, size_t len) {
+  if (len == 0) return false;
+  for (size_t i = 0; i < len; i++) {
+    if (v[i] < 0x20 || v[i] > 0x7e || v[i] == '%') return false;
+  }
+  return true;
+}
+
+static bool schema_read_text(const uint8_t** cur, const uint8_t* end, char* out,
+                             size_t max_len) {
+  if (*cur >= end) return false;
+  uint8_t len = *(*cur)++;
+  if (len == 0 || len > max_len || (size_t)(end - *cur) < len ||
+      !schema_text_ok(*cur, len)) {
+    return false;
+  }
+  memcpy(out, *cur, len);
+  out[len] = '\0';
+  *cur += len;
+  return true;
+}
+
+/* Byte width an arg consumes in the instruction data. */
+uint16_t solana_schemaArgWidth(SolanaSchemaArgType t) {
+  switch (t) {
+    case SOL_SCHEMA_ARG_U64:
+    case SOL_SCHEMA_ARG_LAMPORTS:
+    case SOL_SCHEMA_ARG_TOKEN_AMOUNT:
+    case SOL_SCHEMA_ARG_DURATION:
+      return 8;
+    case SOL_SCHEMA_ARG_U8:
+      return 1;
+    case SOL_SCHEMA_ARG_PUBKEY:
+    case SOL_SCHEMA_ARG_OPAQUE32:
+      return 32;
+  }
+  return 0; /* unknown type — caller rejects */
+}
+
+bool solana_parseInstrSchema(const uint8_t* payload, size_t payload_len,
+                             SolanaInstrSchema* out) {
+  static const uint8_t magic[8] = {'K', 'K', 'S', 'O', 'L', 'S', 'C', '1'};
+  if (!payload || !out ||
+      payload_len < sizeof(magic) + 1 + SOL_PUBKEY_SIZE + 1) {
+    return false;
+  }
+  memset(out, 0, sizeof(*out));
+  const uint8_t* cur = payload;
+  const uint8_t* end = payload + payload_len;
+
+  if (memcmp(cur, magic, sizeof(magic)) != 0) return false;
+  cur += sizeof(magic);
+  const uint8_t version = *cur++;
+  if (version != 1 && version != 2) return false;
+
+  if ((size_t)(end - cur) < SOL_PUBKEY_SIZE + 1) return false;
+  memcpy(out->program_id, cur, SOL_PUBKEY_SIZE);
+  cur += SOL_PUBKEY_SIZE;
+
+  out->disc_len = *cur++;
+  if (out->disc_len == 0 || out->disc_len > SOL_SCHEMA_DISC_MAX ||
+      (size_t)(end - cur) < out->disc_len) {
+    return false;
+  }
+  memcpy(out->disc, cur, out->disc_len);
+  cur += out->disc_len;
+
+  if (!schema_read_text(&cur, end, out->program_name, SOL_SCHEMA_NAME_MAX) ||
+      !schema_read_text(&cur, end, out->instruction_name,
+                        SOL_SCHEMA_NAME_MAX) ||
+      cur >= end) {
+    return false;
+  }
+
+  out->num_args = *cur++;
+  if (out->num_args >
+      (version == 1 ? SOL_SCHEMA_V1_MAX_ARGS : SOL_SCHEMA_MAX_ARGS)) {
+    return false;
+  }
+  for (uint8_t i = 0; i < out->num_args; i++) {
+    if (cur >= end) return false;
+    uint8_t type = *cur++;
+    if (solana_schemaArgWidth((SolanaSchemaArgType)type) == 0 ||
+        (version == 1 && type > SOL_SCHEMA_ARG_LAMPORTS)) {
+      return false;
+    }
+    out->args[i].type = (SolanaSchemaArgType)type;
+    if (!schema_read_text(&cur, end, out->args[i].label,
+                          SOL_SCHEMA_LABEL_MAX)) {
+      return false;
+    }
+    if (type == SOL_SCHEMA_ARG_TOKEN_AMOUNT) {
+      if (cur >= end) return false;
+      out->args[i].mint_account = *cur++;
+    }
+  }
+
+  if (cur >= end) return false;
+  out->num_accounts = *cur++;
+  if (out->num_accounts > SOL_SCHEMA_MAX_ACCOUNTS) return false;
+  for (uint8_t i = 0; i < out->num_accounts; i++) {
+    if (cur >= end) return false;
+    out->accounts[i].index = *cur++;
+    if (!schema_read_text(&cur, end, out->accounts[i].label,
+                          SOL_SCHEMA_LABEL_MAX)) {
+      return false;
+    }
+  }
+
+  return cur == end; /* no trailing bytes */
+}
+
+bool solana_schemaApplies(const SolanaInstrSchema* schema,
+                          const SolanaParsedTx* tx, uint8_t* out_index) {
+  if (!schema || !tx || !out_index) return false;
+
+  bool found = false;
+  uint8_t match = 0;
+  for (uint8_t i = 0; i < tx->num_instructions; i++) {
+    const SolanaParsedInstruction* ix = &tx->instructions[i];
+    if (ix->external) continue; /* accounts not in the signed message */
+    if (memcmp(ix->program_id, schema->program_id, SOL_PUBKEY_SIZE) != 0) {
+      continue;
+    }
+    if (!ix->data || ix->data_len < schema->disc_len ||
+        memcmp(ix->data, schema->disc, schema->disc_len) != 0) {
+      continue;
+    }
+
+    /* Discriminator + args must consume the data EXACTLY: leftover bytes
+     * could carry an unshown effect. */
+    uint32_t consumed = schema->disc_len;
+    for (uint8_t a = 0; a < schema->num_args; a++) {
+      consumed += solana_schemaArgWidth(schema->args[a].type);
+    }
+    if (consumed != ix->data_len) continue;
+
+    /* Every displayed account must actually exist in this instruction. */
+    bool accounts_ok = true;
+    for (uint8_t a = 0; a < schema->num_accounts; a++) {
+      if (schema->accounts[a].index >= ix->num_acct_indices) {
+        accounts_ok = false;
+        break;
+      }
+    }
+    for (uint8_t a = 0; accounts_ok && a < schema->num_args; a++) {
+      if (schema->args[a].type == SOL_SCHEMA_ARG_TOKEN_AMOUNT &&
+          schema->args[a].mint_account >= ix->num_acct_indices) {
+        accounts_ok = false;
+      }
+    }
+    if (!accounts_ok) continue;
+
+    if (found) return false; /* ambiguous: two instructions match */
+    found = true;
+    match = i;
+  }
+  if (!found) return false;
+
+  /* Only inert companions: a transfer here would move value unshown. */
+  for (uint8_t i = 0; i < tx->num_instructions; i++) {
+    if (i == match) continue;
+    const SolanaInstrType type = tx->instructions[i].type;
+    if (tx->instructions[i].external ||
+        (type != SOL_INSTR_COMPUTE_BUDGET_HEAP_FRAME &&
+         type != SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT &&
+         type != SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE &&
+         type != SOL_INSTR_COMPUTE_BUDGET_LOADED_ACCOUNTS_SIZE &&
+         type != SOL_INSTR_MEMO)) {
+      return false;
+    }
+  }
+
+  *out_index = match;
+  return true;
+}
+
+bool solana_rawMessageIsPlainText(const uint8_t* msg, size_t len,
+                                  const uint8_t pubkey[SOL_PUBKEY_SIZE]) {
+  if (!msg || !pubkey || len == 0) return false;
+  /* '\r', '\t', control bytes, DEL, and UTF-8 use the AdvancedMode path. */
+  for (size_t i = 0; i < len; i++) {
+    if ((msg[i] < 0x20 || msg[i] > 0x7e) && msg[i] != '\n') return false;
+  }
+  for (size_t i = 0; i + SOL_PUBKEY_SIZE <= len; i++) {
+    if (memcmp(msg + i, pubkey, SOL_PUBKEY_SIZE) == 0) return false;
+  }
+  return true;
 }
 
 bool solana_parseTx(const uint8_t* raw, size_t raw_len, SolanaParsedTx* tx) {
@@ -733,6 +992,60 @@ bool solana_parseTx(const uint8_t* raw, size_t raw_len, SolanaParsedTx* tx) {
 /* ------------------------------------------------------------------ */
 /*  Formatting                                                         */
 /* ------------------------------------------------------------------ */
+
+/* The runtime requests 200,000 CUs per non-builtin instruction and, under
+ * SIMD-0170, 3,000 per builtin; ComputeBudget instructions are builtins and
+ * were free before it. Counting every non-ComputeBudget instruction at 200,000
+ * and every ComputeBudget one at 3,000 is >= the request under either rule (a
+ * builtin counted at 200,000 only widens the margin), so the fee shown stays
+ * an upper bound without quoting the 1.4M cap the transaction cannot reach.
+ * num_instructions is a uint8_t, so this cannot overflow. */
+uint64_t solana_defaultComputeUnitLimit(const SolanaParsedTx* tx) {
+  uint64_t limit = 0;
+  for (uint8_t i = 0; i < tx->num_instructions; i++) {
+    const SolanaInstrType t = tx->instructions[i].type;
+    const bool budget = t == SOL_INSTR_COMPUTE_BUDGET_HEAP_FRAME ||
+                        t == SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT ||
+                        t == SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE ||
+                        t == SOL_INSTR_COMPUTE_BUDGET_LOADED_ACCOUNTS_SIZE;
+    limit += budget ? 3000u : 200000u;
+  }
+  return limit;
+}
+
+bool solana_priority_fee_lamports(uint64_t price, uint64_t limit,
+                                  uint64_t* out) {
+  /* ceil(price * limit / 1e6), every step overflow-checked; false (never
+   * saturate) if the result exceeds UINT64_MAX. */
+  const uint64_t D = 1000000u;
+  if (limit > SOL_MAX_COMPUTE_UNITS) limit = SOL_MAX_COMPUTE_UNITS;
+  uint64_t q = price / D;
+  uint64_t r = price % D;
+  if (limit != 0 && r > UINT64_MAX / limit) {
+    return false; /* r*limit overflows (only for absurd limits) */
+  }
+  uint64_t rl = r * limit;
+  uint64_t lamports = rl / D;
+  bool ceil_up = (rl % D) != 0;
+  if (q != 0 && limit != 0) {
+    if (q > UINT64_MAX / limit) {
+      return false;
+    }
+    uint64_t ql = q * limit;
+    if (ql > UINT64_MAX - lamports) {
+      return false;
+    }
+    lamports += ql;
+  }
+  if (ceil_up) {
+    if (lamports == UINT64_MAX) {
+      return false;
+    }
+    lamports++;
+  }
+  *out = lamports;
+  return true;
+}
 
 void solana_formatAmount(char* buf, size_t len, uint64_t lamports) {
   uint64_t whole = lamports / SOL_LAMPORTS_DIVISOR;
@@ -796,94 +1109,139 @@ void solana_formatTokenAmount(char* buf, size_t len, uint64_t amount,
     show_frac /= 10;
   }
   frac_str[show_dec] = '\0';
-  snprintf(buf, len, "%llu.%s %s", (unsigned long long)whole, frac_str, symbol);
+  while (show_dec > 0 && frac_str[show_dec - 1] == '0') {
+    frac_str[--show_dec] = '\0';
+  }
+  if (show_dec == 0) {
+    snprintf(buf, len, "%llu %s", (unsigned long long)whole, symbol);
+  } else {
+    snprintf(buf, len, "%llu.%s %s", (unsigned long long)whole, frac_str,
+             symbol);
+  }
 }
 
-/* Solana's own default when a transaction carries no SetComputeUnitLimit:
-   200,000 compute units per instruction, or 3,000 for a BUILTIN one, capped at
-   1,400,000. See the runtime's compute_budget_processor and SIMD-0170. */
-#define SOL_DEFAULT_CU_PER_INSTRUCTION 200000u
-#define SOL_BUILTIN_CU_PER_INSTRUCTION 3000u
-#define SOL_MAX_CU_LIMIT 1400000u
-
-static bool solana_isComputeBudgetInstruction(uint8_t type) {
-  return type == SOL_INSTR_COMPUTE_BUDGET_HEAP_FRAME ||
-         type == SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT ||
-         type == SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE ||
-         type == SOL_INSTR_COMPUTE_BUDGET_LOADED_ACCOUNTS_SIZE;
+const SolanaKnownToken* solana_findKnownToken(
+    const uint8_t mint[SOL_PUBKEY_SIZE]) {
+  for (size_t i = 0; i < sizeof(SOL_KNOWN_TOKENS) / sizeof(SOL_KNOWN_TOKENS[0]);
+       i++) {
+    if (memcmp(SOL_KNOWN_TOKENS[i].mint, mint, SOL_PUBKEY_SIZE) == 0) {
+      return &SOL_KNOWN_TOKENS[i];
+    }
+  }
+  return NULL;
 }
 
-bool solana_calculatePriorityFee(const SolanaParsedTx* tx, uint64_t* fee_out,
-                                 bool* has_fee) {
-  const uint64_t divisor = 1000000u;
-  uint64_t price = 0;
-  uint64_t limit = 0;
-  bool seen_price = false;
-  bool seen_limit = false;
-  uint64_t non_budget_instructions = 0;
-  *has_fee = false;
+bool solana_deriveAssociatedTokenAddress(
+    const uint8_t owner[SOL_PUBKEY_SIZE],
+    const uint8_t token_program[SOL_PUBKEY_SIZE],
+    const uint8_t mint[SOL_PUBKEY_SIZE], uint8_t out[SOL_PUBKEY_SIZE]) {
+  /* find_program_address: bump 255 down; PDA must be off the Ed25519 curve. */
+  for (int bump = 255; bump >= 0; bump--) {
+    SHA256_CTX ctx = {0};
+    uint8_t candidate[SHA256_DIGEST_LENGTH];
+    uint8_t bump_seed = (uint8_t)bump;
+    sha256_Init(&ctx);
+    sha256_Update(&ctx, owner, SOL_PUBKEY_SIZE);
+    sha256_Update(&ctx, token_program, SOL_PUBKEY_SIZE);
+    sha256_Update(&ctx, mint, SOL_PUBKEY_SIZE);
+    sha256_Update(&ctx, &bump_seed, 1);
+    sha256_Update(&ctx, SOL_ATA_PROGRAM, SOL_PUBKEY_SIZE);
+    sha256_Update(&ctx, (const uint8_t*)SOL_PDA_MARKER,
+                  sizeof(SOL_PDA_MARKER) - 1);
+    sha256_Final(&ctx, candidate);
 
-  for (uint8_t i = 0; i < tx->num_instructions; i++) {
-    const SolanaParsedInstruction* pi = &tx->instructions[i];
-    if (!solana_isComputeBudgetInstruction((uint8_t)pi->type)) {
-      non_budget_instructions++;
-    }
-    if (pi->type == SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE) {
-      if (seen_price) return false;
-      seen_price = true;
-      price = pi->extra_value;
-    } else if (pi->type == SOL_INSTR_COMPUTE_BUDGET_UNIT_LIMIT) {
-      if (seen_limit) return false;
-      seen_limit = true;
-      limit = pi->extra_value;
+    ge25519 point;
+    if (ge25519_unpack_vartime(&point, candidate) == 0) {
+      memcpy(out, candidate, SOL_PUBKEY_SIZE);
+      return true;
     }
   }
+  return false;
+}
 
-  if (!seen_limit) {
-    /* Not the 1,400,000 cap.
-     *
-     * Assuming the cap whenever SetComputeUnitLimit was absent overstated the
-     * screen badly: a transfer plus a unit-price instruction is charged on a
-     * small fraction of it, and the device showed the full 1,400,000 as the
-     * "Maximum priority fee". It is an upper bound, so nothing was ever
-     * understated -- but a maximum the runtime will never reach is not the
-     * transaction's maximum, and this release line is about screens that
-     * describe the thing being signed.
-     *
-     * The ComputeBudget instructions are not free, though, and charging them
-     * nothing is how deriving the limit turned into an UNDERSTATEMENT. Under
-     * SIMD-0170 the runtime gives every builtin instruction 3,000 CUs and
-     * every non-builtin one 200,000, and the ComputeBudget program is itself a
-     * builtin -- so [SetComputeUnitPrice, TransferChecked], the ordinary
-     * clear-signed token send, is charged on 203,000 CUs and was shown as
-     * 200,000. Counting every instruction, the non-budget ones at 200,000 and
-     * the budget ones at 3,000, is >= what the runtime charges under the old
-     * rule and under SIMD-0170 alike (a builtin the device over-counts at
-     * 200,000 only widens the margin), so the screen is an upper bound again.
-     * num_instructions is a uint8_t, so this cannot overflow. */
-    limit = non_budget_instructions * SOL_DEFAULT_CU_PER_INSTRUCTION +
-            (tx->num_instructions - non_budget_instructions) *
-                SOL_BUILTIN_CU_PER_INSTRUCTION;
+bool solana_findTokenRecipientOwner(
+    const SolanaSignTx* msg, const uint8_t token_program[SOL_PUBKEY_SIZE],
+    const uint8_t mint[SOL_PUBKEY_SIZE],
+    const uint8_t destination[SOL_PUBKEY_SIZE], uint8_t out[SOL_PUBKEY_SIZE]) {
+  if (!msg) return false;
+  for (size_t i = 0; i < msg->token_recipient_owner_count; i++) {
+    if (msg->token_recipient_owner[i].size != SOL_PUBKEY_SIZE) continue;
+    uint8_t derived[SOL_PUBKEY_SIZE];
+    if (solana_deriveAssociatedTokenAddress(msg->token_recipient_owner[i].bytes,
+                                            token_program, mint, derived) &&
+        memcmp(derived, destination, SOL_PUBKEY_SIZE) == 0) {
+      memcpy(out, msg->token_recipient_owner[i].bytes, SOL_PUBKEY_SIZE);
+      return true;
+    }
   }
+  return false;
+}
 
-  /* Solana caps explicit limits too; do not quote a host request above the
-   * runtime ceiling as a fee the signed transaction can incur. */
-  if (limit > SOL_MAX_CU_LIMIT) limit = SOL_MAX_CU_LIMIT;
+const SolanaTokenInfo* solana_findTokenInfo(
+    const SolanaSignTx* msg, const uint8_t mint[SOL_PUBKEY_SIZE]) {
+  for (size_t i = 0; i < msg->token_info_count; i++) {
+    if (msg->token_info[i].has_mint &&
+        msg->token_info[i].mint.size == SOL_PUBKEY_SIZE &&
+        memcmp(msg->token_info[i].mint.bytes, mint, SOL_PUBKEY_SIZE) == 0) {
+      return &msg->token_info[i];
+    }
+  }
+  return NULL;
+}
 
-  if (!seen_price || price == 0) return true;
+bool solana_token_info_trusted(const SolanaTokenInfo* ti) {
+  if (!ti || !ti->has_signature || !ti->has_signer_key_id || !ti->has_mint ||
+      ti->mint.size != SOL_PUBKEY_SIZE || !ti->has_symbol ||
+      !ti->has_decimals) {
+    return false;
+  }
+  /* uint32 field: reject out-of-range slots BEFORE narrowing to the uint8 the
+   * keyring uses, so key_id 256 can't alias slot 0. */
+  if (ti->signer_key_id >= METADATA_MAX_KEYS) {
+    return false;
+  }
+  size_t sym_len = strnlen(ti->symbol, sizeof(ti->symbol));
+  if (sym_len == 0) {
+    return false;
+  }
+  /* Domain tag blocks cross-purpose replay. Preimage: tag || mint(32) ||
+   * decimals(le32) || symbol. */
+  static const char kTag[] = "KeepKeySolanaTokenDef/1";
+  uint8_t blob[sizeof(kTag) - 1 + SOL_PUBKEY_SIZE + 4 + sizeof(ti->symbol)];
+  size_t n = 0;
+  memcpy(blob + n, kTag, sizeof(kTag) - 1);
+  n += sizeof(kTag) - 1;
+  memcpy(blob + n, ti->mint.bytes, SOL_PUBKEY_SIZE);
+  n += SOL_PUBKEY_SIZE;
+  uint32_t dec = ti->decimals;
+  blob[n++] = (uint8_t)dec;
+  blob[n++] = (uint8_t)(dec >> 8);
+  blob[n++] = (uint8_t)(dec >> 16);
+  blob[n++] = (uint8_t)(dec >> 24);
+  memcpy(blob + n, ti->symbol, sym_len);
+  n += sym_len;
+  return signed_metadata_verify_attestation((uint8_t)ti->signer_key_id, blob, n,
+                                            ti->signature.bytes,
+                                            ti->signature.size);
+}
 
-  uint64_t whole = price / divisor;
-  uint64_t remainder = price % divisor;
-  if (limit != 0 && whole > UINT64_MAX / limit) return false;
-  uint64_t base = whole * limit;
-  uint64_t remainder_product = remainder * limit;
-  uint64_t rounded = remainder_product / divisor;
-  if (remainder_product % divisor != 0) rounded++;
-  if (base > UINT64_MAX - rounded) return false;
-
-  *fee_out = base + rounded;
-  *has_fee = true;
-  return true;
+/* Never the bare SolanaSignTx.token_info.symbol: matching the host's decimals
+ * to the signed ones authenticates the exponent, not the identity -- an
+ * attacker picks a mint whose decimals already match and the label rides
+ * through as fact, and a caveat cannot help when the host writes the 12
+ * characters beside it. Unattested => base units beside the full mint. */
+const char* solana_displaySymbol(const SolanaTokenInfo* ti,
+                                 const SolanaKnownToken* known,
+                                 uint8_t signed_decimals) {
+  if (known) return known->symbol;
+  if (!solana_token_info_trusted(ti) || ti->decimals != signed_decimals) {
+    return NULL;
+  }
+  /* Printable ASCII only, so a signed label cannot push the mint off-view. */
+  for (const char* p = ti->symbol; *p; p++) {
+    if ((uint8_t)*p < 0x20 || (uint8_t)*p > 0x7e) return NULL;
+  }
+  return ti->symbol;
 }
 
 /* ------------------------------------------------------------------ */
@@ -894,17 +1252,23 @@ bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
                    SolanaSignedTx* resp) {
   if (!msg->has_raw_tx || msg->raw_tx.size == 0) return false;
 
+  /* Sign the exact same message slice that solana_inspectTx parsed and the user
+   * approved (Solana signs the serialized message, not a hash of it). */
   const uint8_t* message;
   size_t message_len;
-  if (!solana_messageBytes(msg->raw_tx.bytes, msg->raw_tx.size, &message,
-                           &message_len)) {
-    return false;
-  }
+  solana_message_slice(msg->raw_tx.bytes, msg->raw_tx.size, &message,
+                       &message_len);
 
-  /* Ed25519 signs the serialized message directly, never the full
-   * transaction's compact-u16 signature-count prefix. */
   uint8_t sig[SOL_SIG_SIZE];
   ed25519_sign(message, message_len, node->private_key, sig);
+
+#if !ZCASH_PRIVACY
+  /* Defense-in-depth self-verify; compiled out on zcash-privacy (ROM). */
+  if (ed25519_sign_open(message, message_len, node->public_key + 1, sig) != 0) {
+    memzero(sig, sizeof(sig));
+    return false;
+  }
+#endif
 
   resp->has_signature = true;
   resp->signature.size = SOL_SIG_SIZE;

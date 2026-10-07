@@ -80,6 +80,9 @@ bool eos_signingIsInited(void);
 
 void eos_signingAbort(void);
 
+/* ecdsa_sign_digest is_canonical callback; Hive uses the same rule. */
+int eos_is_canonic(uint8_t v, uint8_t signature[64]);
+
 bool eos_signingIsFinished(void);
 
 uint32_t eos_actionsRemaining(void);

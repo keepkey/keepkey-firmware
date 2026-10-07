@@ -326,8 +326,10 @@ bool nano_signTx(const NanoSignTx* msg, HDNode* node, NanoSignedTx* resp) {
     memset(amount_string, 0, sizeof(amount_string));
     if (!bn_format(&balance_delta, NULL, NULL, coin->decimals, 0, false,
                    amount_string, sizeof(amount_string))) {
-      strlcpy(amount_string, "AMOUNT TOO LARGE TO DISPLAY",
-              sizeof(amount_string));
+      fsm_sendFailure(FailureType_Failure_Other,
+                      "Nano amount too large to display");
+      layoutHome();
+      return false;
     }
 
     if (is_transfer) {

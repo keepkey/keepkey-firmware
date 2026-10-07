@@ -5,6 +5,10 @@ extern "C" {
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/reset.h"
+#include "keepkey/firmware/ripple.h"
+#include "keepkey/firmware/tron.h"
+#include "keepkey/firmware/mayachain.h"
+#include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/bip85.h"
 #include "keepkey/firmware/signed_metadata.h"
 #include "storage.h"
@@ -142,6 +146,24 @@ TEST_F(ReviewHandlers, ResetBackupCommitsAllStrengthsAndClearsScratch) {
 }
 
 #if !BITCOIN_ONLY
+TEST_F(ReviewHandlers, RippleMemoReachesReviewBeforeSigning) {
+  RippleSignTx msg = {};
+  msg.has_payment = true;
+  msg.payment.has_amount = true;
+  msg.payment.amount = 1000000;
+  msg.payment.has_destination = true;
+  strcpy(msg.payment.destination, "rNaqKtKrMSwpwZSzRckPf7S96DkimjkF4H");
+  msg.has_fee = true;
+  msg.fee = RIPPLE_MIN_FEE;
+  msg.has_memo = true;
+  strcpy(msg.memo, "Memo review must be reached");
+  ASSERT_TRUE(kkconfirm_preload(1, 1));
+  fsm_test_clearLastFailure();
+  fsm_msgRippleSignTx(&msg);
+  EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
 static const uint8_t review_pubkey[33] = {
     0x02, 0xe3, 0xb3, 0x01, 0x5c, 0x47, 0xdd, 0xca, 0xab, 0xe4, 0xf8,
     0xe8, 0x72, 0xf1, 0xed, 0x8f, 0x09, 0xca, 0x14, 0x5a, 0x8d, 0x81,
@@ -285,5 +307,173 @@ TEST_F(ReviewHandlers, Bip85SeedScreensAllFitTheConstantPowerCanvas) {
         << "seed screen does not fit: " << body;
   }
   EXPECT_GE(seed_screens, 6u) << "every packed page must reach the screen";
+}
+
+static TronSignMessage message(size_t size, bool binary) {
+  TronSignMessage msg = {};
+  msg.address_n_count = 3;
+  msg.address_n[0] = 0x80000000 | 44;
+  msg.address_n[1] = 0x80000000 | 195;
+  msg.address_n[2] = 0x80000000;
+  msg.has_message = true;
+  msg.message.size = size;
+  memset(msg.message.bytes, binary ? 0 : 'W', size);
+  if (size) msg.message.bytes[size - 1] = 'Z';
+  return msg;
+}
+
+TEST_F(ReviewHandlers, MissingAndEmptyTronMessageNeverRequestsConsent) {
+  for (bool present : {false, true}) {
+    auto msg = message(0, false);
+    msg.has_message = present;
+    ASSERT_TRUE(kkconfirm_preload(0, 1));
+    fsm_test_clearLastFailure();
+    fsm_msgTronSignMessage(&msg);
+    EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+    EXPECT_EQ(2, kkconfirm_drain());
+  }
+}
+
+static int page_count(const uint8_t* bytes, size_t size) {
+  int pages = 0;
+  for (size_t offset = 0; offset < size; ++pages) {
+    char page[BODY_CHAR_MAX];
+    size_t n = confirm_bytes_format_page(bytes + offset, size - offset, page,
+                                         sizeof(page));
+    if (!n) return 0;
+    offset += n;
+  }
+  return pages;
+}
+
+TEST_F(ReviewHandlers, RejectTronSignedAndVerifiedMessageTail) {
+  for (bool binary : {false, true}) {
+    auto msg = message(200, binary);
+    const int pages = page_count(msg.message.bytes, msg.message.size);
+    ASSERT_GT(pages, 1);
+    ASSERT_TRUE(kkconfirm_preload(pages - 1, 1));
+    fsm_test_clearLastFailure();
+    fsm_msgTronSignMessage(&msg);
+    EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+    EXPECT_EQ(0, kkconfirm_drain());
+
+    HDNode node = {};
+    ASSERT_TRUE(storage_getRootNode("secp256k1", true, &node));
+    for (uint32_t step : {msg.address_n[0], msg.address_n[1], msg.address_n[2]})
+      ASSERT_TRUE(hdnode_private_ckd(&node, step));
+    hdnode_fill_public_key(&node);
+    TronMessageSignature signature = {};
+    ASSERT_TRUE(tron_message_sign(&node, &msg, &signature));
+    TronVerifyMessage verify = {};
+    verify.has_message = verify.has_signature = verify.has_address = true;
+    verify.message.size = msg.message.size;
+    memcpy(verify.message.bytes, msg.message.bytes, msg.message.size);
+    verify.signature.size = signature.signature.size;
+    memcpy(verify.signature.bytes, signature.signature.bytes,
+           signature.signature.size);
+    strcpy(verify.address, signature.address);
+    ASSERT_EQ(0, tron_message_verify(&verify));
+    ASSERT_TRUE(kkconfirm_preload(pages, 1));  // signer + all but final page
+    fsm_test_clearLastFailure();
+    fsm_msgTronVerifyMessage(&verify);
+    EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+    EXPECT_EQ(0, kkconfirm_drain());
+  }
+}
+
+TEST_F(ReviewHandlers, MayaDefaultDenomReachesConsentForMissingAndEmptyField) {
+  for (bool present : {false, true}) {
+    HDNode node = {};
+    ASSERT_TRUE(storage_getRootNode("secp256k1", true, &node));
+    hdnode_fill_public_key(&node);
+    MayachainSignTx tx = {};
+    tx.has_chain_id = tx.has_msg_count = true;
+    strcpy(tx.chain_id, "mayachain");
+    tx.msg_count = 1;
+    ASSERT_TRUE(mayachain_signTxInit(&node, &tx));
+    MayachainMsgAck ack = {};
+    ack.has_send = true;
+    ack.send.has_to_address = ack.send.has_amount = true;
+    ack.send.amount = 1;
+    ack.send.has_denom = present;
+    strcpy(ack.send.to_address, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
+    // Accept output and asset, reject the final "Sign ... on ...?" screen.
+    ASSERT_TRUE(kkconfirm_preload(2, 1));
+    fsm_test_clearLastFailure();
+    kkconfirm_capture_start();
+    fsm_msgMayachainMsgAck(&ack);
+    const auto screens = kkconfirm_capture_finish();
+    EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+    EXPECT_FALSE(mayachain_signingIsInited());
+    EXPECT_EQ(0, kkconfirm_drain());
+    EXPECT_NE(
+        screens.end(),
+        std::find_if(screens.begin(), screens.end(), [](const std::string& s) {
+          return s.rfind("Sign cacao on mayachain?", 0) == 0;
+        }));
+  }
+}
+
+// The THORChain signing screen names the denom actually sent, never "RUNE"
+// for a non-rune MsgSend.
+TEST_F(ReviewHandlers, ThorchainSignScreenNamesTheSentDenom) {
+  // The default denom keeps the screen it always had.
+  const std::pair<const char*, const char*> cases[] = {{"tcy", "tcy"},
+                                                       {"rune", "RUNE"}};
+  for (const auto& c : cases) {
+    const char* denom = c.first;
+    HDNode node = {};
+    ASSERT_TRUE(storage_getRootNode("secp256k1", true, &node));
+    hdnode_fill_public_key(&node);
+    ThorchainSignTx tx = {};
+    tx.has_chain_id = tx.has_msg_count = true;
+    strcpy(tx.chain_id, "thorchain-1");
+    tx.msg_count = 1;
+    ASSERT_TRUE(thorchain_signTxInit(&node, &tx));
+    ThorchainMsgAck ack = {};
+    ack.has_send = true;
+    ack.send.has_to_address = ack.send.has_amount = ack.send.has_denom = true;
+    ack.send.amount = 1;
+    strcpy(ack.send.denom, denom);
+    strcpy(ack.send.to_address, "thor1am058pdux3hyulcmfgj4m3hhrlfn8nzmpq9u6l");
+    // Accept output and asset, reject the final "Sign ... on ...?" screen.
+    ASSERT_TRUE(kkconfirm_preload(2, 1));
+    fsm_test_clearLastFailure();
+    kkconfirm_capture_start();
+    fsm_msgThorchainMsgAck(&ack);
+    const auto screens = kkconfirm_capture_finish();
+    EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+    EXPECT_FALSE(thorchain_signingIsInited());
+    EXPECT_EQ(0, kkconfirm_drain());
+    const std::string expected =
+        std::string("Sign ") + c.second + " on thorchain-1?";
+    EXPECT_NE(screens.end(), std::find_if(screens.begin(), screens.end(),
+                                          [&](const std::string& s) {
+                                            return s.rfind(expected, 0) == 0;
+                                          }))
+        << denom;
+  }
+}
+
+TEST_F(ReviewHandlers, MayaDepositGrammarRejectedBeforeConsent) {
+  HDNode node = {};
+  ASSERT_TRUE(storage_getRootNode("secp256k1", true, &node));
+  MayachainSignTx tx = {};
+  tx.has_chain_id = tx.has_msg_count = true;
+  strcpy(tx.chain_id, "mayachain");
+  tx.msg_count = 1;
+  ASSERT_TRUE(mayachain_signTxInit(&node, &tx));
+  MayachainMsgAck ack = {};
+  ack.has_deposit = true;
+  ack.deposit.has_asset = ack.deposit.has_amount = ack.deposit.has_memo =
+      ack.deposit.has_signer = true;
+  strcpy(ack.deposit.asset, "MAYA:CACAO");
+  strcpy(ack.deposit.signer, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
+  ASSERT_TRUE(kkconfirm_preload(0, 1));
+  fsm_test_clearLastFailure();
+  fsm_msgMayachainMsgAck(&ack);
+  EXPECT_EQ(FailureType_Failure_SyntaxError, fsm_test_lastFailureCode());
+  EXPECT_FALSE(mayachain_signingIsInited());
+  EXPECT_EQ(2, kkconfirm_drain());
 }
 #endif

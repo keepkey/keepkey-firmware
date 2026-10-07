@@ -9,6 +9,19 @@ extern "C" {
 #include <cstring>
 #include <string>
 
+TEST(Ripple, Base58RejectsOversizedAndNegativeLengths) {
+  uint8_t data[257] = {0};
+  char encoded[512] = {0};
+  size_t encoded_len = sizeof(encoded);
+  size_t decoded_len = sizeof(data);
+
+  EXPECT_FALSE(ripple_b58enc(encoded, &encoded_len, data, sizeof(data)));
+  EXPECT_FALSE(ripple_b58tobin(data, &decoded_len, "r"));
+  EXPECT_EQ(0, ripple_encode_check(data, -1, HASHER_SHA2D, encoded,
+                                   sizeof(encoded)));
+  EXPECT_EQ(0, ripple_decode_check("r", HASHER_SHA2D, data, -1));
+}
+
 TEST(Ripple, AddressEncodeDecode) {
   // https://xrpl.org/accounts.html#address-encoding
   uint8_t public_key[33 + 1] =
@@ -147,4 +160,56 @@ TEST(Ripple, Serialize) {
         "\x78\x08\x26";
 
   ASSERT_TRUE(memcmp(serialized, expected, sizeof(serialized)) == 0);
+}
+
+TEST(Ripple, MemoDataUsesCanonicalBlob13AndLengthBoundary) {
+  // Independent oracle: XRPLF ripple-binary-codec definitions.json:
+  // MemoData is Blob(7), nth 13; Memo STObject(14), nth 10.
+  for (size_t length : {size_t(191), size_t(192), size_t(193), size_t(199)}) {
+    RippleSignTx tx = {};
+    tx.has_memo = true;
+    memset(tx.memo, 'm', length);
+    tx.memo[length] = 0;
+    uint8_t output[512] = {};
+    uint8_t public_key[33] = {2};
+    uint8_t* end = output;
+    ASSERT_TRUE(ripple_serialize(&end, output + sizeof(output), &tx,
+                                 "rNaqKtKrMSwpwZSzRckPf7S96DkimjkF4H",
+                                 public_key, nullptr, 0));
+    const size_t prefix_len = length <= 192 ? 1 : 2;
+    const uint8_t* memo = end - (3 + prefix_len + length + 2);
+    EXPECT_EQ(0xf9, memo[0]);
+    EXPECT_EQ(0xea, memo[1]);
+    EXPECT_EQ(0x7d, memo[2]);
+    EXPECT_EQ(length <= 192 ? length : 193, memo[3]);
+    if (length > 192) EXPECT_EQ(length - 193, memo[4]);
+    EXPECT_EQ(0, memcmp(memo + 3 + prefix_len, tx.memo, length));
+    EXPECT_EQ(0xe1, end[-2]);
+    EXPECT_EQ(0xf1, end[-1]);
+  }
+}
+
+TEST(Ripple, TruncatedBufferFailsWithoutWritingPastEnd) {
+  // Memo-only transaction: every truncation point is reached through the
+  // non-asserting append/varint/memo paths.
+  RippleSignTx tx = {};
+  tx.has_memo = true;
+  memset(tx.memo, 'm', 150);
+  tx.memo[150] = 0;
+  uint8_t full[512];
+  uint8_t* full_end = full;
+  ASSERT_TRUE(ripple_serialize(&full_end, full + sizeof(full), &tx, nullptr,
+                               nullptr, nullptr, 0));
+  const size_t needed = full_end - full;
+  for (size_t room = 0; room < needed; ++room) {
+    uint8_t output[512];
+    memset(output, 0xa5, sizeof(output));
+    uint8_t* cursor = output;
+    EXPECT_FALSE(ripple_serialize(&cursor, output + room, &tx, nullptr,
+                                  nullptr, nullptr, 0))
+        << room;
+    EXPECT_LE(cursor, output + room) << room;
+    for (size_t i = room; i < sizeof(output); ++i)
+      ASSERT_EQ(0xa5, output[i]) << "wrote past end at " << i << ", room " << room;
+  }
 }

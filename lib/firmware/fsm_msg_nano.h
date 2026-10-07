@@ -149,6 +149,9 @@ void fsm_msgNanoSignTx(NanoSignTx* msg) {
   }
 
   if (!nano_signTx(msg, node, resp)) {
+    /* Every refusal or cancel is terminal: drop the hashes, balances and
+     * addresses nano_signingInit() staged. */
+    nano_signingAbort();
     memzero(node, sizeof(*node));
     return;
   }

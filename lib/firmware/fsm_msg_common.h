@@ -154,6 +154,12 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
       Features_Capability_CAPABILITY_EVM_UNKNOWN_TOKEN_REVIEW,
       Features_Capability_CAPABILITY_EVM_TX_METADATA,
       Features_Capability_CAPABILITY_ERC7730_RUNTIME_REVIEW,
+      Features_Capability_CAPABILITY_OSMOSIS_WIRE_GUARDS,
+      Features_Capability_CAPABILITY_RIPPLE_MEMO_POLICY,
+      Features_Capability_CAPABILITY_HIVE_RELEASE_REVIEW,
+      Features_Capability_CAPABILITY_SOLANA_RUNTIME_REVIEW,
+      Features_Capability_CAPABILITY_MAYA_SINGLE_MESSAGE,
+      Features_Capability_CAPABILITY_TENDERMINT_PROGRESS,
 #endif
   };
   _Static_assert(sizeof(capabilities) <= sizeof(resp->capabilities),

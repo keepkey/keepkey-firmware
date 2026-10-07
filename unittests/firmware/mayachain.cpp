@@ -1,5 +1,6 @@
 extern "C" {
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/mayachain.h"
 #include "keepkey/firmware/tendermint.h"
 #include "trezor/crypto/ecdsa.h"
@@ -9,6 +10,13 @@ extern "C" {
 
 #include "gtest/gtest.h"
 #include <cstring>
+#include <string>
+
+// confirm() auto-accept driver, defined in thorchain.cpp (same binary).
+// kkconfirm_preload(nYes, nNo) queues nYes accepted confirm screens then
+// nNo rejected ones; kkconfirm_drain() == 0 proves the exact screen count.
+bool kkconfirm_preload(int nYes, int nNo);
+int kkconfirm_drain(void);
 
 /* Every MAYAChain screen scales by the denom's own exponent, and they all ask
  * the same function, so a send screen and a deposit screen cannot disagree
@@ -48,6 +56,40 @@ TEST(Mayachain, FormatsOnlyCacaoWithTenDecimals) {
       mayachain_formatAmount(1, "ETH.ETH\n", rendered, sizeof(rendered)));
   EXPECT_FALSE(
       mayachain_formatAmount(1, "ETH.\\ETH", rendered, sizeof(rendered)));
+}
+
+TEST(Mayachain, RejectingAssetScreenAbortsSendHandler) {
+  HDNode node = {};
+  const uint8_t seed[32] = {1};
+  ASSERT_TRUE(hdnode_from_seed(seed, sizeof(seed), "secp256k1", &node));
+  hdnode_fill_public_key(&node);
+
+  MayachainSignTx sign_tx = {};
+  sign_tx.has_msg_count = true;
+  sign_tx.msg_count = 1;
+  sign_tx.has_chain_id = true;
+  std::strcpy(sign_tx.chain_id, "mayachain-mainnet-v1");
+  ASSERT_TRUE(mayachain_signTxInit(&node, &sign_tx));
+
+  MayachainMsgAck ack = {};
+  ack.has_send = true;
+  ack.send.has_to_address = true;
+  std::strcpy(ack.send.to_address,
+              "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
+  ack.send.has_amount = true;
+  ack.send.amount = 1;
+  ack.send.has_denom = true;
+  std::memset(ack.send.denom, 'a', 68);
+  ack.send.denom[68] = '\0';
+
+  // The amount/recipient screen is accepted; the independent Asset screen is
+  // refused. The handler must abort before serializing this send.
+  ASSERT_TRUE(kkconfirm_preload(1, 1));
+  fsm_test_clearLastFailure();
+  fsm_msgMayachainMsgAck(&ack);
+  EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+  EXPECT_FALSE(mayachain_signingIsInited());
+  EXPECT_EQ(0, kkconfirm_drain());
 }
 
 TEST(Mayachain, MemoWithMisdeclaredLengthIsRefused) {
@@ -404,12 +446,43 @@ TEST(Mayachain, DepositAssetAndSignerFailClosed) {
   strcpy(deposit.signer, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
   EXPECT_FALSE(mayachain_signTxUpdateMsgDeposit(&deposit));
 
+  strcpy(deposit.asset, "ETH:ETH");
+  EXPECT_FALSE(mayachain_signTxUpdateMsgDeposit(&deposit));
   strcpy(deposit.asset, "ETH.ETH");
   strcpy(deposit.signer, "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n");
   EXPECT_FALSE(mayachain_signTxUpdateMsgDeposit(&deposit));
 
   strcpy(deposit.signer, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
   EXPECT_TRUE(mayachain_signTxUpdateMsgDeposit(&deposit));
+  EXPECT_TRUE(mayachain_signingIsFinished());
+  mayachain_signAbort();
+}
+
+TEST(Mayachain, AssetGrammarRejectsSafeTextOutsideContract) {
+  for (const char* value : {"MAYA.CACAO", "ETH.USDT-0x123", "BTC/BTC"})
+    EXPECT_TRUE(tendermint_isValidAsset(value));
+  for (const char* value : {"MAYA:CACAO", "MAYA_CACAO", "MAYA+CACAO", ""})
+    EXPECT_FALSE(tendermint_isValidAsset(value));
+  EXPECT_FALSE(tendermint_isValidAsset(nullptr));
+}
+
+TEST(Mayachain, SendSerializerRefusesInvalidDenomWithoutConsumingMessage) {
+  HDNode node = {};
+  node.curve = &secp256k1_info;
+  node.private_key[31] = 1;
+  hdnode_fill_public_key(&node);
+  MayachainSignTx tx = {};
+  tx.has_chain_id = tx.has_msg_count = true;
+  strcpy(tx.chain_id, "mayachain");
+  tx.msg_count = 1;
+  ASSERT_TRUE(mayachain_signTxInit(&node, &tx));
+  const char* recipient = "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k";
+  for (const char* denom : {static_cast<const char*>(nullptr), "", "ca:cao",
+                            "ca_cao", "ca\"cao", "ca\ncao"}) {
+    EXPECT_FALSE(mayachain_signTxUpdateMsgSend(1, recipient, denom));
+    EXPECT_FALSE(mayachain_signingIsFinished());
+  }
+  EXPECT_TRUE(mayachain_signTxUpdateMsgSend(1, recipient, "cacao"));
   EXPECT_TRUE(mayachain_signingIsFinished());
   mayachain_signAbort();
 }

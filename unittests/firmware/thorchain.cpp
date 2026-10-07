@@ -1,5 +1,6 @@
 extern "C" {
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/ethereum_contracts/thortx.h"
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/tendermint.h"
 #include "trezor/crypto/ecdsa.h"
@@ -9,6 +10,10 @@ extern "C" {
 
 #include "gtest/gtest.h"
 #include <cstring>
+#include <string>
+
+bool kkconfirm_preload(int nYes, int nNo);
+int kkconfirm_drain(void);
 
 // Mirrors THORCHAIN_MEMO_MAX inside thorchain_parseConfirmMemo().
 static const size_t THORCHAIN_MEMO_MAX_FOR_TEST = 256;
@@ -176,20 +181,41 @@ TEST(Thorchain, ThorchainGetAddress) {
   EXPECT_EQ(std::string("thor1am058pdux3hyulcmfgj4m3hhrlfn8nzmpq9u6l"), addr);
 }
 
-TEST(Thorchain, ThorchainSignTx) {
-  HDNode node = {
-      0,
-      0,
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0x04, 0xde, 0xc0, 0xcc, 0x01, 0x3c, 0xd8, 0xab, 0x70, 0x87, 0xca,
-       0x14, 0x96, 0x0b, 0x76, 0x8c, 0x3d, 0x83, 0x45, 0x24, 0x48, 0xaa,
-       0x00, 0x64, 0xda, 0xe6, 0xfb, 0x04, 0xb5, 0xd9, 0x34, 0x76},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      &secp256k1_info};
+// Shared fixtures
+static const HDNode kSignNode = {
+    0,
+    0,
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0x04, 0xde, 0xc0, 0xcc, 0x01, 0x3c, 0xd8, 0xab, 0x70, 0x87, 0xca,
+     0x14, 0x96, 0x0b, 0x76, 0x8c, 0x3d, 0x83, 0x45, 0x24, 0x48, 0xaa,
+     0x00, 0x64, 0xda, 0xe6, 0xfb, 0x04, 0xb5, 0xd9, 0x34, 0x76},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    &secp256k1_info};
+
+// Denom validation: only [a-z0-9./\-] is allowed; anything else is rejected
+TEST(Thorchain, ThorchainDenomValidation) {
+  EXPECT_TRUE(tendermint_isValidDenom("rune"));
+  EXPECT_TRUE(tendermint_isValidDenom("tcy"));
+  EXPECT_TRUE(tendermint_isValidDenom("rujira"));
+  EXPECT_TRUE(tendermint_isValidDenom("eth.eth"));
+  EXPECT_TRUE(tendermint_isValidDenom("btc/btc"));
+  EXPECT_TRUE(tendermint_isValidDenom("cross-chain"));
+
+  EXPECT_FALSE(tendermint_isValidDenom(""));      // empty → caller uses "rune"
+  EXPECT_FALSE(tendermint_isValidDenom("RUNE"));  // uppercase rejected
+  EXPECT_FALSE(tendermint_isValidDenom("rune\""));   // quote injection
+  EXPECT_FALSE(tendermint_isValidDenom("rune\\n"));  // backslash injection
+  EXPECT_FALSE(tendermint_isValidDenom(" rune"));    // leading space
+  EXPECT_FALSE(tendermint_isValidDenom("ru ne"));    // embedded space
+}
+
+// Invalid denom must cause thorchain_signTxUpdateMsgSend to return false
+TEST(Thorchain, ThorchainSignTxInvalidDenom) {
+  HDNode node = kSignNode;
   hdnode_fill_public_key(&node);
 
   const ThorchainSignTx msg = {
@@ -211,7 +237,7 @@ TEST(Thorchain, ThorchainSignTx) {
      noticed, because the file was not compiled. Same 20-byte payload,
      correct thor checksum. */
   ASSERT_TRUE(thorchain_signTxUpdateMsgSend(
-      100000, "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n"));
+      100000, "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n", NULL));
 
   uint8_t public_key[33];
   uint8_t signature[64];
@@ -263,8 +289,8 @@ TEST(Thorchain, MultiMessageSignTxSeparatesMsgsWithComma) {
   ASSERT_TRUE(thorchain_signTxInit(&node, &msg));
 
   const char* const to = "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n";
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, to));
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(42, to));
+  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, to, NULL));
+  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(42, to, "rune"));
   ASSERT_TRUE(thorchain_signingIsFinished());
 
   uint8_t public_key[33];
@@ -305,7 +331,7 @@ TEST(Thorchain, ZeroOrOmittedMessagesFailInitialization) {
   EXPECT_FALSE(thorchain_signTxInit(&node, &msg));
   EXPECT_FALSE(thorchain_signingIsInited());
   EXPECT_FALSE(thorchain_signingIsFinished());
-  EXPECT_FALSE(thorchain_signTxUpdateMsgSend(1, "ignored"));
+  EXPECT_FALSE(thorchain_signTxUpdateMsgSend(1, "ignored", NULL));
 
   msg.has_msg_count = false;
   msg.msg_count = 1;
@@ -344,4 +370,12 @@ TEST(Thorchain, DepositAssetAndSignerFailClosed) {
   EXPECT_TRUE(thorchain_signTxUpdateMsgDeposit(&deposit));
   EXPECT_TRUE(thorchain_signingIsFinished());
   thorchain_signAbort();
+}
+
+TEST(Thorchain, DeclaredDepositAssetValidatorEnforcesGrammar) {
+  EXPECT_TRUE(tendermint_isValidAsset("THOR.RUNE"));
+  EXPECT_TRUE(tendermint_isValidAsset("BTC/BTC"));
+  EXPECT_FALSE(tendermint_isValidAsset("THOR:RUNE"));
+  EXPECT_FALSE(tendermint_isValidAsset("THOR_RUNE"));
+  EXPECT_FALSE(tendermint_isValidAsset(nullptr));
 }

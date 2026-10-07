@@ -103,40 +103,93 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
     return;
   }
 
-  /* The signature covers raw_data and nothing else (tron.c: sha256_Raw over
-   * msg->raw_data, then ecdsa_sign_digest). The proto's to_address/amount
-   * fields are a host-supplied side channel that is never hashed, so the old
-   * "Send %s TRX to %s?" screen asserted a destination and an amount the
-   * device had no way to vouch for: a host could display one payee and get a
-   * signature over a transfer to another, and a host that simply omitted both
-   * optional fields suppressed the screen altogether. This firmware has no
-   * TRON protobuf parser, so every TronSignTx is a blind signature. Disclose
-   * that instead of displaying unbound data, behind the same AdvancedMode
-   * policy used for opaque Solana transactions and unknown-data ETH calls. */
-  if (!storage_isPolicyEnabled("AdvancedMode")) {
-    memzero(node, sizeof(*node));
-    fsm_sendFailure(FailureType_Failure_Other,
-                    _("Enable AdvancedMode to blind-sign"));
-    layoutHome();
-    return;
-  }
+  /* Clear-sign raw_data only; proto to_address/amount are never signed. */
+  TronParsedTx parsed;
+  TronTxType tx_type =
+      tron_parseRawTx(msg->raw_data.bytes, msg->raw_data.size, &parsed);
 
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Blind Sign",
-               "Sign unverified %u-byte TRON transaction? Amount and "
-               "destination unknown.",
-               (unsigned)msg->raw_data.size)) {
-    memzero(node, sizeof(*node));
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
-    layoutHome();
-    return;
-  }
+  if (tx_type == TRON_TX_UNVERIFIED) {
+    /* Unrecognized payload: explicit blind-sign only, as for Solana. */
+    if (!storage_isPolicyEnabled("AdvancedMode")) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("Enable AdvancedMode to blind-sign"));
+      layoutHome();
+      return;
+    }
+    char blind_msg[48];
+    snprintf(blind_msg, sizeof(blind_msg), "Sign %u-byte TRON transaction?",
+             (unsigned)msg->raw_data.size);
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TRON Blind Sign",
+                 "%s", blind_msg)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+      layoutHome();
+      return;
+    }
+  } else {
+    /* The parsed owner account is the one spending — it must be ours. */
+    char derived_addr[TRON_ADDRESS_MAX_LEN];
+    char owner_addr[TRON_ADDRESS_MAX_LEN];
+    if (!tron_getAddress(node->public_key, derived_addr,
+                         sizeof(derived_addr)) ||
+        !tron_addressFromBytes(parsed.owner, owner_addr, sizeof(owner_addr)) ||
+        strcmp(derived_addr, owner_addr) != 0) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_Other,
+                      _("TX owner does not match derived key"));
+      layoutHome();
+      return;
+    }
 
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
-               "Really sign this TRON transaction?")) {
-    memzero(node, sizeof(*node));
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
-    layoutHome();
-    return;
+    char to_str[TRON_ADDRESS_MAX_LEN];
+    if (!tron_addressFromBytes(parsed.to, to_str, sizeof(to_str))) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_Other, _("Address encoding failed"));
+      layoutHome();
+      return;
+    }
+
+    bool confirmed = false;
+    if (tx_type == TRON_TX_TRANSFER) {
+      char amount_str[32];
+      tron_formatAmount(amount_str, sizeof(amount_str), parsed.amount);
+      confirmed = confirm(ButtonRequestType_ButtonRequest_SignTx, "TRON",
+                          "Send %s to %s?", amount_str, to_str);
+    } else { /* TRON_TX_TRC20_TRANSFER */
+      char contract_str[TRON_ADDRESS_MAX_LEN];
+      char amount_str[90];
+      confirmed =
+          tron_addressFromBytes(parsed.contract, contract_str,
+                                sizeof(contract_str)) &&
+          tron_formatTrc20Amount(parsed.trc20_amount, amount_str,
+                                 sizeof(amount_str)) &&
+          confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                  "TRC-20 Transfer", "Token contract %s", contract_str) &&
+          /* Token decimals are not known on-device; show base units. */
+          confirm(ButtonRequestType_ButtonRequest_SignTx, "TRC-20 Transfer",
+                  "Send %s base units to %s?", amount_str, to_str);
+    }
+
+    if (confirmed && parsed.has_fee_limit) {
+      char fee_str[32];
+      tron_formatAmount(fee_str, sizeof(fee_str), parsed.fee_limit);
+      confirmed = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "TRON",
+                          "Max network fee %s", fee_str);
+    }
+
+    if (confirmed && parsed.memo_len > 0) {
+      /* raw_data.data is signed verbatim: page and escape every byte. */
+      confirmed = confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo,
+                                "Memo", parsed.memo, parsed.memo_len);
+    }
+
+    if (!confirmed) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+      layoutHome();
+      return;
+    }
   }
 
   // Sign the transaction with secp256k1
@@ -159,33 +212,6 @@ void fsm_msgTronSignMessage(TronSignMessage* msg) {
 
   CHECK_PIN
 
-  /* An omitted or zero-length message is not a message. confirm_bytes()
-     renders size 0 as the literal "(empty)" and returns whatever the owner
-     pressed, so without this the device would sign a payload no screen ever
-     showed -- the same hole already closed on the TON and Solana paths. */
-  if (!msg->has_message || msg->message.size == 0) {
-    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Missing message"));
-    layoutHome();
-    return;
-  }
-
-  /* Merge note (#432 vs this branch): #432 gated TRON message signing behind
-   * AdvancedMode because the message was a blind sign. It is not any more —
-   * confirm_bytes() below paginates and displays EVERY signed byte, which is
-   * the property the gate was standing in for.
-   *
-   * The gate is dropped here for the same reason it was dropped from
-   * fsm_msgEthereumSignMessage: full disclosure is the stronger guarantee, and
-   * keeping it would block a default device until the user explicitly enables
-   * blind signing. AdvancedMode persists across power cycles until explicitly
-   * disabled. Leaving ETH ungated while TRON stayed gated would also be an
-   * inconsistency with no principled basis, since both now show the user every
-   * byte.
-   *
-   * Note this is NOT the same call as the TRON SignTx fence (#405), which
-   * stays: a TRON *transaction* still cannot be parsed or bound on this line,
-   * so it remains genuinely blind and keeps its AdvancedMode gate. */
-
   // Validate path: m/44'/195'/...
   if (msg->address_n_count < 3 || msg->address_n[0] != (0x80000000 | 44) ||
       msg->address_n[1] != (0x80000000 | 195)) {
@@ -195,6 +221,9 @@ void fsm_msgTronSignMessage(TronSignMessage* msg) {
     return;
   }
 
+  CHECK_PARAM(msg->has_message && msg->message.size > 0 &&
+                  msg->message.size <= sizeof(msg->message.bytes),
+              _("Invalid TRON message"));
   if (!confirm_bytes(ButtonRequestType_ButtonRequest_ProtectCall,
                      _("Sign TRON Message"), msg->message.bytes,
                      msg->message.size)) {
@@ -223,7 +252,9 @@ void fsm_msgTronSignMessage(TronSignMessage* msg) {
 
 void fsm_msgTronVerifyMessage(const TronVerifyMessage* msg) {
   CHECK_PARAM(msg->has_address, _("No address provided"));
-  CHECK_PARAM(msg->has_message, _("No message provided"));
+  CHECK_PARAM(msg->has_message && msg->message.size > 0 &&
+                  msg->message.size <= sizeof(msg->message.bytes),
+              _("Invalid TRON message"));
   CHECK_PARAM(msg->has_signature, _("No signature provided"));
 
   if (tron_message_verify(msg) != 0) {
@@ -238,7 +269,7 @@ void fsm_msgTronVerifyMessage(const TronVerifyMessage* msg) {
   }
 
   if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
-                     _("TRON Message Verified"), msg->message.bytes,
+                     _("Message Verified"), msg->message.bytes,
                      msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
@@ -271,6 +302,7 @@ void fsm_msgTronSignTypedHash(const TronSignTypedHash* msg) {
     return;
   }
 
+  /* Only hashes arrive, so this is blind: gate before any key derivation. */
   if (!tron_typed_hash_policy_allows(storage_isPolicyEnabled("AdvancedMode"))) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Enable AdvancedMode to blind-sign typed hashes"));
