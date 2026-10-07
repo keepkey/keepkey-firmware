@@ -709,9 +709,9 @@ static void abort_signing_engines(void) {
   memzero(&fsm_derived_node, sizeof(fsm_derived_node));
 }
 
-/* A preloaded ERC-7730 definition is consumed only by the signing request that
- * follows it. Every other abort -- Initialize, Cancel, ClearSession, autolock,
- * a rejected frame or any unrelated request -- discards it too. */
+/* A preloaded ERC-7730 definition is for the next signing request only; any
+ * other request or abort discards it, except the status requests answered
+ * before dispatch (GetFeatures, GetCoinTable, unprotected Ping). */
 void fsm_abort_signing_workflows(void) {
   abort_signing_engines();
 #if !BITCOIN_ONLY

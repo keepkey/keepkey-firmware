@@ -31,6 +31,9 @@
 #define SOL_PUBKEY_SIZE 32
 #define SOL_SIG_SIZE 64
 #define SOL_MAX_ACCOUNTS 32
+/* KKSOLSW1: max attested lookup-table accounts per tx; more than this is not
+   meaningfully reviewable. */
+#define SOL_MAX_LUT_ACCOUNTS 8
 #define SOL_MAX_INSTRUCTIONS 8
 #define SOL_LAMPORTS_DIVISOR 1000000000ULL
 #define SOL_MAX_TOKEN_DECIMALS 18
@@ -177,6 +180,9 @@ typedef struct {
   uint8_t recent_blockhash[SOL_PUBKEY_SIZE];
   uint8_t num_instructions;
   SolanaParsedInstruction instructions[SOL_MAX_INSTRUCTIONS];
+  /* Addresses a v0 message's lookup tables load (writable + readonly); 0 for
+   * legacy and zero-LUT messages. */
+  uint32_t num_loaded_accounts;
 } SolanaParsedTx;
 
 /* Firmware review result for a Solana message */
@@ -325,6 +331,19 @@ const char* solana_displaySymbol(const SolanaTokenInfo* ti,
 /* Compute-unit limit the runtime requests when SetComputeUnitLimit is absent
  * (an upper bound; the fee helper caps it at SOL_MAX_COMPUTE_UNITS). */
 uint64_t solana_defaultComputeUnitLimit(const SolanaParsedTx* tx);
+
+/* KKSOLSW1: is the LUT account list attested FOR THIS EXACT TRANSACTION?
+ * LUT keys are not in the signed bytes, so unattested they force the tx
+ * opaque. Domain-tagged and message-bound against replay:
+ *
+ *   "KeepKeySolanaTxAccounts/1" || sha256(message) || count(le32) || key[i](32)
+ *
+ * message = the bytes the device signs. Runtime signer: annotation only, the
+ * caller still runs the unverified review. */
+bool solana_lut_accounts_trusted(const uint8_t* raw_tx, size_t raw_len,
+                                 const uint8_t (*accounts)[32],
+                                 size_t num_accounts, uint32_t signer_key_id,
+                                 const uint8_t* sig, size_t sig_len);
 
 /* ceil(price * min(limit, SOL_MAX_COMPUTE_UNITS) / 1e6) lamports; false on
  * > UINT64_MAX (refuse). */

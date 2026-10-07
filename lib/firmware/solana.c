@@ -743,6 +743,7 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
     pos += n;
     if (pos + readonly_count > raw_len) return SOL_TX_REVIEW_MALFORMED;
     pos += readonly_count;
+    tx->num_loaded_accounts += (uint32_t)writable_count + readonly_count;
   }
 
   if (pos != raw_len) return SOL_TX_REVIEW_MALFORMED;
@@ -1247,6 +1248,66 @@ const char* solana_displaySymbol(const SolanaTokenInfo* ti,
 /* ------------------------------------------------------------------ */
 /*  Signing                                                            */
 /* ------------------------------------------------------------------ */
+
+static bool solana_lut_accounts_preimage(const uint8_t* raw_tx, size_t raw_len,
+                                         const uint8_t (*accounts)[32],
+                                         size_t num_accounts, uint8_t* blob,
+                                         size_t blob_capacity,
+                                         size_t* blob_len) {
+  if (!raw_tx || !accounts || !blob || !blob_len || num_accounts == 0)
+    return false;
+  if (num_accounts > SOL_MAX_LUT_ACCOUNTS) return false;
+
+  /* Bind to the transaction: sha256 of the exact bytes being signed. */
+  const uint8_t* signed_message = raw_tx;
+  size_t signed_message_len = raw_len;
+  if (signed_message_len > 1 && signed_message[0] == 0) {
+    signed_message++;
+    signed_message_len--;
+  }
+  uint8_t msg_hash[SHA256_DIGEST_LENGTH];
+  sha256_Raw(signed_message, signed_message_len, msg_hash);
+
+  /* Preimage passed RAW (the verifier hashes it). Max 317 bytes. */
+  static const char kTag[] = "KeepKeySolanaTxAccounts/1";
+  const size_t required = sizeof(kTag) - 1 + SHA256_DIGEST_LENGTH + 4 +
+                          num_accounts * SOL_PUBKEY_SIZE;
+  if (blob_capacity < required) return false;
+  size_t n = 0;
+  memcpy(blob + n, kTag, sizeof(kTag) - 1);
+  n += sizeof(kTag) - 1;
+  memcpy(blob + n, msg_hash, sizeof(msg_hash));
+  n += sizeof(msg_hash);
+  uint32_t count = (uint32_t)num_accounts;
+  blob[n++] = (uint8_t)count;
+  blob[n++] = (uint8_t)(count >> 8);
+  blob[n++] = (uint8_t)(count >> 16);
+  blob[n++] = (uint8_t)(count >> 24);
+  for (size_t i = 0; i < num_accounts; i++) {
+    memcpy(blob + n, accounts[i], SOL_PUBKEY_SIZE);
+    n += SOL_PUBKEY_SIZE;
+  }
+
+  *blob_len = n;
+  return true;
+}
+
+bool solana_lut_accounts_trusted(const uint8_t* raw_tx, size_t raw_len,
+                                 const uint8_t (*accounts)[32],
+                                 size_t num_accounts, uint32_t signer_key_id,
+                                 const uint8_t* sig, size_t sig_len) {
+  if (!sig || signer_key_id >= METADATA_MAX_KEYS) return false;
+  uint8_t blob[sizeof("KeepKeySolanaTxAccounts/1") - 1 + SHA256_DIGEST_LENGTH +
+               4 + SOL_MAX_LUT_ACCOUNTS * SOL_PUBKEY_SIZE];
+  size_t n = 0;
+  if (!solana_lut_accounts_preimage(raw_tx, raw_len, accounts, num_accounts,
+                                    blob, sizeof(blob), &n)) {
+    return false;
+  }
+
+  return signed_metadata_verify_attestation((uint8_t)signer_key_id, blob, n,
+                                            sig, sig_len);
+}
 
 bool solana_signTx(const HDNode* node, const SolanaSignTx* msg,
                    SolanaSignedTx* resp) {

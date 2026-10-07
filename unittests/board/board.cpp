@@ -222,6 +222,21 @@ TEST_F(BodyFits, SeedPagesPackedAtBodyWidthNeedTheConstantPowerPager) {
                                                CONSTANT_POWER_BODY_WIDTH));
 }
 
+// Regression: HiveGetPublicKey showed its STM key through the Ethereum-address
+// layout, which wraps its body at 140 px and has room for two rows, so the tail
+// of the key -- the part the user compares -- was never drawn. confirm() pages
+// instead. Measured with a real key: "STM" + base58check of the secp256k1
+// generator's compressed public key.
+TEST_F(BodyFits, HiveStmKeyDoesNotFitTheEthereumAddressLayout) {
+  static const char kStmKey[] =
+      "STM5p78kHbL33Rn3JWkTWRE2B9uz6gy4r1KbfAKLNQGE3ovMBS5bu";
+  ASSERT_EQ(strlen(kStmKey), 53u);
+  EXPECT_GT(calc_str_line(get_body_font(), kStmKey, 140), 2u)
+      << "the address layout's two 140 px rows cannot hold an STM key";
+  EXPECT_TRUE(confirm_body_fits(kStmKey, BODY_WIDTH))
+      << "the standard confirm layout shows the whole key";
+}
+
 // Regression: calc_str_line() accumulated into a uint8_t while returning
 // uint32_t, so a body carrying 255 newlines wrapped the count back to 0 and
 // confirm_body_fits() reported that it fitted. The 352-byte confirm buffer has

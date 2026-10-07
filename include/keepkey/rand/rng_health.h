@@ -92,11 +92,13 @@ bool rng_health_analyze(const uint8_t* buf, size_t len);
 ///   - the device half of the seed        reset_init()
 ///   - the storage encryption key         storage_setPin_impl()
 ///   - the wipe-code key                  storage_setWipeCode_impl()
-///   - the PIN-KDF salt                   storage_readStorageV1(), the V1
-///                                        upgrade path that mints one
+///   - the PIN-KDF salt                   storage_readStorageV1() on migration;
+///                                        storage_reset()/storage_init() for a
+///                                        fresh or wiped record
 ///   - the U2F key-handle derivation path generateKeyHandle()
 ///   - the one-shot OTP randomness block  flash_collectHWEntropy()
 ///   - the RedPallas spend-auth T          fsm_msg_zcash.h, the is_spend path
+///   - PIN/recovery secret permutations   pin_sm.c, recovery_cipher.c
 ///
 /// NOT covered: everything else in the tree and in deps/, because plain
 /// random_buffer() and random32() are unchecked exactly as on develop.
@@ -130,6 +132,9 @@ bool rng_health_observe(const uint8_t* buf, size_t len);
 /// used to say the opposite; if you are reaching for entropy that must be
 /// gated, you have to call this function by name.
 bool random_buffer_checked(uint8_t* buf, size_t len);
+
+/// Health-tested Fisher-Yates; false (no partial permutation) on RNG failure.
+bool random_permute_char_checked(char* str, size_t len);
 
 #ifdef EMULATOR
 /// Test-only: force the latched verdict. `false` stands in for a generator

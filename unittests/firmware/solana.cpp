@@ -1041,6 +1041,50 @@ TEST(Solana, VersionedInstructionUsingLookupAccountIsOpaque) {
   EXPECT_FALSE(solana_parseTx(raw, pos, &tx));
 }
 
+// The KKSOLSW1 annotation is offered only when the message's lookup tables
+// load accounts, so the parser reports how many they load.
+TEST(Solana, ParserCountsLookupLoadedAccounts) {
+  uint8_t raw[256];
+  size_t pos = 0;
+  raw[pos++] = 0x80; /* v0 prefix */
+  raw[pos++] = 1;
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 2; /* static accounts */
+  memset(raw + pos, 0x11, 32);
+  pos += 32;
+  memset(raw + pos, 0x00, 32); /* system program */
+  pos += 32;
+  memset(raw + pos, 0xBB, 32); /* blockhash */
+  pos += 32;
+  raw[pos++] = 1; /* instructions */
+  raw[pos++] = 1; /* program = system */
+  raw[pos++] = 2;
+  raw[pos++] = 0;
+  raw[pos++] = 2; /* first loaded address */
+  raw[pos++] = 12;
+  const uint8_t transfer[12] = {2, 0, 0, 0, 0x00, 0xCA, 0x9A, 0x3B};
+  memcpy(raw + pos, transfer, sizeof(transfer));
+  pos += sizeof(transfer);
+  const size_t lut_count_at = pos;
+  raw[pos++] = 1; /* one table: two writable, one readonly */
+  memset(raw + pos, 0x55, 32);
+  pos += 32;
+  raw[pos++] = 2;
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 1;
+  raw[pos++] = 2;
+  SolanaParsedTx tx;
+  ASSERT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
+  EXPECT_EQ(3u, tx.num_loaded_accounts);
+
+  /* The same message without a lookup table loads nothing. */
+  raw[lut_count_at] = 0;
+  solana_inspectTx(raw, lut_count_at + 1, &tx);
+  EXPECT_EQ(0u, tx.num_loaded_accounts);
+}
+
 TEST(Solana, MemoBodyCaptured) {
   /* Legacy tx: system transfer + memo instruction (THORChain-style swap
    * memo). The parser must expose the memo bytes for display. */

@@ -1012,8 +1012,8 @@ TEST(Storage, Vuln1996) {
   for (const auto &v : vec) {
     memset(&session, 0, sizeof(session));
     memset(&config, 0, sizeof(config));
-    memset(random_salt, 0, sizeof(random_salt));
     storage_reset_impl(&session, &config);
+    memcpy(random_salt, config.storage.pub.random_salt, sizeof(random_salt));
 
     storage_setPin_impl(&session, &config.storage, v.pin);
 
@@ -1070,6 +1070,27 @@ TEST(Storage, Vuln1996) {
                        sizeof(wrapped_key1)) == 0);
     ASSERT_TRUE(config.storage.pub.sca_hardened == true);
   }
+}
+
+// Regression: storage_reset_impl() left random_salt zero, so every record
+// created after the V1 migration stretched its PIN with no per-record salt.
+TEST(Storage, ResetDrawsAFreshPinKdfSalt) {
+  ConfigFlash first, second;
+  SessionState session;
+  const uint8_t zero_salt[RANDOM_SALT_LEN] = {0};
+
+  memset(&session, 0, sizeof(session));
+  memset(&first, 0, sizeof(first));
+  storage_reset_impl(&session, &first);
+  memset(&session, 0, sizeof(session));
+  memset(&second, 0, sizeof(second));
+  storage_reset_impl(&session, &second);
+
+  EXPECT_NE(
+      0, memcmp(first.storage.pub.random_salt, zero_salt, sizeof(zero_salt)));
+  EXPECT_NE(0, memcmp(first.storage.pub.random_salt,
+                      second.storage.pub.random_salt, RANDOM_SALT_LEN))
+      << "each wipe must mint a new salt";
 }
 
 TEST(Storage, Reset) {

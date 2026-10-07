@@ -794,6 +794,18 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
   if (!node) return;
   hdnode_fill_public_key(node);
 
+  char signer_fp[METADATA_FINGERPRINT_LEN] = {0};
+  uint8_t lut_keys[SOL_MAX_LUT_ACCOUNTS][SOL_PUBKEY_SIZE];
+  size_t lut_n = 0;
+  /* Flatten, requiring full 32-byte keys. */
+  bool lut_well_formed = msg->lut_account_count <= SOL_MAX_LUT_ACCOUNTS;
+  for (size_t i = 0; lut_well_formed && i < msg->lut_account_count; i++) {
+    lut_well_formed = msg->lut_account[i].size == SOL_PUBKEY_SIZE;
+    if (lut_well_formed) {
+      memcpy(lut_keys[lut_n++], msg->lut_account[i].bytes, SOL_PUBKEY_SIZE);
+    }
+  }
+
   /* Signer verification: derived key must be a required signer.
    * For verified txs this is mandatory. For opaque txs we still check
    * when we were able to parse the header (num_accounts > 0). */
@@ -878,6 +890,43 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
                       _("Enable AdvancedMode to blind-sign"));
       layoutHome();
       return;
+    }
+
+    /* KKSOLSW1 runtime LUT description: annotation only (SRS R-1.3); the
+     * blind-sign warning still follows. Only a message whose lookup tables
+     * load accounts has any to describe. */
+    if (lut_well_formed && lut_n > 0 && parsed.num_loaded_accounts > 0 &&
+        msg->has_lut_signature && msg->has_lut_signer_key_id &&
+        solana_lut_accounts_trusted(
+            msg->raw_tx.bytes, msg->raw_tx.size,
+            (const uint8_t (*)[32])lut_keys, lut_n, msg->lut_signer_key_id,
+            msg->lut_signature.bytes, msg->lut_signature.size)) {
+      const char* alias =
+          signed_metadata_signer_alias((uint8_t)msg->lut_signer_key_id);
+      if (!signed_metadata_signer_fingerprint((uint8_t)msg->lut_signer_key_id,
+                                              signer_fp)) {
+        signer_fp[0] = '\0';
+      }
+      bool ok = confirm(
+          ButtonRequestType_ButtonRequest_ConfirmOutput, "Lookup Accounts",
+          "%s (%s) describes %u account(s).\nNOT verified by KeepKey.",
+          alias ? alias : "Unknown signer", signer_fp, (unsigned)lut_n);
+      for (size_t li = 0; ok && li < lut_n; li++) {
+        char b58[64];
+        size_t b58_len = sizeof(b58);
+        ok = solana_base58_encode(lut_keys[li], SOL_PUBKEY_SIZE, b58,
+                                  &b58_len) &&
+             confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                     "Lookup Account", "%u/%u\n%s", (unsigned)(li + 1),
+                     (unsigned)lut_n, b58);
+      }
+      if (!ok) {
+        memzero(node, sizeof(*node));
+        fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                        _("Signing cancelled"));
+        layoutHome();
+        return;
+      }
     }
 
     if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Blind Sign",

@@ -1,9 +1,14 @@
 extern "C" {
 #include "keepkey/rand/rng.h"
 #include "keepkey/rand/rng_health.h"
+#include "keepkey/firmware/pin_sm.h"
 #include "trezor/crypto/rand.h"
 }
 
+#include "kkconfirm_driver.h"
+bool kkconfirm_sendCancel(void);
+bool kkconfirm_readResponse(uint16_t expected, const pb_field_t* fields,
+                            void* result);
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -252,6 +257,25 @@ TEST(RngHealth, PersistentHardwareFaultLatchesBeforeReset) {
   rng_health_force_verdict(true);
 }
 
+TEST(RngHealth, CheckedPermutationPreservesEverySymbol) {
+  rng_health_force_verdict(true);
+  char value[] = "123456789";
+  ASSERT_TRUE(random_permute_char_checked(value, sizeof(value) - 1));
+
+  std::sort(value, value + sizeof(value) - 1);
+  EXPECT_EQ(0, memcmp(value, "123456789", sizeof(value) - 1));
+}
+
+TEST(RngHealth, CheckedPermutationFailsClosedAndWipes) {
+  rng_health_force_verdict(false);
+  char value[] = "123456789";
+  EXPECT_FALSE(random_permute_char_checked(value, sizeof(value) - 1));
+
+  const char zeros[sizeof(value) - 1] = {0};
+  EXPECT_EQ(0, memcmp(value, zeros, sizeof(zeros)));
+  rng_health_force_verdict(true);
+}
+
 // After the boot gate passes, a degenerate run seen by rng_health_observe()
 // (called from random_buffer_checked()) must latch the verdict to failed.
 TEST(RngHealth, DegenerateOutputAfterTheGateLatchesFailure) {
@@ -311,9 +335,13 @@ TEST(RngHealth, TrippingBytesAreWipedNotReturned) {
 
 static size_t observed_draw_bytes;
 static bool fault_on_draw;
+// Nonzero: fault the draw that brings observed_draw_bytes to this total.
+static size_t fault_at_draw_bytes;
 extern "C" void rng_health_test_draw_completed(size_t len) {
   observed_draw_bytes += len;
-  if (fault_on_draw) rng_test_observe_transient_error();
+  if (fault_on_draw ||
+      (fault_at_draw_bytes != 0 && observed_draw_bytes >= fault_at_draw_bytes))
+    rng_test_observe_transient_error();
 }
 
 class RngBootGate : public ::testing::Test {
@@ -323,9 +351,11 @@ class RngBootGate : public ::testing::Test {
     rng_health_reset_for_test();
     observed_draw_bytes = 0;
     fault_on_draw = false;
+    fault_at_draw_bytes = 0;
   }
   void TearDown() override {
     fault_on_draw = false;
+    fault_at_draw_bytes = 0;
     rng_test_power_on_reset();
     rng_health_force_verdict(true);
   }
@@ -355,4 +385,48 @@ TEST_F(RngBootGate, FaultDuringCheckedDrawWipesOutput) {
   const uint8_t zeros[64] = {};
   EXPECT_EQ(0, memcmp(buf, zeros, sizeof(buf)));
   EXPECT_EQ(sizeof(buf), observed_draw_bytes);
+}
+
+// A permutation that faults partway through: the first checked draw succeeds
+// and its swap lands, the second draw faults. The already-shuffled buffer
+// must be wiped whole, not left as a partial secret mapping.
+TEST_F(RngBootGate, FaultMidPermutationWipesPartialShuffle) {
+  rng_health_force_verdict(true);
+  fault_at_draw_bytes = 2 * sizeof(uint32_t);
+  char value[] = "123456789";
+  EXPECT_FALSE(random_permute_char_checked(value, sizeof(value) - 1));
+  EXPECT_EQ(fault_at_draw_bytes, observed_draw_bytes)
+      << "the fault did not land after a completed swap";
+  const char zeros[sizeof(value) - 1] = {0};
+  EXPECT_EQ(0, memcmp(value, zeros, sizeof(zeros)));
+}
+
+// The PIN matrix call site, not just the helper: a failed verdict must halt
+// before the matrix is shown or any PinMatrixRequest reaches the host, rather
+// than return a false that callers would report as a second Failure.
+// The death-test child shares the emulator's sockets, so the parent reads
+// whatever it wrote to the host after it has exited.
+TEST(RngHealth, PinMatrixHaltsOnFailedVerdict) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));  // board bootstrap for the warning
+  (void)kkconfirm_drain();
+  PinMatrixRequest request = {};
+
+  // Control: with a sound verdict the same flow does reach the host.
+  ASSERT_TRUE(kkconfirm_sendCancel());
+  EXPECT_EXIT(
+      {
+        change_pin();
+        exit(0);
+      },
+      ::testing::ExitedWithCode(0), "");
+  EXPECT_TRUE(kkconfirm_readResponse(MessageType_MessageType_PinMatrixRequest,
+                                     PinMatrixRequest_fields, &request));
+
+  ASSERT_TRUE(kkconfirm_preload(0, 0));  // also discards earlier host output
+  (void)kkconfirm_drain();
+  rng_health_force_verdict(false);
+  EXPECT_EXIT(change_pin(), ::testing::ExitedWithCode(1), "");
+  rng_health_force_verdict(true);
+  EXPECT_FALSE(kkconfirm_readResponse(MessageType_MessageType_PinMatrixRequest,
+                                      PinMatrixRequest_fields, &request));
 }

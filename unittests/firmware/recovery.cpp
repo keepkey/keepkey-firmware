@@ -10,6 +10,7 @@ extern "C" {
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/storage.h"
 #include "trezor/crypto/bip39_english.h"
+#include "keepkey/rand/rng_health.h"
 }
 
 #include "gtest/gtest.h"
@@ -103,6 +104,38 @@ TEST(Recovery, SpacesOnlyCeremonyIsRefusedAndCommitsNothing) {
   EXPECT_FALSE(storage_isInitialized())
       << "a ceremony that produced no words must not commit a seed";
   EXPECT_FALSE(setup_isArmed());
+  (void)kkconfirm_drain();
+  storage_wipe();
+  storage_reset();
+  layoutHomeForced();
+}
+
+// The recovery call site: with a failed RNG verdict the cipher shuffle must
+// refuse and disarm the ceremony instead of showing a predictable cipher. The
+// old unchecked shuffle left it armed. Control: a healthy verdict arms it.
+TEST(Recovery, FailedRngVerdictRefusesTheCipherAndDisarms) {
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  ensure_recovery_storage_ready();
+  storage_wipe();
+  storage_reset();
+
+  rng_health_force_verdict(false);
+  recovery_cipher_init(/*word_count=*/12, /*passphrase_protection=*/false,
+                       /*pin_protection=*/false, "english", "spaces",
+                       /*enforce_wordlist=*/false, /*auto_lock_delay_ms=*/0,
+                       /*u2f_counter=*/0, /*dry_run=*/false);
+  rng_health_force_verdict(true);
+  EXPECT_FALSE(setup_isArmed())
+      << "a failed RNG verdict must not leave a recovery ceremony armed";
+  (void)kkconfirm_drain();
+
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  recovery_cipher_init(/*word_count=*/12, /*passphrase_protection=*/false,
+                       /*pin_protection=*/false, "english", "spaces",
+                       /*enforce_wordlist=*/false, /*auto_lock_delay_ms=*/0,
+                       /*u2f_counter=*/0, /*dry_run=*/false);
+  EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY)) << "control: healthy RNG arms";
+  recovery_cipher_abort();
   (void)kkconfirm_drain();
   storage_wipe();
   storage_reset();

@@ -47,6 +47,14 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
   resp->has_supports_dice_modes = true;
   resp->supports_dice_modes = true;
 
+#if !BITCOIN_ONLY
+  /* SolanaSignTx accepts transaction-bound lookup-table account proofs
+     (KKSOLSW1). Older firmware skips the lut_* fields, so a host must see
+     this bit before sending them. */
+  resp->has_supports_solana_lut_attestation = true;
+  resp->supports_solana_lut_attestation = true;
+#endif
+
   /* Variant Name */
   resp->has_firmware_variant = true;
 #if BITCOIN_ONLY
@@ -160,6 +168,7 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
       Features_Capability_CAPABILITY_SOLANA_RUNTIME_REVIEW,
       Features_Capability_CAPABILITY_MAYA_SINGLE_MESSAGE,
       Features_Capability_CAPABILITY_TENDERMINT_PROGRESS,
+      Features_Capability_CAPABILITY_SOLANA_LUT_ATTESTATION,
 #endif
   };
   _Static_assert(sizeof(capabilities) <= sizeof(resp->capabilities),

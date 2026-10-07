@@ -11,7 +11,6 @@ static void bip85_finish_private_display(void) {
 void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
   CHECK_INITIALIZED
 
-  /* Validate word count (required field, always present in nanopb) */
   if (msg->word_count != 12 && msg->word_count != 18 && msg->word_count != 24) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     "word_count must be 12, 18, or 24");
@@ -29,7 +28,6 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
 
   CHECK_PIN
 
-  /* User confirmation */
   char desc[80];
   snprintf(desc, sizeof(desc), "Derive %lu-word child seed at index %lu?",
            (unsigned long)msg->word_count, (unsigned long)msg->index);
@@ -45,7 +43,6 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
   layout_simple_message("Deriving child seed...");
   bip85_set_private_display(true);
 
-  /* Derive the mnemonic */
   static CONFIDENTIAL char mnemonic_buf[241];
   if (!bip85_derive_mnemonic(msg->word_count, msg->index, mnemonic_buf,
                              sizeof(mnemonic_buf))) {
@@ -55,10 +52,7 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
     return;
   }
 
-  /*
-   * Display mnemonic on device screen only — never send over USB.
-   * Uses the same paginated display as the backup flow in reset.c.
-   */
+  /* Display on device only; never send over USB. */
   uint32_t word_count = 0, page_count = 0;
 
   /* Display scratch shared with the backup flow — see reset.h. Zero the whole
@@ -75,7 +69,6 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
              (word_count & 1) ? "%lu.%s\n" : "%lu.%s",
              (unsigned long)(word_count + 1), tok);
 
-    /* Check that we have enough room on display to show word */
     snprintf(mnemonic_scratch_display, FORMATTED_MNEMONIC_BUF, "%s   %s",
              mnemonic_scratch_formatted[page_count], mnemonic_scratch_word);
 
@@ -102,12 +95,10 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
     word_count++;
   }
 
-  /* Switch from 0-indexing to 1-indexing */
   page_count++;
 
   display_constant_power(true);
 
-  /* Show each page of the mnemonic on screen */
   for (uint32_t current_page = 0; current_page < page_count; current_page++) {
     char title[MEDIUM_STR_BUF];
 
@@ -118,13 +109,8 @@ void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic *msg) {
       snprintf(title, MEDIUM_STR_BUF, "BIP-85 Seed");
     }
 
-    /* Paged, exactly as reset.c's backup pager is: these pages are packed
-     * against BODY_WIDTH (225 px) but drawn on the constant-power half-canvas
-     * (124 px), and the unpaged renderer stops at the first glyph that will not
-     * fit and drops everything after it -- silently, including whole words. A
-     * BIP-85 child seed exists only on the paper the user is writing, so a
-     * dropped word is an unrecoverable wallet. The paged variant splits inside
-     * this one ButtonRequest, so the host protocol is unchanged. */
+    /* Paged: the unpaged renderer silently drops words that do not fit the
+     * 124 px half-canvas, and a dropped word is an unrecoverable wallet. */
     if (!confirm_constant_power_paged(
             ButtonRequestType_ButtonRequest_ConfirmWord, title,
             mnemonic_scratch_formatted[current_page])) {
