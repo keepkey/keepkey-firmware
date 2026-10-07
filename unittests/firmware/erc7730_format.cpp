@@ -1,10 +1,118 @@
 #include <gtest/gtest.h>
 
 extern "C" {
+#include "keepkey/firmware/erc7730_field.h"
 #include "keepkey/firmware/erc7730_format.h"
 }
 
 #include <cstring>
+#include <string>
+
+namespace {
+
+bool format(uint8_t kind, uint16_t size, const uint8_t* value, size_t length,
+            char* output, size_t output_size) {
+  const Erc7730AbiNode nodes[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {kind, size, 0, 0, 0},
+  };
+  const Erc7730AbiProgram program{nodes, 2, 0};
+  Erc7730AbiCapture capture{};
+  capture.node = 1;
+  capture.length = length;
+  memcpy(capture.data, value, length);
+  return erc7730_format_raw(&program, &capture, output, output_size);
+}
+
+}  // namespace
+
+namespace {
+/* erc7730_format_unit's scaled line: the value at `decimals`, then the base. */
+void ExpectUnit(const uint8_t value[32], uint8_t decimals, const char* base,
+                const char* scaled) {
+  char output[512];
+  ASSERT_TRUE(
+      erc7730_format_unit(value, decimals, base, output, sizeof(output)));
+  const std::string text(output);
+  EXPECT_EQ(text.substr(0, text.find("\nraw ")),
+            std::string("unit set by signer\n") + scaled);
+}
+}  // namespace
+
+TEST(Erc7730Format, FormatsUnsignedAndSigned256BitIntegers) {
+  uint8_t value[32] = {0};
+  value[31] = 42;
+  char output[ERC7730_FORMATTED_VALUE_MAX + 1];
+  ASSERT_TRUE(format(ERC7730_ABI_UINT, 256, value, sizeof(value), output,
+                     sizeof(output)));
+  EXPECT_STREQ(output, "42");
+
+  memset(value, 0xff, sizeof(value));
+  ASSERT_TRUE(format(ERC7730_ABI_INT, 256, value, sizeof(value), output,
+                     sizeof(output)));
+  EXPECT_STREQ(output, "-1");
+
+  memset(value, 0xff, sizeof(value));
+  value[0] = 0x7f;
+  ASSERT_TRUE(format(ERC7730_ABI_UINT, 256, value, sizeof(value), output,
+                     sizeof(output)));
+  EXPECT_STREQ(output,
+               "578960446186580977117854925043439539266349923328202820197287920"
+               "03956564819967");
+}
+
+TEST(Erc7730Format, FormatsAddressBoolAndBytesCanonically) {
+  // EIP-55 specification test vector.
+  const uint8_t address[20] = {0x5a, 0xae, 0xb6, 0x05, 0x3f, 0x3e, 0x94,
+                               0xc9, 0xb9, 0xa0, 0x9f, 0x33, 0x66, 0x94,
+                               0x35, 0xe7, 0xef, 0x1b, 0xea, 0xed};
+  uint8_t value[32] = {0};
+  memcpy(value + 12, address, sizeof(address));
+  char output[ERC7730_FORMATTED_VALUE_MAX + 1];
+  ASSERT_TRUE(format(ERC7730_ABI_ADDRESS, 0, value, sizeof(value), output,
+                     sizeof(output)));
+  EXPECT_STREQ(output, "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed");
+  char exact[43];
+  EXPECT_TRUE(format(ERC7730_ABI_ADDRESS, 0, value, sizeof(value), exact,
+                     sizeof(exact)));
+  EXPECT_FALSE(format(ERC7730_ABI_ADDRESS, 0, value, sizeof(value), exact,
+                      sizeof(exact) - 1));
+  memset(value, 0, sizeof(value));
+  value[31] = 1;
+  ASSERT_TRUE(format(ERC7730_ABI_BOOL, 0, value, sizeof(value), output,
+                     sizeof(output)));
+  EXPECT_STREQ(output, "true");
+  const uint8_t bytes[] = {0xaa, 0x00, 0xff};
+  ASSERT_TRUE(format(ERC7730_ABI_BYTES, 0, bytes, sizeof(bytes), output,
+                     sizeof(output)));
+  EXPECT_STREQ(output, "0xaa00ff");
+}
+
+TEST(Erc7730Format, EscapesStringCapturesAndRejectsSmallOutput) {
+  const uint8_t value[] = {'h', 'i', 0xe2, 0x82, 0xac};
+  char output[16];
+  ASSERT_TRUE(format(ERC7730_ABI_STRING, 0, value, sizeof(value), output,
+                     sizeof(output)));
+  EXPECT_STREQ(output, "hi\\xe2\\x82\\xac");
+  char small[5];
+  EXPECT_FALSE(format(ERC7730_ABI_STRING, 0, value, sizeof(value), small,
+                      sizeof(small)));
+  EXPECT_STREQ(small, "");
+
+  // An embedded NUL used to end the confirm("%s") body early; it is escaped.
+  const uint8_t nul[] = {'O', 'K', 0x00, 'X'};
+  ASSERT_TRUE(
+      format(ERC7730_ABI_STRING, 0, nul, sizeof(nul), output, sizeof(output)));
+  EXPECT_STREQ(output, "OK\\x00X");
+
+  // A full-size capture of non-ASCII bytes fits the documented maximum.
+  uint8_t wide[ERC7730_ABI_CAPTURE_MAX];
+  memset(wide, 0xff, sizeof(wide));
+  char widest[ERC7730_FORMATTED_VALUE_MAX + 1];
+  ASSERT_TRUE(format(ERC7730_ABI_STRING, 0, wide, sizeof(wide), widest,
+                     sizeof(widest)));
+  EXPECT_EQ(strlen(widest), (size_t)ERC7730_FORMATTED_VALUE_MAX);
+}
 
 namespace {
 
@@ -71,4 +179,51 @@ TEST(Erc7730Format, TextFitsExactlyOrFailsClosed) {
   EXPECT_FALSE(text("a\\", 2, output, 3));
   EXPECT_FALSE(text("a", 1, output, 0));
   EXPECT_FALSE(text("a", 1, nullptr, 8));
+}
+
+TEST(Erc7730Format, FormatsDecimalAmountsWithoutFloatingPoint) {
+  const Erc7730AbiNode nodes[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {ERC7730_ABI_UINT, 256, 0, 0, 0},
+  };
+  const Erc7730AbiProgram program{nodes, 2, 0};
+  Erc7730AbiCapture capture{};
+  capture.node = 1;
+  capture.length = 32;
+  char output[128];
+
+  capture.data[24] = 0x0d;
+  capture.data[25] = 0xe0;
+  capture.data[26] = 0xb6;
+  capture.data[27] = 0xb3;
+  capture.data[28] = 0xa7;
+  capture.data[29] = 0x64;
+  capture.data[30] = 0x00;
+  capture.data[31] = 0x00;  // 1e18
+  ExpectUnit(capture.data, 18, "ETH", "1 ETH");
+
+  memset(capture.data, 0, sizeof(capture.data));
+  capture.data[31] = 1;
+  ExpectUnit(capture.data, 6, "USDC", "0.000001 USDC");
+
+  memset(capture.data, 0, sizeof(capture.data));
+  ExpectUnit(capture.data, 18, "", "0");
+}
+
+TEST(Erc7730Format, TrimsOnlyFractionalTrailingZeroes) {
+  const Erc7730AbiNode nodes[] = {
+      {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
+      {ERC7730_ABI_UINT, 256, 0, 0, 0},
+  };
+  const Erc7730AbiProgram program{nodes, 2, 0};
+  Erc7730AbiCapture capture{};
+  capture.node = 1;
+  capture.length = 32;
+  capture.data[30] = 0x30;
+  capture.data[31] = 0x39;  // 12345
+  char output[32];
+  ExpectUnit(capture.data, 3, "", "12.345");
+  capture.data[30] = 0x2e;
+  capture.data[31] = 0xe0;  // 12000
+  ExpectUnit(capture.data, 3, "", "12");
 }

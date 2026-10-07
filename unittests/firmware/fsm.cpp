@@ -17,6 +17,8 @@ extern "C" {
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/eip712_stream.h"
+#include "keepkey/firmware/erc7730_catalog.h"
+#include "keepkey/firmware/erc7730_workflow.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
@@ -1152,6 +1154,41 @@ TEST(Fsm, TypedDataContinuationAndSessionBoundariesAreExplicit) {
     EXPECT_TRUE(keepkey_before_message_dispatch(boundary));
     EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
   }
+  auto* workflow = erc7730_workflow_state();
+  workflow->phase = ERC7730_WORKFLOW_REPLAY;
+  EXPECT_TRUE(keepkey_before_message_dispatch(
+      MessageType_MessageType_EthereumClearSignDefinitionChunk));
+  workflow->phase = ERC7730_WORKFLOW_CALLDATA;
+  EXPECT_TRUE(
+      keepkey_before_message_dispatch(MessageType_MessageType_EthereumTxAck));
+  fsm_abort_workflows();
+  EXPECT_FALSE(keepkey_before_message_dispatch(
+      MessageType_MessageType_EthereumClearSignDefinitionChunk));
+}
+
+// A definition chunk refused for AdvancedMode ends the certified workflow
+// (and the typed-data stream it belongs to) instead of leaving it armed.
+TEST(Fsm, Erc7730ChunkRefusedWithoutAdvancedModeEndsTheWorkflow) {
+  kk_test_board_init();
+  fsm_init();
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+  for (auto phase : {ERC7730_WORKFLOW_REPLAY, ERC7730_WORKFLOW_SELECT,
+                     ERC7730_WORKFLOW_FETCH}) {
+    EthereumSignTypedData start{};
+    std::strcpy(start.primary_type, "Mail");
+    ASSERT_TRUE(eip712_stream_begin(&start, false));
+    auto* workflow = erc7730_workflow_state();
+    workflow->phase = phase;
+    workflow->typed_data = true;
+    EthereumClearSignDefinitionChunk chunk{};
+    fsm_test_clearLastFailure();
+    fsm_msgEthereumClearSignDefinitionChunk(&chunk);
+    EXPECT_EQ(FailureType_Failure_SyntaxError, fsm_test_lastFailureCode());
+    EXPECT_EQ(ERC7730_WORKFLOW_IDLE, workflow->phase) << phase;
+    EXPECT_EQ(EIP712_IDLE, eip712_stream_waiting()) << phase;
+    EXPECT_FALSE(keepkey_before_message_dispatch(
+        MessageType_MessageType_EthereumClearSignDefinitionChunk));
+  }
 }
 
 TEST_F(AutoLockProgress, EosDataProgressRenewsButEmptyChunksDoNot) {
@@ -1632,6 +1669,96 @@ TEST(Fsm, StaleEthereumAckCannotReplaceARecoveryCeremony) {
 
   setup_abort();
   layoutHomeForced();
+}
+
+// A preloaded ERC-7730 definition belongs to the signing request that follows
+// it. A partial preload shows the slot's lifetime without a signed fixture: if
+// the slot survived, the next chunk continues it; if it was discarded, the
+// device demands offset zero again.
+TEST(Fsm, Erc7730PreloadEndsAtEverySessionBoundary) {
+  kk_test_board_init();
+  fsm_init();
+  const uint8_t head[6] = {'K', '7', '7', '3', 1, 1};
+  const uint8_t length[4] = {0, 0, 1, 0};
+  uint8_t id[32] = {7};
+  uint32_t next = 0;
+  bool complete = false;
+  auto preload_head = [&]() {
+    erc7730_catalog_clear_preload();
+    return erc7730_catalog_preload_chunk(id, 0, 300, head, sizeof(head), &next,
+                                         &complete);
+  };
+  auto continued = [&]() {
+    return erc7730_catalog_preload_chunk(id, sizeof(head), 300, length,
+                                         sizeof(length), &next, &complete);
+  };
+
+  for (auto boundary :
+       {MessageType_MessageType_Initialize, MessageType_MessageType_Cancel,
+        MessageType_MessageType_ClearSession,
+        MessageType_MessageType_EthereumGetAddress,
+        MessageType_MessageType_GetPublicKey,
+        MessageType_MessageType_EthereumSignMessage}) {
+    ASSERT_EQ(preload_head(), ERC7730_CATALOG_MORE);
+    EXPECT_TRUE(keepkey_before_message_dispatch(boundary));
+    EXPECT_EQ(continued(), ERC7730_CATALOG_BAD_SEQUENCE) << boundary;
+  }
+
+  ASSERT_EQ(preload_head(), ERC7730_CATALOG_MORE);
+  session_clear(/*clear_pin=*/true);  // autolock and PIN revocation
+  EXPECT_EQ(continued(), ERC7730_CATALOG_BAD_SEQUENCE);
+
+  // A new definition ends any older certified workflow, and with it the
+  // preload that workflow was using, before its own chunks begin.
+  erc7730_workflow_state()->phase = ERC7730_WORKFLOW_REPLAY;
+  EXPECT_TRUE(keepkey_before_message_dispatch(
+      MessageType_MessageType_EthereumClearSignDefinition));
+  EXPECT_EQ(erc7730_workflow_state()->phase, ERC7730_WORKFLOW_IDLE);
+
+  for (auto consumer : {MessageType_MessageType_EthereumClearSignDefinition,
+                        MessageType_MessageType_EthereumSignTx,
+                        MessageType_MessageType_EthereumSignTypedData}) {
+    ASSERT_EQ(preload_head(), ERC7730_CATALOG_MORE);
+    EXPECT_TRUE(keepkey_before_message_dispatch(consumer));
+    EXPECT_EQ(continued(), ERC7730_CATALOG_MORE) << consumer;
+  }
+  erc7730_catalog_clear_preload();
+}
+
+// A definition refused for AdvancedMode discards the partial preload too, so
+// a later chunk cannot continue it.
+TEST(Fsm, Erc7730DefinitionRefusedWithoutAdvancedModeClearsPreload) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  LoadDevice load = allLoad();
+  storage_loadDevice(&load);
+  ASSERT_TRUE(storage_isInitialized());
+  const uint8_t head[6] = {'K', '7', '7', '3', 1, 1};
+  const uint8_t length[4] = {0, 0, 1, 0};
+  uint8_t id[32] = {7};
+  uint32_t next = 0;
+  bool complete = false;
+  erc7730_catalog_clear_preload();
+  ASSERT_EQ(erc7730_catalog_preload_chunk(id, 0, 300, head, sizeof(head), &next,
+                                          &complete),
+            ERC7730_CATALOG_MORE);
+
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+  EthereumClearSignDefinition definition{};
+  definition.definition_id.size = sizeof(id);
+  std::memcpy(definition.definition_id.bytes, id, sizeof(id));
+  definition.offset = sizeof(head);
+  definition.total_length = 300;
+  definition.data.size = sizeof(length);
+  std::memcpy(definition.data.bytes, length, sizeof(length));
+  fsm_test_clearLastFailure();
+  fsm_msgEthereumClearSignDefinition(&definition);
+  EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+  EXPECT_EQ(erc7730_catalog_preload_chunk(id, sizeof(head), 300, length,
+                                          sizeof(length), &next, &complete),
+            ERC7730_CATALOG_BAD_SEQUENCE);
+  erc7730_catalog_clear_preload();
 }
 
 // Pre-0.8 Solidity masks an address argument's high bytes, so a dirty spender
