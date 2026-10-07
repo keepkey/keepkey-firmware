@@ -40,10 +40,13 @@ if(NOT ${KK_BITCOIN_ONLY})
       eos_authorization.cpp
       eos_authorization_probe.c
       ethereum.cpp
+      eip712_stream.cpp
       mayachain.cpp
       nano.cpp
       osmosis.cpp
       ripple.cpp
+      signed_metadata.cpp
+      erc7730_format.cpp
       solana.cpp
       thorchain.cpp)
 endif()

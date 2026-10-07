@@ -64,4 +64,9 @@ typedef enum {
 ThorchainMemoResult thorchain_parseConfirmMemo(const char* swapStr,
                                                size_t size);
 
+// Page the complete raw memo without truncation. This is the authoritative
+// disclosure used after the best-effort structured THORChain/MAYA summary.
+bool thorchain_confirm_full_memo(const char* title, const char* memo,
+                                 size_t len);
+
 #endif

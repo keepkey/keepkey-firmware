@@ -46,6 +46,9 @@
 #include "keepkey/firmware/passphrase_sm.h"
 #include "keepkey/firmware/policy.h"
 #include "keepkey/firmware/reset.h"
+#if !BITCOIN_ONLY
+#include "keepkey/firmware/signed_metadata.h"
+#endif
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/u2f.h"
 #include "keepkey/rand/rng.h"
@@ -1455,6 +1458,11 @@ static bool storage_getRootSeedCache(const SessionState* ss,
 }
 
 void storage_init(void) {
+#if !BITCOIN_ONLY
+  /* A reopened flash buffer starts a new wallet session, even when an
+   * emulator library remains loaded in the same process. */
+  signed_metadata_clear_signers();
+#endif
   // Locks describe the image loaded below, not one an earlier init saw.
   btc_only_locked = false;
   btc_only_too_new = false;
@@ -1598,6 +1606,9 @@ void session_clear(bool clear_pin) {
   /* Every session loss is an authorization boundary even when Initialize asks
    * to preserve the cached PIN. Abort signing and discard all plaintext
    * setup/authenticator state before the caller can report success. */
+#if !BITCOIN_ONLY
+  signed_metadata_clear_signers();
+#endif
   signing_abort();
   setup_abort();
   authenticator_clear_cache();
@@ -1634,6 +1645,9 @@ pintest_t session_clear_impl(SessionState* ss, Storage* storage,
    * themselves. */
   if (clear_pin) {
     fsm_abort_signing_workflows();
+#if !BITCOIN_ONLY
+    signed_metadata_clear_signers();
+#endif
     storage_setPolicy_impl(storage->pub.policies, "AdvancedMode", false);
   }
 
@@ -2332,6 +2346,11 @@ bool storage_hasNode(void) { return shadow_config.storage.pub.has_node; }
 Allocation storage_getLocation(void) { return storage_location; }
 
 bool storage_setPolicy(const char* policy_name, bool enabled) {
+  if (!enabled && strcmp(policy_name, "AdvancedMode") == 0) {
+#if !BITCOIN_ONLY
+    signed_metadata_clear_signers();
+#endif
+  }
   return storage_setPolicy_impl(shadow_config.storage.pub.policies, policy_name,
                                 enabled);
 }

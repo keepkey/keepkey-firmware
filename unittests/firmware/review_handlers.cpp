@@ -6,6 +6,7 @@ extern "C" {
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/bip85.h"
+#include "keepkey/firmware/signed_metadata.h"
 #include "storage.h"
 }
 #include "gtest/gtest.h"
@@ -43,6 +44,9 @@ class ReviewHandlers : public ::testing::Test {
   void TearDown() override {
     fsm_abort_workflows();
     kkconfirm_drain();
+#if !BITCOIN_ONLY
+    signed_metadata_clear_signers();
+#endif
     storage_wipe();
     storage_reset();
     emulator_flash_base = previous;
@@ -138,6 +142,53 @@ TEST_F(ReviewHandlers, ResetBackupCommitsAllStrengthsAndClearsScratch) {
 }
 
 #if !BITCOIN_ONLY
+static const uint8_t review_pubkey[33] = {
+    0x02, 0xe3, 0xb3, 0x01, 0x5c, 0x47, 0xdd, 0xca, 0xab, 0xe4, 0xf8,
+    0xe8, 0x72, 0xf1, 0xed, 0x8f, 0x09, 0xca, 0x14, 0x5a, 0x8d, 0x81,
+    0x77, 0x0d, 0x92, 0x21, 0x3d, 0x56, 0xda, 0x31, 0xab, 0x51, 0x07};
+
+TEST_F(ReviewHandlers, SessionEndClearsRuntimeSignerAndAlias) {
+  ASSERT_TRUE(signed_metadata_store_signer(3, review_pubkey, "Session signer",
+                                           nullptr, 0, 0, 0, false));
+  ASSERT_TRUE(signed_metadata_signer_is_runtime(3));
+  ASSERT_NE(nullptr, signed_metadata_signer_alias(3));
+  ClearSession clear = {};
+  fsm_msgClearSession(&clear);
+  EXPECT_FALSE(signed_metadata_signer_is_runtime(3));
+  EXPECT_EQ(nullptr, signed_metadata_signer_alias(3));
+
+  ASSERT_TRUE(signed_metadata_store_signer(3, review_pubkey, "Next session",
+                                           nullptr, 0, 0, 0, false));
+  Initialize initialize = {};
+  fsm_msgInitialize(&initialize);
+  EXPECT_FALSE(signed_metadata_signer_is_runtime(3));
+  EXPECT_EQ(nullptr, signed_metadata_signer_alias(3));
+}
+
+TEST_F(ReviewHandlers, ReopeningFlashClearsRuntimeSigner) {
+  ASSERT_TRUE(signed_metadata_store_signer(3, review_pubkey, "Old wallet",
+                                           nullptr, 0, 0, 0, false));
+  ASSERT_TRUE(signed_metadata_signer_is_runtime(3));
+  storage_init();
+  EXPECT_FALSE(signed_metadata_signer_is_runtime(3));
+  EXPECT_EQ(nullptr, signed_metadata_signer_alias(3));
+}
+
+TEST_F(ReviewHandlers, MetadataKeyIdRefusesNarrowingBeforeAck) {
+  // The handler's AdvancedMode gate (added after 00b's version of this test)
+  // answers ActionCancelled first; enable it so the key_id check is reached.
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", true));
+  for (uint32_t key_id :
+       {static_cast<uint32_t>(METADATA_MAX_KEYS), 256u, 0xffffffffu}) {
+    EthereumTxMetadata msg = {};
+    msg.has_key_id = true;
+    msg.key_id = key_id;
+    fsm_test_clearLastFailure();
+    fsm_msgEthereumTxMetadata(&msg);
+    EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+  }
+}
+
 TEST_F(ReviewHandlers, Bip85DerivationMatchesIndependentBip32Oracle) {
   char child[241] = {};
   ASSERT_TRUE(bip85_derive_mnemonic(12, 0, child, sizeof(child)));
@@ -166,6 +217,44 @@ TEST_F(ReviewHandlers, Bip85DerivationMatchesIndependentBip32Oracle) {
     for (char byte : page) EXPECT_EQ(0, byte);
   for (char byte : mnemonic_scratch_display) EXPECT_EQ(0, byte);
   for (char byte : mnemonic_scratch_word) EXPECT_EQ(0, byte);
+}
+
+// The consent screen for a runtime clear-sign signer must render the identity
+// the way every later per-transaction identity screen will. A ZCASH_PRIVACY
+// build stores no session icons, so it must not draw the host icon at
+// consent either. Observable through the body width: an alias that fits one
+// screen at BODY_WIDTH but not beside an icon pages only when the icon is
+// drawn.
+TEST_F(ReviewHandlers, ClearsignSignerConsentDrawsTheIconOnlyWhereItIsKept) {
+  static const uint8_t kIcon[] = {0x04, 0xFF};  // 2x2, one run of four
+  const char fingerprint[] = "0123456789abcdef";
+  std::string alias;
+  for (size_t n = 1; n <= METADATA_ALIAS_MAX_LEN; ++n) {
+    const std::string candidate(n, 'W');
+    char body[160];
+    snprintf(body, sizeof(body),
+             "Trust '%s' (%s) for this session to describe transactions? NOT "
+             "verified by KeepKey.",
+             candidate.c_str(), fingerprint);
+    if (confirm_body_fits(body, BODY_WIDTH) &&
+        !confirm_body_fits(body, BODY_WIDTH_WITH_ICON)) {
+      alias = candidate;
+      break;
+    }
+  }
+  ASSERT_FALSE(alias.empty()) << "no alias separates the two body widths";
+
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  kkconfirm_capture_start();
+  EXPECT_TRUE(signed_metadata_confirm_load(alias.c_str(), fingerprint, kIcon, 2,
+                                           2, sizeof(kIcon)));
+  const auto screens = kkconfirm_capture_finish();
+  (void)kkconfirm_drain();
+#if ZCASH_PRIVACY
+  EXPECT_EQ(1u, screens.size()) << "icon drawn at consent but never again";
+#else
+  EXPECT_GT(screens.size(), 1u) << "icon kept for the session but not shown";
+#endif
 }
 
 // Handler-level regression for the BIP-85 pager. Index 84 of this seed is a

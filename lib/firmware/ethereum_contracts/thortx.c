@@ -41,30 +41,34 @@ bool thor_is_expiry_variant(const EthereumSignTx* msg) {
                 THOR_SELECTOR_DEPOSIT_WITH_EXPIRY, 4) == 0;
 }
 
-/* The label for the pinned deposit router this tx is addressed to, or NULL if
- * it is addressed anywhere else (then the deposit is not clear-signed and falls
- * to the blind-sign gate). Each router address is a per-chain identity -- the
- * same address on another chain may hold unrelated attacker code -- so the pin
- * is (chain_id, address) together, and a tx with NO chain_id matches nothing.
- * Both protocols deposit with the same calldata shape and are narrated by the
- * same screens, so both routers are pinned here. */
-static const char* thor_router_label(const EthereumSignTx* msg,
-                                     const char toStr[41]) {
-  if (!msg->has_chain_id) return NULL;
-  if (msg->chain_id == 1) {
-    if (strncmp(toStr, THOR_ROUTER, 40) == 0) return "Thorchain router";
-    if (strncmp(toStr, MAYA_ROUTER, 40) == 0) return "Mayachain router";
-    return NULL;
-  }
-  if (msg->chain_id == 43114 && strncmp(toStr, THOR_ROUTER_AVAX, 40) == 0) {
-    return "Thorchain router"; /* Avalanche C-Chain */
-  }
-  return NULL;
-}
-
 static void thor_format_to_addr(const EthereumSignTx* msg, char out[41]) {
   for (uint32_t i = 0; i < 20; i++) {
     snprintf(&out[i * 2], 3, "%02x", msg->to.bytes[i]);
+  }
+  out[40] = '\0';
+}
+
+bool thor_isMayachainTx(const EthereumSignTx* msg) {
+  if (!msg->has_to || msg->to.size != 20) return false;
+  /* MAYA_ROUTER is a mainnet identity; other chains may hold attacker code. */
+  if (!msg->has_chain_id || msg->chain_id != 1) return false;
+  if (!thor_has_deposit_selector(msg)) return false;
+  char toStr[41];
+  thor_format_to_addr(msg, toStr);
+  return strncmp(toStr, MAYA_ROUTER, 40) == 0;
+}
+
+/* Router pinned by (chain_id, address), or NULL (blind-sign gate). No
+ * chain_id means no router: a pin is never inherited from a default. */
+static const char* thor_router_for_chain(const EthereumSignTx* msg) {
+  if (!msg->has_chain_id) return NULL;
+  switch (msg->chain_id) {
+    case 1:
+      return THOR_ROUTER; /* Ethereum */
+    case 43114:
+      return THOR_ROUTER_AVAX; /* Avalanche C-Chain */
+    default:
+      return NULL;
   }
 }
 
@@ -76,59 +80,41 @@ bool thor_isThorchainTx(const EthereumSignTx* msg) {
    * bypass the AdvancedMode blind-sign gate, letting an attacker contract
    * drain funds while the device shows a benign deposit. Without the chain
    * scope, only mainnet deposits ever match (the AVAX->ETH blind-sign bug). */
+  const char* router = thor_router_for_chain(msg);
+  if (!router) return false;
   char toStr[41];
   thor_format_to_addr(msg, toStr);
-  return thor_router_label(msg, toStr) != NULL;
+  return strncmp(toStr, router, 40) == 0;
 }
 
-bool thor_assetIsNative(const uint8_t asset_address[20]) {
-  return asset_address != NULL && memcmp(asset_address, ETH_ADDRESS, 20) == 0;
-}
+static bool thor_confirm_deposit_tx(uint32_t data_total,
+                                    const EthereumSignTx* msg,
+                                    const char* protocol_label,
+                                    const char* router_label) {
+  (void)data_total;
 
-bool thor_formatUnknownAssetAmount(const uint8_t word[32], char* out,
-                                   size_t out_len) {
-  if (!word || !out || out_len == 0) return false;
-  bignum256 amount;
-  bn_from_bytes(word, 32, &amount);
-  return bn_format(&amount, NULL, " unformatted", 0, 0, false, out, out_len) !=
-         0;
-}
-
-bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
-  /* Minimum calldata: selector(4) + vault(32) + asset(32) + amount(32) +
-   * memo_offset(32) + memo_length(32) = 164 bytes for deposit(),
-   * + expiry(32) = 196 bytes for depositWithExpiry(). */
+  /* Head through memo_length: 4 + 5*32 = 164 (deposit), +32 = 196 with
+   * expiry. Exact memo bounds are enforced below. */
   const bool is_expiry = thor_is_expiry_variant(msg);
-  /* Exactly the bound needed to read the memo's ABI length word below, which
-   * sits at 4 + 4*32 for deposit() and 4 + 5*32 for depositWithExpiry(). The
-   * previous 228/260 floor assumed a fixed 64-byte memo and rejected valid
-   * short ones: `+:BTC/BTC::t:10` pads to 32 bytes, giving 196 bytes of
-   * calldata for deposit(). The exact-length equality check further down is
-   * what actually bounds the memo. */
   const size_t min_chunk = is_expiry ? 196 : 164;
   if (msg->data_initial_chunk.size < min_chunk) return false;
 
-  /* The memo is a dynamic `string`. Its ABI head pointer (word 3) must be the
-   * canonical one - 0x80 for deposit()'s 4 head words, 0xa0 for
-   * depositWithExpiry()'s 5 - because the memo is read below at that FIXED
-   * offset, which is only where the router's abi.decode will look when the
-   * pointer matches. A host that points the memo elsewhere would have the
-   * device display a benign memo while the router executes a different swap
-   * destination. Refuse to clear-sign a non-canonical encoding. */
-  const uint8_t* memo_off_word = msg->data_initial_chunk.bytes + 4 + 3 * 32;
-  for (size_t i = 0; i < 31; i++) {
-    if (memo_off_word[i] != 0) return false;
+  /* Memo head pointer must be canonical (0x80 / 0xa0 with expiry), else the
+   * router decodes a different memo than the one displayed. */
+  {
+    static const uint8_t MEMO_OFF_DEPOSIT[32] = {[31] = 0x80};
+    static const uint8_t MEMO_OFF_EXPIRY[32] = {[31] = 0xa0};
+    const uint8_t* expected = is_expiry ? MEMO_OFF_EXPIRY : MEMO_OFF_DEPOSIT;
+    if (memcmp(msg->data_initial_chunk.bytes + 4 + 3 * 32, expected, 32) != 0) {
+      return false;
+    }
   }
-  if (memo_off_word[31] != (is_expiry ? 0xa0 : 0x80)) return false;
 
-  /* Read the memo's ABI length word instead of assuming a fixed 64 bytes: a
-   * longer memo places router-executed fields (destination, affiliate fee,
-   * aggregator routing) past byte 64, which the fixed-length parse never
-   * displayed but the router still executes. Reject dirty high bytes and cap
-   * at THORChain's 256-byte memo maximum. */
+  /* Use the ABI memo length (cap 256, clean high bytes); the padded memo must
+   * end exactly at the calldata end so no executed bytes go unshown. */
   const uint8_t* memo_len_word =
       msg->data_initial_chunk.bytes + 4 + (is_expiry ? 5 : 4) * 32;
-  for (size_t i = 0; i < 28; i++) {
+  for (int i = 0; i < 28; i++) {
     if (memo_len_word[i] != 0) return false;
   }
   const uint32_t memo_len = ((uint32_t)memo_len_word[28] << 24) |
@@ -136,35 +122,26 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
                             ((uint32_t)memo_len_word[30] << 8) |
                             (uint32_t)memo_len_word[31];
   if (memo_len > 256) return false;
-
-  /* The whole calldata must be in this chunk, and must end exactly where the
-   * 32-byte-padded memo ends. A second chunk, or trailing words after the
-   * memo, would be signed but never displayed. */
   const size_t memo_off = (size_t)(4 + (is_expiry ? 6 : 5) * 32);
-  const size_t memo_padded = (((size_t)memo_len + 31u) / 32u) * 32u;
-  if (data_total != msg->data_initial_chunk.size) return false;
-  if (memo_off + memo_padded != msg->data_initial_chunk.size) return false;
+  const size_t memo_padded = ((memo_len + 31u) / 32u) * 32u;
+  if (msg->has_data_length &&
+      msg->data_length != msg->data_initial_chunk.size) {
+    return false; /* whole calldata must be in the initial chunk to bound it */
+  }
+  if (memo_off + memo_padded != msg->data_initial_chunk.size) {
+    return false; /* trailing bytes would execute unseen */
+  }
 
-  /* The equality above bounds the calldata but says nothing about what is IN
-   * the ABI tail padding. Only memo_len bytes are handed to the parser and
-   * drawn, while all memo_padded bytes are signed, so a host can carry up to
-   * 31 arbitrary bytes per transaction in a region no screen ever shows. The
-   * router ignores them - abi.decode reads memo_len - which is exactly why
-   * they are attractive: they cost the sender nothing and the device vouches
-   * for them. Canonical ABI pads with zeroes; anything else is a non-canonical
-   * encoding this path already refuses elsewhere (dirty high bytes in the
-   * length word, a non-canonical offset pointer). Refuse it here too rather
-   * than sign bytes that were never displayed. */
+  /* Tail padding is signed but not shown: it must be zero. */
   for (size_t i = memo_off + memo_len; i < memo_off + memo_padded; i++) {
     if (msg->data_initial_chunk.bytes[i] != 0) return false;
   }
 
   char confStr[41];
   const char* conf;
-  const TokenType* assetToken;
   uint8_t* thorchainData;
   const uint8_t* contractAssetAddress;
-  const uint8_t *vaultAddress, *assetAddress;
+  const uint8_t* vaultAddress;
   uint32_t ctr;
   bignum256 Amount;
 
@@ -172,55 +149,42 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
   contractAssetAddress =
       (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32, &Amount);
-  bignum256 Value;
-  bn_from_bytes(msg->value.bytes, msg->value.size, &Value);
   /* deposit(): memo at 4 + 5*32; depositWithExpiry(): memo at 4 + 6*32 */
   thorchainData =
       (uint8_t*)(msg->data_initial_chunk.bytes + 4 + (is_expiry ? 6 : 5) * 32);
 
-  /* Everything non-interactive FIRST, so an unrenderable call fails before any
-   * approval is taken.
-   *
-   * The amount used to be formatted after the router, vault and asset screens
-   * had been approved, and the expiry word validated after that. bn_format()
-   * refuses a value it cannot render, and ethereum.c turns a false return from
-   * this decoder into ActionCancelled -- so a large but valid amount, or a
-   * non-canonical expiry, told the owner they had cancelled a transaction they
-   * had already approved three screens of. Resolve the asset, render the
-   * amount, and check the expiry up here; the confirmations below then only
-   * display what is already known to be displayable. */
-  assetAddress = contractAssetAddress;
-  /* The THORChain ABI uses the zero address to mean this signing chain's
-   * native asset.  Resolve that router-specific meaning directly instead of
-   * routing it through the Ethereum-only 0xeeee..eeee token sentinel.  A NULL
-   * token makes ethereumFormatAmount() select the native ticker from chain_id.
-   */
-  const bool is_native = thor_assetIsNative(contractAssetAddress);
-  if (is_native) {
-    assetToken = NULL;
-  } else {
-    /* Token deposits pull through transferFrom; any native value would be
-     * swept without being represented by the ABI amount screen. */
-    if (!bn_is_zero(&Value)) return false;
-    assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
-  }
-
+  /* Render the amount before any confirm. The routers treat ONLY address(0)
+   * as native (not 0xEeee..Ee); compare 20 bytes, not sizeof (NUL). */
+  const bool is_native = memcmp(contractAssetAddress, ETH_ADDRESS, 20) == 0;
+  bignum256 Value;
+  bn_from_bytes(msg->value.bytes, msg->value.size, &Value);
   char amountStr[41];
-  if (assetToken == UnknownToken) {
-    /* We don't know what the exponent should be, so confirm the raw
-     * unformatted number. */
-    if (!thor_formatUnknownAssetAmount(
-            msg->data_initial_chunk.bytes + 4 + 2 * 32, amountStr,
-            sizeof(amountStr)))
+  const TokenType* assetToken = NULL;
+  bool is_unknown = false;
+  if (is_native) {
+    /* Show msg.value (what the router forwards), not the ignored ABI amount;
+     * NULL token so the ticker is this chain's native asset. */
+    if (!ethereumFormatAmount(&Value, NULL, msg->chain_id, amountStr,
+                              sizeof(amountStr)))
       return false;
   } else {
-    /* For a native deposit the router forwards msg.value and IGNORES the ABI
-     * amount word, so the amount word is only a hint and may differ from what
-     * actually moves. Show what the router will send. */
-    const bignum256* displayed_amount = is_native ? &Value : &Amount;
-    if (!ethereumFormatAmount(displayed_amount, assetToken, msg->chain_id,
-                              amountStr, sizeof(amountStr)))
+    /* Token deposits must carry no native value: it would go unshown. */
+    if (!bn_is_zero(&Value)) {
       return false;
+    }
+    assetToken = tokenByChainAddress(msg->chain_id, contractAssetAddress);
+    is_unknown = strncmp(assetToken->ticker, " UNKN", 5) == 0;
+    if (is_unknown) {
+      // We don't know what the exponent should be so just confirm raw
+      // unformatted number
+      if (bn_format(&Amount, NULL, " unformatted", 0, 0, false, amountStr,
+                    sizeof(amountStr)) == 0)
+        return false;
+    } else {
+      if (!ethereumFormatAmount(&Amount, assetToken, msg->chain_id, amountStr,
+                                sizeof(amountStr)))
+        return false;
+    }
   }
 
   /* depositWithExpiry() carries a fifth head word the deposit() variant does
@@ -263,18 +227,16 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
   }
 
   // Start confirmations
-  for (ctr = 0; ctr < 20; ctr++) {
-    snprintf(&confStr[ctr * 2], 3, "%02x", msg->to.bytes[ctr]);
-  }
-  /* Each router address is an identity on ONE chain, so the trusted label is
-   * bound to the chain; otherwise a host-chosen chain_id borrows it. */
-  const char* pinned_label = thor_router_label(msg, confStr);
-  if (pinned_label) {
-    conf = pinned_label;
+  thor_format_to_addr(msg, confStr);
+  const char* thor_router = thor_router_for_chain(msg);
+  if (thor_router && strncmp(confStr, thor_router, 40) == 0) {
+    conf = "Thorchain router";
+  } else if (strncmp(confStr, MAYA_ROUTER, 40) == 0) {
+    conf = router_label;
   } else {
     conf = confStr;
   }
-  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain data",
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
                "Routing through %s", conf)) {
     return false;
   }
@@ -283,46 +245,52 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
   for (ctr = 0; ctr < 20; ctr++) {
     snprintf(&confStr[ctr * 2], 3, "%02x", vaultAddress[ctr]);
   }
-  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Thorchain data",
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
                "Using Asgard vault %s", confStr)) {
     return false;
   }
 
-  if (assetToken == UnknownToken) {
-    // just display token address and amount as string
+  if (is_unknown) {
     for (ctr = 0; ctr < 20; ctr++) {
-      snprintf(&confStr[ctr * 2], 3, "%02x", assetAddress[ctr]);
+      snprintf(&confStr[ctr * 2], 3, "%02x", contractAssetAddress[ctr]);
     }
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain data", "from asset %s", confStr)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
+                 "from asset %s", confStr)) {
       return false;
     }
-
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain data", "amount %s", amountStr)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
+                 "amount %s", amountStr)) {
       return false;
     }
-
   } else {
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Thorchain data", "Confirm sending %s", amountStr)) {
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
+                 "Confirm sending %s", amountStr)) {
       return false;
     }
   }
 
   if (is_expiry && !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                            "Thorchain data", "Expiry epoch %s", expiry_str)) {
+                            protocol_label, "Expiry epoch %s", expiry_str)) {
     return false;
   }
 
-  /* Pass the memo's true ABI length, not a fixed 64. There is no raw-memo
-   * fallback screen on this path - ethereum.c turns a false return into
-   * ActionCancelled - so an unparsed memo must refuse rather than sign bytes
-   * that were never displayed. */
-  if (thorchain_parseConfirmMemo((const char*)thorchainData, memo_len) !=
-      THORCHAIN_MEMO_CONFIRMED) {
+  const ThorchainMemoResult memo_result =
+      thorchain_parseConfirmMemo((const char*)thorchainData, memo_len);
+  if (memo_result == THORCHAIN_MEMO_CANCELLED) return false;
+
+  /* Page the full raw memo: structured fields may truncate. */
+  if (!thorchain_confirm_full_memo("Memo", (const char*)thorchainData,
+                                   memo_len))
     return false;
-  }
 
   return true;
+}
+
+bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
+  return thor_confirm_deposit_tx(data_total, msg, "Thorchain data",
+                                 "Thorchain router");
+}
+
+bool thor_confirmMayaTx(uint32_t data_total, const EthereumSignTx* msg) {
+  return thor_confirm_deposit_tx(data_total, msg, "Maya data", "Maya router");
 }
