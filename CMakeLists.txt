@@ -257,6 +257,14 @@ if(${KK_EMULATOR} AND NOT WIN32)
     add_dependencies(xunit erc7730-validator-test)
   endif()
 
+  if(TARGET zcash-display-unit)
+    add_test(test-zcash-display ${CMAKE_BINARY_DIR}/bin/zcash-display-unit)
+    add_dependencies(xunit zcash-display-unit)
+    add_custom_command(TARGET xunit POST_BUILD
+      COMMAND ${CMAKE_BINARY_DIR}/bin/zcash-display-unit
+              --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/zcash-display.xml)
+  endif()
+
   if(KK_BUILD_DYLIB AND NOT WIN32)
     find_package(Threads REQUIRED)
     add_executable(emulator-unit unittests/emulator/lifecycle.cpp)

@@ -324,6 +324,21 @@ bool confirm_nano_address(const char* desc, const char* address) {
 }
 
 /*
+ * confirm_zcash_address() - Full address text, then its QR.
+ */
+#if ZCASH_PRIVACY
+bool confirm_zcash_address(const char* desc, const char* address) {
+  if (!confirm(ButtonRequestType_ButtonRequest_Address, desc, "%s", address)) {
+    return false;
+  }
+
+  return confirm_address_with_custom_layout(
+      &layout_zcash_address_notification,
+      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+}
+#endif
+
+/*
  * confirm_address() - Show address confirmation
  *
  * INPUT

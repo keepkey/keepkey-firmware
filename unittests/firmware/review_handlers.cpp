@@ -11,6 +11,10 @@ extern "C" {
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/bip85.h"
 #include "keepkey/firmware/signed_metadata.h"
+#if ZCASH_PRIVACY
+#include "keepkey/firmware/zcash.h"
+#include "trezor/crypto/blake2b.h"
+#endif
 #include "storage.h"
 }
 #include "gtest/gtest.h"
@@ -278,6 +282,302 @@ TEST_F(ReviewHandlers, ClearsignSignerConsentDrawsTheIconOnlyWhereItIsKept) {
   EXPECT_GT(screens.size(), 1u) << "icon kept for the session but not shown";
 #endif
 }
+
+#if ZCASH_PRIVACY
+// The PCZT summary is shown before anything the device verifies, so it must
+// not present the host's total_amount as a fact: nothing signed commits to it.
+TEST_F(ReviewHandlers, ZcashSummaryNeverShowsTheHostTotalAmount) {
+  ZcashSignPCZT msg = {};
+  msg.has_n_actions = true;
+  msg.n_actions = 1;
+  msg.has_account = true;
+  msg.account = 0;
+  msg.has_tx_version = msg.has_version_group_id = msg.has_branch_id =
+      msg.has_lock_time = msg.has_expiry_height = true;
+  msg.tx_version = 5;
+  msg.version_group_id = 0x26a7270a;
+  msg.branch_id = 0xc2d6d0b4;
+  msg.lock_time = 123456;
+  msg.expiry_height = 987654;
+  msg.has_header_digest = true;
+  msg.header_digest.size = 32;
+  ASSERT_TRUE(zcash_compute_header_digest(
+      msg.tx_version, msg.version_group_id, msg.branch_id, msg.lock_time,
+      msg.expiry_height, msg.header_digest.bytes));
+  msg.has_orchard_digest = true;
+  msg.orchard_digest.size = 32;
+  msg.has_orchard_flags = msg.has_orchard_value_balance = true;
+  msg.has_orchard_anchor = true;
+  msg.orchard_anchor.size = 32;
+  msg.has_total_amount = true;
+  msg.total_amount = 12345678;  // would render as 0.12345678
+  msg.has_fee = true;
+  msg.fee = 1000;
+
+  ASSERT_TRUE(kkconfirm_preload(0, 1));  // reject the summary
+  fsm_test_clearLastFailure();
+  kkconfirm_capture_start();
+  fsm_msgZcashSignPCZT(&msg);
+  const auto screens = kkconfirm_capture_finish();
+  EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+  EXPECT_EQ(0, kkconfirm_drain());
+  ASSERT_EQ(1u, screens.size());
+  EXPECT_NE(std::string::npos, screens[0].find("Sign shielded transaction?"));
+  EXPECT_EQ(std::string::npos, screens[0].find("Amount"));
+  EXPECT_EQ(std::string::npos, screens[0].find("12345678"));
+}
+
+// A shielded-only request signs over the empty transparent digest, so a
+// different supplied digest is refused before the summary, never replaced.
+TEST_F(ReviewHandlers, ZcashShieldedOnlyRefusesANonEmptyTransparentDigest) {
+  ZcashSignPCZT msg = {};
+  msg.has_n_actions = true;
+  msg.n_actions = 1;
+  msg.has_account = true;
+  msg.has_tx_version = msg.has_version_group_id = msg.has_branch_id =
+      msg.has_lock_time = msg.has_expiry_height = true;
+  msg.tx_version = 5;
+  msg.version_group_id = 0x26a7270a;
+  msg.branch_id = 0xc2d6d0b4;
+  msg.has_header_digest = true;
+  msg.header_digest.size = 32;
+  ASSERT_TRUE(zcash_compute_header_digest(
+      msg.tx_version, msg.version_group_id, msg.branch_id, msg.lock_time,
+      msg.expiry_height, msg.header_digest.bytes));
+  msg.has_orchard_digest = true;
+  msg.orchard_digest.size = 32;
+  msg.has_orchard_flags = msg.has_orchard_value_balance = true;
+  msg.has_orchard_anchor = true;
+  msg.orchard_anchor.size = 32;
+  msg.has_transparent_digest = true;
+  msg.transparent_digest.size = 32;
+
+  std::memset(msg.transparent_digest.bytes, 0x11, 32);
+  ASSERT_TRUE(kkconfirm_preload(0, 1));
+  fsm_test_clearLastFailure();
+  kkconfirm_capture_start();
+  fsm_msgZcashSignPCZT(&msg);
+  EXPECT_TRUE(kkconfirm_capture_finish().empty());
+  EXPECT_EQ(FailureType_Failure_SyntaxError, fsm_test_lastFailureCode());
+  EXPECT_EQ(2, kkconfirm_drain());  // the summary's ack + decision, unused
+
+  // The canonical empty digest is accepted and reaches the summary.
+  ASSERT_TRUE(zcash_compute_transparent_digest(NULL, 0, NULL, 0,
+                                               msg.transparent_digest.bytes));
+  ASSERT_TRUE(kkconfirm_preload(0, 1));  // reject the summary
+  fsm_test_clearLastFailure();
+  kkconfirm_capture_start();
+  fsm_msgZcashSignPCZT(&msg);
+  EXPECT_EQ(1u, kkconfirm_capture_finish().size());
+  EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// A v5 sighash has no Ironwood component, so a supplied ironwood_digest of any
+// size is refused before the summary instead of being dropped.
+TEST_F(ReviewHandlers, ZcashV5RefusesAnIronwoodDigest) {
+  ZcashSignPCZT msg = {};
+  msg.has_n_actions = true;
+  msg.n_actions = 1;
+  msg.has_account = true;
+  msg.has_tx_version = msg.has_version_group_id = msg.has_branch_id =
+      msg.has_lock_time = msg.has_expiry_height = true;
+  msg.tx_version = 5;
+  msg.version_group_id = 0x26a7270a;
+  msg.branch_id = 0xc2d6d0b4;
+  msg.has_header_digest = true;
+  msg.header_digest.size = 32;
+  ASSERT_TRUE(zcash_compute_header_digest(
+      msg.tx_version, msg.version_group_id, msg.branch_id, msg.lock_time,
+      msg.expiry_height, msg.header_digest.bytes));
+  msg.has_orchard_digest = true;
+  msg.orchard_digest.size = 32;
+  msg.has_orchard_flags = msg.has_orchard_value_balance = true;
+  msg.has_orchard_anchor = true;
+  msg.orchard_anchor.size = 32;
+  for (pb_size_t size : {32, 7}) {
+    SCOPED_TRACE(size);
+    msg.has_ironwood_digest = true;
+    msg.ironwood_digest.size = size;
+    ASSERT_TRUE(kkconfirm_preload(0, 1));
+    fsm_test_clearLastFailure();
+    kkconfirm_capture_start();
+    fsm_msgZcashSignPCZT(&msg);
+    EXPECT_TRUE(kkconfirm_capture_finish().empty());
+    EXPECT_EQ(FailureType_Failure_SyntaxError, fsm_test_lastFailureCode());
+    EXPECT_EQ(2, kkconfirm_drain());  // the summary's ack + decision, unused
+  }
+  // Without it the same request reaches the summary.
+  msg.has_ironwood_digest = false;
+  msg.ironwood_digest.size = 0;
+  ASSERT_TRUE(kkconfirm_preload(0, 1));  // reject the summary
+  fsm_test_clearLastFailure();
+  fsm_msgZcashSignPCZT(&msg);
+  EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+// Handler-level walk of a whole shielded-only session: summary, one streamed
+// output action (the cmx is the device's own known-answer vector, see
+// OrchardNoteCommitment_KnownVectorAndProgress), the recomputed bundle digest,
+// then the final fee gate. A legacy host action sighash is refused outright. A bundle digest the device does not recompute, or a
+// host fee other than the verified one (here orchard_value_balance, 0), aborts
+// before the fee screen and releases nothing; the matching request reaches the
+// fee screen and completes.
+namespace {
+std::vector<uint8_t> zcashHex(const char* hex) {
+  std::vector<uint8_t> out;
+  for (size_t i = 0; hex[i] && hex[i + 1]; i += 2) {
+    out.push_back(static_cast<uint8_t>(std::stoul(std::string(hex + i, 2),
+                                                  nullptr, 16)));
+  }
+  return out;
+}
+
+void zcashPersonal(const char* person, const std::vector<uint8_t>& data,
+                   uint8_t out[32]) {
+  blake2b_state ctx;
+  blake2b_InitPersonal(&ctx, 32, person, 16);
+  blake2b_Update(&ctx, data.data(), data.size());
+  blake2b_Final(&ctx, out, 32);
+}
+
+template <typename Bytes>
+void zcashSet(Bytes& field, const std::vector<uint8_t>& value) {
+  field.size = value.size();
+  std::memcpy(field.bytes, value.data(), value.size());
+}
+}  // namespace
+
+TEST_F(ReviewHandlers, ZcashSessionCompletesOnlyPastTheDigestAndFeeGates) {
+  const auto rho = zcashHex(
+      "112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00");
+  const auto cmx = zcashHex(
+      "02defb39c8f2e1ecc945189373cf2a8e21d4e154398efa1621d5fb989e1deb36");
+  const auto recipient = zcashHex(
+      "3c150e6098b861716cc7f62835f69feb302193c92660444f26624fd13e00ea7a"
+      "c774cd55074d6367efef37");
+  const auto rseed = zcashHex(
+      "cafebabedeadbeef0102030405060708090a0b0c0d0e0f101112131415161718");
+  const std::vector<uint8_t> epk(32, 2), enc_compact(52, 3), enc_memo(512, 4),
+      enc_noncompact(16, 5), cv_net(32, 6), rk(32, 7), out_ciphertext(80, 8),
+      anchor(32, 0x13);
+  const uint8_t flags = 3;
+
+  // The ZIP-244 Orchard bundle digest the device recomputes.
+  uint8_t compact[32], memos[32], noncompact[32], digest[32];
+  std::vector<uint8_t> data = rho;
+  data.insert(data.end(), cmx.begin(), cmx.end());
+  data.insert(data.end(), epk.begin(), epk.end());
+  data.insert(data.end(), enc_compact.begin(), enc_compact.end());
+  zcashPersonal("ZTxIdOrcActCHash", data, compact);
+  zcashPersonal("ZTxIdOrcActMHash", enc_memo, memos);
+  data = cv_net;
+  data.insert(data.end(), rk.begin(), rk.end());
+  data.insert(data.end(), enc_noncompact.begin(), enc_noncompact.end());
+  data.insert(data.end(), out_ciphertext.begin(), out_ciphertext.end());
+  zcashPersonal("ZTxIdOrcActNHash", data, noncompact);
+  data.assign(compact, compact + 32);
+  data.insert(data.end(), memos, memos + 32);
+  data.insert(data.end(), noncompact, noncompact + 32);
+  data.push_back(flags);
+  data.insert(data.end(), 8, 0);  // orchard_value_balance = 0, LE i64
+  data.insert(data.end(), anchor.begin(), anchor.end());
+  zcashPersonal("ZTxIdOrchardHash", data, digest);
+
+  enum Case { kHostSighash, kTamperedDigest, kFeeMismatch, kAccepted };
+  for (Case c : {kHostSighash, kTamperedDigest, kFeeMismatch, kAccepted}) {
+    SCOPED_TRACE(c);
+    ZcashSignPCZT msg = {};
+    msg.has_n_actions = true;
+    msg.n_actions = 1;
+    msg.has_account = true;
+    msg.has_tx_version = msg.has_version_group_id = msg.has_branch_id =
+        msg.has_lock_time = msg.has_expiry_height = true;
+    msg.tx_version = 5;
+    msg.version_group_id = 0x26a7270a;
+    msg.branch_id = 0x5437f330;
+    msg.has_header_digest = true;
+    msg.header_digest.size = 32;
+    ASSERT_TRUE(zcash_compute_header_digest(
+        msg.tx_version, msg.version_group_id, msg.branch_id, msg.lock_time,
+        msg.expiry_height, msg.header_digest.bytes));
+    msg.has_orchard_digest = true;
+    msg.orchard_digest.size = 32;
+    std::memcpy(msg.orchard_digest.bytes, digest, 32);
+    if (c == kTamperedDigest) msg.orchard_digest.bytes[0] ^= 1;
+    msg.has_orchard_flags = msg.has_orchard_value_balance = true;
+    msg.orchard_flags = flags;
+    msg.has_orchard_anchor = true;
+    zcashSet(msg.orchard_anchor, anchor);
+    msg.has_fee = true;
+    msg.fee = c == kFeeMismatch ? 1000 : 0;
+
+    // Summary, the two output screens, then the fee screen if it is reached.
+    ASSERT_TRUE(kkconfirm_preload(4, 0));
+    fsm_test_clearLastFailure();
+    kkconfirm_capture_start();
+    fsm_msgZcashSignPCZT(&msg);
+    ASSERT_EQ(0, static_cast<int>(fsm_test_lastFailureCode()));
+
+    ZcashPCZTAction action = {};
+    action.has_index = action.has_is_spend = true;
+    action.has_alpha = true;
+    zcashSet(action.alpha, std::vector<uint8_t>(32, 1));
+    action.has_value = true;
+    action.value = 12345678;
+    action.has_nullifier = action.has_cmx = action.has_epk = true;
+    zcashSet(action.nullifier, rho);
+    zcashSet(action.cmx, cmx);
+    zcashSet(action.epk, epk);
+    action.has_enc_compact = action.has_enc_memo = true;
+    action.has_enc_noncompact = true;
+    zcashSet(action.enc_compact, enc_compact);
+    zcashSet(action.enc_memo, enc_memo);
+    zcashSet(action.enc_noncompact, enc_noncompact);
+    action.has_cv_net = action.has_rk = action.has_out_ciphertext = true;
+    zcashSet(action.cv_net, cv_net);
+    zcashSet(action.rk, rk);
+    zcashSet(action.out_ciphertext, out_ciphertext);
+    action.has_recipient = action.has_rseed = true;
+    zcashSet(action.recipient, recipient);
+    zcashSet(action.rseed, rseed);
+    if (c == kHostSighash) {
+      action.has_sighash = true;
+      zcashSet(action.sighash, std::vector<uint8_t>(32, 9));
+    }
+    fsm_msgZcashPCZTAction(&action);
+    const auto screens = kkconfirm_capture_finish();
+    const bool fee_screen =
+        std::any_of(screens.begin(), screens.end(), [](const std::string& s) {
+          return s.find("Confirm transaction fee?") != std::string::npos;
+        });
+    if (c == kHostSighash) {
+      // Refused before the output screens: only the summary was shown.
+      EXPECT_EQ(FailureType_Failure_SyntaxError, fsm_test_lastFailureCode());
+      EXPECT_STREQ("Host action sighash rejected",
+                   fsm_test_lastFailureMessage());
+      EXPECT_EQ(1u, screens.size());
+      EXPECT_EQ(6, kkconfirm_drain());  // three unused screens' pairs
+    } else if (c != kAccepted) {
+      EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+      EXPECT_EQ(c == kFeeMismatch,
+                std::string("Fee mismatch") == fsm_test_lastFailureMessage());
+      EXPECT_EQ(c == kTamperedDigest,
+                std::string(fsm_test_lastFailureMessage())
+                        .find("Shielded digest mismatch") == 0);
+      EXPECT_FALSE(fee_screen);
+      EXPECT_EQ(3u, screens.size());
+      EXPECT_EQ(2, kkconfirm_drain());  // the fee screen's pair, unused
+    } else {
+      EXPECT_EQ(0, static_cast<int>(fsm_test_lastFailureCode()));
+      EXPECT_TRUE(fee_screen);
+      EXPECT_EQ(4u, screens.size());
+      EXPECT_EQ(0, kkconfirm_drain());
+    }
+  }
+}
+#endif
 
 // Handler-level regression for the BIP-85 pager. Index 84 of this seed is a
 // 24-word child whose last page, packed at BODY_WIDTH, needs more rows than
