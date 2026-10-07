@@ -4,9 +4,11 @@
 #include <unistd.h>
 
 #include <string>
+#include <vector>
 
 extern "C" {
 #include "keepkey/board/confirm_sm.h"
+#include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/font.h"
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/util.h"
@@ -449,3 +451,47 @@ TEST(Board, BaseToPrecisionRespectsCapacity) {
   EXPECT_EQ(-1, base_to_precision(NULL, (const uint8_t*)"1", 16, 1, 6));
   EXPECT_EQ(-1, base_to_precision(buf, NULL, 16, 1, 6));
 }
+
+#ifdef EMULATOR
+TEST(Board, Crc32MatchesTheStm32Peripheral) {
+  const uint32_t one[] = {0x12345678};  // bytes 12 34 56 78
+  EXPECT_EQ(0xDF8A8A2Bu, calc_crc32(one, 1));
+
+  const uint32_t two[] = {0x12345678, 0x9ABCDEF0};  // ... 9A BC DE F0
+  EXPECT_EQ(0x7D24A31Bu, calc_crc32(two, 2));
+}
+
+// storage_commit() marshals a 2572-byte buffer — 643 words — holding a
+// 2569-byte V17 record, so the last meaningful byte is index 2568. It reaches
+// storage_wipe() when the CRC disagrees, so a byte outside the CRC is a byte
+// whose corruption surfaces later as a decrypt failure instead.
+TEST(Board, Crc32CoversTheFinalByteOfTheV17Record) {
+  alignas(uint32_t) uint8_t buf[2572] = {};
+  const uint32_t clean643 = calc_crc32(buf, 643);
+  const uint32_t clean642 = calc_crc32(buf, 642);
+
+  buf[2568] = 0x01;
+
+  EXPECT_NE(clean643, calc_crc32(buf, 643)) << "byte 2568 is outside the CRC";
+  // The regression itself: at sizeof(flash_temp)==2570 the integer division
+  // gave 642 words = 2568 bytes, and byte 2568 changed nothing.
+  EXPECT_EQ(clean642, calc_crc32(buf, 642));
+}
+
+TEST(Board, EmulatorEraseClearsOnlyTheSelectedStorageSector) {
+  std::vector<uint8_t> flash(FLASH_TOTAL_SIZE, 0x42);
+  uint8_t* previous = emulator_flash_base;
+  emulator_flash_base = flash.data();
+  flash_erase_word(FLASH_STORAGE2);
+  emulator_flash_base = previous;
+
+  const size_t start = 0x8000;
+  const size_t end = start + STOR_FLASH_SECT_LEN;
+  EXPECT_EQ(std::vector<uint8_t>(start, 0x42),
+            std::vector<uint8_t>(flash.begin(), flash.begin() + start));
+  EXPECT_EQ(std::vector<uint8_t>(STOR_FLASH_SECT_LEN, 0xff),
+            std::vector<uint8_t>(flash.begin() + start, flash.begin() + end));
+  EXPECT_EQ(std::vector<uint8_t>(FLASH_TOTAL_SIZE - end, 0x42),
+            std::vector<uint8_t>(flash.begin() + end, flash.end()));
+}
+#endif

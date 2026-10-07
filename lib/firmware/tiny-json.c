@@ -33,7 +33,9 @@
 
 // #include <stdio.h>
 
-int errno = 0;
+/* Renamed from `errno` to avoid colliding with the libc <errno.h> macro on
+ * glibc/MinGW (where errno expands to (*_errno())). Write-only, never read. */
+int json_errno = 0;
 
 /** Structure to handle a heap of JSON properties. */
 typedef struct jsonStaticPool_s {
@@ -73,7 +75,7 @@ static bool isEndOfPrimitive(char ch);
 json_t const* json_createWithPool(char* str, jsonPool_t* pool) {
   char* ptr = goBlank(str);
   if (!ptr || (*ptr != '{' && *ptr != '[')) {
-    errno = -1;
+    json_errno = -1;
     return 0;
   }
   json_t* obj = pool->init(pool);
@@ -82,7 +84,7 @@ json_t const* json_createWithPool(char* str, jsonPool_t* pool) {
   obj->u.c.child = 0;
   ptr = objValue(ptr, obj, pool);
   if (!ptr) {
-    errno = -2;
+    json_errno = -2;
     return 0;
   }
   return obj;

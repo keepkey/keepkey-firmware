@@ -31,6 +31,8 @@ static HomeState home_state = AT_HOME;
 
 static uint32_t idle_time = 0;
 
+void keepkey_user_activity(void) { reset_idle_time(); }
+
 static void layoutLockedState(void) {
   const Font* font = get_body_font();
   const char* state =
@@ -78,7 +80,6 @@ void layoutHome(void) {
 void layoutHomeForced(void) {
   layout_home();
   layoutLockedState();
-  reset_idle_time();
   home_state = AT_HOME;
 }
 
@@ -94,7 +95,6 @@ void leave_home(void) {
   switch (home_state) {
     case AT_HOME:
       layout_home_reversed();
-      reset_idle_time();
       home_state = AWAY_FROM_HOME;
       break;
 
@@ -121,10 +121,17 @@ void toggle_screensaver(void) {
   /* Auto-lock is a session boundary even while the device is waiting for the
    * host between streamed signing messages.  Confirmation handlers block the
    * main loop, so this check cannot interrupt a button hold; AWAY_FROM_HOME
-   * here means firmware has returned to the main loop and is idle. */
+   * here means firmware has returned to the main loop and is idle, and
+   * only validated workflow progress renews the deadline. Unrelated host
+   * polls and incomplete frames cannot keep a stalled session unlocked. */
   if (home_state != SCREENSAVER && idle_time >= storage_getAutoLockDelayMs()) {
+    /* Aborts may draw the home screen, so finish them before drawing the
+     * screensaver, and keep the lock time so nothing they do counts as
+     * activity that would replace the screensaver on the next tick. */
+    const uint32_t locked_at = idle_time;
     fsm_abort_workflows();
     session_clear(/*clear_pin=*/true);
+    idle_time = locked_at;
     layout_screensaver();
     home_state = SCREENSAVER;
     return;
@@ -158,7 +165,13 @@ void toggle_screensaver(void) {
  * OUTPUT
  *     none
  */
-void increment_idle_time(uint32_t increment_ms) { idle_time += increment_ms; }
+void increment_idle_time(uint32_t increment_ms) {
+  /* Saturate: a wrap after ~49.7 days idle would read as fresh activity and
+   * wake the locked screen. Only reset_idle_time() may lower it. */
+  idle_time = (increment_ms > UINT32_MAX - idle_time)
+                  ? UINT32_MAX
+                  : idle_time + increment_ms;
+}
 
 /*
  * reset_idle_time() - Resets idle time
@@ -169,3 +182,27 @@ void increment_idle_time(uint32_t increment_ms) { idle_time += increment_ms; }
  *     none
  */
 void reset_idle_time(void) { idle_time = 0; }
+
+/*
+ * Renew the deadline only after a workflow accepts a signing stage or a real
+ * recovery edit, or accepts entropy for an armed reset. Callers must validate
+ * both the session and its payload first; receiving/decoding a host packet
+ * alone is never progress. Some signing handlers wait at AT_HOME, so accepted
+ * progress there also renews the timer. A completed lock cannot be undone by
+ * this hook.
+ */
+void note_workflow_progress(void) {
+  if (home_state != SCREENSAVER) {
+    reset_idle_time();
+  }
+}
+
+/*
+ * home_get_state() - Current home-screen state, for tests
+ *
+ * INPUT
+ *     none
+ * OUTPUT
+ *     the state toggle_screensaver() last settled on
+ */
+HomeState home_get_state(void) { return home_state; }

@@ -198,6 +198,21 @@ static bool path_mismatched(const CoinType* coin, const GetAddress* msg) {
     return mismatch;
   }
 
+  // m/86' : BIP86 Taproot
+  // m / purpose' / bip44_account_path' / account' / change / address_index
+  if (msg->address_n[0] == (0x80000000 + 86)) {
+    mismatch |= (msg->script_type != InputScriptType_SPENDTAPROOT);
+    mismatch |= !coin->has_segwit || !coin->segwit;
+    mismatch |= !coin->has_bech32_prefix;
+    mismatch |= !coin->has_taproot || !coin->taproot;
+    mismatch |= (msg->address_n_count != 5);
+    mismatch |= (msg->address_n[1] != coin->bip44_account_path);
+    mismatch |= (msg->address_n[2] & 0x80000000) == 0;
+    mismatch |= (msg->address_n[3] & 0x80000000) == 0x80000000;
+    mismatch |= (msg->address_n[4] & 0x80000000) == 0x80000000;
+    return mismatch;
+  }
+
   return false;
 }
 

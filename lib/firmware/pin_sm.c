@@ -81,6 +81,7 @@ static void check_for_pin_ack(PINInfo* pin_info) {
     default:
       break;
   }
+  memzero(msg_tiny_buf, sizeof(msg_tiny_buf));
 }
 
 /// Request and receive PIN from user over USB port
@@ -237,12 +238,13 @@ bool pin_protect(const char* prompt) {
 
   // Set request type
   PINInfo pin_info;
+  bool ret = false;
   pin_info.type = PinMatrixRequestType_PinMatrixRequestType_Current;
 
   // Get PIN
   if (!pin_request(prompt, &pin_info)) {
     // PIN entry has been canceled by the user
-    return false;
+    goto done;
   }
 
   // Preincrement the failed counter before authentication
@@ -255,17 +257,21 @@ bool pin_protect(const char* prompt) {
     session_clear(false);
     storage_clearKeys();
     fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
-    return false;
+    goto done;
   }
 
   // Authenticate user PIN
   if (!storage_isPinCorrect(pin_info.pin) || pre_increment_cnt_flg) {
     fsm_sendFailure(FailureType_Failure_PinInvalid, "Invalid PIN");
-    return false;
+    goto done;
   }
 
   storage_resetPinFails();
-  return true;
+  ret = true;
+
+done:
+  memzero(&pin_info, sizeof(pin_info));
+  return ret;
 }
 
 bool pin_protect_cached(void) {
@@ -316,6 +322,7 @@ bool change_pin(void) {
 
 bool change_wipe_code(void) {
   PINInfo wipe_code_info_first, wipe_code_info_second;
+  bool ret = false;
 
   /* Set request types */
   wipe_code_info_first.type =
@@ -324,19 +331,24 @@ bool change_wipe_code(void) {
       PinMatrixRequestType_PinMatrixRequestType_NewSecond;
 
   if (!pin_request("Enter New Wipe Code", &wipe_code_info_first)) {
-    return false;
+    goto done;
   }
 
   if (!pin_request("Re-Enter New Wipe Code", &wipe_code_info_second)) {
-    return false;
+    goto done;
   }
 
   if (strcmp(wipe_code_info_first.pin, wipe_code_info_second.pin) != 0) {
-    return false;
+    goto done;
   }
 
   storage_setWipeCode(wipe_code_info_first.pin);
-  return true;
+  ret = true;
+
+done:
+  memzero(&wipe_code_info_first, sizeof(wipe_code_info_first));
+  memzero(&wipe_code_info_second, sizeof(wipe_code_info_second));
+  return ret;
 }
 
 #if DEBUG_LINK

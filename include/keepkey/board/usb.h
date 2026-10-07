@@ -59,6 +59,10 @@ typedef void (*usb_rx_callback_t)(const void* buf, size_t len);
 typedef void (*usb_u2f_rx_callback_t)(char tiny, const U2FHID_FRAME* buf);
 
 void usb_set_rx_callback(usb_rx_callback_t callback);
+#ifdef EMULATOR
+/// Test-only: deliver a frame through the currently registered callback.
+void usb_test_receive(const void* buf, size_t len);
+#endif
 void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback);
 
 char usbTiny(char set);

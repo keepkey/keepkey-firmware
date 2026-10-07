@@ -120,6 +120,11 @@ DebugLinkState.recovery_cipher      max_size:27
 DebugLinkState.recovery_auto_completed_word max_size:12
 DebugLinkState.firmware_hash    max_size:32
 DebugLinkState.storage_hash    max_size:32
+DebugLinkState.dice_digest    max_size:32
+
+# Sized so the decoded struct stays within MSG_TINY_BFR_SZ (64B): the tiny
+# message path pb_decodes DebugLinkDecision straight into that buffer.
+DebugLinkDecision.input			max_size:41
 
 DebugLinkFlashDumpResponse.data max_size:1024
 
@@ -133,3 +138,12 @@ FlashWrite.data max_size:1024
 FlashHashResponse.data max_size:32
 
 Bip85Mnemonic.mnemonic max_size:241
+
+# ClearSign attestor messages exist in the pinned protocol but are not
+# implemented by this firmware. nanopb still generates their structs, and a
+# bytes/string field with no size here becomes a pb_callback_t, which this
+# build forbids -- so they are sized rather than left to become callbacks.
+ClearsignAttestorPublicKey.public_key   max_size:33
+ClearsignAttestorSign.payload           max_size:256
+ClearsignAttestorSignature.signature    max_size:64
+ClearsignAttestorSignature.public_key   max_size:33

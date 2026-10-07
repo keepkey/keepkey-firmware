@@ -1,4 +1,5 @@
 set(sources
+    bip340.cpp
     rand.cpp
     vuln1845.cpp)
 

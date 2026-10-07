@@ -21,7 +21,13 @@ REPORT_DIR = ROOT / "test-report"
 REPORT_PDF = REPORT_DIR / "test-report.pdf"
 MERGED_JUNIT = REPORT_DIR / "junit-merged.xml"
 
+# Every variant must pass these; the full image also the EVM/Osmosis ones.
 REQUIRED_CASES = {
+    "test_msg_recoverydevice_cipher.TestDeviceRecovery."
+    "test_unknown_word_count_failure_aborts_recovery",
+}
+
+FULL_REQUIRED_CASES = {
     "Ethereum.TransferAmountUsesTheRequestsSigningChain",
     "Osmosis.RequiredValuesRejectEmptyAndNonDecimalAmounts",
     "test_msg_ethereum_signtx_xfer.TestMsgEthereumSigntx."
@@ -30,9 +36,10 @@ REQUIRED_CASES = {
     "test_present_but_empty_amount_is_rejected_before_review",
     "test_msg_osmosis_validation.TestOsmosisValidation."
     "test_ibc_omitted_amount_and_receiver_are_rejected_before_review",
-    "test_msg_recoverydevice_cipher.TestDeviceRecovery."
-    "test_unknown_word_count_failure_aborts_recovery",
 }
+
+# Which product this report describes; each audit matrix leg sets it.
+VARIANT = os.environ.get("KK_REPORT_VARIANT", "full")
 
 
 def fail(message):
@@ -105,13 +112,15 @@ def canonical_case_name(case):
 
 
 def validate_cases(cases):
+    required_cases = REQUIRED_CASES | (
+        FULL_REQUIRED_CASES if VARIANT == "full" else set())
     failures = [case for case in cases
                 if case["status"] in ("fail", "error")]
     if failures:
         fail("authoritative JUnit has %d failure/error case(s)" % len(failures))
     passed = {canonical_case_name(case) for case in cases
               if case["status"] == "pass"}
-    missing = sorted(required for required in REQUIRED_CASES
+    missing = sorted(required for required in required_cases
                      if not any(name.endswith(required) for name in passed))
     if missing:
         fail("required 7.14.2 controls missing or not passing: %s" %
@@ -150,27 +159,70 @@ def validate_screenshots(screenshot_root):
     return pngs, sequences
 
 
-def validate_arm_manifest(arm_dir, firmware_sha, python_sha):
-    manifest_path = arm_dir / "arm-build-manifest.json"
-    if not manifest_path.is_file():
-        fail("ARM build manifest is missing")
-    with open(manifest_path, "r", encoding="utf-8") as handle:
-        manifest = json.load(handle)
-    if manifest.get("firmware_sha") != firmware_sha:
-        fail("ARM manifest firmware SHA does not match checkout")
-    if manifest.get("python_sha") != python_sha:
-        fail("ARM manifest Python SHA does not match gitlink")
-    files = manifest.get("files", [])
-    if not files:
-        fail("ARM manifest contains no binaries")
-    for item in files:
-        path = arm_dir / item.get("name", "")
-        if not path.is_file() or sha256_file(path) != item.get("sha256"):
-            fail("ARM artifact hash mismatch: %s" % path)
-    return manifest_path, manifest
+def validate_arm_manifests(arm_dir, firmware_sha, python_sha):
+    required = {"full", "bitcoin-only"}
+    manifests = {}
+    for manifest_path in sorted(arm_dir.glob("*/arm-build-manifest.json")):
+        artifact = manifest_path.parent.name
+        matches = [variant for variant in required
+                   if artifact.endswith("-" + variant)]
+        if len(matches) != 1:
+            fail("unrecognized ARM artifact directory: %s" % artifact)
+        variant = matches[0]
+        if variant in manifests:
+            fail("duplicate ARM manifest for %s" % variant)
+        with open(manifest_path, "r", encoding="utf-8") as handle:
+            manifest = json.load(handle)
+        if manifest.get("firmware_sha") != firmware_sha:
+            fail("ARM manifest firmware SHA does not match checkout: %s" %
+                 artifact)
+        if manifest.get("python_sha") != python_sha:
+            fail("ARM manifest Python SHA does not match gitlink: %s" %
+                 artifact)
+        if manifest.get("variant") != variant:
+            fail("ARM manifest variant does not match artifact: %s" % artifact)
+        files = manifest.get("files", [])
+        if not files:
+            fail("ARM manifest contains no binaries: %s" % artifact)
+        for item in files:
+            path = manifest_path.parent / item.get("name", "")
+            if not path.is_file() or sha256_file(path) != item.get("sha256"):
+                fail("ARM artifact hash mismatch: %s" % path)
+        manifests[variant] = {
+            "artifact": artifact,
+            "manifest_path": manifest_path,
+            "manifest": manifest,
+            "manifest_sha256": sha256_file(manifest_path),
+        }
+    if set(manifests) != required:
+        fail("expected full and bitcoin-only ARM manifests, found: %s" %
+             ", ".join(sorted(manifests)))
+    return manifests
+
+
+def require_native_junit(root):
+    """Require each native suite before discovering any additional XML inputs."""
+    native_dir = Path(root) / "test-reports" / "firmware-unit"
+    required = ("firmware.xml", "board.xml", "crypto.xml")
+    missing = [name for name in required
+               if not (native_dir / name).is_file()
+               or (native_dir / name).stat().st_size == 0]
+    if missing:
+        raise SystemExit("ERROR: required native JUnit inputs missing or empty: " +
+                         ", ".join(missing))
+    for name in required:
+        try:
+            parsed = ET.parse(native_dir / name)
+        except ET.ParseError as exc:
+            raise SystemExit("ERROR: malformed native JUnit %s: %s" % (name, exc))
+        if next(parsed.iter("testcase"), None) is None:
+            raise SystemExit("ERROR: native JUnit contains no test cases: " + name)
+    return sorted(native_dir.glob("*.xml"))
 
 
 def main():
+    if VARIANT not in ("full", "bitcoin-only"):
+        fail("KK_REPORT_VARIANT must be full or bitcoin-only")
     if not REPORT_GENERATOR.is_file():
         fail("report generator submodule is not initialized")
 
@@ -183,8 +235,7 @@ def main():
 
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     junit_paths = [ROOT / "test-reports" / "python-keepkey" / "junit.xml"]
-    junit_paths += [Path(path) for path in sorted(glob.glob(
-        str(ROOT / "test-reports" / "firmware-unit" / "*.xml")))]
+    junit_paths += require_native_junit(ROOT)
     junit_paths.append(ROOT / "test-reports" / "dylib-junit.xml")
     missing_junit = [str(path) for path in junit_paths if not path.is_file()]
     if missing_junit:
@@ -197,14 +248,17 @@ def main():
     pngs, sequences = validate_screenshots(screenshot_root)
 
     arm_dir = ROOT / "test-reports" / "arm"
-    arm_manifest_path, arm_manifest = validate_arm_manifest(
+    arm_manifests = validate_arm_manifests(
         arm_dir, firmware_sha, python_sha)
 
     wrapper_hash = sha256_file(Path(__file__))
     renderer_hash = sha256_file(REPORT_GENERATOR)
     generator_hash = hashlib.sha256(
         (wrapper_hash + renderer_hash).encode("ascii")).hexdigest()
-    arm_manifest_hash = sha256_file(arm_manifest_path)
+    arm_manifest_hash = hashlib.sha256(json.dumps({
+        variant: item["manifest_sha256"]
+        for variant, item in sorted(arm_manifests.items())
+    }, sort_keys=True).encode("ascii")).hexdigest()
     run_url = os.environ.get("KK_RUN_URL", "")
     fw_version = os.environ.get("FW_VERSION", "")
     if not fw_version:
@@ -218,6 +272,7 @@ def main():
     subprocess.run([
         sys.executable, str(REPORT_GENERATOR),
         "--screenshot-audit=%s" % screenshot_root,
+        "--variant=%s" % VARIANT,
         "--audit-junit=%s" % screenshot_junit,
         "--fw-version=%s" % fw_version,
     ], cwd=str(ROOT), check=True)
@@ -225,6 +280,7 @@ def main():
     subprocess.run([
         sys.executable, str(REPORT_GENERATOR),
         "--validate-junit",
+        "--variant=%s" % VARIANT,
         "--junit=%s" % MERGED_JUNIT,
         "--fw-version=%s" % fw_version,
     ], cwd=str(ROOT), check=True)
@@ -232,6 +288,7 @@ def main():
     subprocess.run([
         sys.executable, str(REPORT_GENERATOR),
         "--output=%s" % REPORT_PDF,
+        "--variant=%s" % VARIANT,
         "--junit=%s" % MERGED_JUNIT,
         "--screenshots=%s" % screenshot_root,
         "--fw-version=%s" % fw_version,
@@ -259,6 +316,7 @@ def main():
         "firmware_pr": os.environ.get("KK_FIRMWARE_PR", ""),
         "python_pr": os.environ.get("KK_PYTHON_PR", ""),
         "run_url": run_url,
+        "report_variant": VARIANT,
         "workflow_event": os.environ.get("KK_WORKFLOW_EVENT", ""),
         "generators": {
             "combined_sha256": generator_hash,
@@ -281,8 +339,15 @@ def main():
             "sequences": sequences,
         },
         "arm": {
-            "manifest_sha256": arm_manifest_hash,
-            "files": arm_manifest["files"],
+            "manifest_set_sha256": arm_manifest_hash,
+            "variants": {
+                variant: {
+                    "artifact": item["artifact"],
+                    "manifest_sha256": item["manifest_sha256"],
+                    "files": item["manifest"]["files"],
+                }
+                for variant, item in sorted(arm_manifests.items())
+            },
         },
         "pdf": {
             "path": REPORT_PDF.name,

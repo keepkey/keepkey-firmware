@@ -94,3 +94,98 @@ TEST(USBRX, ErrorHandling) {
   ASSERT_EQ(failure_count, 4);
   ASSERT_EQ(message, "Unknown message");
 }
+
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+void kk_test_board_init(void);
+
+bool kkconfirm_preload(int nYes, int nNo);
+int kkconfirm_drain(void);
+
+TEST(USBRX, TinyAcknowledgementDoesNotReusePreviousSecret) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  ASSERT_EQ(0, kkconfirm_drain());
+  const int fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  ASSERT_GE(fd, 0);
+  struct sockaddr_in address = {};
+  address.sin_family = AF_INET;
+  address.sin_port = htons(11044);
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  const char secret[] = "previous-passphrase-secret";
+  uint8_t frame[64] = {'?', '#', '#'};
+  frame[3] = MessageType_MessageType_PassphraseAck >> 8;
+  frame[4] = MessageType_MessageType_PassphraseAck & 0xff;
+  frame[8] = sizeof(secret) + 1;
+  frame[9] = 0x0a;
+  frame[10] = sizeof(secret) - 1;
+  memcpy(frame + 11, secret, sizeof(secret) - 1);
+  EXPECT_EQ(sizeof(frame), sendto(fd, frame, sizeof(frame), 0,
+                                  reinterpret_cast<struct sockaddr *>(&address),
+                                  sizeof(address)));
+  uint8_t received[MSG_TINY_BFR_SZ] = {};
+  uint16_t id = MSG_TINY_TYPE_ERROR;
+  for (int attempt = 0; attempt < 1000 && id == MSG_TINY_TYPE_ERROR;
+       ++attempt) {
+    id = check_for_tiny_msg(received);
+    if (id == MSG_TINY_TYPE_ERROR) usleep(1000);
+  }
+  EXPECT_EQ(MessageType_MessageType_PassphraseAck, id);
+  EXPECT_STREQ(secret, reinterpret_cast<PassphraseAck *>(received)->passphrase);
+
+  memset(frame, 0, sizeof(frame));
+  frame[0] = '?';
+  frame[1] = frame[2] = '#';
+  frame[3] = MessageType_MessageType_ButtonAck >> 8;
+  frame[4] = MessageType_MessageType_ButtonAck & 0xff;
+  EXPECT_EQ(sizeof(frame), sendto(fd, frame, sizeof(frame), 0,
+                                  reinterpret_cast<struct sockaddr *>(&address),
+                                  sizeof(address)));
+  id = MSG_TINY_TYPE_ERROR;
+  for (int attempt = 0; attempt < 1000 && id == MSG_TINY_TYPE_ERROR;
+       ++attempt) {
+    id = check_for_tiny_msg(received);
+    if (id == MSG_TINY_TYPE_ERROR) usleep(1000);
+  }
+  close(fd);
+  ASSERT_EQ(MessageType_MessageType_ButtonAck, id);
+  for (uint8_t byte : received) EXPECT_EQ(0, byte);
+}
+
+static const uint8_t *observed_packet;
+static size_t observed_length;
+static void observe_packet(const void *packet, size_t length) {
+  observed_packet = static_cast<const uint8_t *>(packet);
+  observed_length = length;
+  EXPECT_EQ(0x5a, observed_packet[20]);
+}
+
+TEST(USBRX, PacketStorageIsWipedAfterCallback) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  ASSERT_EQ(0, kkconfirm_drain());
+  const int fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  ASSERT_GE(fd, 0);
+  struct sockaddr_in address = {};
+  address.sin_family = AF_INET;
+  address.sin_port = htons(11044);
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  uint8_t frame[64];
+  memset(frame, 0x5a, sizeof(frame));
+  observed_packet = nullptr;
+  observed_length = 0;
+  usb_set_rx_callback(observe_packet);
+  EXPECT_EQ(sizeof(frame), sendto(fd, frame, sizeof(frame), 0,
+                                  reinterpret_cast<struct sockaddr *>(&address),
+                                  sizeof(address)));
+  for (int attempt = 0; attempt < 1000 && !observed_packet; ++attempt) {
+    usbPoll();
+    if (!observed_packet) usleep(1000);
+  }
+  close(fd);
+  fsm_init();  // Restore the real callback before any fatal assertion.
+  ASSERT_NE(nullptr, observed_packet);
+  ASSERT_EQ(sizeof(frame), observed_length);
+  // The transport owns static storage; observe its lifetime after callback.
+  for (size_t i = 0; i < sizeof(frame); ++i) EXPECT_EQ(0, observed_packet[i]);
+}
