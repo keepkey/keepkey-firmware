@@ -33,6 +33,12 @@ static uint32_t idle_time = 0;
 
 void keepkey_user_activity(void) { reset_idle_time(); }
 
+/* A correct PIN is the user's own action, like a button press, so it renews
+ * the deadline. Returning home no longer does, so without this an unlock
+ * entered on the host after an idle lock relocks on the next tick and clears
+ * the PIN it just cached. */
+void note_pin_accepted(void) { reset_idle_time(); }
+
 static void layoutLockedState(void) {
   const Font* font = get_body_font();
   const char* state =

@@ -720,7 +720,8 @@ void layout_pin(const char* str, char pin[]) {
  * OUTPUT
  *     none
  */
-void layout_cipher(const char* current_word, const char* cipher) {
+void layout_cipher(const char* current_word, const char* cipher,
+                   const char* prev_word_info, bool animate_cipher) {
   DrawableParams sp;
   const Font* title_font = get_body_font();
   Canvas* canvas = layout_get_canvas();
@@ -728,8 +729,18 @@ void layout_cipher(const char* current_word, const char* cipher) {
   call_leaving_handler();
   layout_clear();
 
-  /* Draw prompt */
-  sp.y = 11;
+  /* Draw previous word info at top-left -- must be x < 76 to avoid
+   * being wiped by cipher animation which clears x >= CIPHER_START_X */
+  if (prev_word_info && prev_word_info[0]) {
+    sp.y = 2;
+    sp.x = 4;
+    sp.color = CIPHER_FONT_COLOR; /* gray -- less prominent than current word */
+    draw_string(canvas, title_font, prev_word_info, &sp, 68,
+                font_height(title_font));
+  }
+
+  /* Draw prompt -- push down when prev word is shown */
+  sp.y = (prev_word_info && prev_word_info[0]) ? 14 : 11;
   sp.x = 4;
   sp.color = BODY_COLOR;
   draw_string(canvas, title_font, "Recovery Cipher:", &sp, 58,
@@ -741,11 +752,15 @@ void layout_cipher(const char* current_word, const char* cipher) {
   sp.color = BODY_COLOR;
   draw_string(canvas, title_font, current_word, &sp, 68,
               font_height(title_font));
+  const uint32_t duration = CIPHER_ANIMATION_FREQUENCY_MS * 30;
+  if (animate_cipher) {
+    layout_add_animation(&layout_animate_cipher, (void*)cipher, duration);
+  } else {
+    /* Restore an obscured mapping immediately. Replaying its introduction
+     * lets repeated host requests keep its last letters off the display. */
+    layout_animate_cipher((void*)cipher, duration, duration);
+  }
   display_refresh();
-
-  /* Animate cipher */
-  layout_add_animation(&layout_animate_cipher, (void*)cipher,
-                       CIPHER_ANIMATION_FREQUENCY_MS * 30);
 }
 
 /*

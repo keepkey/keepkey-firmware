@@ -160,6 +160,7 @@ void fsm_msgOsmosisSignTx(const OsmosisSignTx* msg) {
   }
 
   memzero(node, sizeof(*node));
+  note_workflow_progress();
   msg_write(MessageType_MessageType_OsmosisMsgRequest, resp);
   layoutHome();
 }
@@ -794,6 +795,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
 
   if (!osmosis_signingIsFinished()) {
     RESP_INIT(OsmosisMsgRequest);
+    note_workflow_progress();
     msg_write(MessageType_MessageType_OsmosisMsgRequest, resp);
     return;
   }

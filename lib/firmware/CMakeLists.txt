@@ -2,6 +2,7 @@ set(sources
     app_confirm.c
     app_layout.c
     authenticator.c
+    bip85.c
     coins.c
     crypto.c
     dice_input.c
@@ -69,6 +70,9 @@ add_custom_target(ethereum_tokens.def
   BYPRODUCTS ${ETHEREUM_TOKENS}.def ${UNISWAP_TOKENS}.def
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
   COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def
-  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/uniswap_tokens.py ${UNISWAP_TOKENS}.def)
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/uniswap_tokens.py ${UNISWAP_TOKENS}.def
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/verify-token-def.py
+          ${ETHEREUM_TOKENS}.def ${UNISWAP_TOKENS}.def
+  COMMENT "Generating and verifying firmware token tables")
 
 add_library(kkfirmware.keepkey variant/keepkey/resources.c)

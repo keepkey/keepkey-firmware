@@ -148,7 +148,7 @@ void ripple_serializeAmount(bool* ok, uint8_t** buf, const uint8_t* end,
   ripple_serializeType(ok, buf, end, m);
 
   assert(amount >= 0 && "amounts cannot be negative");
-  assert(amount <= 100000000000 && "larger amounts not supported");
+  assert(amount <= (int64_t)RIPPLE_MAX_DROPS && "larger amounts not supported");
   uint8_t msb = (amount >> (7 * 8)) & 0xff;
   msb &= 0x7f;  // Clear first bit, indicating XRP
   msb |= 0x40;  // Clear second bit, indicating value is positive

@@ -120,10 +120,8 @@ bool rng_health_check(void);
 /// last word of a buffer delivers that whole buffer first.
 bool rng_health_observe(const uint8_t* buf, size_t len);
 
-/// Draw \p len bytes and report failure instead of halting, for the paths that
-/// have somewhere better to go: a host-visible error, or a one-shot write that
-/// should simply be skipped and retried on a later healthy boot. Returns false
-/// with \p buf zeroed.
+/// Draw \p len bytes; on failure return false with \p buf zeroed, so the
+/// caller can report the error or halt.
 ///
 /// THIS IS THE ONLY CHECKED DRAW. Plain random_buffer() and random32() are
 /// NOT checked -- they behave exactly as on develop. A previous revision of
@@ -137,8 +135,8 @@ bool random_buffer_checked(uint8_t* buf, size_t len);
 /// that failed its self-test, which is otherwise unreachable from a host build;
 /// `true` re-arms the continuous state.
 void rng_health_force_verdict(bool passed);
-/// Test-only: reset the statistical verdict to model a new boot.
-void rng_health_test_reset(void);
+/// Test-only: restore the untested verdict so boot-gate tests are order-free.
+void rng_health_reset_for_test(void);
 #endif
 
 #endif

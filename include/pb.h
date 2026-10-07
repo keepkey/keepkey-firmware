@@ -674,27 +674,30 @@ struct pb_extension_s {
    PB_DATAOFFSET_##placement(message, field, prevfield),              \
    0,                                                                 \
    pb_membersize(message, field[0]),                                  \
+   PB_BYTES_CAP_REPEATED(type, message, field),                       \
    pb_arraysize(message, field),                                      \
    ptr}
 
 /* Field description for oneof fields. This requires taking into account the
  * union name also, that's why a separate set of macros is needed.
  */
-#define PB_ONEOF_STATIC(u, tag, st, m, fd, ltype, ptr) \
+#define PB_ONEOF_STATIC(u, tag, st, m, fd, ltype, ptr, ptype) \
   {tag,                                                \
    PB_ATYPE_STATIC | PB_HTYPE_ONEOF | ltype,           \
    fd,                                                 \
    pb_delta(st, which_##u, u.m),                       \
    pb_membersize(st, u.m),                             \
+   PB_BYTES_CAP_SINGLE(ptype, st, u.m),                \
    0,                                                  \
    ptr}
 
-#define PB_ONEOF_POINTER(u, tag, st, m, fd, ltype, ptr) \
+#define PB_ONEOF_POINTER(u, tag, st, m, fd, ltype, ptr, ptype) \
   {tag,                                                 \
    PB_ATYPE_POINTER | PB_HTYPE_ONEOF | ltype,           \
    fd,                                                  \
    pb_delta(st, which_##u, u.m),                        \
    pb_membersize(st, u.m[0]),                           \
+   0,                                                   \
    0,                                                   \
    ptr}
 
@@ -703,23 +706,25 @@ struct pb_extension_s {
   PB_ONEOF_##allocation(                                                    \
       union_name, tag, message, field,                                      \
       PB_DATAOFFSET_##placement(message, union_name.field, prevfield),      \
-      PB_LTYPE_MAP_##type, ptr)
+      PB_LTYPE_MAP_##type, ptr, type)
 
-#define PB_ANONYMOUS_ONEOF_STATIC(u, tag, st, m, fd, ltype, ptr) \
+#define PB_ANONYMOUS_ONEOF_STATIC(u, tag, st, m, fd, ltype, ptr, ptype) \
   {tag,                                                          \
    PB_ATYPE_STATIC | PB_HTYPE_ONEOF | ltype,                     \
    fd,                                                           \
    pb_delta(st, which_##u, m),                                   \
    pb_membersize(st, m),                                         \
+   PB_BYTES_CAP_SINGLE(ptype, st, m),                            \
    0,                                                            \
    ptr}
 
-#define PB_ANONYMOUS_ONEOF_POINTER(u, tag, st, m, fd, ltype, ptr) \
+#define PB_ANONYMOUS_ONEOF_POINTER(u, tag, st, m, fd, ltype, ptr, ptype) \
   {tag,                                                           \
    PB_ATYPE_POINTER | PB_HTYPE_ONEOF | ltype,                     \
    fd,                                                            \
    pb_delta(st, which_##u, m),                                    \
    pb_membersize(st, m[0]),                                       \
+   0,                                                             \
    0,                                                             \
    ptr}
 
@@ -728,7 +733,7 @@ struct pb_extension_s {
   PB_ANONYMOUS_ONEOF_##allocation(                                          \
       union_name, tag, message, field,                                      \
       PB_DATAOFFSET_##placement(message, field, prevfield),                 \
-      PB_LTYPE_MAP_##type, ptr)
+      PB_LTYPE_MAP_##type, ptr, type)
 
 /* These macros are used for giving out error messages.
  * They are mostly a debugging aid; the main error information

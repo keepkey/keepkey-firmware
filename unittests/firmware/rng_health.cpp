@@ -27,58 +27,47 @@ std::vector<uint8_t> pseudo(size_t len, uint32_t seed = 1) {
   return v;
 }
 
-static size_t observed_draw_bytes;
-static bool fault_on_draw;
-extern "C" void rng_health_test_draw_completed(size_t len) {
-  observed_draw_bytes += len;
-  if (fault_on_draw) rng_test_observe_transient_error();
-}
+// THE BOOT GATE, ACTUALLY ENTERED.
+//
+// Every other verdict-touching test below calls rng_health_force_verdict()
+// before the call under test, which assigns the latch directly. So
+// rng_health_check() never took its RNG_UNTESTED branch and rng_health_gate()
+// -- rng_source_live() plus the chunked RNG_HEALTH_SAMPLE_BYTES self-test draw
+// -- was never executed by this suite at all, while the release report listed
+// this file as the evidence for the boot RNG gate.
+//
+// A test-only reset restores the initial verdict regardless of test order.
+//
+// WHAT IT DOES NOT PIN: the `!rng_source_live() -> RNG_FAILED` arm, and the
+// size of the sample drawn. Both need an emulator seam in lib/rand/rng_health.c
+// that can make the source report dead or stuck, which does not exist yet.
+TEST(RngHealth, BootGateRunsOnAFreshVerdict) {
+  rng_health_reset_for_test();
+  EXPECT_TRUE(rng_health_check())
+      << "the boot self-test refused a healthy generator";
 
-class RngBootGate : public ::testing::Test {
- protected:
-  void SetUp() override {
-    rng_test_power_on_reset();
-    rng_health_test_reset();
-    observed_draw_bytes = 0;
-    fault_on_draw = false;
-  }
-  void TearDown() override {
-    fault_on_draw = false;
-    rng_test_power_on_reset();
-    rng_health_force_verdict(true);
-  }
-};
-
-TEST_F(RngBootGate, SamplesAFreshVerdictExactlyOnce) {
-  ASSERT_TRUE(rng_health_check());
-  EXPECT_EQ(RNG_HEALTH_SAMPLE_BYTES, observed_draw_bytes);
-  EXPECT_TRUE(rng_health_check());
-  EXPECT_EQ(RNG_HEALTH_SAMPLE_BYTES, observed_draw_bytes);
-}
-
-TEST_F(RngBootGate, FaultDuringBootSampleFailsClosed) {
-  fault_on_draw = true;
-  EXPECT_FALSE(rng_health_check());
-  EXPECT_EQ(32u, observed_draw_bytes);
-  EXPECT_FALSE(rng_health_check());
-  EXPECT_EQ(32u, observed_draw_bytes);
-}
-
-TEST_F(RngBootGate, FaultDuringCheckedDrawWipesOutput) {
-  rng_health_force_verdict(true);
-  fault_on_draw = true;
-  uint8_t buf[64];
-  memset(buf, 0xab, sizeof(buf));
-  EXPECT_FALSE(random_buffer_checked(buf, sizeof(buf)));
-  const uint8_t zeros[64] = {};
-  EXPECT_EQ(0, memcmp(buf, zeros, sizeof(buf)));
-  EXPECT_EQ(sizeof(buf), observed_draw_bytes);
+  uint8_t buf[64] = {0};
+  EXPECT_TRUE(random_buffer_checked(buf, sizeof(buf)))
+      << "a draw was refused after the gate it just passed";
 }
 
 TEST(RngHealth, RejectsEmptyAndNull) {
   EXPECT_FALSE(rng_health_analyze(nullptr, 32));
   const uint8_t b = 0;
   EXPECT_FALSE(rng_health_analyze(&b, 0));
+}
+
+TEST(RngHealth, PersistentHardwareErrorLatchesBeforeReset) {
+  rng_test_power_on_reset();
+  uint32_t samples = 0;
+  for (uint32_t i = 0; i < 99; ++i) {
+    EXPECT_FALSE(rng_persistent_error_step(&samples));
+  }
+  EXPECT_FALSE(rng_seed_error_latched());
+  EXPECT_TRUE(rng_persistent_error_step(&samples));
+  EXPECT_EQ(samples, 0U);
+  EXPECT_TRUE(rng_seed_error_latched());
+  rng_test_power_on_reset();
 }
 
 TEST(RngHealth, AcceptsNonDegenerateSample) {
@@ -238,6 +227,9 @@ TEST(RngHealth, TransientHardwareFaultRemainsLatched) {
   const uint8_t zeros[32] = {0};
   EXPECT_EQ(0, memcmp(buf, zeros, sizeof(buf)));
   EXPECT_TRUE(rng_seed_error_latched());
+
+  // Do not require the persistent-fault test to run next to clear this latch.
+  // ResetDevice checks it too, including when the suite is shuffled.
   rng_test_power_on_reset();
   rng_health_force_verdict(true);
 }
@@ -316,3 +308,51 @@ TEST(RngHealth, TrippingBytesAreWipedNotReturned) {
 }
 
 }  // namespace
+
+static size_t observed_draw_bytes;
+static bool fault_on_draw;
+extern "C" void rng_health_test_draw_completed(size_t len) {
+  observed_draw_bytes += len;
+  if (fault_on_draw) rng_test_observe_transient_error();
+}
+
+class RngBootGate : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    rng_test_power_on_reset();
+    rng_health_reset_for_test();
+    observed_draw_bytes = 0;
+    fault_on_draw = false;
+  }
+  void TearDown() override {
+    fault_on_draw = false;
+    rng_test_power_on_reset();
+    rng_health_force_verdict(true);
+  }
+};
+
+TEST_F(RngBootGate, SamplesFreshVerdictOnce) {
+  ASSERT_TRUE(rng_health_check());
+  EXPECT_EQ(RNG_HEALTH_SAMPLE_BYTES, observed_draw_bytes);
+  EXPECT_TRUE(rng_health_check());
+  EXPECT_EQ(RNG_HEALTH_SAMPLE_BYTES, observed_draw_bytes);
+}
+
+TEST_F(RngBootGate, MidSampleHardwareFaultFailsClosed) {
+  fault_on_draw = true;
+  EXPECT_FALSE(rng_health_check());
+  EXPECT_EQ(32u, observed_draw_bytes);
+  EXPECT_FALSE(rng_health_check());
+  EXPECT_EQ(32u, observed_draw_bytes);
+}
+
+TEST_F(RngBootGate, FaultDuringCheckedDrawWipesOutput) {
+  rng_health_force_verdict(true);
+  fault_on_draw = true;
+  uint8_t buf[64];
+  memset(buf, 0xab, sizeof(buf));
+  EXPECT_FALSE(random_buffer_checked(buf, sizeof(buf)));
+  const uint8_t zeros[64] = {};
+  EXPECT_EQ(0, memcmp(buf, zeros, sizeof(buf)));
+  EXPECT_EQ(sizeof(buf), observed_draw_bytes);
+}

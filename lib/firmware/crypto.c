@@ -162,7 +162,8 @@ int cryptoMessageSign(const CoinType* coin, HDNode* node,
   uint8_t hash[HASHER_DIGEST_LENGTH];
   cryptoMessageHash(coin, curve, message, message_len, hash);
 
-  uint8_t pby;
+  // Ed25519 signing does not produce an ECDSA recovery identifier.
+  uint8_t pby = 0;
   int result = hdnode_sign_digest(node, hash, signature + 1, &pby, NULL);
   if (result == 0) {
     switch (script_type) {

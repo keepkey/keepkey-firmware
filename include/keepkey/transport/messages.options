@@ -6,6 +6,7 @@ Features.coins				max_count:0
 Features.revision			max_size:41
 Features.bootloader_hash		max_size:32
 Features.policies			max_count:4
+Features.capabilities		max_count:32
 Features.model              max_size:32
 Features.firmware_variant    max_size:32
 Features.firmware_hash		max_size:32
@@ -119,6 +120,8 @@ DebugLinkState.recovery_fake_word	max_size:12
 DebugLinkState.recovery_cipher      max_size:27
 DebugLinkState.recovery_auto_completed_word max_size:12
 DebugLinkState.firmware_hash    max_size:32
+DebugLinkState.confirm_title    max_size:128
+DebugLinkState.confirm_body     max_size:352
 DebugLinkState.storage_hash    max_size:32
 DebugLinkState.dice_digest    max_size:32
 

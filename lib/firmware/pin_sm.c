@@ -23,6 +23,7 @@
 #include "keepkey/board/timer.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
+#include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
@@ -78,7 +79,10 @@ static void check_for_pin_ack(PINInfo* pin_info) {
 #endif
 
     case MSG_TINY_TYPE_ERROR:
+      break;
     default:
+      msg_reject_unexpected_tiny();
+      pin_info->pin_ack_msg = PIN_ACK_CANCEL;
       break;
   }
   memzero(msg_tiny_buf, sizeof(msg_tiny_buf));
@@ -267,6 +271,7 @@ bool pin_protect(const char* prompt) {
   }
 
   storage_resetPinFails();
+  note_pin_accepted();
   ret = true;
 
 done:

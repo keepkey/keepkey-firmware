@@ -37,6 +37,10 @@ void reset_rng(void);
 /// cleared and is never cleared itself: recovery is a power cycle.
 bool rng_seed_error_latched(void);
 
+/// One poll with the seed/clock error active. Returns true (and latches the
+/// fault, resetting \p samples) once the bounded retry budget is exhausted.
+bool rng_persistent_error_step(uint32_t* samples);
+
 #ifdef EMULATOR
 /// Test seam for the STM32 seed/clock-error state machine. These helpers are
 /// absent from ARM firmware; reset models a fresh power-on between cases.

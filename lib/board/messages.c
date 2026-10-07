@@ -36,6 +36,9 @@ static msg_failure_t msg_failure;
 /* A tiny receive failure has already answered the suspended handler. Keep
  * its unwind from producing another reply or waiting for another prompt. */
 static bool tiny_handler_rejected;
+static uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(8)));
+
+void* msg_decoded_request_response_scratch(void) { return decode_buffer; }
 
 bool msg_handler_rejected(void) { return tiny_handler_rejected; }
 
@@ -43,6 +46,11 @@ static void reject_tiny_message(FailureType code, const char* text) {
   if (tiny_handler_rejected) return;
   (*msg_failure)(code, text);
   tiny_handler_rejected = true;
+}
+
+void msg_reject_unexpected_tiny(void) {
+  reject_tiny_message(FailureType_Failure_UnexpectedMessage,
+                      "Unexpected message during protected wait");
 }
 
 #if DEBUG_LINK
@@ -54,6 +62,47 @@ static msg_debug_link_get_state_t msg_debug_link_get_state;
  * gracefully exit from a message should the message stack been reset
  */
 bool reset_msg_stack = false;
+
+/* One buffer shared by RX reassembly, TX encode (keeps the 12 KB frame off
+ * the msg_write stack) and transient scratch. Safe because there is no USB
+ * ISR: usbd_poll() runs only from explicit usbPoll() sites, and tiny/RAW
+ * reads use their own 64-byte buffers. Acquiring it for TX or scratch DROPS a
+ * partial inbound frame; only a pipelining host can hit that, and it gets a
+ * Failure instead of silent corruption. */
+typedef union {
+  uint8_t rx[MAX_FRAME_SIZE];
+  TrezorFrameBuffer tx;
+  uint16_t scratch_u16[2049];
+} FrameArena;
+
+static FrameArena frame_arena;
+
+/* Inbound reassembly state — file scope so arena acquisition can reset it. */
+static bool rxFirstFrame = true;
+static uint16_t rxMsgId = 0xffff;
+static uint32_t rxMsgSize = 0;
+static size_t
+    rxCursor;  //< Index into frame_arena.rx where the next frame lands.
+static const MessagesMap_t* rxEntry = NULL;
+
+static void frame_arena_rx_reset(void) {
+  rxMsgId = 0xffff;
+  rxMsgSize = 0;
+  memset(frame_arena.rx, 0, sizeof(frame_arena.rx));
+  rxCursor = 0;
+  rxFirstFrame = true;
+  rxEntry = NULL;
+}
+
+TrezorFrameBuffer* frame_arena_tx(void) {
+  frame_arena_rx_reset();
+  return &frame_arena.tx;
+}
+
+uint16_t* frame_arena_scratch2049(void) {
+  frame_arena_rx_reset();
+  return frame_arena.scratch_u16;
+}
 
 /*
  * message_map_entry() - Finds a requested message map entry
@@ -68,13 +117,10 @@ bool reset_msg_stack = false;
 static const MessagesMap_t* message_map_entry(MessageMapType type,
                                               MessageType msg_id,
                                               MessageMapDirection dir) {
-  const MessagesMap_t* m = MessagesMap;
-
-  if (map_size > msg_id && m[msg_id].msg_id == msg_id &&
-      m[msg_id].type == type && m[msg_id].dir == dir) {
-    return &m[msg_id];
+  for (size_t i = 0; i < map_size; i++) {
+    const MessagesMap_t* m = &MessagesMap[i];
+    if (m->msg_id == msg_id && m->type == type && m->dir == dir) return m;
   }
-
   return NULL;
 }
 
@@ -92,14 +138,8 @@ const pb_field_t* message_fields(MessageMapType type, MessageType msg_id,
                                  MessageMapDirection dir) {
   assert(MessagesMap != NULL);
 
-  const MessagesMap_t* m = MessagesMap;
-
-  if (map_size > msg_id && m[msg_id].msg_id == msg_id &&
-      m[msg_id].type == type && m[msg_id].dir == dir) {
-    return m[msg_id].fields;
-  }
-
-  return NULL;
+  const MessagesMap_t* m = message_map_entry(type, msg_id, dir);
+  return m ? m->fields : NULL;
 }
 
 /*
@@ -119,12 +159,14 @@ static bool pb_parse(const MessagesMap_t* entry, const uint8_t* msg,
   return pb_decode(&stream, entry->fields, buf);
 }
 
-/* Firmware may end stale workflows before a new top-level request runs.
- * Board-only targets keep the no-op default. */
+/* Firmware supplies the authorization boundary; board-only targets use these
+ * defaults so they can share the transport dispatcher. */
 __attribute__((weak)) bool keepkey_before_message_dispatch(MessageType msg_id) {
   (void)msg_id;
   return true;
 }
+
+__attribute__((weak)) void keepkey_after_message_dispatch(void) {}
 
 /*
  * dispatch() - Process received message and jump to corresponding process
@@ -140,7 +182,6 @@ __attribute__((weak)) bool keepkey_before_message_dispatch(MessageType msg_id) {
  */
 static void dispatch(const MessagesMap_t* entry, const uint8_t* msg,
                      uint32_t msg_size) {
-  static uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(4)));
   memzero(decode_buffer, sizeof(decode_buffer));
 
   if (!pb_parse(entry, msg, msg_size, decode_buffer)) {
@@ -164,6 +205,7 @@ cleanup:
   /* Parsed protobufs can contain PINs, passphrases, authenticator seeds, and
    * other credentials.  Handlers must copy any state they retain; do not keep
    * the source message resident until the next dispatch. */
+  if (entry->type == NORMAL_MSG) keepkey_after_message_dispatch();
   memzero(decode_buffer, sizeof(decode_buffer));
 }
 
@@ -191,6 +233,7 @@ static void raw_dispatch(const MessagesMap_t* entry, const uint8_t* msg,
       return;
     }
     ((raw_msg_handler_t)(void*)entry->process_func)(&raw_msg, frame_length);
+    if (entry->type == NORMAL_MSG) keepkey_after_message_dispatch();
   }
 }
 
@@ -226,21 +269,13 @@ static void raw_dispatch(const MessagesMap_t* entry, const uint8_t* msg,
 
 /// Common helper that handles USB messages from host
 void usb_rx_helper(const uint8_t* buf, size_t length, MessageMapType type) {
-  static bool firstFrame = true;
-
-  static uint16_t msgId;
-  static uint32_t msgSize;
-  static uint8_t msg[MAX_FRAME_SIZE];
-  static size_t
-      cursor;  //< Index into msg where the current frame is to be written.
-  static const MessagesMap_t* entry;
-
-  if (firstFrame) {
-    msgId = 0xffff;
-    msgSize = 0;
-    memset(msg, 0, sizeof(msg));
-    cursor = 0;
-    entry = NULL;
+  /* File-scope so arena acquisition can drop a partial frame (see above). */
+  if (rxFirstFrame) {
+    rxMsgId = 0xffff;
+    rxMsgSize = 0;
+    memset(frame_arena.rx, 0, sizeof(frame_arena.rx));
+    rxCursor = 0;
+    rxEntry = NULL;
   }
 
   assert(buf != NULL);
@@ -255,7 +290,7 @@ void usb_rx_helper(const uint8_t* buf, size_t length, MessageMapType type) {
     goto reset;
   }
 
-  if (firstFrame && (buf[1] != '#' || buf[2] != '#')) {
+  if (rxFirstFrame && (buf[1] != '#' || buf[2] != '#')) {
     (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Malformed packet");
     goto reset;
   }
@@ -264,25 +299,25 @@ void usb_rx_helper(const uint8_t* buf, size_t length, MessageMapType type) {
   const uint8_t* frame;
   size_t frameSize;
 
-  if (firstFrame) {
+  if (rxFirstFrame) {
     // Reset the buffer that we're writing fragments into.
-    memset(msg, 0, sizeof(msg));
+    memset(frame_arena.rx, 0, sizeof(frame_arena.rx));
 
     // Then fish out the id / size, which are big-endian uint16 /
     // uint32's respectively.
-    msgId = buf[4] | ((uint16_t)buf[3]) << 8;
-    msgSize = buf[8] | ((uint32_t)buf[7]) << 8 | ((uint32_t)buf[6]) << 16 |
-              ((uint32_t)buf[5]) << 24;
+    rxMsgId = buf[4] | ((uint16_t)buf[3]) << 8;
+    rxMsgSize = buf[8] | ((uint32_t)buf[7]) << 8 | ((uint32_t)buf[6]) << 16 |
+                ((uint32_t)buf[5]) << 24;
 
     // Determine callback handler and message map type.
-    entry = message_map_entry(type, msgId, IN_MSG);
+    rxEntry = message_map_entry(type, rxMsgId, IN_MSG);
 
     // And reset the cursor.
-    cursor = 0;
+    rxCursor = 0;
 
     // Then take note of the fragment boundaries.
     frame = &buf[9];
-    frameSize = MIN(length - 9, msgSize);
+    frameSize = MIN(length - 9, rxMsgSize);
   } else {
     // Otherwise it's a continuation/fragment.
     frame = &buf[1];
@@ -290,55 +325,61 @@ void usb_rx_helper(const uint8_t* buf, size_t length, MessageMapType type) {
   }
 
   // If the msgId wasn't in our map, bail.
-  if (!entry) {
+  if (!rxEntry) {
     (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unknown message");
     goto reset;
   }
 
-  if (entry->dispatch == RAW) {
+  if (rxEntry->dispatch == RAW) {
     /* Call dispatch for every segment since we are not buffering and parsing,
      * and assume the raw dispatched callbacks will handle their own state and
      * buffering internally
      */
-    raw_dispatch(entry, frame, frameSize, msgSize);
-    firstFrame = false;
+    raw_dispatch(rxEntry, frame, frameSize, rxMsgSize);
+    rxFirstFrame = false;
     return;
   }
 
   size_t end;
-  if (check_uadd_overflow(cursor, frameSize, &end) || sizeof(msg) < end) {
+  if (check_uadd_overflow(rxCursor, frameSize, &end) ||
+      sizeof(frame_arena.rx) < end) {
     (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Malformed message");
     goto reset;
   }
 
   // Copy content to frame buffer.
-  memcpy(&msg[cursor], frame, frameSize);
+  memcpy(&frame_arena.rx[rxCursor], frame, frameSize);
 
   // Advance the cursor.
-  cursor = end;
+  rxCursor = end;
 
   // Only parse and message map if all segments have been buffered.
-  bool last_segment = cursor >= msgSize;
+  bool last_segment = rxCursor >= rxMsgSize;
   if (!last_segment) {
-    firstFrame = false;
+    rxFirstFrame = false;
     return;
   }
 
-  dispatch(entry, msg, msgSize);
+  dispatch(rxEntry, frame_arena.rx, rxMsgSize);
 
 reset:
-  msgId = 0xffff;
-  msgSize = 0;
-  memset(msg, 0, sizeof(msg));
-  cursor = 0;
-  firstFrame = true;
-  entry = NULL;
+  frame_arena_rx_reset();
 }
 
 /* Tiny messages */
 static bool msg_tiny_flag = false;
 static CONFIDENTIAL uint8_t msg_tiny[MSG_TINY_BFR_SZ];
 static uint16_t msg_tiny_id = MSG_TINY_TYPE_ERROR; /* Default to error type */
+
+void msg_reject_short_tiny_packet(void) {
+  /* A short packet ends every receive in progress: drop any partly
+   * reassembled message too, so the next request is not read as its tail. */
+  frame_arena_rx_reset();
+  if (msg_tiny_flag) {
+    reject_tiny_message(FailureType_Failure_UnexpectedMessage,
+                        "Malformed tiny packet");
+  }
+}
 
 _Static_assert(sizeof(msg_tiny) >= sizeof(Cancel), "msg_tiny too tiny");
 _Static_assert(sizeof(msg_tiny) >= sizeof(Initialize), "msg_tiny too tiny");
@@ -355,7 +396,10 @@ _Static_assert(sizeof(msg_tiny) >= sizeof(DebugLinkGetState),
 static void msg_read_tiny(const uint8_t* msg, size_t len) {
   msg_tiny_id = MSG_TINY_TYPE_ERROR;
   memzero(msg_tiny, sizeof(msg_tiny));
-  if (len != 64) return;
+  if (len != 64) {
+    msg_reject_short_tiny_packet();
+    return;
+  }
 
   uint8_t buf[64];
   memcpy(buf, msg, sizeof(buf));
@@ -440,7 +484,9 @@ void handle_debug_usb_rx(const void* msg, size_t len) {
   if (msg_tiny_flag) {
     msg_read_tiny(msg, len);
   } else {
+    tiny_handler_rejected = false;
     usb_rx_helper(msg, len, DEBUG_MSG);
+    tiny_handler_rejected = false;
   }
 }
 #endif
@@ -458,6 +504,7 @@ void handle_debug_usb_rx(const void* msg, size_t len) {
  */
 static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t* buf) {
   msg_tiny_id = MSG_TINY_TYPE_ERROR;
+  tiny_handler_rejected = false;
   msg_tiny_flag = true;
 
   while (msg_tiny_id == MSG_TINY_TYPE_ERROR && !tiny_handler_rejected) {

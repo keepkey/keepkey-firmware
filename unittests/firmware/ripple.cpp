@@ -67,6 +67,26 @@ TEST(Ripple, SerializeAddress) {
                      22) == 0);
 }
 
+/* XRP's own ceiling is 100 billion XRP = 1e17 drops. The amount encoding has
+ * 62 usable bits (the top two flag XRP and positive), so it fits with room to
+ * spare -- a device bound of 1e11 drops would refuse 99.9999% of the supply. */
+TEST(Ripple, SerializeAmountCoversTheProtocolMaximum) {
+  uint8_t buf[16];
+  memset(buf, 0, sizeof(buf));
+  uint8_t *cursor = buf;
+  bool ok = true;
+
+  ripple_serializeAmount(&ok, &cursor, buf + sizeof(buf), &RFM_amount,
+                         (int64_t)RIPPLE_MAX_DROPS);
+
+  ASSERT_TRUE(ok);
+  ASSERT_EQ(9, cursor - buf);
+  EXPECT_EQ(0x61, buf[0]);  // field type 6 (amount), key 1
+  // 1e17 = 0x016345785D8A0000, with bit 62 set to mark it positive.
+  const uint8_t expected[8] = {0x41, 0x63, 0x45, 0x78, 0x5D, 0x8A, 0x00, 0x00};
+  EXPECT_EQ(0, memcmp(buf + 1, expected, sizeof(expected)));
+}
+
 TEST(Ripple, Serialize) {
   RippleSignTx tx;
   memset(&tx, 0, sizeof(tx));

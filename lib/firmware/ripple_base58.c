@@ -48,10 +48,13 @@ typedef uint32_t b58_almostmaxint_t;
 static const b58_almostmaxint_t b58_almostmaxint_mask =
     ((((b58_maxint_t)1) << b58_almostmaxint_bits) - 1);
 
+#define RIPPLE_BASE58_MAX_BINARY 256
+#define RIPPLE_BASE58_MAX_CHECK_DATA 128
+
 bool ripple_b58tobin(void* bin, size_t* binszp, const char* b58) {
   size_t binsz = *binszp;
 
-  if (binsz == 0) {
+  if (binsz == 0 || binsz > RIPPLE_BASE58_MAX_BINARY) {
     return false;
   }
 
@@ -59,7 +62,7 @@ bool ripple_b58tobin(void* bin, size_t* binszp, const char* b58) {
   unsigned char* binu = bin;
   size_t outisz =
       (binsz + sizeof(b58_almostmaxint_t) - 1) / sizeof(b58_almostmaxint_t);
-  b58_almostmaxint_t outi[outisz];
+  b58_almostmaxint_t outi[(RIPPLE_BASE58_MAX_BINARY + 3) / 4];
   size_t i = 0, j = 0;
   uint8_t bytesleft = binsz % sizeof(b58_almostmaxint_t);
   b58_almostmaxint_t zeromask =
@@ -145,6 +148,7 @@ int ripple_b58check(const void* bin, size_t binsz, HasherType hasher_type,
 }
 
 bool ripple_b58enc(char* b58, size_t* b58sz, const void* data, size_t binsz) {
+  if (binsz > RIPPLE_BASE58_MAX_BINARY) return false;
   const uint8_t* bin = data;
   size_t i = 0, j = 0, high = 0, zcount = 0;
   size_t size = 0;
@@ -152,7 +156,7 @@ bool ripple_b58enc(char* b58, size_t* b58sz, const void* data, size_t binsz) {
   while (zcount < binsz && !bin[zcount]) ++zcount;
 
   size = (binsz - zcount) * 138 / 100 + 1;
-  uint8_t buf[size];
+  uint8_t buf[RIPPLE_BASE58_MAX_BINARY * 138 / 100 + 1];
   memzero(buf, size);
 
   for (i = zcount, high = size - 1; i < binsz; ++i, high = j) {
@@ -186,10 +190,10 @@ bool ripple_b58enc(char* b58, size_t* b58sz, const void* data, size_t binsz) {
 
 int ripple_encode_check(const uint8_t* data, int datalen,
                         HasherType hasher_type, char* str, int strsize) {
-  if (datalen > 128) {
+  if (datalen < 0 || datalen > RIPPLE_BASE58_MAX_CHECK_DATA) {
     return 0;
   }
-  uint8_t buf[datalen + 32];
+  uint8_t buf[RIPPLE_BASE58_MAX_CHECK_DATA + 32];
   memset(buf, 0, sizeof(buf));
   uint8_t* hash = buf + datalen;
   memcpy(buf, data, datalen);
@@ -202,10 +206,10 @@ int ripple_encode_check(const uint8_t* data, int datalen,
 
 int ripple_decode_check(const char* str, HasherType hasher_type, uint8_t* data,
                         int datalen) {
-  if (datalen > 128) {
+  if (datalen < 0 || datalen > RIPPLE_BASE58_MAX_CHECK_DATA) {
     return 0;
   }
-  uint8_t d[datalen + 4];
+  uint8_t d[RIPPLE_BASE58_MAX_CHECK_DATA + 4];
   memset(d, 0, sizeof(d));
   size_t res = datalen + 4;
   if (ripple_b58tobin(d, &res, str) != true) {

@@ -83,6 +83,7 @@ void fsm_msgTonGetAddress(const TonGetAddress* msg) {
   layoutHome();
 }
 
+// cppcheck-suppress constParameterPointer -- protobuf dispatcher ABI is mutable
 void fsm_msgTonSignTx(TonSignTx* msg) {
   RESP_INIT(TonSignedTx);
 

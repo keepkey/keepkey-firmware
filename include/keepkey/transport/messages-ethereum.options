@@ -53,12 +53,27 @@ LoadClearsignSigner.pubkey                        max_size:33
 LoadClearsignSigner.alias                         max_size:32
 LoadClearsignSigner.icon                          max_size:384
 
-EthereumSignTypedData.address_n                   max_count:8
-EthereumSignTypedData.primary_type                max_size:80
-EthereumTypedDataStructRequest.name               max_size:80
-EthereumTypedDataStructAck.members                max_count:32
-EthereumTypedDataStructAck.EthereumStructMember.name max_size:64
-EthereumTypedDataStructAck.EthereumFieldType.struct_name max_size:80
-EthereumTypedDataStructAck.EthereumFieldType.array_levels max_count:4
-EthereumTypedDataValueRequest.member_path         max_count:16
-EthereumTypedDataValueAck.value                   max_size:1024
+
+# Structured EIP-712, device-driven field streaming.
+# Nested messages take the fully-qualified Outer.Inner.field form, as
+# BinanceTransferMsg.BinanceInputOutput.* does.
+EthereumSignTypedData.address_n                             max_count:8
+EthereumSignTypedData.primary_type                          max_size:80
+EthereumTypedDataStructRequest.name                         max_size:80
+EthereumTypedDataStructAck.members                          max_count:32
+EthereumTypedDataStructAck.EthereumStructMember.name        max_size:64
+EthereumTypedDataStructAck.EthereumFieldType.struct_name    max_size:80
+EthereumTypedDataStructAck.EthereumFieldType.array_levels   max_count:4
+EthereumTypedDataValueRequest.member_path                   max_count:16
+EthereumTypedDataValueAck.value                             max_size:1024
+
+# ERC-7730 catalog definitions are streamed in bounded chunks. Keep every byte
+# field statically allocated; the nanopb callback fallback is forbidden.
+EthereumClearSignDefinition.definition_id                  max_size:32
+EthereumClearSignDefinition.data                           max_size:1024
+EthereumClearSignDefinitionAck.definition_id               max_size:32
+EthereumClearSignDefinitionRequest.definition_id           max_size:32
+EthereumClearSignDefinitionRequest.contract_address        max_size:20
+EthereumClearSignDefinitionRequest.selector_or_type_hash   max_size:32
+EthereumClearSignDefinitionChunk.definition_id             max_size:32
+EthereumClearSignDefinitionChunk.data                      max_size:1024

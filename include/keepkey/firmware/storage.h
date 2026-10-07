@@ -25,6 +25,8 @@
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/authenticator.h"
 
+/* 7.15 refuses (never erases) newer storage but must NOT bump the format:
+ * every shipped release only understands V17. */
 #define STORAGE_VERSION \
   17 /* Must add case fallthrough in storage_fromFlash after increment*/
 
@@ -71,16 +73,25 @@ void storage_wipe(void);
 
 /// \brief True when flash holds storage this build must refuse to load or
 /// overwrite -- a bitcoin-only wallet seen by multi-chain firmware, or a newer
-/// in-band wallet than this build understands.
+/// bitcoin-only format than this build understands.
 ///
-/// Handlers that CREATE a seed must check this and refuse. The device looks
+/// Handlers that create a seed or persist settings must check both this and
+/// storage_isFirmwareTooOld() and refuse. The device looks
 /// uninitialized while locked (the RAM shadow was reset, so
 /// storage_isInitialized() is false), and storage_commit() silently declines to
 /// write, so a ceremony allowed to run would report success while persisting
 /// nothing -- and a seed the user funded would vanish on the next boot.
 ///
-/// Cleared only by storage_wipe().
+/// Cleared by storage_wipe(); recomputed by every storage_init().
 bool storage_isBitcoinOnlyLocked(void);
+
+/// \brief Locked by a NEWER bitcoin-only format: fixed by a firmware upgrade,
+/// so callers must not advise wiping.
+bool storage_isBitcoinOnlyTooNew(void);
+
+/// \brief True iff flash contains a newer storage format than this firmware.
+///        The bytes remain untouched until an explicit wipe.
+bool storage_isFirmwareTooOld(void);
 
 /// \brief Clear storage key and storage key fingerprint.
 void storage_clearKeys(void);

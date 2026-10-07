@@ -1,4 +1,5 @@
 #include "gtest/gtest.h"
+#include "test_board.h"
 
 #include <cstring>
 #include <cstdlib>
@@ -7,9 +8,10 @@ extern "C" {
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/memory.h"
-#include "keepkey/board/layout.h"
-#include "keepkey/board/timer.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/firmware/fsm.h"
+#include "keepkey/firmware/signing.h"
+#include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/reset.h"
 #include "keepkey/transport/interface.h"
 #include "keepkey/emulator/setup.h"
@@ -22,8 +24,6 @@ static bool corrupt_commit_tail;
 static unsigned payload_writes;
 static int marker_fault;
 static unsigned marker_writes;
-void kk_test_board_init(void);  // test_board.cpp
-
 extern "C" bool emulator_flash_write_completed(Allocation group,
                                                uint32_t offset, uint32_t len) {
   if (offset == STORAGE_MAGIC_LEN && len > 2564) {
@@ -52,7 +52,7 @@ class PassphraseTransition : public ::testing::Test {
     static bool initialized = false;
     if (!initialized) {
       setup();
-      kk_test_board_init();  // the one guarded bootstrap (test_board.cpp)
+      kk_test_board_init();
       storage_init();
       initialized = true;
     }
@@ -293,3 +293,22 @@ TEST_F(PassphraseTransition, StagingIsInertAndForeignCommitAborts) {
 }
 
 }  // namespace
+
+TEST_F(PassphraseTransition,
+       InitializeRetainsPinButAbortsSigningAndPassphrase) {
+  fsm_init();
+  storage_setPin("1234");
+  storage_setPassphraseProtected(true);
+  session_cachePassphrase(kHidden);
+  ASSERT_TRUE(session_isPinCached());
+  ASSERT_TRUE(session_isPassphraseCached());
+  SignTx start = {};
+  start.inputs_count = start.outputs_count = 1;
+  HDNode root = {};
+  signing_init(&start, coinByName("Bitcoin"), &root);
+  ASSERT_TRUE(signing_is_active());
+  fsm_msgInitialize(nullptr);
+  EXPECT_FALSE(signing_is_active());
+  EXPECT_TRUE(session_isPinCached());
+  EXPECT_FALSE(session_isPassphraseCached());
+}

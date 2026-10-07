@@ -41,11 +41,44 @@ bool thor_is_expiry_variant(const EthereumSignTx* msg) {
                 THOR_SELECTOR_DEPOSIT_WITH_EXPIRY, 4) == 0;
 }
 
-bool thor_isThorchainTx(const EthereumSignTx* msg) {
-  if (msg->has_to && msg->to.size == 20 && thor_has_deposit_selector(msg)) {
-    return true;
+/* The label for the pinned deposit router this tx is addressed to, or NULL if
+ * it is addressed anywhere else (then the deposit is not clear-signed and falls
+ * to the blind-sign gate). Each router address is a per-chain identity -- the
+ * same address on another chain may hold unrelated attacker code -- so the pin
+ * is (chain_id, address) together, and a tx with NO chain_id matches nothing.
+ * Both protocols deposit with the same calldata shape and are narrated by the
+ * same screens, so both routers are pinned here. */
+static const char* thor_router_label(const EthereumSignTx* msg,
+                                     const char toStr[41]) {
+  if (!msg->has_chain_id) return NULL;
+  if (msg->chain_id == 1) {
+    if (strncmp(toStr, THOR_ROUTER, 40) == 0) return "Thorchain router";
+    if (strncmp(toStr, MAYA_ROUTER, 40) == 0) return "Mayachain router";
+    return NULL;
   }
-  return false;
+  if (msg->chain_id == 43114 && strncmp(toStr, THOR_ROUTER_AVAX, 40) == 0) {
+    return "Thorchain router"; /* Avalanche C-Chain */
+  }
+  return NULL;
+}
+
+static void thor_format_to_addr(const EthereumSignTx* msg, char out[41]) {
+  for (uint32_t i = 0; i < 20; i++) {
+    snprintf(&out[i * 2], 3, "%02x", msg->to.bytes[i]);
+  }
+}
+
+bool thor_isThorchainTx(const EthereumSignTx* msg) {
+  if (!msg->has_to || msg->to.size != 20) return false;
+  if (!thor_has_deposit_selector(msg)) return false;
+  /* Pin to the THORChain router FOR THIS CHAIN. Without the pin, ANY contract
+   * carrying the deposit selector would get the THORChain clear-sign UX and
+   * bypass the AdvancedMode blind-sign gate, letting an attacker contract
+   * drain funds while the device shows a benign deposit. Without the chain
+   * scope, only mainnet deposits ever match (the AVAX->ETH blind-sign bug). */
+  char toStr[41];
+  thor_format_to_addr(msg, toStr);
+  return thor_router_label(msg, toStr) != NULL;
 }
 
 bool thor_assetIsNative(const uint8_t asset_address[20]) {
@@ -126,7 +159,8 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
     if (msg->data_initial_chunk.bytes[i] != 0) return false;
   }
 
-  char confStr[41], *conf;
+  char confStr[41];
+  const char* conf;
   const TokenType* assetToken;
   uint8_t* thorchainData;
   const uint8_t* contractAssetAddress;
@@ -138,6 +172,8 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
   contractAssetAddress =
       (const uint8_t*)(msg->data_initial_chunk.bytes + 4 + 32 + 12);
   bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 2 * 32, 32, &Amount);
+  bignum256 Value;
+  bn_from_bytes(msg->value.bytes, msg->value.size, &Value);
   /* deposit(): memo at 4 + 5*32; depositWithExpiry(): memo at 4 + 6*32 */
   thorchainData =
       (uint8_t*)(msg->data_initial_chunk.bytes + 4 + (is_expiry ? 6 : 5) * 32);
@@ -159,9 +195,13 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
    * routing it through the Ethereum-only 0xeeee..eeee token sentinel.  A NULL
    * token makes ethereumFormatAmount() select the native ticker from chain_id.
    */
-  if (thor_assetIsNative(contractAssetAddress)) {
+  const bool is_native = thor_assetIsNative(contractAssetAddress);
+  if (is_native) {
     assetToken = NULL;
   } else {
+    /* Token deposits pull through transferFrom; any native value would be
+     * swept without being represented by the ABI amount screen. */
+    if (!bn_is_zero(&Value)) return false;
     assetToken = tokenByChainAddress(msg->chain_id, assetAddress);
   }
 
@@ -174,8 +214,12 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
             sizeof(amountStr)))
       return false;
   } else {
-    if (!ethereumFormatAmount(&Amount, assetToken, msg->chain_id, amountStr,
-                              sizeof(amountStr)))
+    /* For a native deposit the router forwards msg.value and IGNORES the ABI
+     * amount word, so the amount word is only a hint and may differ from what
+     * actually moves. Show what the router will send. */
+    const bignum256* displayed_amount = is_native ? &Value : &Amount;
+    if (!ethereumFormatAmount(displayed_amount, assetToken, msg->chain_id,
+                              amountStr, sizeof(amountStr)))
       return false;
   }
 
@@ -222,12 +266,11 @@ bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg) {
   for (ctr = 0; ctr < 20; ctr++) {
     snprintf(&confStr[ctr * 2], 3, "%02x", msg->to.bytes[ctr]);
   }
-  /* THOR_ROUTER is an Ethereum-mainnet identity. The same 20 bytes on another
-   * EVM chain are an unrelated contract, so the trusted label has to be bound
-   * to the chain; otherwise a host-chosen chain_id borrows it. */
-  if (msg->has_chain_id && msg->chain_id == 1 &&
-      strncmp(confStr, THOR_ROUTER, sizeof(THOR_ROUTER)) == 0) {
-    conf = "Thorchain router";
+  /* Each router address is an identity on ONE chain, so the trusted label is
+   * bound to the chain; otherwise a host-chosen chain_id borrows it. */
+  const char* pinned_label = thor_router_label(msg, confStr);
+  if (pinned_label) {
+    conf = pinned_label;
   } else {
     conf = confStr;
   }

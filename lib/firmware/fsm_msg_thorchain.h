@@ -113,6 +113,7 @@ void fsm_msgThorchainSignTx(const ThorchainSignTx* msg) {
   }
 
   memzero(node, sizeof(*node));
+  note_workflow_progress();
   msg_write(MessageType_MessageType_ThorchainMsgRequest, resp);
   layoutHome();
 }
@@ -281,6 +282,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
 
   if (!thorchain_signingIsFinished()) {
     RESP_INIT(ThorchainMsgRequest);
+    note_workflow_progress();
     msg_write(MessageType_MessageType_ThorchainMsgRequest, resp);
     return;
   }

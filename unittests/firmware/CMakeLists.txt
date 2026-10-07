@@ -1,12 +1,20 @@
 set(sources
+    app_confirm.cpp
+    block13_confirmation.cpp
+    block13_entropy.cpp
+    block13_progress.cpp
     nanopb_bounds.cpp
     authenticator.cpp
     confirm_test_utils.cpp
+    crypto_cleanup.cpp
     fsm.cpp
     dice.cpp
     recovery.cpp
+    recovery_review_probe.c
+    review_handlers.cpp
     rng_health.cpp
     setup_ceremony.cpp
+    reset_policy_probe.c
     signing.cpp
     storage.cpp
     storage_cipher_probe.c
@@ -14,6 +22,8 @@ set(sources
     test_board.cpp
     transaction.cpp
     usb_rx.cpp
+    messages_probe.c
+    usb_callbacks.cpp
     u2f.cpp)
 
 # Suites for the coin engines the bitcoin-only image compiles out. Building
@@ -27,6 +37,8 @@ if(NOT ${KK_BITCOIN_ONLY})
       coins.cpp
       cosmos.cpp
       eos.cpp
+      eos_authorization.cpp
+      eos_authorization_probe.c
       ethereum.cpp
       mayachain.cpp
       nano.cpp

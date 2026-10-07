@@ -9,7 +9,7 @@ endif()
 
 project(
   KeepKeyFirmware
-  VERSION 7.14.3
+  VERSION 7.15.0
   LANGUAGES C CXX ASM)
 
 set(BOOTLOADER_MAJOR_VERSION 2)
@@ -19,9 +19,19 @@ set(BOOTLOADER_PATCH_VERSION 5)
 option(KK_EMULATOR "Build the emulator" OFF)
 option(KK_BUILD_DYLIB "Build libkkemu shared library (.dylib/.so)" OFF)
 option(KK_DEBUG_LINK "Build with debug-link enabled" OFF)
+option(KK_BUILD_BOOTLOADER_TOOLS
+       "Build bootloader, bootloader updater, and bootstrap artifacts" OFF)
 option(KK_BUILD_FUZZERS "Build the fuzzers?" OFF)
 option(KK_BITCOIN_ONLY "Build Bitcoin-only firmware (strip all non-BTC coins)"
        OFF)
+
+# Regular 7.15 defaults to every supported chain, including Zcash Orchard.
+# Preserve an explicit OFF for builds that omit Zcash privacy support.
+if(KK_BITCOIN_ONLY)
+  set(KK_ZCASH_PRIVACY OFF)
+else()
+  option(KK_ZCASH_PRIVACY "Build Zcash privacy support" ON)
+endif()
 
 # When building the dylib, every static lib it links (kkfirmware, kkboard,
 # trezorcrypto, kkrand, kktransport, qrcodegenerator, SecAESSTM32, ...) must
@@ -86,6 +96,13 @@ endif()
 if(${KK_EMULATOR})
   add_definitions(-DEMULATOR)
   add_definitions(-DCONFIDENTIAL=)
+  # macOS/BSD declare strlcpy/strlcat in <string.h>; glibc (Linux) and MinGW
+  # (Windows) do not. Force-include the prototypes so the ~20 call sites build
+  # without -Werror=implicit-function-declaration (definitions come from
+  # lib/board/strlcpy.c + strlcat.c). Apple already has them in <string.h>.
+  if(NOT APPLE)
+    add_compile_options(-include ${CMAKE_SOURCE_DIR}/include/keepkey/board/bsd_compat.h)
+  endif()
 else()
   add_definitions(-DCONFIDENTIAL=__attribute__\(\(section\("confidential"\)\)\))
 endif()
@@ -153,6 +170,15 @@ else()
   add_definitions(-DBITCOIN_ONLY=0)
 endif()
 
+if(${KK_ZCASH_PRIVACY})
+  add_definitions(-DZCASH_PRIVACY=1)
+  # Orchard leaves the regular image tightest on flash; shrink the Gladman
+  # AES lookup tables from 4KB to 1KB each (-15,360 bytes ROM).
+  add_definitions(-DAES_SMALL_TABLES)
+else()
+  add_definitions(-DZCASH_PRIVACY=0)
+endif()
+
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   add_definitions(-DDEBUG_ON)
   add_definitions(-DMEMORY_PROTECT=0)
@@ -162,7 +188,7 @@ elseif(
   OR "${CMAKE_BUILD_TYPE}" STREQUAL "")
   add_definitions(-DNDEBUG)
   add_definitions(-DMEMORY_PROTECT=1)
-  if(NOT ${KK_EMULATOR})
+  if(NOT ${KK_EMULATOR} AND KK_BUILD_BOOTLOADER_TOOLS)
     message(
       WARNING
         "*********************************************************************\n"
@@ -202,7 +228,7 @@ add_subdirectory(deps/crypto)
 add_subdirectory(deps/qrenc)
 add_subdirectory(deps/sca-hardening)
 
-if(${KK_EMULATOR})
+if(${KK_EMULATOR} AND NOT WIN32)
   add_subdirectory(deps/googletest)
   add_subdirectory(unittests)
   if(${KK_BUILD_FUZZERS})
@@ -222,5 +248,18 @@ if(${KK_EMULATOR})
             --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/board.xml
     COMMAND ${CMAKE_BINARY_DIR}/bin/crypto-unit
             --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/crypto.xml)
+  add_dependencies(xunit firmware-unit board-unit crypto-unit)
+
+  if(KK_BUILD_DYLIB AND NOT WIN32)
+    find_package(Threads REQUIRED)
+    add_executable(emulator-unit unittests/emulator/lifecycle.cpp)
+    target_include_directories(emulator-unit PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_link_libraries(emulator-unit gtest_main kkemulator_dylib Threads::Threads)
+    add_test(test-emulator ${CMAKE_BINARY_DIR}/bin/emulator-unit)
+    add_dependencies(xunit emulator-unit)
+    add_custom_command(TARGET xunit POST_BUILD
+      COMMAND ${CMAKE_BINARY_DIR}/bin/emulator-unit
+              --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/emulator.xml)
+  endif()
 
 endif()

@@ -73,16 +73,15 @@ void memory_getDeviceLabel(char *str, size_t len) {
 bool inPrivilegedMode(void) {
   // Check to see if we are in priv mode. If so, return true to drop privs.
   uint32_t creg = 0xffff;
-  // CONTROL register nPRIV,bit[0]: 
+  // CONTROL register nPRIV,bit[0]:
   //    0 Thread mode has privileged access
-  //    1 Thread mode has unprivileged access. 
+  //    1 Thread mode has unprivileged access.
   // Note: In Handler mode, execution is always privileged
   fi_defense_delay(creg);  // vary access time
-  __asm__ volatile(
-       "mrs %0, control" : "=r" (creg));
+  __asm__ volatile("mrs %0, control" : "=r"(creg));
   fi_defense_delay(creg);  // vary test time
-  if (creg & 0x0001) 
-    return false;          // can't drop privs
+  if (creg & 0x0001)
+    return false;  // can't drop privs
   else
     return true;
 
@@ -173,9 +172,14 @@ int main(void) {
   _timerusr_isr = (void *)&timerisr_usr;
   _mmhusr_isr = (void *)&mmhisr;
 
-  { // limit sigRet lifetime to this block
+  {  // limit sigRet lifetime to this block
+    /* Signature indices in flash metadata are host-writable, so they must
+     * not be trusted for security decisions. Perform the full (fault-
+     * injection-hardened) signature verification in the app as well; the
+     * bootloader check alone cannot be latched across the jump. */
     int sigRet = SIG_FAIL;
     sigRet = signatures_ok();
+
     flash_collectHWEntropy(SIG_OK == sigRet);
 
     /* Drop privileges */
@@ -194,8 +198,9 @@ int main(void) {
 
     drbg_init();
 
-    /* Bootloader Verification. Only check if valid signed firmware on-board, allow any other firmware
-    to run with any bootloader. This allows unsigned release firmware to run after warning */
+    /* Bootloader Verification. Only check if valid signed firmware on-board,
+    allow any other firmware to run with any bootloader. This allows unsigned
+    release firmware to run after warning */
     if (SIG_OK == sigRet) {
       check_bootloader();
     }

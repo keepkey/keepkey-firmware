@@ -434,6 +434,11 @@ bool eos_compileActionVoteProducer(const EosActionCommon* common,
   return true;
 }
 
+static bool eos_authorizationKeyValid(const EosAuthorizationKey* key) {
+  return (key->key.size == 33 && key->address_n_count == 0) ||
+         (key->key.size == 0 && key->address_n_count != 0);
+}
+
 static size_t eos_hashAuthorization(Hasher* h, const EosAuthorization* auth) {
   size_t count = 0;
 
@@ -443,6 +448,7 @@ static size_t eos_hashAuthorization(Hasher* h, const EosAuthorization* auth) {
   count += eos_hashUInt(h, auth->keys_count);
   for (size_t i = 0; i < auth->keys_count; i++) {
     const EosAuthorizationKey* auth_key = &auth->keys[i];
+    if (!eos_authorizationKeyValid(auth_key)) return 0;
 
     count += eos_hashUInt(NULL, auth_key->type);
     if (h) eos_hashUInt(h, auth_key->type);
@@ -481,7 +487,7 @@ static size_t eos_hashAuthorization(Hasher* h, const EosAuthorization* auth) {
   }
 
   count += eos_hashUInt(h, auth->waits_count);
-  for (size_t i = 0; i < auth->accounts_count; i++) {
+  for (size_t i = 0; i < auth->waits_count; i++) {
     count += 4;
     if (h) hasher_Update(h, (const uint8_t*)&auth->waits[i].wait_sec, 4);
 
@@ -503,7 +509,7 @@ static bool isStandardAuthorization(const EosAuthorization* auth) {
 
   if (auth->keys[0].weight != 1) return false;
 
-  if (auth->waits_count != 0) return false;
+  if (auth->accounts_count != 0 || auth->waits_count != 0) return false;
 
   return true;
 }
@@ -555,9 +561,8 @@ static bool confirmArbitraryAuthorization(const char* title,
     const EosAuthorizationKey* auth_key = &auth->keys[i];
 
     CHECK_PARAM_RET(auth_key->has_weight, "Required field missing", false);
-    CHECK_PARAM_RET(
-        (auth_key->key.size == 33) ^ (auth_key->address_n_count != 0),
-        "Required field missing", false);
+    CHECK_PARAM_RET(eos_authorizationKeyValid(auth_key),
+                    "Required field missing", false);
 
     char pubkey[MAX(65, NODE_STRING_LENGTH)];
     if (auth_key->key.size != 0) {

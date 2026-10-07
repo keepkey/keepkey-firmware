@@ -80,6 +80,7 @@ void fsm_msgGetPublicKey(GetPublicKey* msg) {
   layoutHome();
 }
 
+// cppcheck-suppress constParameterPointer -- protobuf dispatcher ABI is mutable
 void fsm_msgSignTx(SignTx* msg) {
   /* A new start supersedes any prior Bitcoin stream even when this request is
    * malformed.  Otherwise its Failure can be followed by an ACK that resumes
@@ -349,6 +350,7 @@ void fsm_msgSignMessage(SignMessage* msg) {
   layoutHome();
 }
 
+// cppcheck-suppress constParameterPointer -- protobuf dispatcher ABI is mutable
 void fsm_msgVerifyMessage(VerifyMessage* msg) {
   CHECK_PARAM(msg->has_address, _("No address provided"));
   CHECK_PARAM(msg->has_message, _("No message provided"));

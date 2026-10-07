@@ -15,11 +15,42 @@ extern "C" {
 #include "keepkey/board/layout.h"
 #include "keepkey/board/timer.h"
 #include "keepkey/board/keepkey_display.h"
+#include "keepkey/board/usb.h"
 #include "keepkey/firmware/app_confirm.h"
 }
 
+static int progress_refreshes = 0;
+static void count_progress_refresh(const uint8_t*) { ++progress_refreshes; }
+
 TEST(Board, Shutdown) {
   EXPECT_EXIT(shutdown(), ::testing::ExitedWithCode(1), "");
+}
+
+static void timer_test_callback(void*) {}
+static void timer_test_callback_after_reinit(void*) {}
+static void animation_test_callback(void*, uint32_t, uint32_t) {}
+
+TEST(Board, TimerQueueSurvivesReinitialization) {
+  kk_timer_init();
+  post_periodic(timer_test_callback, nullptr, 10, 10);
+  kk_timer_init();
+  // A distinct callback forces the old cyclic active queue to be traversed.
+  post_periodic(timer_test_callback_after_reinit, nullptr, 10, 10);
+  remove_runnable(timer_test_callback_after_reinit);
+  // The legacy timer_init entry point must also discard the old links.
+  timer_init();
+  post_periodic(timer_test_callback, nullptr, 10, 10);
+  remove_runnable(timer_test_callback);
+  ualarm(0, 0);
+  signal(SIGALRM, SIG_IGN);
+}
+
+TEST(Board, AnimationQueueSurvivesReinitialization) {
+  kk_timer_init();
+  layout_init(display_canvas_init());
+  layout_add_animation(animation_test_callback, nullptr, 10);
+  layout_init(display_canvas_init());
+  layout_clear_animations();
 }
 
 TEST(Board, MonochromeEvidencePreservesGrayscaleForeground) {
@@ -57,6 +88,17 @@ class BodyFits : public ::testing::Test {
     }
   }
 };
+
+TEST_F(BodyFits, EmulatorPollAdvancesHostWaitProgress) {
+  layoutProgressTrickle("Zcash proof", 100, 300);
+  progress_refreshes = 0;
+  display_set_dump_callback(count_progress_refresh);
+  usbPoll();
+  display_set_dump_callback(nullptr);
+  layoutProgressTrickleStop();
+  EXPECT_GT(progress_refreshes, 0)
+      << "usbPoll must pump the progress animation while waiting for the host";
+}
 
 // draw_string() stops once a glyph no longer fits the canvas and reports
 // nothing, so a confirm body taller than BODY_ROWS was drawn in part with no
@@ -142,6 +184,42 @@ TEST_F(BodyFits, ConstantPowerSeedRowsAreCompleteAndPagedAtRowBoundaries) {
   EXPECT_FALSE(confirm_body_fits_constant_power(unsplittable.c_str(),
                                                 CONSTANT_POWER_BODY_WIDTH));
   EXPECT_EQ(confirm_constant_power_subpage_take(unsplittable.c_str()), 0u);
+}
+
+// Regression: the BIP-85 child seed packs pages at BODY_WIDTH but draws them on
+// the constant-power canvas, so it must use the paged renderer as reset.c does.
+TEST_F(BodyFits, SeedPagesPackedAtBodyWidthNeedTheConstantPowerPager) {
+  // The page the seed pagers can actually emit and the renderer actually
+  // clips: they pack words until three rows fit at BODY_WIDTH, so a page of
+  // long words is accepted there and then wraps into more rows than the screen
+  // has when it is drawn at CONSTANT_POWER_BODY_WIDTH. Measured, not assumed.
+  // Exactly the first page fsm_msgGetBip85Mnemonic() emits for a 24-word
+  // phrase of "household": "%lu.%s" words, a newline after every second
+  // word, joined with "%s   %s". Every page of that phrase overflows.
+  static const char kWidestPackedPage[] =
+      "   1.household   2.household\n   3.household   4.household\n"
+      "   5.household";
+  EXPECT_TRUE(confirm_body_fits(kWidestPackedPage, BODY_WIDTH))
+      << "the packer measures at BODY_WIDTH, which is how this reaches the "
+         "constant-power renderer as one page";
+  EXPECT_FALSE(confirm_body_fits_constant_power(kWidestPackedPage,
+                                                CONSTANT_POWER_BODY_WIDTH))
+      << "drawn where it is actually drawn, it does not fit";
+
+  // ...and the subpage pager splits it, which is why every seed screen on this
+  // layout (reset.c's backup and the BIP-85 child seed) must use the paged
+  // renderer rather than confirm_constant_power().
+  const size_t take = confirm_constant_power_subpage_take(kWidestPackedPage);
+  EXPECT_GT(take, 0u);
+  EXPECT_LT(take, strlen(kWidestPackedPage))
+      << "a page the renderer clips must take more than one subpage, or paging "
+         "it changes nothing";
+
+  // Control: a short body fits under both probes, so the constant-power probe
+  // is not simply refusing everything.
+  EXPECT_TRUE(confirm_body_fits("   1.abandon", BODY_WIDTH));
+  EXPECT_TRUE(confirm_body_fits_constant_power("   1.abandon",
+                                               CONSTANT_POWER_BODY_WIDTH));
 }
 
 // Regression: calc_str_line() accumulated into a uint8_t while returning

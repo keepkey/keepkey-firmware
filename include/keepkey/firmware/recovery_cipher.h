@@ -34,12 +34,13 @@ void recovery_cipher_init(uint32_t _word_count, bool passphrase_protection,
                           uint32_t _auto_lock_delay_ms, uint32_t _u2f_counter,
                           bool _dry_run);
 void next_character(void);
-/* Redraw the current cipher without changing its substitution mapping or
- * advancing recovery after an unrelated host transport failure. */
-bool recovery_cipher_redraw(void);
 void recovery_character(const char* character);
 void recovery_delete_character(void);
 void recovery_cipher_finalize(void);
+
+/// Restore the active input screen without rotating the cipher, requesting
+/// another character, or renewing the workflow deadline. Inactive after abort.
+void recovery_cipher_redraw(void);
 
 /// Zero the recovery-side buffers and flags. Touches no storage. Called only
 /// by setup_abort(), which owns the ceremony as a whole.

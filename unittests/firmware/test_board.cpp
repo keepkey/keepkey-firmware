@@ -11,10 +11,11 @@
  * so every confirmation test shares one bootstrap. Nothing else in
  * unittests/firmware may call kk_board_init() or timer_init() directly.
  *
- * No includes on purpose: keepkey_board.h declares shutdown(void), which
- * clashes with sys/socket.h, and this file has already cost one build on
- * include order.
+ * Do not include keepkey_board.h here: its shutdown(void) declaration clashes
+ * with sys/socket.h. The seam is declared in the local test_board.h instead.
  */
+
+#include "test_board.h"
 
 // keepkey_board.c is compiled as C.  This declaration must therefore carry C
 // linkage even though the test seam itself is C++.

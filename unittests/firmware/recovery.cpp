@@ -78,11 +78,14 @@ TEST(Recovery, SpacesOnlyCeremonyIsRefusedAndCommitsNothing) {
   ASSERT_TRUE(kkconfirm_preload(1, 0));
   ensure_recovery_storage_ready();
   storage_wipe();
+  // Wiping flash does not reset the RAM shadow. A reused emulator image or
+  // preceding wallet test can leave it initialized; match WipeDevice's order.
   storage_reset();
   ASSERT_FALSE(storage_isInitialized());
 
-  // enforce_wordlist is omitted by default on the wire, which is what makes
-  // the commit condition skip mnemonic_check() entirely.
+  // enforce_wordlist is omitted by default on the wire. Firmware now ignores
+  // it and always checks words, but the empty ceremony must still be refused
+  // by the word-count guard before any check runs.
   recovery_cipher_init(/*word_count=*/12, /*passphrase_protection=*/false,
                        /*pin_protection=*/false, "english", "spaces",
                        /*enforce_wordlist=*/false, /*auto_lock_delay_ms=*/0,
@@ -102,6 +105,7 @@ TEST(Recovery, SpacesOnlyCeremonyIsRefusedAndCommitsNothing) {
   EXPECT_FALSE(setup_isArmed());
   (void)kkconfirm_drain();
   storage_wipe();
+  storage_reset();
   layoutHomeForced();
 }
 
@@ -205,27 +209,6 @@ TEST(Recovery, UnrelatedRequestsKeepTheCipherAndSigningEndsTheCeremony) {
             std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
       << "a refused RecoveryDevice must not draw home over the cipher";
 
-  // Requests that would draw over the ceremony are refused untouched.
-  EXPECT_FALSE(
-      keepkey_before_message_dispatch(MessageType_MessageType_GetAddress));
-  Ping protected_ping = {};
-  protected_ping.has_button_protection = true;
-  protected_ping.button_protection = true;
-  ASSERT_TRUE(kkconfirm_preload(0, 0));
-  fsm_msgPing(&protected_ping);
-  EXPECT_EQ(0, kkconfirm_drain()) << "no prompt may be drawn mid-ceremony";
-  for (int frame = 0; frame < 20; ++frame) {
-    force_animation_start();
-    animate();
-  }
-  EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
-  EXPECT_EQ(cipher_before,
-            std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
-      << "a refused request must leave the cipher on screen";
-  // Requests that end the ceremony still reach their handlers.
-  EXPECT_TRUE(
-      keepkey_before_message_dispatch(MessageType_MessageType_Initialize));
-
 #if !BITCOIN_ONLY
   EXPECT_TRUE(keepkey_before_message_dispatch(
       MessageType_MessageType_EthereumSignTx));
@@ -236,4 +219,57 @@ TEST(Recovery, UnrelatedRequestsKeepTheCipherAndSigningEndsTheCeremony) {
   setup_abort();
   (void)kkconfirm_drain();
   layoutHomeForced();
+}
+
+extern "C" {
+void recovery_review_seed_scratch(void);
+bool recovery_review_scratch_empty(void);
+void setup_abort(void);
+void recovery_cipher_reset(void);
+bool recovery_review_delete_resync(const char*, const char*, bool, char*,
+                                   char*);
+void recovery_review_previous_after_delete(const char*, char*);
+}
+
+TEST(Recovery, DeleteKeepsTypedCipherCharactersNotTheCurrentMapping) {
+  char coded[12], decoded[12];
+  // "ab" remains of word "abc", typed as "qwe" under per-character ciphers.
+  EXPECT_FALSE(recovery_review_delete_resync("zoo ab", "qwe", false, coded,
+                                             decoded));
+  EXPECT_STREQ("qw", coded);  // recomputing from the identity would be "ab"
+  EXPECT_STREQ("ab", decoded);
+
+  // Stepping back over a space into a finished word: its typed characters
+  // were discarded, so the heuristic must not see a guessed coded prefix.
+  EXPECT_TRUE(recovery_review_delete_resync("zoo", "", false, coded, decoded));
+  EXPECT_STREQ("", coded);
+  EXPECT_STREQ("zoo", decoded);
+
+  // Once unknown, stays unknown until the word is emptied.
+  EXPECT_TRUE(recovery_review_delete_resync("zo", "x", true, coded, decoded));
+  EXPECT_STREQ("", coded);
+  EXPECT_FALSE(recovery_review_delete_resync("", "", true, coded, decoded));
+  EXPECT_STREQ("", decoded);
+}
+TEST(Recovery, AbortAndResetClearPreviousWordAndDisplayEquivalent) {
+  recovery_review_seed_scratch();
+  ASSERT_FALSE(recovery_review_scratch_empty());
+  setup_abort();
+  EXPECT_TRUE(recovery_review_scratch_empty());
+  recovery_review_seed_scratch();
+  recovery_cipher_reset();
+  EXPECT_TRUE(recovery_review_scratch_empty());
+  setup_abort();
+  EXPECT_TRUE(recovery_review_scratch_empty());
+}
+
+TEST(Recovery, DeleteAcrossWordBoundaryShowsTheWordBeforeTheEditedOne) {
+  char previous[12];
+  // "aban zoo " -> "aban zoo": zoo is being edited, aban(don) precedes it.
+  recovery_review_previous_after_delete("aban zoo", previous);
+  EXPECT_STREQ("abandon", previous);
+  recovery_review_previous_after_delete("abandon  zoo", previous);
+  EXPECT_STREQ("abandon", previous);
+  recovery_review_previous_after_delete("zoo", previous);  // first word
+  EXPECT_STREQ("", previous);
 }

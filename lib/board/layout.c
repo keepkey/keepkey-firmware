@@ -39,6 +39,7 @@ static AnimationQueue active_queue = {NULL, 0};
 static AnimationQueue free_queue = {NULL, 0};
 static Animation animations[MAX_ANIMATIONS];
 static Canvas* canvas = NULL;
+static uint32_t layout_generation;
 static volatile bool animate_flag = false;
 static leaving_handler_t leaving_handler;
 static bool iconLayout = false;
@@ -204,9 +205,17 @@ static Animation* animation_queue_get(AnimationQueue* queue,
 void layout_init(Canvas* new_canvas) {
   canvas = new_canvas;
 
-  int i;
+  /* A repeated board init must discard old animation links and callbacks. */
+  active_queue.head = NULL;
+  active_queue.size = 0;
+  free_queue.head = NULL;
+  free_queue.size = 0;
+  memset(animations, 0, sizeof(animations));
+  animate_flag = false;
+  leaving_handler = NULL;
+  iconLayout = false;
 
-  for (i = 0; i < MAX_ANIMATIONS; i++) {
+  for (int i = 0; i < MAX_ANIMATIONS; i++) {
     animation_queue_push(&free_queue, &animations[i]);
   }
 
@@ -224,6 +233,8 @@ void layout_init(Canvas* new_canvas) {
  *     pointer to canvas
  */
 Canvas* layout_get_canvas(void) { return canvas; }
+
+uint32_t layout_get_generation(void) { return layout_generation; }
 
 /*
  * call_leaving_handler() - Call leaving handler
@@ -324,10 +335,26 @@ void layout_standard_notification(const char* str1, const char* str2,
  * OUTPUT
  *     none
  */
+/* Frame drawn for RUNTIME_ICON — a loaded clear-sign identity logo. Set by
+ * layout_set_runtime_icon() before the confirm; the caller owns the storage. */
+static const AnimationFrame* runtime_icon_frame = NULL;
+
+void layout_set_runtime_icon(const struct AnimationFrame_* frame) {
+  runtime_icon_frame = frame;
+}
+
 void layout_add_icon(IconType type) {
   switch (type) {
     case ETHEREUM_ICON:
+    /* The ETH glyph doubles as the "verified" mark. */
+    case VERIFIED_ICON:
       draw_bitmap_mono_rle(canvas, get_ethereum_icon_frame(), false);
+      break;
+
+    case RUNTIME_ICON:
+      if (runtime_icon_frame) {
+        draw_bitmap_mono_rle(canvas, runtime_icon_frame, false);
+      }
       break;
 
     default:
@@ -679,6 +706,8 @@ void layout_clear(void) {
 void layout_clear_static(void) {
   if (!canvas) return;
 
+  layout_generation++;
+
   display_constant_power(false);
 
   memset(canvas->buffer, 0, canvas->width * canvas->height);
@@ -706,11 +735,15 @@ static const char* _otpStr = "";
  * OTP in large font desc - text to display permil - progress in units of 1 to
  * 1000 OUTPUT none
  */
-void animating_progress_handler(const char* desc, int permil) {
+/* Render WITHOUT clearing the animation queue, so a callback can redraw itself.
+ * marker_phase: 0..999 glint on the fill's leading edge; -1 for none. */
+static void progress_render_ex(const char* desc, int permil, int marker_phase) {
   if (!canvas) return;
 
-  call_leaving_handler();
-  layout_clear();
+  layout_clear_static();
+#if DEBUG_LINK
+  layout_debuglink_watermark();
+#endif
 
   permil = permil >= 1000 ? 1000 : permil;
   permil = permil <= 0 ? 0 : permil;
@@ -775,7 +808,35 @@ void animating_progress_handler(const char* desc, int permil) {
     draw_box(canvas, &bp);
   }
 
+  // Front glint: the fill's leading segment breathes while the trickle runs.
+  if (marker_phase >= 0 && finished_width > 4) {
+    const uint32_t glint_max = 10;
+    uint32_t glint_w =
+        finished_width - 2 < glint_max ? finished_width - 2 : glint_max;
+    /* Triangle wave 0..500..0 over one breath period. */
+    uint32_t tri = (uint32_t)marker_phase < 500 ? (uint32_t)marker_phase
+                                                : 1000 - (uint32_t)marker_phase;
+    bp.width = glint_w;
+    bp.height = height - 2;
+    bp.base.x = x + finished_width - glint_w;
+    bp.base.y = y + 1;
+    bp.base.color = (uint8_t)(0x44 + (tri * 0x66) / 500);
+    draw_box(canvas, &bp);
+  }
+
   display_refresh();
+}
+
+static void progress_render(const char* desc, int permil) {
+  progress_render_ex(desc, permil, -1);
+}
+
+/* Clears queued animations first, so none can redraw over this screen. */
+void animating_progress_handler(const char* desc, int permil) {
+  if (!canvas) return;
+  call_leaving_handler();
+  layout_clear_animations();
+  progress_render(desc, permil);
 }
 
 void layoutProgress(const char* desc, int permil) {
@@ -818,6 +879,66 @@ void layout_add_animation(AnimateCallback callback, void* data,
   animation_queue_push(&active_queue, animation);
 }
 
+/* Trickle progress while the host generates Zcash zk-proofs: ramps toward,
+ * never reaching, the next real milestone. Pumped from usbPoll() only while
+ * trickle_active. */
+static volatile bool trickle_active = false;
+static struct {
+  const char* desc;
+  int base;   /* permil committed by the last real milestone */
+  int target; /* permil to ease toward (the next milestone) */
+} trickle;
+
+static void trickle_progress_callback(void* data, uint32_t duration,
+                                      uint32_t elapsed) {
+  (void)data;
+  (void)duration;
+  /* Ramp to 90% of the span over a guessed ~45s, then hold: only a REAL
+   * milestone crosses the last 10%. EXPECTED_MS is a guess, not measured. */
+  const uint32_t EXPECTED_MS = 45000;
+  int span = trickle.target - trickle.base;
+  int cap = (span * 9) / 10;
+  int add = 0;
+  if (cap > 0) {
+    add = elapsed >= EXPECTED_MS
+              ? cap
+              : (int)(((uint64_t)cap * elapsed) / EXPECTED_MS);
+  }
+  const uint32_t BREATH_PERIOD = 1600; /* ms per dim<->bright breath cycle */
+  int phase = (int)(((elapsed % BREATH_PERIOD) * 1000) / BREATH_PERIOD);
+  progress_render_ex(trickle.desc, trickle.base + add, phase);
+}
+
+/* (Re-)arm the trickle from base_permil toward target_permil. */
+void layoutProgressTrickle(const char* desc, int base_permil,
+                           int target_permil) {
+  trickle.desc = desc;
+  trickle.base = base_permil;
+  trickle.target = target_permil;
+  trickle_active = true;
+  layout_add_animation(&trickle_progress_callback, NULL, 0 /* loop forever */);
+  force_animation_start();
+  /* First frame now, before the timer fires. */
+  progress_render_ex(desc, base_permil, 0);
+}
+
+void layoutProgressTrickleStop(void) {
+  trickle_active = false;
+  Animation* animation =
+      animation_queue_get(&active_queue, &trickle_progress_callback);
+  if (animation != NULL) {
+    animation_queue_push(&free_queue, animation);
+  }
+}
+
+/* Called from usbPoll(); a no-op unless trickle_active. */
+void layout_animate_poll(void) {
+  if (trickle_active && is_animating()) {
+    animate();
+    display_refresh();
+  }
+}
+
 /*
  * layout_clear_animations() - Clear all animation from queue
  *
@@ -827,6 +948,7 @@ void layout_add_animation(AnimateCallback callback, void* data,
  *     none
  */
 void layout_clear_animations(void) {
+  trickle_active = false;
   Animation* animation = animation_queue_pop(&active_queue);
 
   while (animation != NULL) {
