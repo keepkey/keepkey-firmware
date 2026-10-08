@@ -49,6 +49,15 @@ TEST(Ripple, AddressEncodeDecode) {
 
   EXPECT_EQ(std::string(address), "rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN");
 
+  /* A non-positive output size is refused before anything is written. */
+  for (int bad_size : {0, -1}) {
+    char sentinel[56];
+    memset(sentinel, 0x5a, sizeof(sentinel));
+    EXPECT_EQ(0, ripple_encode_check(buff, 21, HASHER_SHA2D, sentinel,
+                                     bad_size));
+    for (char c : sentinel) ASSERT_EQ(0x5a, c);
+  }
+
   uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
   memset(addr_raw, 0, sizeof(addr_raw));
   uint32_t addr_raw_len =

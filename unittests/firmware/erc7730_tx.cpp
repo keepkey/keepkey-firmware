@@ -72,3 +72,18 @@ TEST(Erc7730TxContinuation, RejectsCorruptEncodingAndScrubsOutput) {
   const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&restored);
   for (size_t i = 0; i < sizeof(restored); ++i) EXPECT_EQ(bytes[i], 0);
 }
+
+// An empty or oversized continuation is refused like a corrupt one: the
+// output is scrubbed, never left holding a previous transaction.
+TEST(Erc7730TxContinuation, RejectsInvalidLengthAndScrubsOutput) {
+  for (size_t length :
+       {size_t(0), sizeof(Erc7730TxContinuation::encoded) + 1}) {
+    Erc7730TxContinuation continuation{};
+    continuation.length = length;
+    EthereumSignTx restored;
+    memset(&restored, 0xaa, sizeof(restored));
+    EXPECT_FALSE(erc7730_tx_continuation_restore(&continuation, &restored));
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&restored);
+    for (size_t i = 0; i < sizeof(restored); ++i) ASSERT_EQ(bytes[i], 0);
+  }
+}

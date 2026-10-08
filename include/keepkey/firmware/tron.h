@@ -62,8 +62,20 @@ TronTxType tron_parseRawTx(const uint8_t* raw, size_t len, TronParsedTx* out);
 bool tron_addressFromBytes(const uint8_t addr[TRON_RAW_ADDRESS_SIZE], char* out,
                            size_t out_len);
 
-/* TRC-20 amount in raw base units (decimals unknown on-device). */
-bool tron_formatTrc20Amount(const uint8_t amount_be[32], char* buf, size_t len);
+/* A TRC-20 contract from the vetted table (scripts/tron_tokens.json). */
+typedef struct {
+  uint8_t contract[TRON_RAW_ADDRESS_SIZE];
+  const char* symbol;
+  uint8_t decimals;
+} TronToken;
+
+/* The trusted token at this contract address, or NULL. */
+const TronToken* tron_knownToken(const uint8_t contract[TRON_RAW_ADDRESS_SIZE]);
+
+/* TRC-20 amount in raw base units, or in token units with the symbol when
+ * token is non-NULL. */
+bool tron_formatTrc20Amount(const uint8_t amount_be[32], const TronToken* token,
+                            char* buf, size_t len);
 
 /**
  * Generate TRON address from secp256k1 public key

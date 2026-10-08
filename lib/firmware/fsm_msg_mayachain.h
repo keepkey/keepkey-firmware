@@ -373,10 +373,21 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     memset(node_str, 0, sizeof(node_str));
   }
 
+  /* fee_amount is in base units; show it in whole coins, as the amount
+     screens do. The raw count overstated it 10^8-fold for RUNE. */
+  char fee_str[32];
+  if (!mayachain_formatAmount(sign_tx->fee_amount, "cacao", fee_str,
+                              sizeof(fee_str))) {
+    mayachain_signAbort();
+    fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid fee amount");
+    layoutHome();
+    return;
+  }
+
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign %s on %s? Fee: %" PRIu32 " cacao. Gas: %" PRIu32 ".",
-               msg->has_send ? coin_denom : "CACAO", sign_tx->chain_id,
-               sign_tx->fee_amount, sign_tx->gas)) {
+               "Sign %s on %s? Fee: %s. Gas: %" PRIu32 ".",
+               msg->has_send ? coin_denom : "CACAO", sign_tx->chain_id, fee_str,
+               sign_tx->gas)) {
     mayachain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();

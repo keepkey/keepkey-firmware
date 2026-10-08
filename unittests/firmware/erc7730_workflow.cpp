@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
+#include <vector>
+
 extern "C" {
 #include "keepkey/firmware/erc7730_workflow.h"
 }
@@ -203,4 +206,98 @@ TEST(Erc7730Workflow, ResolvesNegativeTypedArrayIndexFromStreamedLength) {
   ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, last_element_path, 3,
                                               value, sizeof(value)));
   EXPECT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+}
+
+// f(address to, bytes data) with the embedded call `inner` as data: run the
+// pass that locates it, as a calldata formatter's first argument does.
+static bool locateEmbedded(Erc7730Workflow* workflow,
+                           const std::vector<uint8_t>& inner) {
+  *workflow = Erc7730Workflow{};
+  workflow->phase = ERC7730_WORKFLOW_READY;
+  workflow->loader.abi_started = true;
+  workflow->loader.index.complete = true;
+  workflow->loader.abi.complete = true;
+  workflow->loader.abi.node_count = 3;
+  workflow->loader.abi.nodes[0].kind = ERC7730_ABI_TUPLE;
+  workflow->loader.abi.nodes[0].first_child = 1;
+  workflow->loader.abi.nodes[0].child_count = 2;
+  workflow->loader.abi.nodes[1].kind = ERC7730_ABI_ADDRESS;
+  workflow->loader.abi.nodes[2].kind = ERC7730_ABI_BYTES;
+  workflow->field.kind = 13;
+  workflow->field.pending_role = 1;
+
+  std::vector<uint8_t> args(64 + 32, 0);
+  args[31] = 0x11;  // to
+  args[63] = 64;    // data offset
+  args[94] = (uint8_t)(inner.size() >> 8);
+  args[95] = (uint8_t)inner.size();
+  args.insert(args.end(), inner.begin(), inner.end());
+  args.resize(args.size() + (32 - inner.size() % 32) % 32, 0);
+
+  EthereumSignTx tx{};
+  tx.has_data_length = true;
+  tx.data_length = 4 + args.size();
+  tx.has_data_initial_chunk = true;
+  tx.data_initial_chunk.size = 4;
+  if (!erc7730_tx_continuation_capture(&workflow->continuation, &tx))
+    return false;
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 1;
+  return erc7730_workflow_restore_and_start_capture(workflow, &tx, &path) &&
+         erc7730_workflow_calldata_feed(workflow, args.data(), args.size()) ==
+             ERC7730_ABI_OK &&
+         erc7730_workflow_calldata_finish(workflow) == ERC7730_ABI_OK &&
+         erc7730_workflow_field_embedded(workflow);
+}
+
+static std::vector<uint8_t> innerApprove(uint8_t amount_byte) {
+  std::vector<uint8_t> call = {0x09, 0x5e, 0xa7, 0xb3};
+  call.resize(68, 0);
+  for (size_t i = 16; i < 36; i++) call[i] = 0x22;  // spender
+  for (size_t i = 36; i < 68; i++) call[i] = amount_byte;
+  return call;
+}
+
+// An embedded approve() gets the top-level policy: 2^256-1 is flagged for
+// the UNLIMITED warning with its full spender, a finite amount is not, and a
+// dirty spender word is refused.
+TEST(Erc7730Workflow, EmbeddedApproveIsClassifiedLikeATopLevelOne) {
+  Erc7730Workflow workflow{};
+  ASSERT_TRUE(locateEmbedded(&workflow, innerApprove(0xff)));
+  EXPECT_TRUE(workflow.field.unlimited_approve);
+  const uint8_t spender[20] = {0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22,
+                               0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22,
+                               0x22, 0x22, 0x22, 0x22, 0x22, 0x22};
+  EXPECT_EQ(0, memcmp(workflow.field.approve_spender, spender, 20));
+  EXPECT_EQ(workflow.field.inner_selector_length, 4u);
+  EXPECT_EQ(workflow.field.inner_length, 68u);
+
+  auto almost = innerApprove(0xff);
+  almost[67] = 0xfe;
+  ASSERT_TRUE(locateEmbedded(&workflow, almost));
+  EXPECT_FALSE(workflow.field.unlimited_approve);
+  ASSERT_TRUE(locateEmbedded(&workflow, innerApprove(0x01)));
+  EXPECT_FALSE(workflow.field.unlimited_approve);
+
+  // Trailing bytes do not hide it, as they do not at the top level.
+  auto longer = innerApprove(0xff);
+  longer.resize(100, 0xab);
+  ASSERT_TRUE(locateEmbedded(&workflow, longer));
+  EXPECT_TRUE(workflow.field.unlimited_approve);
+  EXPECT_EQ(workflow.field.inner_length, 100u);
+
+  auto dirty = innerApprove(0xff);
+  dirty[15] = 1;  // pre-0.8 tokens mask it and still grant the allowance
+  EXPECT_FALSE(locateEmbedded(&workflow, dirty));
+
+  // Another call keeps only its selector.
+  auto transfer = innerApprove(0xff);
+  transfer[0] = 0xa9;
+  ASSERT_TRUE(locateEmbedded(&workflow, transfer));
+  EXPECT_FALSE(workflow.field.unlimited_approve);
+  EXPECT_EQ(workflow.field.inner_selector[0], 0xa9);
 }

@@ -109,6 +109,22 @@ static bool authParseUint(const char* text, uint32_t maximum, uint32_t* out) {
   return true;
 }
 
+/* Start of a 30 s TOTP step as "YYYY-MM-DD HH:MM:SS" UTC (civil-from-days,
+ * proleptic Gregorian). 32-bit only: a step counter fits without overflow. */
+static void authFormatStep(uint32_t step, char* out, size_t len) {
+  const uint32_t days = step / 2880, secs = (step % 2880) * 30;
+  const uint32_t z = days + 719468, era = z / 146097, doe = z % 146097;
+  const uint32_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+  const uint32_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+  const uint32_t mp = (5 * doy + 2) / 153;
+  const uint32_t month = mp < 10 ? mp + 3 : mp - 9;
+  snprintf(out, len, "%04lu-%02lu-%02lu %02lu:%02lu:%02lu",
+           (unsigned long)(era * 400 + yoe + (month <= 2)),
+           (unsigned long)month, (unsigned long)(doy - (153 * mp + 2) / 5 + 1),
+           (unsigned long)(secs / 3600), (unsigned long)(secs / 60 % 60),
+           (unsigned long)(secs % 60));
+}
+
 #if DEBUG_LINK
 static unsigned _otpSlot = 0;
 void getAuthSlot(char* authSlotData) {
@@ -336,20 +352,24 @@ unsigned generateOTP(char* accountWithMsg, char otpStr[]) {
 
   snprintf(otp_candidate, sizeof(otp_candidate), "%06u", otp);
   snprintf(otp_display, sizeof(otp_display), "%06u", otp);
-  if (!review_immediate(ButtonRequestType_ButtonRequest_Other, "display OTP",
-                        "Press button to display OTP")) {
+  /* The step counter is host input and the device has no clock, so show which
+   * account and which 30 s window the code is for: a step the user's own
+   * clock does not match (e.g. a future one) is visible before release. */
+  char step_display[24];
+  authFormatStep(tIntervalVal, step_display, sizeof(step_display));
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Show OTP",
+               "Account: %.*s:%.*s\nTime: %s UTC", DOMAIN_SIZE - 1,
+               authData[slot].domain, ACCOUNT_SIZE - 1, authData[slot].account,
+               step_display)) {
     result = CANCELED;
     goto cleanup;
   }
 
-  // Check to see if user needs to regenerate OTP
+  // Too little of the window left to use the code: release nothing.
   uint32_t elapsed = (getSysTime() - t0) / 1000;
   if (elapsed >= tRemainVal || tRemainVal - elapsed < 4) {
-    if (!review_immediate(ButtonRequestType_ButtonRequest_Other, "OTP Timeout",
-                          "OTP time slice timed out, regenerate OTP")) {
-      result = CANCELED;
-      goto cleanup;
-    }
+    result = OTPTIMEOUT;
+    goto cleanup;
   } else {
     strncpy(account_display, authData[slot].domain, DOMAIN_SIZE);
     strcat(account_display, " ");

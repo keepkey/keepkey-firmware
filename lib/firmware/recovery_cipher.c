@@ -415,6 +415,11 @@ void recovery_cipher_redraw(void) {
   render_current_cipher(false);
 }
 
+void recovery_cipher_prev_word_info(char* buf, size_t len, uint32_t word_pos,
+                                    const char* word) {
+  snprintf(buf, len, "%" PRIu32 ".%s", word_pos, word);
+}
+
 static void render_current_cipher(bool animate_cipher) {
   /* Redraw the SAME cipher; next_character() would invalidate the one the
    * user is reading. */
@@ -440,12 +445,12 @@ static void render_current_cipher(bool animate_cipher) {
                       &formatted_word_scratch);
   memzero(current_word_scratch, sizeof(current_word_scratch));
 
-  /* Format previous word indicator (e.g. "(1.alcohol)" when entering word 2) */
+  /* Format previous word indicator (e.g. "1.alcohol" when entering word 2) */
   char prev_info[32];
   prev_info[0] = '\0';
   if (word_pos > 0 && last_completed_word[0]) {
-    snprintf(prev_info, sizeof(prev_info), "(%" PRIu32 ".%s)", word_pos,
-             last_completed_word);
+    recovery_cipher_prev_word_info(prev_info, sizeof(prev_info), word_pos,
+                                   last_completed_word);
   }
 
   layout_cipher(formatted_word_scratch, cipher, prev_info, animate_cipher);

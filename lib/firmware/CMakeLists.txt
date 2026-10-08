@@ -66,6 +66,11 @@ endif()
 # Zcash shielded/Orchard engine -- transparent Zcash needs none of this.
 if(${KK_ZCASH_PRIVACY})
   list(APPEND sources zcash.c)
+  # Match the portable ChaCha context layout in deps/crypto. Its public
+  # rfc7539.h also includes ecrypt-config.h, whose SSE/MMX alignment headers
+  # are unavailable in the emulator image's clang toolchain.
+  set_source_files_properties(zcash.c
+      PROPERTIES COMPILE_OPTIONS "-U__SSE__;-U__MMX__")
 endif()
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scm_revision.h.in"
@@ -82,14 +87,17 @@ add_dependencies(kkfirmware kktransport.pb trezorcrypto qrcodegenerator ethereum
 
 set(ETHEREUM_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens)
 set(UNISWAP_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/uniswap_tokens)
+set(TRON_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/tron_tokens)
 
 add_custom_target(ethereum_tokens.def
-  BYPRODUCTS ${ETHEREUM_TOKENS}.def ${UNISWAP_TOKENS}.def
+  BYPRODUCTS ${ETHEREUM_TOKENS}.def ${UNISWAP_TOKENS}.def ${TRON_TOKENS}.def
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
   COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def
   COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/uniswap_tokens.py ${UNISWAP_TOKENS}.def
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/tron_tokens.py
+          ${CMAKE_SOURCE_DIR}/scripts/tron_tokens.json ${TRON_TOKENS}.def
   COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/verify-token-def.py
-          ${ETHEREUM_TOKENS}.def ${UNISWAP_TOKENS}.def
+          ${ETHEREUM_TOKENS}.def ${UNISWAP_TOKENS}.def ${TRON_TOKENS}.def
   COMMENT "Generating and verifying firmware token tables")
 
 add_library(kkfirmware.keepkey variant/keepkey/resources.c)

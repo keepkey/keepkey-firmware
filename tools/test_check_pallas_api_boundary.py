@@ -2,7 +2,9 @@
 
 import unittest
 
-from check_pallas_api_boundary import PALLAS_CT_INCLUDE, forbid, function_body, require
+from check_pallas_api_boundary import (GUARDED, PALLAS_CT_INCLUDE,
+                                       check_wide_reductions, forbid,
+                                       function_body, require, source)
 
 
 class ConditionalCompilation(unittest.TestCase):
@@ -59,6 +61,17 @@ class ConditionalCompilation(unittest.TestCase):
                 forbid(call, "pallas_add_mod_q(", "f")
         forbid("pallas_ct_add_mod_q(x)", "pallas_add_mod_q(", "f")
 
+    def test_function_reference_cannot_satisfy_required_call(self):
+        for body in ("(void)pallas_ct_add_mod_q;",
+                     "operation = pallas_ct_add_mod_q; operation(x);",
+                     "operation = &pallas_ct_add_mod_q;"):
+            with self.subTest(body=body):
+                with self.assertRaises(AssertionError):
+                    require(body, "pallas_ct_add_mod_q", "f")
+        for body in ("pallas_ct_add_mod_q(x);",
+                     "pallas_ct_add_mod_q \n (x);"):
+            require(body, "pallas_ct_add_mod_q", "f")
+
     def test_include_of_the_ct_header_is_found_in_every_spelling(self):
         for line in ('#include "pallas_ct.h"', "#include <pallas_ct.h>",
                      '#include "trezor/crypto/pallas_ct.h"',
@@ -100,6 +113,37 @@ class EnclosingConditionals(unittest.TestCase):
         source = ("#if 0\nvoid old(void) {}\n#endif\n#if ZCASH_PRIVACY\n"
                   "void sign(void) {\n  g();\n}\n#endif\n")
         require(function_body(source, "sign"), "g()", "sign")
+
+
+class WideReductions(unittest.TestCase):
+    """Substitutions in the real zcash.c that the old prefix check passed."""
+
+    ZCASH = source("lib/firmware/zcash.c")
+
+    def substituted(self, function, old, new):
+        start = self.ZCASH.index("static void {}(".format(function))
+        end = self.ZCASH.index("\n}\n", start)
+        body = self.ZCASH[start:end]
+        self.assertIn(old, body)
+        return self.ZCASH[:start] + body.replace(old, new) + self.ZCASH[end:]
+
+    def test_shipped_reductions_pass(self):
+        check_wide_reductions(self.ZCASH)
+
+    def test_variable_time_reduction_is_refused(self):
+        for function, field in (("to_scalar", "q"), ("to_base", "p")):
+            for operation in ("mod_", "mul_mod_", "add_mod_"):
+                ct = "pallas_ct_{}{}(".format(operation, field)
+                with self.subTest(function=function, operation=ct):
+                    with self.assertRaises(AssertionError):
+                        check_wide_reductions(self.substituted(
+                            function, ct, ct.replace("pallas_ct_", "pallas_")))
+
+    def test_full_names_are_guarded_against_aliases(self):
+        check_wide_reductions(self.ZCASH)
+        for name in ("pallas_ct_mod_q", "pallas_mod_q", "pallas_ct_mod_p",
+                     "pallas_mod_p"):
+            self.assertIn(name, GUARDED)
 
 
 if __name__ == "__main__":

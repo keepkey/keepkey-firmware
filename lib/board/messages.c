@@ -34,7 +34,8 @@ static const MessagesMap_t* MessagesMap = NULL;
 static size_t map_size = 0;
 static msg_failure_t msg_failure;
 /* A tiny receive failure has already answered the suspended handler. Keep
- * its unwind from producing another reply or waiting for another prompt. */
+ * its unwind from producing another reply or waiting for another prompt.
+ * Cleared at the start of each tiny poll and around each normal frame. */
 static bool tiny_handler_rejected;
 static uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(8)));
 
@@ -166,6 +167,8 @@ __attribute__((weak)) bool keepkey_before_message_dispatch(MessageType msg_id) {
   return true;
 }
 
+/* Firmware samples its auto-lock clock here; board-only targets have none. */
+__attribute__((weak)) void keepkey_idle_clock_sample(void) {}
 __attribute__((weak)) void keepkey_after_message_dispatch(void) {}
 
 /*
@@ -479,6 +482,21 @@ void handle_usb_rx(const void* msg, size_t len) {
   }
 }
 
+bool msg_set_tiny(bool set) {
+  const bool previous = msg_tiny_flag;
+  msg_tiny_flag = set;
+  /* Back at top level no handler is suspended: a rejection answered while in
+   * tiny mode must not suppress later replies. */
+  if (!set) tiny_handler_rejected = false;
+  return previous;
+}
+
+bool msg_take_tiny_rejection(void) {
+  const bool rejected = tiny_handler_rejected;
+  tiny_handler_rejected = false;
+  return rejected;
+}
+
 #if DEBUG_LINK
 void handle_debug_usb_rx(const void* msg, size_t len) {
   if (msg_tiny_flag) {
@@ -506,15 +524,22 @@ static MessageType tiny_msg_poll_and_buffer(bool block, uint8_t* buf) {
   msg_tiny_id = MSG_TINY_TYPE_ERROR;
   tiny_handler_rejected = false;
   msg_tiny_flag = true;
+  /* A confirm, PIN, passphrase or dice prompt is waiting. U2F frames get the
+   * busy reply meanwhile: a U2F session started here would draw over this
+   * prompt and could take its button press as U2F presence. Trezor's
+   * protectButton() does the same with usbTiny(1). */
+  const char u2f_tiny = usbTiny(1);
 
   while (msg_tiny_id == MSG_TINY_TYPE_ERROR && !tiny_handler_rejected) {
     usbPoll();
+    keepkey_idle_clock_sample();
 
     if (!block) {
       break;
     }
   }
 
+  usbTiny(u2f_tiny);
   msg_tiny_flag = false;
 
   if (tiny_handler_rejected) {

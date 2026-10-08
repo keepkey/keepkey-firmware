@@ -48,43 +48,111 @@ static void thor_format_to_addr(const EthereumSignTx* msg, char out[41]) {
   out[40] = '\0';
 }
 
-bool thor_isMayachainTx(const EthereumSignTx* msg) {
-  if (!msg->has_to || msg->to.size != 20) return false;
-  /* MAYA_ROUTER is a mainnet identity; other chains may hold attacker code. */
-  if (!msg->has_chain_id || msg->chain_id != 1) return false;
-  if (!thor_has_deposit_selector(msg)) return false;
+/* Which router contract a pin is. The two families disagree on the two words
+ * this decoder narrates, so the screens and refusals depend on it:
+ *   CLASSIC (THORChain_Router on ETH/BSC, MAYAChain_Router, Maya ArbRouter):
+ *     depositWithExpiry() requires block.timestamp < expiration, so 0 always
+ *     reverts; a native deposit forwards msg.value and ignores the amount.
+ *   V6 (THORChain_RouterV6 on Avalanche and Base): expiration 0 means no
+ *     expiry; a native deposit requires msg.value == amount or reverts. */
+typedef enum { THOR_KIND_CLASSIC, THOR_KIND_V6 } ThorRouterKind;
+
+/* Routers pinned by (chain_id, address). Each address is an identity on ONE
+ * chain; the same address elsewhere may hold unrelated attacker code, so a
+ * host-selected chain_id cannot borrow the trusted router UX, and no chain_id
+ * means no router: a pin is never inherited from a default. */
+typedef struct {
+  uint32_t chain_id;
+  const char* address;
+  ThorRouterKind kind;
+} ThorRouterPin;
+
+static const ThorRouterPin thor_router_pins[] = {
+    {1, THOR_ROUTER, THOR_KIND_CLASSIC},      /* Ethereum */
+    {43114, THOR_ROUTER_AVAX, THOR_KIND_V6},  /* Avalanche C-Chain */
+    {56, THOR_ROUTER_BSC, THOR_KIND_CLASSIC}, /* BNB Smart Chain */
+    {8453, THOR_ROUTER_BASE, THOR_KIND_V6},   /* Base */
+};
+
+static const ThorRouterPin maya_router_pins[] = {
+    {1, MAYA_ROUTER, THOR_KIND_CLASSIC},         /* Ethereum */
+    {42161, MAYA_ROUTER_ARB, THOR_KIND_CLASSIC}, /* Arbitrum One */
+};
+
+static const ThorRouterPin* thor_find_pin(const ThorRouterPin* pins, size_t n,
+                                          const EthereumSignTx* msg) {
+  if (!msg->has_to || msg->to.size != 20 || !msg->has_chain_id) return NULL;
   char toStr[41];
   thor_format_to_addr(msg, toStr);
-  return strncmp(toStr, MAYA_ROUTER, 40) == 0;
+  for (size_t i = 0; i < n; i++) {
+    if (pins[i].chain_id == msg->chain_id &&
+        strncmp(toStr, pins[i].address, 40) == 0) {
+      return &pins[i];
+    }
+  }
+  return NULL;
 }
 
-/* Router pinned by (chain_id, address), or NULL (blind-sign gate). No
- * chain_id means no router: a pin is never inherited from a default. */
-static const char* thor_router_for_chain(const EthereumSignTx* msg) {
-  if (!msg->has_chain_id) return NULL;
-  switch (msg->chain_id) {
-    case 1:
-      return THOR_ROUTER; /* Ethereum */
-    case 43114:
-      return THOR_ROUTER_AVAX; /* Avalanche C-Chain */
-    default:
-      return NULL;
-  }
+static const ThorRouterPin* thor_thor_pin(const EthereumSignTx* msg) {
+  return thor_find_pin(thor_router_pins,
+                       sizeof(thor_router_pins) / sizeof(thor_router_pins[0]),
+                       msg);
+}
+
+static const ThorRouterPin* thor_maya_pin(const EthereumSignTx* msg) {
+  return thor_find_pin(maya_router_pins,
+                       sizeof(maya_router_pins) / sizeof(maya_router_pins[0]),
+                       msg);
+}
+
+bool thor_isMayachainTx(const EthereumSignTx* msg) {
+  return thor_has_deposit_selector(msg) && thor_maya_pin(msg) != NULL;
 }
 
 bool thor_isThorchainTx(const EthereumSignTx* msg) {
-  if (!msg->has_to || msg->to.size != 20) return false;
-  if (!thor_has_deposit_selector(msg)) return false;
   /* Pin to the THORChain router FOR THIS CHAIN. Without the pin, ANY contract
    * carrying the deposit selector would get the THORChain clear-sign UX and
    * bypass the AdvancedMode blind-sign gate, letting an attacker contract
    * drain funds while the device shows a benign deposit. Without the chain
    * scope, only mainnet deposits ever match (the AVAX->ETH blind-sign bug). */
-  const char* router = thor_router_for_chain(msg);
-  if (!router) return false;
-  char toStr[41];
-  thor_format_to_addr(msg, toStr);
-  return strncmp(toStr, router, 40) == 0;
+  return thor_has_deposit_selector(msg) && thor_thor_pin(msg) != NULL;
+}
+
+const char* thor_depositRefusal(const EthereumSignTx* msg) {
+  if (!thor_has_deposit_selector(msg)) return NULL;
+  const ThorRouterPin* pin = thor_thor_pin(msg);
+  if (!pin) pin = thor_maya_pin(msg);
+  if (!pin) return NULL;
+  const uint8_t* d = msg->data_initial_chunk.bytes;
+  const size_t size = msg->data_initial_chunk.size;
+
+  if (pin->kind == THOR_KIND_V6) {
+    /* RouterV6 _executeTransfer(): require(msg.value == amount) for the native
+     * asset. Every real host sends amount == value; anything else, including
+     * amount 0, can only revert. Token deposits are unaffected. */
+    if (size < 4 + 3 * 32 || memcmp(d + 4 + 32 + 12, ETH_ADDRESS, 20) != 0) {
+      return NULL;
+    }
+    bignum256 amount, value;
+    bn_from_bytes(d + 4 + 2 * 32, 32, &amount);
+    bn_from_bytes(msg->value.bytes, msg->value.size, &value);
+    if (!bn_is_equal(&amount, &value)) {
+      return "Router would revert: native amount must equal value";
+    }
+    return NULL;
+  }
+
+  /* Classic routers: require(block.timestamp < expiration), so expiry 0 can
+   * only revert. No real host (Pioneer, KeepKey Desktop, xchainjs, SwapKit,
+   * ShapeShift) sends it; they all send a future timestamp. */
+  if (thor_is_expiry_variant(msg) && size >= 4 + 5 * 32) {
+    const uint8_t* expiry_word = d + 4 + 4 * 32;
+    for (size_t i = 0; i < 32; i++) {
+      if (expiry_word[i] != 0) return NULL;
+    }
+    return "Router would revert: deposit expiry is 0";
+  }
+  return NULL;
 }
 
 static bool thor_confirm_deposit_tx(uint32_t data_total,
@@ -92,6 +160,10 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
                                     const char* protocol_label,
                                     const char* router_label) {
   (void)data_total;
+
+  /* ethereum.c refuses these with their reason before dispatching here; this
+   * keeps the decoder from narrating a deposit its router can only revert. */
+  if (thor_depositRefusal(msg)) return false;
 
   /* Head through memo_length: 4 + 5*32 = 164 (deposit), +32 = 196 with
    * expiry. Exact memo bounds are enforced below. */
@@ -158,7 +230,9 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
   const bool is_native = memcmp(contractAssetAddress, ETH_ADDRESS, 20) == 0;
   bignum256 Value;
   bn_from_bytes(msg->value.bytes, msg->value.size, &Value);
-  char amountStr[41];
+  /* Worst case: 2^256 - 1 is 78 digits, plus a '.' or " unformatted" and
+   * the ticker; 41 bytes refused every amount of 29 digits or more. */
+  char amountStr[96];
   const TokenType* assetToken = NULL;
   bool is_unknown = false;
   if (is_native) {
@@ -187,6 +261,22 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     }
   }
 
+  /* The native branch above shows msg.value, but the ABI amount word is signed
+   * too. A classic router ignores it for native deposits, so it moves nothing,
+   * but two calldatas differing only in that word must not render identically.
+   * Every host we know of (Pioneer, KeepKey Desktop, xchainjs, SwapKit,
+   * ShapeShift) sends amount == value; 0 is the other harmless encoding. Show
+   * any other word rather than refuse it, formatted before any approval. A V6
+   * router never gets here with a mismatch: thor_depositRefusal() refused it
+   * above, because V6 reverts unless amount == value. */
+  char routerAmountStr[96];
+  const bool show_router_amount =
+      is_native && !bn_is_zero(&Amount) && !bn_is_equal(&Amount, &Value);
+  if (show_router_amount &&
+      !ethereumFormatAmount(&Amount, NULL, msg->chain_id, routerAmountStr,
+                            sizeof(routerAmountStr)))
+    return false;
+
   /* depositWithExpiry() carries a fifth head word the deposit() variant does
    * not: the expiry. It was validated into the length arithmetic and signed,
    * but no screen ever named it, so a host could pick any 256-bit value while
@@ -201,6 +291,7 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
    * screen at all -- it reads as "already expired" when it means the
    * opposite. */
   char expiry_str[21] = {0};
+  bool no_expiry = false;
   if (is_expiry) {
     const uint8_t* expiry_word = msg->data_initial_chunk.bytes + 4 + 4 * 32;
     for (size_t i = 0; i < 24; i++) {
@@ -211,15 +302,15 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
       expiry = (expiry << 8) | expiry_word[i];
     }
 
+    /* 0 reaches here only on a V6 router, where it means no expiry;
+     * thor_depositRefusal() refused it above on the routers it reverts on. */
+    no_expiry = expiry == 0;
+
     char tmp[21];
     int len = 0;
-    if (expiry == 0) {
-      tmp[len++] = '0';
-    } else {
-      while (expiry > 0 && len < (int)sizeof(tmp)) {
-        tmp[len++] = (char)('0' + (int)(expiry % 10));
-        expiry /= 10;
-      }
+    while (expiry > 0 && len < (int)sizeof(tmp)) {
+      tmp[len++] = (char)('0' + (int)(expiry % 10));
+      expiry /= 10;
     }
     for (int i = 0; i < len; i++) {
       expiry_str[i] = tmp[len - 1 - i];
@@ -228,10 +319,9 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
 
   // Start confirmations
   thor_format_to_addr(msg, confStr);
-  const char* thor_router = thor_router_for_chain(msg);
-  if (thor_router && strncmp(confStr, thor_router, 40) == 0) {
+  if (thor_thor_pin(msg)) {
     conf = "Thorchain router";
-  } else if (strncmp(confStr, MAYA_ROUTER, 40) == 0) {
+  } else if (thor_maya_pin(msg)) {
     conf = router_label;
   } else {
     conf = confStr;
@@ -269,9 +359,20 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     }
   }
 
-  if (is_expiry && !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                            protocol_label, "Expiry epoch %s", expiry_str)) {
+  if (show_router_amount &&
+      !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Router amount",
+               "%s (ignored by router; value sent: %s)", routerAmountStr,
+               amountStr)) {
     return false;
+  }
+
+  if (is_expiry) {
+    const bool ok =
+        no_expiry ? confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                            protocol_label, "No expiry")
+                  : confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                            protocol_label, "Expiry epoch %s", expiry_str);
+    if (!ok) return false;
   }
 
   const ThorchainMemoResult memo_result =

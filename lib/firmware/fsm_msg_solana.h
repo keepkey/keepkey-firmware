@@ -331,7 +331,7 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       char to_str[45];
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Withdraw %s\nto %s?", amount_str, to_str);
+                     "Withdraw %s to %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_STAKE_AUTHORIZE: {
@@ -343,7 +343,7 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
       const char* role = pi->extra_u8 == 0 ? "staker" : "withdrawer";
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Authorize %s\nto %s?", role, auth_str);
+                     "Authorize %s to %s?", role, auth_str);
     }
 
     case SOL_INSTR_STAKE_SPLIT: {
@@ -355,7 +355,7 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       char to_str[45];
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Split %s\nto %s?", amount_str, to_str);
+                     "Split %s to %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_STAKE_DEACTIVATE:
@@ -384,7 +384,7 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       solana_pubkeyToStr(pi->extra, auth_str, sizeof(auth_str));
       const char* role = pi->extra_u8 == 0 ? "voter" : "withdrawer";
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Authorize vote %s\nto %s?", role, auth_str);
+                     "Authorize vote %s to %s?", role, auth_str);
     }
 
     case SOL_INSTR_VOTE_WITHDRAW: {
@@ -396,7 +396,7 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
       char to_str[45];
       solana_pubkeyToStr(pi->to, to_str, sizeof(to_str));
       return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
-                     "Withdraw vote %s\nto %s?", amount_str, to_str);
+                     "Withdraw vote %s to %s?", amount_str, to_str);
     }
 
     case SOL_INSTR_VOTE_UPDATE_VALIDATOR: {
@@ -673,6 +673,17 @@ static bool solana_confirm_schema(const SolanaSignTx* msg,
     }
   }
 
+  /* solana_schemaApplies admits Memo companions; swap intents and
+   * destinations ride in them, so page each one in full. The compute-budget
+   * companions only bound the priority fee shown next. */
+  for (uint8_t i = 0; i < parsed->num_instructions; i++) {
+    if (parsed->instructions[i].type == SOL_INSTR_MEMO &&
+        !solana_confirmInstruction(&parsed->instructions[i], msg, i,
+                                   parsed->num_instructions)) {
+      return false;
+    }
+  }
+
   return solana_confirm_priority_fee(
       parsed, parsed->num_accounts > 0 ? parsed->accounts[0] : NULL);
 }
@@ -893,9 +904,9 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
     }
 
     /* KKSOLSW1 runtime LUT description: annotation only (SRS R-1.3); the
-     * blind-sign warning still follows. Only a message whose lookup tables
-     * load accounts has any to describe. */
-    if (lut_well_formed && lut_n > 0 && parsed.num_loaded_accounts > 0 &&
+     * blind-sign warning still follows. It is shown only when it lists every
+     * account the lookup tables load; a partial list would mislead. */
+    if (lut_well_formed && solana_lut_attestation_complete(&parsed, lut_n) &&
         msg->has_lut_signature && msg->has_lut_signer_key_id &&
         solana_lut_accounts_trusted(
             msg->raw_tx.bytes, msg->raw_tx.size,

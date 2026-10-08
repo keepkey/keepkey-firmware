@@ -63,9 +63,12 @@ void fsm_msgHiveGetPublicKey(const HiveGetPublicKey* msg) {
           break;
       }
     }
-    // NOT confirm_ethereum_address(): it silently clips a 53-54 char key.
-    if (!confirm(ButtonRequestType_ButtonRequest_Address, role_label, "%s",
-                 public_key)) {
+    /* An STM key outgrows the address layout's text area, which truncates
+     * silently; confirm_bytes() pages it so every character is shown, and the
+     * QR follows on its own screen. */
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Address, role_label,
+                       (const uint8_t*)public_key, strlen(public_key)) ||
+        !confirm_qr(role_label, public_key)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled, _("Cancelled"));
       layoutHome();
       return;

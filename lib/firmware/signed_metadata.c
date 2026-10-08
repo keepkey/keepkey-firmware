@@ -787,15 +787,15 @@ static bool signed_metadata_confirm_screens(void) {
 
   /* Screen 2: Contract address — ALWAYS show full address, never truncate.
    * Truncation is a spoofing vector (attacker crafts matching prefix+suffix).
-   */
+   * The title stays fixed: a 64-char method name wraps over the body, and the
+   * Call screen above already shows it in full. */
   char contract_addr[43] = "0x";
   ethereum_address_checksum(stored_metadata.contract_address, contract_addr + 2,
                             false, stored_metadata.chain_id);
   memset(body, 0, sizeof(body));
   snprintf(body, sizeof(body), "Contract:\n%s", contract_addr);
   if (!confirm_with_icon(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                         screen_icon, stored_metadata.method_name, "%s",
-                         body)) {
+                         screen_icon, "Clearsign", "%s", body)) {
     return false;
   }
 
@@ -894,8 +894,7 @@ static bool signed_metadata_confirm_screens(void) {
           snprintf(body, sizeof(body), "%s (%u/%u):\n%s", arg->name,
                    (unsigned)(page + 1), (unsigned)(pages ? pages : 1), hex);
           if (!confirm_with_icon(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                                 screen_icon, stored_metadata.method_name, "%s",
-                                 body)) {
+                                 screen_icon, "Clearsign", "%s", body)) {
             return false;
           }
         }
@@ -904,8 +903,7 @@ static bool signed_metadata_confirm_screens(void) {
     }
 
     if (!confirm_with_icon(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                           screen_icon, stored_metadata.method_name, "%s",
-                           body)) {
+                           screen_icon, "Clearsign", "%s", body)) {
       return false;
     }
   }

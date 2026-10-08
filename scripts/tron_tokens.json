@@ -1,0 +1,29 @@
+{
+  "_comment": "Trusted TRC-20 contracts the firmware clear-signs transfers for. Add a token only with its issuer's own publication of the mainnet address, and symbol/decimals read from the contract itself (symbol(), decimals()). Symbols must be unique: a second contract under a known label could pass as the real token. Excluded on purpose: USDD OLD (TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn, same on-chain symbol as USDD 2.0, superseded) and USDC (Circle ended TRON support).",
+  "tokens": [
+    {
+      "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+      "symbol": "USDT",
+      "decimals": 6,
+      "name": "Tether USD",
+      "issuer_source": "https://tether.to/en/supported-protocols/",
+      "chain_check": "symbol()=USDT decimals()=6 via api.trongrid.io, 2026-10-06"
+    },
+    {
+      "address": "TXDk8mbtRbXeYuMNS83CfKPaYYT8XWv9Hz",
+      "symbol": "USDD",
+      "decimals": 18,
+      "name": "USDD 2.0",
+      "issuer_source": "https://docs.usdd.io/developers/deployment-addresses",
+      "chain_check": "symbol()=USDD decimals()=18 via api.trongrid.io, 2026-10-06"
+    },
+    {
+      "address": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",
+      "symbol": "WTRX",
+      "decimals": 6,
+      "name": "Wrapped TRX",
+      "issuer_source": "https://www.sunswap.com/docs/sunswapV2-interfaces_en.pdf (WTRX quote_id)",
+      "chain_check": "symbol()=WTRX decimals()=6 via api.trongrid.io, 2026-10-06"
+    }
+  ]
+}

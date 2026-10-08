@@ -27,6 +27,7 @@
 #include "trezor/crypto/secp256k1.h"
 #include "trezor/crypto/sha3.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #define TRON_ADDRESS_PREFIX 0x41  // Mainnet addresses start with 'T'
@@ -89,11 +90,29 @@ bool tron_addressFromBytes(const uint8_t addr[TRON_RAW_ADDRESS_SIZE], char* out,
                              out_len);
 }
 
-bool tron_formatTrc20Amount(const uint8_t amount_be[32], char* buf,
-                            size_t len) {
+static const TronToken TRON_TOKENS[] = {
+#define X(CONTRACT, SYMBOL, DECIMALS) {CONTRACT, SYMBOL, DECIMALS},
+#include "keepkey/firmware/tron_tokens.def"
+#undef X
+};
+
+const TronToken* tron_knownToken(
+    const uint8_t contract[TRON_RAW_ADDRESS_SIZE]) {
+  for (size_t i = 0; i < sizeof(TRON_TOKENS) / sizeof(TRON_TOKENS[0]); i++) {
+    if (memcmp(TRON_TOKENS[i].contract, contract, TRON_RAW_ADDRESS_SIZE) == 0)
+      return &TRON_TOKENS[i];
+  }
+  return NULL;
+}
+
+bool tron_formatTrc20Amount(const uint8_t amount_be[32], const TronToken* token,
+                            char* buf, size_t len) {
+  char suffix[12];
+  if (token) snprintf(suffix, sizeof(suffix), " %s", token->symbol);
   bignum256 val;
   bn_read_be(amount_be, &val);
-  return bn_format(&val, NULL, NULL, 0, 0, false, buf, len);
+  return bn_format(&val, NULL, token ? suffix : NULL,
+                   token ? token->decimals : 0, 0, false, buf, len);
 }
 
 /* raw_data parser: the device signs sha256(raw_data), so display comes from

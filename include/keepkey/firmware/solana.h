@@ -180,6 +180,8 @@ typedef struct {
   uint8_t recent_blockhash[SOL_PUBKEY_SIZE];
   uint8_t num_instructions;
   SolanaParsedInstruction instructions[SOL_MAX_INSTRUCTIONS];
+  /* v0 message carries an address-table section (KKSOLSC1 refuses it). */
+  bool has_lookup_tables;
   /* Addresses a v0 message's lookup tables load (writable + readonly); 0 for
    * legacy and zero-LUT messages. */
   uint32_t num_loaded_accounts;
@@ -202,8 +204,8 @@ typedef struct {
 /* ── KKSOLSC1: reusable instruction schemas, attested once per (program,
  * discriminator); values are decoded from the signed bytes. Safety is
  * structural completeness: disc + arg widths == data length EXACTLY; every
- * displayed account index exists; no lookup table; every OTHER instruction is
- * one firmware already recognises.
+ * displayed account index exists; no address-table section; every OTHER
+ * instruction is a compute-budget or Memo companion.
  *
  * Canonical payload (every numeric field is one byte; text printable ASCII,
  * no '%'). The 8-byte instruction arguments it describes (U64, LAMPORTS,
@@ -235,7 +237,7 @@ typedef enum {
   SOL_SCHEMA_ARG_U64 = 1,          /* 8 bytes, shown as a decimal integer */
   SOL_SCHEMA_ARG_U8 = 2,           /* 1 byte */
   SOL_SCHEMA_ARG_PUBKEY = 3,       /* 32 bytes, shown base58 */
-  SOL_SCHEMA_ARG_OPAQUE32 = 4,     /* 32 bytes, shown truncated hex */
+  SOL_SCHEMA_ARG_OPAQUE32 = 4,     /* 32 bytes, paged in full as hex */
   SOL_SCHEMA_ARG_LAMPORTS = 5,     /* 8 bytes, shown as SOL */
   SOL_SCHEMA_ARG_TOKEN_AMOUNT = 6, /* 8 bytes; mint is an ix account */
   SOL_SCHEMA_ARG_DURATION = 7,     /* 8-byte seconds */
@@ -340,6 +342,10 @@ uint64_t solana_defaultComputeUnitLimit(const SolanaParsedTx* tx);
  *
  * message = the bytes the device signs. Runtime signer: annotation only, the
  * caller still runs the unverified review. */
+/// True iff an attestation listing `attested` accounts covers every account the
+/// message's lookup tables load, so "describes N account(s)" is complete.
+bool solana_lut_attestation_complete(const SolanaParsedTx* tx, size_t attested);
+
 bool solana_lut_accounts_trusted(const uint8_t* raw_tx, size_t raw_len,
                                  const uint8_t (*accounts)[32],
                                  size_t num_accounts, uint32_t signer_key_id,

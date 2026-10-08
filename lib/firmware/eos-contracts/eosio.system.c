@@ -30,6 +30,8 @@
 #include "keepkey/firmware/home_sm.h"
 
 #include "messages-eos.pb.h"
+#include "trezor/crypto/base58.h"
+#include "trezor/crypto/ripemd160.h"
 
 #include <inttypes.h>
 #include <stdbool.h>
@@ -434,9 +436,24 @@ bool eos_compileActionVoteProducer(const EosActionCommon* common,
   return true;
 }
 
+// The hashed key type must match what the user is shown. A derived key is
+// K1 (type 0). A raw key is K1, shown as EOS..., or R1 (type 1), shown as
+// PUB_R1_...; WebAuthn keys (type 2) are not 33 bytes.
 static bool eos_authorizationKeyValid(const EosAuthorizationKey* key) {
-  return (key->key.size == 33 && key->address_n_count == 0) ||
-         (key->key.size == 0 && key->address_n_count != 0);
+  return (key->key.size == 33 && key->address_n_count == 0 && key->type <= 1) ||
+         (key->key.size == 0 && key->address_n_count != 0 && key->type == 0);
+}
+
+static bool eos_r1PublicKeyToString(const uint8_t* key, char* out, size_t len) {
+  uint8_t data[33 + 4];
+  uint8_t digest[RIPEMD160_DIGEST_LENGTH];
+  memcpy(data, key, 33);
+  memcpy(data + 33, "R1", 2);
+  ripemd160(data, 35, digest);
+  memcpy(data + 33, digest, 4);
+  size_t b58len = len - 7;
+  strlcpy(out, "PUB_R1_", len);
+  return b58enc(out + 7, &b58len, data, sizeof(data));
 }
 
 static size_t eos_hashAuthorization(Hasher* h, const EosAuthorization* auth) {
@@ -566,8 +583,11 @@ static bool confirmArbitraryAuthorization(const char* title,
 
     char pubkey[MAX(65, NODE_STRING_LENGTH)];
     if (auth_key->key.size != 0) {
-      if (!eos_publicKeyToWif(auth_key->key.bytes, EosPublicKeyKind_EOS, pubkey,
-                              sizeof(pubkey))) {
+      if (auth_key->type == 1
+              ? !eos_r1PublicKeyToString(auth_key->key.bytes, pubkey,
+                                         sizeof(pubkey))
+              : !eos_publicKeyToWif(auth_key->key.bytes, EosPublicKeyKind_EOS,
+                                    pubkey, sizeof(pubkey))) {
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         "Cannot encode pubkey");
         eos_signingAbort();

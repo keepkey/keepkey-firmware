@@ -21,8 +21,11 @@ extern "C" {
 
 bool kkconfirm_preload(int nYes, int nNo);
 int kkconfirm_drain(void);
+bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload, uint8_t len);
 
 extern "C" bool keepkey_before_message_dispatch(MessageType msg_id);
+extern "C" void recovery_review_reset_cipher_draws(void);
+extern "C" unsigned recovery_review_cipher_draws(void);
 
 static void ensure_recovery_storage_ready(void) {
   static bool ready = false;
@@ -119,6 +122,7 @@ TEST(Recovery, FailedRngVerdictRefusesTheCipherAndDisarms) {
   storage_wipe();
   storage_reset();
 
+  recovery_review_reset_cipher_draws();
   rng_health_force_verdict(false);
   recovery_cipher_init(/*word_count=*/12, /*passphrase_protection=*/false,
                        /*pin_protection=*/false, "english", "spaces",
@@ -127,6 +131,8 @@ TEST(Recovery, FailedRngVerdictRefusesTheCipherAndDisarms) {
   rng_health_force_verdict(true);
   EXPECT_FALSE(setup_isArmed())
       << "a failed RNG verdict must not leave a recovery ceremony armed";
+  EXPECT_EQ(0u, recovery_review_cipher_draws())
+      << "the cipher must never be rendered, even briefly before aborting";
   (void)kkconfirm_drain();
 
   ASSERT_TRUE(kkconfirm_preload(1, 0));
@@ -135,6 +141,8 @@ TEST(Recovery, FailedRngVerdictRefusesTheCipherAndDisarms) {
                        /*enforce_wordlist=*/false, /*auto_lock_delay_ms=*/0,
                        /*u2f_counter=*/0, /*dry_run=*/false);
   EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY)) << "control: healthy RNG arms";
+  EXPECT_EQ(1u, recovery_review_cipher_draws())
+      << "control: the observer must see the healthy recovery screen";
   recovery_cipher_abort();
   (void)kkconfirm_drain();
   storage_wipe();
@@ -198,6 +206,103 @@ TEST(Recovery, UnrelatedTransportFailureKeepsCurrentCipherVisible) {
   layoutHomeForced();
 }
 
+// GetCoinTable passes the dispatch gate during a ceremony. A malformed one is
+// refused without drawing home over the cipher, and recovery stays armed.
+TEST(Recovery, MalformedGetCoinTableKeepsTheCipher) {
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  ensure_recovery_storage_ready();
+  setup_abort();
+  recovery_cipher_init(/*word_count=*/12, /*passphrase_protection=*/false,
+                       /*pin_protection=*/false, "english", "recovery",
+                       /*enforce_wordlist=*/true, /*auto_lock_delay_ms=*/0,
+                       /*u2f_counter=*/0, /*dry_run=*/false);
+  ASSERT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
+  const Canvas* canvas = layout_get_canvas();
+  ASSERT_NE(nullptr, canvas);
+  for (int frame = 0; frame < 20; ++frame) {
+    force_animation_start();
+    animate();
+  }
+  const size_t bytes = canvas->width * canvas->height;
+  bool cipher_drawn = false;
+  for (size_t y = 0; y < canvas->height; ++y) {
+    for (size_t x = CIPHER_START_X; x < canvas->width; ++x) {
+      cipher_drawn |= canvas->buffer[y * canvas->width + x] != 0;
+    }
+  }
+  ASSERT_TRUE(cipher_drawn);
+  std::vector<uint8_t> cipher_before(canvas->buffer, canvas->buffer + bytes);
+
+  GetCoinTable unpaired = {};  // start without end
+  unpaired.has_start = true;
+  GetCoinTable out_of_range = {};
+  out_of_range.has_start = true;
+  out_of_range.has_end = true;
+  out_of_range.start = 0xffffffff;
+  out_of_range.end = 0xffffffff;
+  for (GetCoinTable* bad : {&unpaired, &out_of_range}) {
+    ASSERT_TRUE(
+        keepkey_before_message_dispatch(MessageType_MessageType_GetCoinTable));
+    fsm_test_clearLastFailure();
+    fsm_msgGetCoinTable(bad);
+    for (int frame = 0; frame < 20; ++frame) {
+      force_animation_start();
+      animate();
+    }
+    EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+    EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
+    EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+    EXPECT_EQ(cipher_before,
+              std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
+        << "a malformed GetCoinTable drew over the recovery cipher";
+  }
+
+  setup_abort();
+  (void)kkconfirm_drain();
+  layoutHomeForced();
+}
+
+// The same over an armed reset: whatever the ceremony left on screen stays.
+TEST(Recovery, MalformedGetCoinTableKeepsAnArmedResetScreen) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  ensure_recovery_storage_ready();
+  setup_abort();
+  ASSERT_TRUE(setup_stage(false, "english", "reset", 0, 0, false));
+  setup_arm(SETUP_RESET);
+  ASSERT_TRUE(setup_isArmedAs(SETUP_RESET));
+  layout_simple_message("Reset armed");
+  const Canvas* canvas = layout_get_canvas();
+  ASSERT_NE(nullptr, canvas);
+  for (int frame = 0; frame < 20; ++frame) {
+    force_animation_start();
+    animate();
+  }
+  ASSERT_EQ(AWAY_FROM_HOME, home_get_state());
+  const size_t bytes = canvas->width * canvas->height;
+  std::vector<uint8_t> screen_before(canvas->buffer, canvas->buffer + bytes);
+
+  GetCoinTable unpaired = {};
+  unpaired.has_start = true;
+  ASSERT_TRUE(
+      keepkey_before_message_dispatch(MessageType_MessageType_GetCoinTable));
+  fsm_test_clearLastFailure();
+  fsm_msgGetCoinTable(&unpaired);
+  for (int frame = 0; frame < 20; ++frame) {
+    force_animation_start();
+    animate();
+  }
+  EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+  EXPECT_TRUE(setup_isArmedAs(SETUP_RESET));
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+  EXPECT_EQ(screen_before,
+            std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
+      << "a malformed GetCoinTable drew home over an armed reset";
+
+  setup_abort();
+  (void)kkconfirm_drain();
+  layoutHomeForced();
+}
+
 // A plain Ping or a second ceremony start during recovery is answered without
 // hiding the cipher, and a signing request ends the ceremony instead of
 // running beside it.
@@ -242,9 +347,43 @@ TEST(Recovery, UnrelatedRequestsKeepTheCipherAndSigningEndsTheCeremony) {
             std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
       << "a refused RecoveryDevice must not draw home over the cipher";
 
+  // Requests that would draw over the ceremony are refused untouched.
+  EXPECT_FALSE(
+      keepkey_before_message_dispatch(MessageType_MessageType_GetAddress));
+  EXPECT_FALSE(
+      keepkey_before_message_dispatch(MessageType_MessageType_GetPublicKey));
+  Ping protected_ping = {};
+  protected_ping.has_button_protection = true;
+  protected_ping.button_protection = true;
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  fsm_msgPing(&protected_ping);
+  EXPECT_EQ(0, kkconfirm_drain()) << "no prompt may be drawn mid-ceremony";
+  // An authenticator Ping is PIN-gated: refused, never served.
+  Ping auth_ping = {};
+  auth_ping.has_message = true;
+  std::strcpy(auth_ping.message, "\x17getAccount:0");
+  kkconfirm_sendTiny(MessageType_MessageType_Cancel, nullptr, 0);
+  fsm_test_clearLastFailure();
+  fsm_msgPing(&auth_ping);
+  EXPECT_EQ(FailureType_Failure_UnexpectedMessage, fsm_test_lastFailureCode())
+      << "an authenticator Ping was handled mid-ceremony";
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  (void)kkconfirm_drain();
+  for (int frame = 0; frame < 20; ++frame) {
+    force_animation_start();
+    animate();
+  }
+  EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
+  EXPECT_EQ(cipher_before,
+            std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes))
+      << "a refused request must leave the cipher on screen";
+  // Requests that end the ceremony still reach their handlers.
+  EXPECT_TRUE(
+      keepkey_before_message_dispatch(MessageType_MessageType_Initialize));
+
 #if !BITCOIN_ONLY
-  EXPECT_TRUE(keepkey_before_message_dispatch(
-      MessageType_MessageType_EthereumSignTx));
+  EXPECT_TRUE(
+      keepkey_before_message_dispatch(MessageType_MessageType_EthereumSignTx));
   EXPECT_FALSE(setup_isArmed())
       << "a signing request must end the ceremony, not run beside it";
 #endif
@@ -267,8 +406,8 @@ void recovery_review_previous_after_delete(const char*, char*);
 TEST(Recovery, DeleteKeepsTypedCipherCharactersNotTheCurrentMapping) {
   char coded[12], decoded[12];
   // "ab" remains of word "abc", typed as "qwe" under per-character ciphers.
-  EXPECT_FALSE(recovery_review_delete_resync("zoo ab", "qwe", false, coded,
-                                             decoded));
+  EXPECT_FALSE(
+      recovery_review_delete_resync("zoo ab", "qwe", false, coded, decoded));
   EXPECT_STREQ("qw", coded);  // recomputing from the identity would be "ab"
   EXPECT_STREQ("ab", decoded);
 
@@ -305,4 +444,22 @@ TEST(Recovery, DeleteAcrossWordBoundaryShowsTheWordBeforeTheEditedOne) {
   EXPECT_STREQ("abandon", previous);
   recovery_review_previous_after_delete("zoo", previous);  // first word
   EXPECT_STREQ("", previous);
+}
+
+// The previous-word indicator must stay on one line: a wrapped second line
+// lands on "Recovery Cipher:".
+TEST(Recovery, PrevWordIndicatorFitsOneLine) {
+  const Font* font = get_body_font();
+  char info[32];
+  int overflows = 0;
+  for (uint32_t pos = 1; pos <= 24; pos++) {
+    for (int i = 0; wordlist[i]; i++) {
+      recovery_cipher_prev_word_info(info, sizeof(info), pos, wordlist[i]);
+      uint32_t width = calc_str_width(font, info);
+      if (width > CIPHER_PREV_WORD_WIDTH) {
+        if (overflows++ < 5) ADD_FAILURE() << info << " is " << width << " px";
+      }
+    }
+  }
+  EXPECT_EQ(0, overflows);
 }
