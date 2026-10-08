@@ -14,3 +14,7 @@ bool test_eos_standard_authorization(const EosAuthorization* auth) {
 bool test_eos_authorization_key_valid(const EosAuthorizationKey* key) {
   return eos_authorizationKeyValid(key);
 }
+
+bool test_eos_r1_key_string(const uint8_t* key, char* out, size_t len) {
+  return eos_r1PublicKeyToString(key, out, len);
+}

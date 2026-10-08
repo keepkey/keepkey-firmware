@@ -191,11 +191,19 @@ class TestStack10Disclosure(Erc7730Harness, common.KeepKeyTest):
             self.assertEqual(retried.signature_r, baseline.signature_r)
             self.assertEqual(retried.signature_s, baseline.signature_s)
 
-    def test_unlimited_approval_and_disabled_advanced_mode_still_refuse(self):
-        result, buttons, _, _ = self._walk(self._tx(True, (1 << 256) - 1))
+    def test_unlimited_approval_warns_and_raw_signing_requires_advanced_mode(self):
+        tx = self._tx(True, (1 << 256) - 1)
+        # Unlimited approvals are allowed after the explicit warning. Pin its
+        # spender and unknown token contract, and prove it cannot be bypassed
+        # by declining the first screen.
+        self._signed(tx)
+        self.assertEqual(self._first_pages()[0], (
+            "UNLIMITED approval", "Allow 0x" + "24" * 20 +
+            " to spend ALL your 0x" + "42" * 20))
+        result, buttons, _, _ = self._walk(tx, cancel_button=1)
         assert_failure(self, result, types.Failure_ActionCancelled,
-                       "Unlimited ERC20 approval is disabled")
-        self.assertEqual(buttons, 0)
+                       "Signing cancelled by user")
+        self.assertEqual(buttons, 1)
         self.client.apply_policy("AdvancedMode", 0)
         result, _, _, _ = self._walk(self._tx())
         assert_failure(self, result, types.Failure_ActionCancelled,

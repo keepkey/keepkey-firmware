@@ -22,6 +22,7 @@ REPORT_GENERATOR = (
 REPORT_DIR = ROOT / "test-report"
 REPORT_PDF = REPORT_DIR / "test-report.pdf"
 MERGED_JUNIT = REPORT_DIR / "junit-merged.xml"
+BTC_MERGED_JUNIT = REPORT_DIR / "junit-merged-bitcoin-only.xml"
 
 BASE_REQUIRED_CASES = {
     "DiceCeremonyPrivacy.Mixed128DerivationAndDevicePagesUseIndependentFixture",
@@ -48,6 +49,22 @@ BASE_REQUIRED_CASES = {
     "test_msg_recoverydevice_cipher.TestDeviceRecovery."
     "test_unknown_word_count_failure_aborts_recovery",
 }
+
+# Bitcoin-only must pass the base controls too. Its set is BASE_REQUIRED_CASES
+# minus the cases below, each absent from that product by design; the chain
+# sets (RIPPLE/EVM/OSMOSIS/HIVE) are full-only and never apply to it.
+BITCOIN_ONLY_EXCLUDED_BASE_CASES = dict(
+    [("Ethereum.StructuredEip712IsDisabledForPointRelease",
+      "Ethereum is compiled out of bitcoin-only; the native case does not exist")] +
+    [("EmulatorLifecycle." + name,
+      "emulator harness, run once by python-dylib-tests on the full build")
+     for name in (
+         "OverflowPreservesUnreadFramesAndRetriesDroppedFrame",
+         "ConcurrentCaptureNeverTearsOrReordersUnreadSlots",
+         "ShutdownStopsPollThreadAndAllowsRestart",
+         "ShutdownWakesConfirmationWaitingForHostDecision")])
+BITCOIN_ONLY_REQUIRED_CASES = (
+    BASE_REQUIRED_CASES - set(BITCOIN_ONLY_EXCLUDED_BASE_CASES))
 
 RIPPLE_REQUIRED_CASES = {"Ripple.TruncatedBufferFailsWithoutWritingPastEnd"}
 
@@ -135,7 +152,7 @@ _STACK10_EVM = [
         "test_transfer_account_keeps_raw_review_and_recipient_binding",
         "test_transfer_account_padded_zero_keeps_contract_review",
         "test_transfer_account_rejects_noncanonical_total_length",
-        "test_unlimited_approval_and_disabled_advanced_mode_still_refuse",
+        "test_unlimited_approval_warns_and_raw_signing_requires_advanced_mode",
     )]
 
 _STACK12_HIVE = [
@@ -333,7 +350,7 @@ def case_status(testcase):
     return "pass"
 
 
-def merge_junit(paths):
+def merge_junit(paths, output=None):
     root = ET.Element("testsuites")
     cases = []
     inputs = []
@@ -367,7 +384,7 @@ def merge_junit(paths):
             "sha256": sha256_file(path),
         })
     ET.ElementTree(root).write(
-        MERGED_JUNIT, xml_declaration=True, encoding="unicode")
+        output or MERGED_JUNIT, xml_declaration=True, encoding="unicode")
     return cases, inputs
 
 
@@ -386,7 +403,7 @@ def firmware_version_tuple():
 # Every Features.Capability the firmware can report (device-protocol), as the
 # names capability-gated python-keepkey tests skip with.
 KNOWN_CAPABILITIES = frozenset((
-    "entropy-audit-budget", "erc20-unlimited-approve-review",
+    "eip712-chunked-values", "entropy-audit-budget", "erc20-unlimited-approve-review",
     "erc20-unlimited-permit-review", "erc7730-runtime-review",
     "evm-certified-intent", "evm-max-amount-review", "evm-tx-metadata",
     "evm-unknown-token-review", "hive-release-review",
@@ -395,6 +412,7 @@ KNOWN_CAPABILITIES = frozenset((
     "ripple-memo-policy", "session-trust-lifetime", "solana-certified-review",
     "solana-lut-attestation", "solana-runtime-review", "storage-v19-kdf",
     "tendermint-progress", "safe-reset-ceremony", "thor-deposit-review",
+    "tron-trc20-review",
 ))
 
 
@@ -417,6 +435,97 @@ def release_missing_capabilities(cases):
         fail("capability skips name unknown capabilities: %s" %
              ", ".join(repr(name) for name in unknown))
     return missing_capabilities
+
+
+# What each release must report, per product. Defined here, reviewed with the
+# release, and NOT read from the firmware: a build that drops a capability
+# from its own list must not also drop it from what the release requires.
+# Capabilities of later releases (e.g. 7.16's permit2-review) are absent.
+RELEASE_CAPABILITIES = {
+    "7.15.0": {
+        "bitcoin-only": frozenset((
+            "entropy-audit-budget", "prompt-workflow-unwind",
+            "protected-ping-presence", "safe-reset-ceremony",
+            "session-trust-lifetime",
+        )),
+        "full": frozenset((
+            "eip712-chunked-values", "entropy-audit-budget", "prompt-workflow-unwind",
+            "protected-ping-presence", "safe-reset-ceremony",
+            "session-trust-lifetime", "legacy-evm-router-signing",
+            "thor-deposit-review", "evm-max-amount-review",
+            "evm-unknown-token-review", "evm-tx-metadata",
+            "erc7730-runtime-review", "osmosis-wire-guards",
+            "ripple-memo-policy", "hive-release-review",
+            "solana-runtime-review", "maya-single-message",
+            "tendermint-progress", "tron-trc20-review",
+            "solana-lut-attestation",
+        )),
+    },
+}
+
+
+def release_capability_gaps(fw_version, product, missing):
+    """Required capabilities whose controls were skipped. None when this
+    version has no release list, which release.yml also refuses."""
+    required = RELEASE_CAPABILITIES.get(fw_version, {}).get(product)
+    if required is None:
+        return None
+    return sorted(required & missing)
+
+
+CENSUS_TEST = "test_firmware_capabilities.TestFirmwareCapabilities.test_"
+SUPPORTS_FLAG_SKIP = re.compile(r"Firmware does not report (supports_\w+)$")
+# Device feature flags that belong to a capability. A test can pass the
+# capability gate and still skip on the flag (requires_solana_lut_attestation),
+# and that skip carries no capability prefix.
+SUPPORTS_FLAG_CAPABILITY = {
+    "supports_solana_lut_attestation": "solana-lut-attestation",
+}
+
+
+def release_control_gaps(fw_version, product, cases):
+    """Everything that keeps this product's required capabilities from
+    counting as tested; None when the version has no release list.
+
+    Absence of a capability skip is not evidence, so each required
+    capability's census test must appear once and pass. A test that skipped on
+    a device flag is a gap unless the flag belongs to a capability this
+    product does not require; an unmapped flag is a gap (fail closed).
+    """
+    gaps = release_capability_gaps(
+        fw_version, product, release_missing_capabilities(cases))
+    if gaps is None:
+        return None
+    required = RELEASE_CAPABILITIES[fw_version][product]
+    for capability in sorted(required):
+        census = CENSUS_TEST + capability.replace("-", "_")
+        found = [case["status"] for case in cases
+                 if canonical_case_name(case) == census or
+                 canonical_case_name(case).endswith("." + census)]
+        if found != ["pass"]:
+            gaps.append("census %s: %s" % (capability, found or "missing"))
+    for case in cases:
+        match = SUPPORTS_FLAG_SKIP.match(case["skip_reason"])
+        if case["status"] != "skip" or match is None:
+            continue
+        capability = SUPPORTS_FLAG_CAPABILITY.get(match.group(1))
+        if capability is None or capability in required:
+            gaps.append("%s skipped: %s" % (
+                canonical_case_name(case), match.group(1)))
+    return gaps
+
+
+def bitcoin_only_control_gaps(cases):
+    """Bitcoin-only failures and BITCOIN_ONLY_REQUIRED_CASES not passing."""
+    gaps = ["failed: " + canonical_case_name(case) for case in cases
+            if case["status"] in ("fail", "error")]
+    passed = {canonical_case_name(case) for case in cases
+              if case["status"] == "pass"}
+    gaps += ["not passing: " + required
+             for required in sorted(BITCOIN_ONLY_REQUIRED_CASES)
+             if not any(name == required or name.endswith("." + required)
+                        for name in passed)]
+    return gaps
 
 
 def validate_cases(cases):
@@ -643,9 +752,9 @@ def validate_arm_manifests(arm_dir, firmware_sha, python_sha):
     return manifests
 
 
-def require_native_junit(root):
+def require_native_junit(root, product_dir=Path("test-reports")):
     """Require each native suite before discovering any additional XML inputs."""
-    native_dir = Path(root) / "test-reports" / "firmware-unit"
+    native_dir = Path(root) / product_dir / "firmware-unit"
     required = ("firmware.xml", "board.xml", "crypto.xml")
     missing = [name for name in required
                if not (native_dir / name).is_file()
@@ -687,6 +796,16 @@ def main():
     validate_cases(cases)
     # The capabilities the firmware did not report, from the JUnit skips.
     missing_capabilities = release_missing_capabilities(cases)
+    # The bitcoin-only product's own evidence: its python suite and the same
+    # native suites the full product requires. Merged to its own file so the
+    # full product's merged JUnit (and so the PDF) is not overwritten.
+    btc_dir = Path("test-reports") / "bitcoin-only"
+    btc_junit = ROOT / btc_dir / "python-keepkey" / "junit.xml"
+    if not btc_junit.is_file():
+        fail("bitcoin-only JUnit missing: %s" % btc_junit)
+    btc_cases, btc_inputs = merge_junit(
+        [btc_junit] + require_native_junit(ROOT, btc_dir), BTC_MERGED_JUNIT)
+    btc_missing_capabilities = release_missing_capabilities(btc_cases)
     contract_inputs = validate_contract_junit(ROOT, missing_capabilities)
     contract_inputs += validate_native_contract_junit(ROOT, missing_capabilities)
 
@@ -771,6 +890,27 @@ def main():
             "contract_inputs": contract_inputs,
             "merged_sha256": sha256_file(MERGED_JUNIT),
             "skips": [case for case in cases if case["status"] == "skip"],
+        },
+        # A staged block may lack capabilities; a release may not.
+        # release.yml refuses evidence where this list is non-empty.
+        "missing_capabilities": sorted(missing_capabilities),
+        "missing_capabilities_bitcoin_only": sorted(btc_missing_capabilities),
+        # Required capabilities skipped (by prefix or by a device flag) or
+        # whose census test did not pass, per product.
+        "release_capability_gaps": {
+            "full": release_control_gaps(fw_version, "full", cases),
+            "bitcoin-only": release_control_gaps(
+                fw_version, "bitcoin-only", btc_cases),
+        },
+        # Base controls per product; release.yml refuses any entry. The full
+        # product's are enforced above (validate_cases), so it is empty here.
+        "required_controls": {
+            "full": [],
+            "bitcoin-only": bitcoin_only_control_gaps(btc_cases),
+        },
+        "bitcoin_only_junit": {
+            "inputs": btc_inputs,
+            "merged_sha256": sha256_file(BTC_MERGED_JUNIT),
         },
         "oled": {
             "frame_count": len(pngs),

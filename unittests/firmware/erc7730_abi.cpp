@@ -25,6 +25,16 @@ void bytes(std::vector<uint8_t>& out, const char* value) {
   out.resize((out.size() + 31) & ~size_t(31));
 }
 
+// The helper is public: a null output is refused, never written through.
+TEST(Erc7730Abi, NodeDynamicRefusesANullOutput) {
+  const Erc7730AbiNode nodes[] = {{ERC7730_ABI_STRING, 0, 0, 0, 0}};
+  const Erc7730AbiProgram p{nodes, 1, 0};
+  bool dynamic = false;
+  ASSERT_TRUE(erc7730_abi_node_dynamic(&p, 0, 0, &dynamic));
+  EXPECT_TRUE(dynamic);
+  EXPECT_FALSE(erc7730_abi_node_dynamic(&p, 0, 0, nullptr));
+}
+
 TEST(Erc7730Abi, ProgramMustBeAnExactForwardTree) {
   const Erc7730AbiNode unreachable[] = {
       {ERC7730_ABI_TUPLE, 0, 1, 1, 0},

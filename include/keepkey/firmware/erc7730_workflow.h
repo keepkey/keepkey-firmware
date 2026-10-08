@@ -73,6 +73,8 @@ typedef struct {
   uint8_t inner_selector[4];
   uint8_t inner_selector_length;
   uint8_t spender[20];
+  uint8_t approve_spender[20]; /* of an inner approve(spender, 2^256-1) */
+  bool unlimited_approve;
   bool has_inner;
   bool has_spender;
   uint8_t list_count;

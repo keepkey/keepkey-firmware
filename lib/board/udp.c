@@ -26,9 +26,9 @@
 #include "trezor/crypto/memzero.h"
 
 #include <stdint.h>
-#include <assert.h>
 
 extern usb_rx_callback_t user_rx_callback;
+extern usb_u2f_rx_callback_t user_u2f_rx_callback;
 
 #if DEBUG_LINK
 extern usb_rx_callback_t user_debug_rx_callback;
@@ -48,20 +48,17 @@ void usbPoll(void) {
   size_t len;
 
   int iface = 0;
+  /* As on hardware, the U2F tiny flag does not gate these interfaces: the
+   * message layer routes them to the tiny reader while a prompt waits. */
   if (0 < (len = emulatorSocketRead(&iface, buf, sizeof(buf)))) {
-    if (!tiny) {
-      if (iface == 0) {
-        user_rx_callback(&buf, len);
-      } else if (iface == 1) {
+    if (iface == 0) {
+      user_rx_callback(&buf, len);
+    } else if (iface == 1) {
 #if DEBUG_LINK
-        user_debug_rx_callback(&buf, len);
+      user_debug_rx_callback(&buf, len);
 #else
-        user_rx_callback(&buf, len);
+      user_rx_callback(&buf, len);
 #endif
-      }
-    } else {
-      assert(false && "not yet implemented");
-      // msg_read_tiny(msg.message, sizeof(msg.message));
     }
   }
   memzero(buf, sizeof(buf));
@@ -83,6 +80,11 @@ char usbTiny(char set) {
   char old = tiny;
   tiny = set;
   return old;
+}
+
+/* Test-only: deliver a frame as the U2F endpoint would on hardware. */
+void usb_test_receive_u2f(const U2FHID_FRAME* f) {
+  if (user_u2f_rx_callback) user_u2f_rx_callback(tiny, f);
 }
 
 #endif

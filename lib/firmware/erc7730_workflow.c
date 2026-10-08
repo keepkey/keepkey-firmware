@@ -980,15 +980,33 @@ bool erc7730_workflow_field_embedded(Erc7730Workflow* workflow) {
       workflow->field.pending_role != 1 || workflow->field.has_inner ||
       !workflow->calldata.capture_locate ||
       !erc7730_workflow_captured(workflow, &capture, &cls) ||
-      cls != ERC7730_CLASS_BYTES || capture.length > 4 ||
+      cls != ERC7730_CLASS_BYTES ||
+      capture.length > ERC7730_ABI_LOCATE_PREFIX ||
       workflow->calldata.located_length > UINT32_MAX ||
       workflow->calldata.located_offset > UINT32_MAX) {
     memzero(&capture, sizeof(capture));
     return false;
   }
   Erc7730Field* field = &workflow->field;
-  memcpy(field->inner_selector, capture.data, capture.length);
-  field->inner_selector_length = (uint8_t)capture.length;
+  /* An inner approve() gets the top-level policy (ethereum.c): a dirty
+   * spender word is refused, and 2^256-1 signs only after the UNLIMITED
+   * warning. */
+  if (capture.length == ERC7730_ABI_LOCATE_PREFIX &&
+      memcmp(capture.data, "\x09\x5e\xa7\xb3", 4) == 0) {
+    bool unlimited = true;
+    for (size_t i = 4; i < 68; i++) {
+      if (i < 16 && capture.data[i] != 0) {
+        memzero(&capture, sizeof(capture));
+        return false;
+      }
+      if (i >= 36) unlimited &= capture.data[i] == 0xff;
+    }
+    field->unlimited_approve = unlimited;
+    if (unlimited) memcpy(field->approve_spender, capture.data + 16, 20);
+  }
+  const size_t selector_length = capture.length < 4 ? capture.length : 4;
+  memcpy(field->inner_selector, capture.data, selector_length);
+  field->inner_selector_length = (uint8_t)selector_length;
   field->inner_length = (uint32_t)workflow->calldata.located_length;
   field->inner_offset = (uint32_t)workflow->calldata.located_offset;
   field->has_inner = true;

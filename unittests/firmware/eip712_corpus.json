@@ -1,0 +1,6968 @@
+[
+ {
+  "id": "permit2-PermitSingle",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitSingle": [
+     {
+      "name": "details",
+      "type": "PermitDetails"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "sigDeadline",
+      "type": "uint256"
+     }
+    ],
+    "PermitDetails": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint160"
+     },
+     {
+      "name": "expiration",
+      "type": "uint48"
+     },
+     {
+      "name": "nonce",
+      "type": "uint48"
+     }
+    ]
+   },
+   "primaryType": "PermitSingle",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 1,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "details": {
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "amount": "1000000",
+     "expiration": "1893456000",
+     "nonce": "0"
+    },
+    "spender": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+    "sigDeadline": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28",
+   "message_hash": "434404194ecf97fbcbf7e55f4bdd2ff1f78f0689ea793bda4b85c7e73060a815",
+   "digest": "8b4985b6263546864eb8921379708c29bf922304edf4fc0abe5e077f853a60b2"
+  }
+ },
+ {
+  "id": "permit2-PermitSingle-unlimited",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol",
+   "https://github.com/Uniswap/sdks/blob/main/sdks/permit2-sdk/src/constants.ts"
+  ],
+  "requires_capability": "erc20-unlimited-permit-review",
+  "unlimited_screen": "details.amount\nuint160: UNLIMITED",
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitSingle": [
+     {
+      "name": "details",
+      "type": "PermitDetails"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "sigDeadline",
+      "type": "uint256"
+     }
+    ],
+    "PermitDetails": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint160"
+     },
+     {
+      "name": "expiration",
+      "type": "uint48"
+     },
+     {
+      "name": "nonce",
+      "type": "uint48"
+     }
+    ]
+   },
+   "primaryType": "PermitSingle",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 1,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "details": {
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "amount": "1461501637330902918203684832716283019655932542975",
+     "expiration": "1778393946",
+     "nonce": "0"
+    },
+    "spender": "0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af",
+    "sigDeadline": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28",
+   "message_hash": "8cadbd22e396ba77b30a62c8219759ec221ed18cde6fe1c31204fb3d53c1ecf8",
+   "digest": "eb4da5f3381371818ca113f3f4697da6c5ee1bbb098effde0f8f399b208f7bd7"
+  }
+ },
+ {
+  "id": "permit2-PermitBatch",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitBatch": [
+     {
+      "name": "details",
+      "type": "PermitDetails[]"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "sigDeadline",
+      "type": "uint256"
+     }
+    ],
+    "PermitDetails": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint160"
+     },
+     {
+      "name": "expiration",
+      "type": "uint48"
+     },
+     {
+      "name": "nonce",
+      "type": "uint48"
+     }
+    ]
+   },
+   "primaryType": "PermitBatch",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 1,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "details": [
+     {
+      "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "amount": "1000000",
+      "expiration": "1893456000",
+      "nonce": "0"
+     },
+     {
+      "token": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+      "amount": "2000000",
+      "expiration": "1893456000",
+      "nonce": "1"
+     },
+     {
+      "token": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "amount": "3000000",
+      "expiration": "1893456000",
+      "nonce": "2"
+     },
+     {
+      "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "amount": "4000000",
+      "expiration": "1893456000",
+      "nonce": "3"
+     },
+     {
+      "token": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+      "amount": "5000000",
+      "expiration": "1893456000",
+      "nonce": "4"
+     }
+    ],
+    "spender": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+    "sigDeadline": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28",
+   "message_hash": "988853f08bc1888f09fc0fac97c129a5f79f8700da45e7135511753138073bb2",
+   "digest": "21b393815af1f64e893e0681d486fd4baf58532c1b079aa5d52a3d212fba7d31"
+  }
+ },
+ {
+  "id": "permit2-PermitBatch-20",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitBatch": [
+     {
+      "name": "details",
+      "type": "PermitDetails[]"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "sigDeadline",
+      "type": "uint256"
+     }
+    ],
+    "PermitDetails": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint160"
+     },
+     {
+      "name": "expiration",
+      "type": "uint48"
+     },
+     {
+      "name": "nonce",
+      "type": "uint48"
+     }
+    ]
+   },
+   "primaryType": "PermitBatch",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 1,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "details": [
+     {
+      "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "amount": "1000000",
+      "expiration": "1893456000",
+      "nonce": "0"
+     },
+     {
+      "token": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+      "amount": "2000000",
+      "expiration": "1893456000",
+      "nonce": "1"
+     },
+     {
+      "token": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "amount": "3000000",
+      "expiration": "1893456000",
+      "nonce": "2"
+     },
+     {
+      "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "amount": "4000000",
+      "expiration": "1893456000",
+      "nonce": "3"
+     },
+     {
+      "token": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+      "amount": "5000000",
+      "expiration": "1893456000",
+      "nonce": "4"
+     },
+     {
+      "token": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+      "amount": "6000000",
+      "expiration": "1893456000",
+      "nonce": "5"
+     },
+     {
+      "token": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+      "amount": "7000000",
+      "expiration": "1893456000",
+      "nonce": "6"
+     },
+     {
+      "token": "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9",
+      "amount": "8000000",
+      "expiration": "1893456000",
+      "nonce": "7"
+     },
+     {
+      "token": "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2",
+      "amount": "9000000",
+      "expiration": "1893456000",
+      "nonce": "8"
+     },
+     {
+      "token": "0xc00e94Cb662C3520282E6f5717214004A7f26888",
+      "amount": "10000000",
+      "expiration": "1893456000",
+      "nonce": "9"
+     },
+     {
+      "token": "0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F",
+      "amount": "11000000",
+      "expiration": "1893456000",
+      "nonce": "10"
+     },
+     {
+      "token": "0xD533a949740bb3306d119CC777fa900bA034cd52",
+      "amount": "12000000",
+      "expiration": "1893456000",
+      "nonce": "11"
+     },
+     {
+      "token": "0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32",
+      "amount": "13000000",
+      "expiration": "1893456000",
+      "nonce": "12"
+     },
+     {
+      "token": "0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0",
+      "amount": "14000000",
+      "expiration": "1893456000",
+      "nonce": "13"
+     },
+     {
+      "token": "0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE",
+      "amount": "15000000",
+      "expiration": "1893456000",
+      "nonce": "14"
+     },
+     {
+      "token": "0x4d224452801ACEd8B2F0aebE155379bb5D594381",
+      "amount": "16000000",
+      "expiration": "1893456000",
+      "nonce": "15"
+     },
+     {
+      "token": "0xC18360217D8F7Ab5e7c516566761Ea12Ce7F9D72",
+      "amount": "17000000",
+      "expiration": "1893456000",
+      "nonce": "16"
+     },
+     {
+      "token": "0x111111111117dC0aa78b770fA6A738034120C302",
+      "amount": "18000000",
+      "expiration": "1893456000",
+      "nonce": "17"
+     },
+     {
+      "token": "0x6B3595068778DD592e39A122f4f5a5cF09C90fE2",
+      "amount": "19000000",
+      "expiration": "1893456000",
+      "nonce": "18"
+     },
+     {
+      "token": "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e",
+      "amount": "20000000",
+      "expiration": "1893456000",
+      "nonce": "19"
+     }
+    ],
+    "spender": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+    "sigDeadline": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28",
+   "message_hash": "9be08a04cc2b5ee94ecba4347a8469ee3d3192f50b2613d59887f090f195142f",
+   "digest": "384af6a2fc07a1e70fa27fec8120723fb7ac8c922c53cfe2d8aaed6e6a401e33"
+  }
+ },
+ {
+  "id": "permit2-PermitBatch-32",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitBatch": [
+     {
+      "name": "details",
+      "type": "PermitDetails[]"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "sigDeadline",
+      "type": "uint256"
+     }
+    ],
+    "PermitDetails": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint160"
+     },
+     {
+      "name": "expiration",
+      "type": "uint48"
+     },
+     {
+      "name": "nonce",
+      "type": "uint48"
+     }
+    ]
+   },
+   "primaryType": "PermitBatch",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 1,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "details": [
+     {
+      "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "amount": "1000000",
+      "expiration": "1893456000",
+      "nonce": "0"
+     },
+     {
+      "token": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+      "amount": "2000000",
+      "expiration": "1893456000",
+      "nonce": "1"
+     },
+     {
+      "token": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "amount": "3000000",
+      "expiration": "1893456000",
+      "nonce": "2"
+     },
+     {
+      "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "amount": "4000000",
+      "expiration": "1893456000",
+      "nonce": "3"
+     },
+     {
+      "token": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+      "amount": "5000000",
+      "expiration": "1893456000",
+      "nonce": "4"
+     },
+     {
+      "token": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+      "amount": "6000000",
+      "expiration": "1893456000",
+      "nonce": "5"
+     },
+     {
+      "token": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+      "amount": "7000000",
+      "expiration": "1893456000",
+      "nonce": "6"
+     },
+     {
+      "token": "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9",
+      "amount": "8000000",
+      "expiration": "1893456000",
+      "nonce": "7"
+     },
+     {
+      "token": "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2",
+      "amount": "9000000",
+      "expiration": "1893456000",
+      "nonce": "8"
+     },
+     {
+      "token": "0xc00e94Cb662C3520282E6f5717214004A7f26888",
+      "amount": "10000000",
+      "expiration": "1893456000",
+      "nonce": "9"
+     },
+     {
+      "token": "0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F",
+      "amount": "11000000",
+      "expiration": "1893456000",
+      "nonce": "10"
+     },
+     {
+      "token": "0xD533a949740bb3306d119CC777fa900bA034cd52",
+      "amount": "12000000",
+      "expiration": "1893456000",
+      "nonce": "11"
+     },
+     {
+      "token": "0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32",
+      "amount": "13000000",
+      "expiration": "1893456000",
+      "nonce": "12"
+     },
+     {
+      "token": "0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0",
+      "amount": "14000000",
+      "expiration": "1893456000",
+      "nonce": "13"
+     },
+     {
+      "token": "0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE",
+      "amount": "15000000",
+      "expiration": "1893456000",
+      "nonce": "14"
+     },
+     {
+      "token": "0x4d224452801ACEd8B2F0aebE155379bb5D594381",
+      "amount": "16000000",
+      "expiration": "1893456000",
+      "nonce": "15"
+     },
+     {
+      "token": "0xC18360217D8F7Ab5e7c516566761Ea12Ce7F9D72",
+      "amount": "17000000",
+      "expiration": "1893456000",
+      "nonce": "16"
+     },
+     {
+      "token": "0x111111111117dC0aa78b770fA6A738034120C302",
+      "amount": "18000000",
+      "expiration": "1893456000",
+      "nonce": "17"
+     },
+     {
+      "token": "0x6B3595068778DD592e39A122f4f5a5cF09C90fE2",
+      "amount": "19000000",
+      "expiration": "1893456000",
+      "nonce": "18"
+     },
+     {
+      "token": "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e",
+      "amount": "20000000",
+      "expiration": "1893456000",
+      "nonce": "19"
+     },
+     {
+      "token": "0xba100000625a3754423978a60c9317c58a424e3D",
+      "amount": "21000000",
+      "expiration": "1893456000",
+      "nonce": "20"
+     },
+     {
+      "token": "0xc944E90C64B2c07662A292be6244BDf05Cda44a7",
+      "amount": "22000000",
+      "expiration": "1893456000",
+      "nonce": "21"
+     },
+     {
+      "token": "0xD33526068D116cE69F19A9ee46F0bd304F21A51f",
+      "amount": "23000000",
+      "expiration": "1893456000",
+      "nonce": "22"
+     },
+     {
+      "token": "0x853d955aCEf822Db058eb8505911ED77F175b99e",
+      "amount": "24000000",
+      "expiration": "1893456000",
+      "nonce": "23"
+     },
+     {
+      "token": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+      "amount": "25000000",
+      "expiration": "1893456000",
+      "nonce": "24"
+     },
+     {
+      "token": "0xae78736Cd615f374D3085123A210448E74Fc6393",
+      "amount": "26000000",
+      "expiration": "1893456000",
+      "nonce": "25"
+     },
+     {
+      "token": "0xBe9895146f7AF43049ca1c1AE358B0541Ea49704",
+      "amount": "27000000",
+      "expiration": "1893456000",
+      "nonce": "26"
+     },
+     {
+      "token": "0x6982508145454Ce325dDbE47a25d4ec3d2311933",
+      "amount": "28000000",
+      "expiration": "1893456000",
+      "nonce": "27"
+     },
+     {
+      "token": "0xB50721BCf8d664c30412Cfbc6cf7a15145234ad1",
+      "amount": "29000000",
+      "expiration": "1893456000",
+      "nonce": "28"
+     },
+     {
+      "token": "0x5283D291DBCF85356A21bA090E6db59121208b44",
+      "amount": "30000000",
+      "expiration": "1893456000",
+      "nonce": "29"
+     },
+     {
+      "token": "0x92D6C1e31e14520e676a687F0a93788B716BEff5",
+      "amount": "31000000",
+      "expiration": "1893456000",
+      "nonce": "30"
+     },
+     {
+      "token": "0x3432B6A60D23Ca0dFCa7761B7ab56459D9C964D0",
+      "amount": "32000000",
+      "expiration": "1893456000",
+      "nonce": "31"
+     }
+    ],
+    "spender": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+    "sigDeadline": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28",
+   "message_hash": "26ac74547827726b6c9b707bd325892b633aaef21046c2f12937a075a47fe852",
+   "digest": "a85ffbece1abfb51170f9d17e6e63ed14b6a5e8ee6b6b39054fe5b8153a9f76a"
+  }
+ },
+ {
+  "id": "permit2-PermitTransferFrom",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitTransferFrom": [
+     {
+      "name": "permitted",
+      "type": "TokenPermissions"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     }
+    ],
+    "TokenPermissions": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "PermitTransferFrom",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 1,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "permitted": {
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "amount": "250000000"
+    },
+    "spender": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+    "nonce": "1997",
+    "deadline": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28",
+   "message_hash": "a72b11929a9c4bff37f00eb63b3615519e00a8aa297140855c44cfff4da27146",
+   "digest": "ece4ce2c0d6c3f27171599e51e0b42287645bb3029f07ef9671ddca458007d5e"
+  }
+ },
+ {
+  "id": "permit2-PermitBatchTransferFrom",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitBatchTransferFrom": [
+     {
+      "name": "permitted",
+      "type": "TokenPermissions[]"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     }
+    ],
+    "TokenPermissions": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "PermitBatchTransferFrom",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 1,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "permitted": [
+     {
+      "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "amount": "1000000"
+     },
+     {
+      "token": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+      "amount": "10000000"
+     },
+     {
+      "token": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "amount": "100000000"
+     },
+     {
+      "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "amount": "1000000000"
+     },
+     {
+      "token": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+      "amount": "10000000000"
+     }
+    ],
+    "spender": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+    "nonce": "1998",
+    "deadline": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28",
+   "message_hash": "b0347a078a3a77dee64d7c255ba56e39221a3d6c5b2375d2e89d09b28533b5ab",
+   "digest": "31227578aa0209aad26446c56711f4f4ad009a6befab3034ce466ad45e295090"
+  }
+ },
+ {
+  "id": "uniswapx-ExclusiveDutchOrder",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/ExclusiveDutchOrderLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/OrderInfoLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/DutchOrderLib.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitWitnessTransferFrom": [
+     {
+      "name": "permitted",
+      "type": "TokenPermissions"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "witness",
+      "type": "ExclusiveDutchOrder"
+     }
+    ],
+    "DutchOutput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "endAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     }
+    ],
+    "ExclusiveDutchOrder": [
+     {
+      "name": "info",
+      "type": "OrderInfo"
+     },
+     {
+      "name": "decayStartTime",
+      "type": "uint256"
+     },
+     {
+      "name": "decayEndTime",
+      "type": "uint256"
+     },
+     {
+      "name": "exclusiveFiller",
+      "type": "address"
+     },
+     {
+      "name": "exclusivityOverrideBps",
+      "type": "uint256"
+     },
+     {
+      "name": "inputToken",
+      "type": "address"
+     },
+     {
+      "name": "inputStartAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "inputEndAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "outputs",
+      "type": "DutchOutput[]"
+     }
+    ],
+    "OrderInfo": [
+     {
+      "name": "reactor",
+      "type": "address"
+     },
+     {
+      "name": "swapper",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "additionalValidationContract",
+      "type": "address"
+     },
+     {
+      "name": "additionalValidationData",
+      "type": "bytes"
+     }
+    ],
+    "TokenPermissions": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "PermitWitnessTransferFrom",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 1,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "permitted": {
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "amount": "3500000000"
+    },
+    "spender": "0x6000da47483062A0D734Ba3dc7576Ce6A0B645C4",
+    "nonce": "1993353164669688581970088190602701610056397261180510327052393484288",
+    "deadline": "1775803746",
+    "witness": {
+     "info": {
+      "reactor": "0x6000da47483062A0D734Ba3dc7576Ce6A0B645C4",
+      "swapper": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+      "nonce": "1993353164669688581970088190602701610056397261180510327052393484288",
+      "deadline": "1775803746",
+      "additionalValidationContract": "0x0000000000000000000000000000000000000000",
+      "additionalValidationData": "0x"
+     },
+     "decayStartTime": "1775803680",
+     "decayEndTime": "1775803740",
+     "exclusiveFiller": "0xff8ba4d1fc3762f6154cc942ccf30049a2a0cec6",
+     "exclusivityOverrideBps": "100",
+     "inputToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "inputStartAmount": "3500000000",
+     "inputEndAmount": "3500000000",
+     "outputs": [
+      {
+       "token": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+       "startAmount": "1000000000000000000",
+       "endAmount": "990000000000000000",
+       "recipient": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+      },
+      {
+       "token": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+       "startAmount": "1500000000000000",
+       "endAmount": "1485000000000000",
+       "recipient": "0x27213E28D7fDA5c57Fe9e5dD923818DBCcf71c47"
+      }
+     ]
+    }
+   }
+  },
+  "expected": {
+   "domain_separator": "866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28",
+   "message_hash": "9d5278e60026d517ef5795ddfa37fdbb3c45bb9aa1428e1100420191c4d582bf",
+   "digest": "5def1fbddaf0631deb17c013e1778be8a134da1e4f4ce1ed070479f12e4cdc67"
+  }
+ },
+ {
+  "id": "uniswapx-V2DutchOrder",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/V2DutchOrderLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/OrderInfoLib.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitWitnessTransferFrom": [
+     {
+      "name": "permitted",
+      "type": "TokenPermissions"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "witness",
+      "type": "V2DutchOrder"
+     }
+    ],
+    "DutchOutput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "endAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     }
+    ],
+    "OrderInfo": [
+     {
+      "name": "reactor",
+      "type": "address"
+     },
+     {
+      "name": "swapper",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "additionalValidationContract",
+      "type": "address"
+     },
+     {
+      "name": "additionalValidationData",
+      "type": "bytes"
+     }
+    ],
+    "TokenPermissions": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     }
+    ],
+    "V2DutchOrder": [
+     {
+      "name": "info",
+      "type": "OrderInfo"
+     },
+     {
+      "name": "cosigner",
+      "type": "address"
+     },
+     {
+      "name": "baseInputToken",
+      "type": "address"
+     },
+     {
+      "name": "baseInputStartAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "baseInputEndAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "baseOutputs",
+      "type": "DutchOutput[]"
+     }
+    ]
+   },
+   "primaryType": "PermitWitnessTransferFrom",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 1,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "permitted": {
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "amount": "3500000000"
+    },
+    "spender": "0x00000011F84B9aa48e5f8aA8B9897600006289Be",
+    "nonce": "1993353164669688581970088190602701610056397261180510327052393484289",
+    "deadline": "1775803746",
+    "witness": {
+     "info": {
+      "reactor": "0x00000011F84B9aa48e5f8aA8B9897600006289Be",
+      "swapper": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+      "nonce": "1993353164669688581970088190602701610056397261180510327052393484288",
+      "deadline": "1775803746",
+      "additionalValidationContract": "0x0000000000000000000000000000000000000000",
+      "additionalValidationData": "0x"
+     },
+     "cosigner": "0x4449cd34d1eb1fedcf02a1be3834ffde8e6a6180",
+     "baseInputToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "baseInputStartAmount": "3500000000",
+     "baseInputEndAmount": "3500000000",
+     "baseOutputs": [
+      {
+       "token": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+       "startAmount": "1000000000000000000",
+       "endAmount": "990000000000000000",
+       "recipient": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+      },
+      {
+       "token": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+       "startAmount": "1500000000000000",
+       "endAmount": "1485000000000000",
+       "recipient": "0x27213E28D7fDA5c57Fe9e5dD923818DBCcf71c47"
+      }
+     ]
+    }
+   }
+  },
+  "expected": {
+   "domain_separator": "866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28",
+   "message_hash": "1d895c005457e7cdee8450d706c53a359a4176c12dd4d48f9e38339160809b83",
+   "digest": "7cc7576f193542ecfbed9254ff7785c3aa296d2382d317858aa13d87dd24d652"
+  }
+ },
+ {
+  "id": "uniswapx-PriorityOrder",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/PriorityOrderLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/OrderInfoLib.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitWitnessTransferFrom": [
+     {
+      "name": "permitted",
+      "type": "TokenPermissions"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "witness",
+      "type": "PriorityOrder"
+     }
+    ],
+    "OrderInfo": [
+     {
+      "name": "reactor",
+      "type": "address"
+     },
+     {
+      "name": "swapper",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "additionalValidationContract",
+      "type": "address"
+     },
+     {
+      "name": "additionalValidationData",
+      "type": "bytes"
+     }
+    ],
+    "PriorityInput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     },
+     {
+      "name": "mpsPerPriorityFeeWei",
+      "type": "uint256"
+     }
+    ],
+    "PriorityOrder": [
+     {
+      "name": "info",
+      "type": "OrderInfo"
+     },
+     {
+      "name": "cosigner",
+      "type": "address"
+     },
+     {
+      "name": "auctionStartBlock",
+      "type": "uint256"
+     },
+     {
+      "name": "baselinePriorityFeeWei",
+      "type": "uint256"
+     },
+     {
+      "name": "input",
+      "type": "PriorityInput"
+     },
+     {
+      "name": "outputs",
+      "type": "PriorityOutput[]"
+     }
+    ],
+    "PriorityOutput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     },
+     {
+      "name": "mpsPerPriorityFeeWei",
+      "type": "uint256"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     }
+    ],
+    "TokenPermissions": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "PermitWitnessTransferFrom",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 8453,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "permitted": {
+     "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "amount": "100000000"
+    },
+    "spender": "0x0000000000fbd5e2a41b6d0f3b0fe9ed9b2d0cc9",
+    "nonce": "1993353164669688581970088190602701610056397261180510327052393484290",
+    "deadline": "1775803746",
+    "witness": {
+     "info": {
+      "reactor": "0x0000000000fbd5e2a41b6d0f3b0fe9ed9b2d0cc9",
+      "swapper": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+      "nonce": "1993353164669688581970088190602701610056397261180510327052393484288",
+      "deadline": "1775803746",
+      "additionalValidationContract": "0x0000000000000000000000000000000000000000",
+      "additionalValidationData": "0x"
+     },
+     "cosigner": "0x0000000000000000000000000000000000000000",
+     "auctionStartBlock": "24000000",
+     "baselinePriorityFeeWei": "0",
+     "input": {
+      "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "amount": "100000000",
+      "mpsPerPriorityFeeWei": "0"
+     },
+     "outputs": [
+      {
+       "token": "0x4200000000000000000000000000000000000006",
+       "amount": "28000000000000000",
+       "mpsPerPriorityFeeWei": "1",
+       "recipient": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+      },
+      {
+       "token": "0x4200000000000000000000000000000000000006",
+       "amount": "42000000000000",
+       "mpsPerPriorityFeeWei": "0",
+       "recipient": "0x7FFC3DBF3B2b50Ff3A1D5523bc24Bb5043837B14"
+      }
+     ]
+    }
+   }
+  },
+  "expected": {
+   "domain_separator": "3b6f35e4fce979ef8eac3bcdc8c3fc38fe7911bb0c69c8fe72bf1fd1a17e6f07",
+   "message_hash": "a641126490de075257de4fc0b0ade25f8fa4bfc12858d49bb388cdcf34fd0c78",
+   "digest": "c7b4e513709348a52a6b13dea66c18975713be646ec021d9d62fb632874c7eb5"
+  }
+ },
+ {
+  "id": "seaport-OrderComponents",
+  "source": [
+   "https://github.com/ProjectOpenSea/seaport-core/blob/523097f9cee66c15d308c900c50f336b291cda08/src/lib/ConsiderationBase.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "OrderComponents": [
+     {
+      "name": "offerer",
+      "type": "address"
+     },
+     {
+      "name": "zone",
+      "type": "address"
+     },
+     {
+      "name": "offer",
+      "type": "OfferItem[]"
+     },
+     {
+      "name": "consideration",
+      "type": "ConsiderationItem[]"
+     },
+     {
+      "name": "orderType",
+      "type": "uint8"
+     },
+     {
+      "name": "startTime",
+      "type": "uint256"
+     },
+     {
+      "name": "endTime",
+      "type": "uint256"
+     },
+     {
+      "name": "zoneHash",
+      "type": "bytes32"
+     },
+     {
+      "name": "salt",
+      "type": "uint256"
+     },
+     {
+      "name": "conduitKey",
+      "type": "bytes32"
+     },
+     {
+      "name": "counter",
+      "type": "uint256"
+     }
+    ],
+    "ConsiderationItem": [
+     {
+      "name": "itemType",
+      "type": "uint8"
+     },
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "identifierOrCriteria",
+      "type": "uint256"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "endAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     }
+    ],
+    "OfferItem": [
+     {
+      "name": "itemType",
+      "type": "uint8"
+     },
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "identifierOrCriteria",
+      "type": "uint256"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "endAmount",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "OrderComponents",
+   "domain": {
+    "name": "Seaport",
+    "version": "1.6",
+    "chainId": 1,
+    "verifyingContract": "0x0000000000000068F116a894984e2DB1123eB395"
+   },
+   "message": {
+    "offerer": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "zone": "0x0000000000000000000000000000000000000000",
+    "offer": [
+     {
+      "itemType": 2,
+      "token": "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+      "identifierOrCriteria": "8520",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+      "identifierOrCriteria": "8521",
+      "startAmount": "1",
+      "endAmount": "1"
+     }
+    ],
+    "consideration": [
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "19500000000000000000",
+      "endAmount": "19500000000000000000",
+      "recipient": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "500000000000000000",
+      "endAmount": "500000000000000000",
+      "recipient": "0x0000a26b00c1F0DF003000390027140000fAa719"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "1000000000000000000",
+      "endAmount": "1000000000000000000",
+      "recipient": "0xA858DDc0445d8131daC4d1DE01f834ffcbA52Ef1"
+     }
+    ],
+    "orderType": 0,
+    "startTime": "1775700000",
+    "endTime": "1778300000",
+    "zoneHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "salt": "24446860302761739304752683030156737591518664810215442929818227897836383814680",
+    "conduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+    "counter": "0"
+   }
+  },
+  "expected": {
+   "domain_separator": "fce34bc6e1752c1117e5063116d25cad2fa2bdcf15ff2d2e275eece7dc31ba64",
+   "message_hash": "5bdedde642e259a1841ef18afaf47285be8da69b311260a27436eba16517c016",
+   "digest": "b6f6cd11f7cd0e8f8ed8964727b57e23d38680ad2d818d3a87b551e4762a1f69"
+  }
+ },
+ {
+  "id": "seaport-OrderComponents-bundle-10x6",
+  "source": [
+   "https://github.com/ProjectOpenSea/seaport-core/blob/523097f9cee66c15d308c900c50f336b291cda08/src/lib/ConsiderationBase.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "OrderComponents": [
+     {
+      "name": "offerer",
+      "type": "address"
+     },
+     {
+      "name": "zone",
+      "type": "address"
+     },
+     {
+      "name": "offer",
+      "type": "OfferItem[]"
+     },
+     {
+      "name": "consideration",
+      "type": "ConsiderationItem[]"
+     },
+     {
+      "name": "orderType",
+      "type": "uint8"
+     },
+     {
+      "name": "startTime",
+      "type": "uint256"
+     },
+     {
+      "name": "endTime",
+      "type": "uint256"
+     },
+     {
+      "name": "zoneHash",
+      "type": "bytes32"
+     },
+     {
+      "name": "salt",
+      "type": "uint256"
+     },
+     {
+      "name": "conduitKey",
+      "type": "bytes32"
+     },
+     {
+      "name": "counter",
+      "type": "uint256"
+     }
+    ],
+    "ConsiderationItem": [
+     {
+      "name": "itemType",
+      "type": "uint8"
+     },
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "identifierOrCriteria",
+      "type": "uint256"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "endAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     }
+    ],
+    "OfferItem": [
+     {
+      "name": "itemType",
+      "type": "uint8"
+     },
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "identifierOrCriteria",
+      "type": "uint256"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "endAmount",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "OrderComponents",
+   "domain": {
+    "name": "Seaport",
+    "version": "1.6",
+    "chainId": 1,
+    "verifyingContract": "0x0000000000000068F116a894984e2DB1123eB395"
+   },
+   "message": {
+    "offerer": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "zone": "0x0000000000000000000000000000000000000000",
+    "offer": [
+     {
+      "itemType": 2,
+      "token": "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+      "identifierOrCriteria": "8520",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+      "identifierOrCriteria": "8521",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+      "identifierOrCriteria": "8522",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xED5AF388653567Af2F388E6224dC7C4b3241C544",
+      "identifierOrCriteria": "4100",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xED5AF388653567Af2F388E6224dC7C4b3241C544",
+      "identifierOrCriteria": "4101",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xED5AF388653567Af2F388E6224dC7C4b3241C544",
+      "identifierOrCriteria": "4102",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0x8a90CAb2b38dba80c64b7734e58Ee1dB38B8992e",
+      "identifierOrCriteria": "700",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0x8a90CAb2b38dba80c64b7734e58Ee1dB38B8992e",
+      "identifierOrCriteria": "701",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "3300",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "3301",
+      "startAmount": "1",
+      "endAmount": "1"
+     }
+    ],
+    "consideration": [
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "118500000000000000000",
+      "endAmount": "118500000000000000000",
+      "recipient": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "625000000000000000",
+      "endAmount": "625000000000000000",
+      "recipient": "0x0000a26b00c1F0DF003000390027140000fAa719"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "2400000000000000000",
+      "endAmount": "2400000000000000000",
+      "recipient": "0x00000000000000000000000000000000a11cE000"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "1800000000000000000",
+      "endAmount": "1800000000000000000",
+      "recipient": "0x00000000000000000000000000000000A11ce001"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "1500000000000000000",
+      "endAmount": "1500000000000000000",
+      "recipient": "0x00000000000000000000000000000000a11CE002"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "1175000000000000000",
+      "endAmount": "1175000000000000000",
+      "recipient": "0x00000000000000000000000000000000A11ce003"
+     }
+    ],
+    "orderType": 0,
+    "startTime": "1775700000",
+    "endTime": "1778300000",
+    "zoneHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "salt": "24446860302761739304752683030156737591518664810215442929818227897836383814680",
+    "conduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+    "counter": "0"
+   }
+  },
+  "expected": {
+   "domain_separator": "fce34bc6e1752c1117e5063116d25cad2fa2bdcf15ff2d2e275eece7dc31ba64",
+   "message_hash": "777e35ac429840a63b28d70ae83c7d0917f2c287fc0cf8fe659d2527510b93b1",
+   "digest": "af42126e4b5bfe74494b27766b259c698ba314a928d06ac1633b5ca1cf3e5e30"
+  }
+ },
+ {
+  "id": "seaport-OrderComponents-consideration-12",
+  "source": [
+   "https://github.com/ProjectOpenSea/seaport-core/blob/523097f9cee66c15d308c900c50f336b291cda08/src/lib/ConsiderationBase.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "OrderComponents": [
+     {
+      "name": "offerer",
+      "type": "address"
+     },
+     {
+      "name": "zone",
+      "type": "address"
+     },
+     {
+      "name": "offer",
+      "type": "OfferItem[]"
+     },
+     {
+      "name": "consideration",
+      "type": "ConsiderationItem[]"
+     },
+     {
+      "name": "orderType",
+      "type": "uint8"
+     },
+     {
+      "name": "startTime",
+      "type": "uint256"
+     },
+     {
+      "name": "endTime",
+      "type": "uint256"
+     },
+     {
+      "name": "zoneHash",
+      "type": "bytes32"
+     },
+     {
+      "name": "salt",
+      "type": "uint256"
+     },
+     {
+      "name": "conduitKey",
+      "type": "bytes32"
+     },
+     {
+      "name": "counter",
+      "type": "uint256"
+     }
+    ],
+    "ConsiderationItem": [
+     {
+      "name": "itemType",
+      "type": "uint8"
+     },
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "identifierOrCriteria",
+      "type": "uint256"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "endAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     }
+    ],
+    "OfferItem": [
+     {
+      "name": "itemType",
+      "type": "uint8"
+     },
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "identifierOrCriteria",
+      "type": "uint256"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "endAmount",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "OrderComponents",
+   "domain": {
+    "name": "Seaport",
+    "version": "1.6",
+    "chainId": 1,
+    "verifyingContract": "0x0000000000000068F116a894984e2DB1123eB395"
+   },
+   "message": {
+    "offerer": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "zone": "0x0000000000000000000000000000000000000000",
+    "offer": [
+     {
+      "itemType": 2,
+      "token": "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+      "identifierOrCriteria": "9001",
+      "startAmount": "1",
+      "endAmount": "1"
+     }
+    ],
+    "consideration": [
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "15000000000000000000",
+      "endAmount": "15000000000000000000",
+      "recipient": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "100000000000000000",
+      "endAmount": "100000000000000000",
+      "recipient": "0x0000a26b00c1F0DF003000390027140000fAa719"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "50000000000000000",
+      "endAmount": "50000000000000000",
+      "recipient": "0x0000000000000000000000000000000005B11700"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "100000000000000000",
+      "endAmount": "100000000000000000",
+      "recipient": "0x0000000000000000000000000000000005B11701"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "150000000000000000",
+      "endAmount": "150000000000000000",
+      "recipient": "0x0000000000000000000000000000000005b11702"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "200000000000000000",
+      "endAmount": "200000000000000000",
+      "recipient": "0x0000000000000000000000000000000005B11703"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "250000000000000000",
+      "endAmount": "250000000000000000",
+      "recipient": "0x0000000000000000000000000000000005b11704"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "300000000000000000",
+      "endAmount": "300000000000000000",
+      "recipient": "0x0000000000000000000000000000000005b11705"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "350000000000000000",
+      "endAmount": "350000000000000000",
+      "recipient": "0x0000000000000000000000000000000005B11706"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "400000000000000000",
+      "endAmount": "400000000000000000",
+      "recipient": "0x0000000000000000000000000000000005b11707"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "450000000000000000",
+      "endAmount": "450000000000000000",
+      "recipient": "0x0000000000000000000000000000000005b11708"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "500000000000000000",
+      "endAmount": "500000000000000000",
+      "recipient": "0x0000000000000000000000000000000005b11709"
+     }
+    ],
+    "orderType": 0,
+    "startTime": "1775700000",
+    "endTime": "1778300000",
+    "zoneHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "salt": "24446860302761739304752683030156737591518664810215442929818227897836383814680",
+    "conduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+    "counter": "0"
+   }
+  },
+  "expected": {
+   "domain_separator": "fce34bc6e1752c1117e5063116d25cad2fa2bdcf15ff2d2e275eece7dc31ba64",
+   "message_hash": "66e666071d1faf7d9f74130449bf619b95c9f52fd04eb7a435903319e8afaa20",
+   "digest": "bfb6130599bda35f4a32de5ec2c1f65d5024bae151657ad3445fd0042fb0f844"
+  }
+ },
+ {
+  "id": "seaport-OrderComponents-bundle-32",
+  "source": [
+   "https://github.com/ProjectOpenSea/seaport-core/blob/523097f9cee66c15d308c900c50f336b291cda08/src/lib/ConsiderationBase.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "OrderComponents": [
+     {
+      "name": "offerer",
+      "type": "address"
+     },
+     {
+      "name": "zone",
+      "type": "address"
+     },
+     {
+      "name": "offer",
+      "type": "OfferItem[]"
+     },
+     {
+      "name": "consideration",
+      "type": "ConsiderationItem[]"
+     },
+     {
+      "name": "orderType",
+      "type": "uint8"
+     },
+     {
+      "name": "startTime",
+      "type": "uint256"
+     },
+     {
+      "name": "endTime",
+      "type": "uint256"
+     },
+     {
+      "name": "zoneHash",
+      "type": "bytes32"
+     },
+     {
+      "name": "salt",
+      "type": "uint256"
+     },
+     {
+      "name": "conduitKey",
+      "type": "bytes32"
+     },
+     {
+      "name": "counter",
+      "type": "uint256"
+     }
+    ],
+    "ConsiderationItem": [
+     {
+      "name": "itemType",
+      "type": "uint8"
+     },
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "identifierOrCriteria",
+      "type": "uint256"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "endAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     }
+    ],
+    "OfferItem": [
+     {
+      "name": "itemType",
+      "type": "uint8"
+     },
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "identifierOrCriteria",
+      "type": "uint256"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "endAmount",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "OrderComponents",
+   "domain": {
+    "name": "Seaport",
+    "version": "1.6",
+    "chainId": 1,
+    "verifyingContract": "0x0000000000000068F116a894984e2DB1123eB395"
+   },
+   "message": {
+    "offerer": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "zone": "0x0000000000000000000000000000000000000000",
+    "offer": [
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5000",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5001",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5002",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5003",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5004",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5005",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5006",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5007",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5008",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5009",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5010",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5011",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5012",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5013",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5014",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5015",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5016",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5017",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5018",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5019",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5020",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5021",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5022",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5023",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5024",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5025",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5026",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5027",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5028",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5029",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5030",
+      "startAmount": "1",
+      "endAmount": "1"
+     },
+     {
+      "itemType": 2,
+      "token": "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8",
+      "identifierOrCriteria": "5031",
+      "startAmount": "1",
+      "endAmount": "1"
+     }
+    ],
+    "consideration": [
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "320000000000000000000",
+      "endAmount": "320000000000000000000",
+      "recipient": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+     },
+     {
+      "itemType": 0,
+      "token": "0x0000000000000000000000000000000000000000",
+      "identifierOrCriteria": "0",
+      "startAmount": "1600000000000000000",
+      "endAmount": "1600000000000000000",
+      "recipient": "0x0000a26b00c1F0DF003000390027140000fAa719"
+     }
+    ],
+    "orderType": 0,
+    "startTime": "1775700000",
+    "endTime": "1778300000",
+    "zoneHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "salt": "24446860302761739304752683030156737591518664810215442929818227897836383814680",
+    "conduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+    "counter": "0"
+   }
+  },
+  "expected": {
+   "domain_separator": "fce34bc6e1752c1117e5063116d25cad2fa2bdcf15ff2d2e275eece7dc31ba64",
+   "message_hash": "b3b1ba0d3e233fb87c9d866c87b2ef5b77e85b80d64f1ba9b2e3d9dc98a14402",
+   "digest": "8f9f180ebb10f7799149df0dbdcf11edc50f7f3cce4e5b2c742a142f286c5ee0"
+  }
+ },
+ {
+  "id": "looksrare-Maker",
+  "source": [
+   "https://github.com/LooksRare/contracts-exchange-v2/blob/7fca5650da653a2a0680e18e60164e639c18f830/contracts/libraries/OrderStructs.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Maker": [
+     {
+      "name": "quoteType",
+      "type": "uint8"
+     },
+     {
+      "name": "globalNonce",
+      "type": "uint256"
+     },
+     {
+      "name": "subsetNonce",
+      "type": "uint256"
+     },
+     {
+      "name": "orderNonce",
+      "type": "uint256"
+     },
+     {
+      "name": "strategyId",
+      "type": "uint256"
+     },
+     {
+      "name": "collectionType",
+      "type": "uint8"
+     },
+     {
+      "name": "collection",
+      "type": "address"
+     },
+     {
+      "name": "currency",
+      "type": "address"
+     },
+     {
+      "name": "signer",
+      "type": "address"
+     },
+     {
+      "name": "startTime",
+      "type": "uint256"
+     },
+     {
+      "name": "endTime",
+      "type": "uint256"
+     },
+     {
+      "name": "price",
+      "type": "uint256"
+     },
+     {
+      "name": "itemIds",
+      "type": "uint256[]"
+     },
+     {
+      "name": "amounts",
+      "type": "uint256[]"
+     },
+     {
+      "name": "additionalParameters",
+      "type": "bytes"
+     }
+    ]
+   },
+   "primaryType": "Maker",
+   "domain": {
+    "name": "LooksRareProtocol",
+    "version": "2",
+    "chainId": 1,
+    "verifyingContract": "0x0000000000E655fAe4d56241588680F86E3b2377"
+   },
+   "message": {
+    "quoteType": 1,
+    "globalNonce": "0",
+    "subsetNonce": "0",
+    "orderNonce": "7",
+    "strategyId": "0",
+    "collectionType": 0,
+    "collection": "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+    "currency": "0x0000000000000000000000000000000000000000",
+    "signer": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "startTime": "1775700000",
+    "endTime": "1778300000",
+    "price": "21000000000000000000",
+    "itemIds": [
+     "8520",
+     "8521"
+    ],
+    "amounts": [
+     "1",
+     "1"
+    ],
+    "additionalParameters": "0x"
+   }
+  },
+  "expected": {
+   "domain_separator": "13be80cb8c4239588caab638256c555b825f3fbead883414b042fd375781040c",
+   "message_hash": "f66521e3a0d0416b42e738575d0e63db76241755e1d097629aa2e5f17927513c",
+   "digest": "c63794a61c6b972160381131e7d63b7d3a695f512248b9e061327c85d10e9004"
+  }
+ },
+ {
+  "id": "blur-Order",
+  "source": [
+   "https://github.com/code-423n4/2022-10-blur/blob/main/contracts/lib/EIP712.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Order": [
+     {
+      "name": "trader",
+      "type": "address"
+     },
+     {
+      "name": "side",
+      "type": "uint8"
+     },
+     {
+      "name": "matchingPolicy",
+      "type": "address"
+     },
+     {
+      "name": "collection",
+      "type": "address"
+     },
+     {
+      "name": "tokenId",
+      "type": "uint256"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     },
+     {
+      "name": "paymentToken",
+      "type": "address"
+     },
+     {
+      "name": "price",
+      "type": "uint256"
+     },
+     {
+      "name": "listingTime",
+      "type": "uint256"
+     },
+     {
+      "name": "expirationTime",
+      "type": "uint256"
+     },
+     {
+      "name": "fees",
+      "type": "Fee[]"
+     },
+     {
+      "name": "salt",
+      "type": "uint256"
+     },
+     {
+      "name": "extraParams",
+      "type": "bytes"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     }
+    ],
+    "Fee": [
+     {
+      "name": "rate",
+      "type": "uint16"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     }
+    ]
+   },
+   "primaryType": "Order",
+   "domain": {
+    "name": "Blur Exchange",
+    "version": "1.0",
+    "chainId": 1,
+    "verifyingContract": "0x000000000000Ad05Ccc4F10045630fb830B95127"
+   },
+   "message": {
+    "trader": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "side": 1,
+    "matchingPolicy": "0x00000000006411739DA1c40B106F8511de5D1FAC",
+    "collection": "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+    "tokenId": "8520",
+    "amount": "1",
+    "paymentToken": "0x0000000000000000000000000000000000000000",
+    "price": "20000000000000000000",
+    "listingTime": "1775700000",
+    "expirationTime": "1778300000",
+    "fees": [
+     {
+      "rate": 50,
+      "recipient": "0xaab1d2c1fc1c5b4e8a1de8b3fe2f5fc6e2fb86d3"
+     },
+     {
+      "rate": 250,
+      "recipient": "0xA858DDc0445d8131daC4d1DE01f834ffcbA52Ef1"
+     }
+    ],
+    "salt": "265875887785256855606558013756560384533",
+    "extraParams": "0x01",
+    "nonce": "0"
+   }
+  },
+  "expected": {
+   "domain_separator": "68e25ba9bdf16f19b7227e3ee7fff0b93558367587fc73fd50c5d978a0cd227f",
+   "message_hash": "c8858619b0e96f15b33b91c260c45570945ec84d5310016888785cec1252ec40",
+   "digest": "89424a5eaf944e4bda74c080e649e8f6bd3443a6e6b86a48e4100fc43c01a380"
+  }
+ },
+ {
+  "id": "blur-Root",
+  "source": [
+   "https://github.com/code-423n4/2022-10-blur/blob/main/contracts/lib/EIP712.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Root": [
+     {
+      "name": "root",
+      "type": "bytes32"
+     }
+    ]
+   },
+   "primaryType": "Root",
+   "domain": {
+    "name": "Blur Exchange",
+    "version": "1.0",
+    "chainId": 1,
+    "verifyingContract": "0x000000000000Ad05Ccc4F10045630fb830B95127"
+   },
+   "message": {
+    "root": "0x6f1c86e1ea4b8b1d9f7f0c5c2e1d6a3b4c5d6e7f8091a2b3c4d5e6f708192a3b"
+   }
+  },
+  "expected": {
+   "domain_separator": "68e25ba9bdf16f19b7227e3ee7fff0b93558367587fc73fd50c5d978a0cd227f",
+   "message_hash": "aeadf10ef9755aa81ad8a3219731271fe417be9c783dc542a42d5edfb3b77317",
+   "digest": "6d3bc4aec615720499edd705ee6673b5f1b40a1a3afa1a8d85ac273ebc427253"
+  }
+ },
+ {
+  "id": "1inch-Order",
+  "source": [
+   "https://github.com/1inch/limit-order-protocol/blob/50bd1300315606a3d32e9021898374c9d0dc2335/contracts/OrderLib.sol",
+   "https://sourcify.dev/#/lookup/0x111111125421cA6dc452d289314280a0f8842A65"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Order": [
+     {
+      "name": "salt",
+      "type": "uint256"
+     },
+     {
+      "name": "maker",
+      "type": "address"
+     },
+     {
+      "name": "receiver",
+      "type": "address"
+     },
+     {
+      "name": "makerAsset",
+      "type": "address"
+     },
+     {
+      "name": "takerAsset",
+      "type": "address"
+     },
+     {
+      "name": "makingAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "takingAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "makerTraits",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "Order",
+   "domain": {
+    "name": "1inch Aggregation Router",
+    "version": "6",
+    "chainId": 1,
+    "verifyingContract": "0x111111125421cA6dc452d289314280a0f8842A65"
+   },
+   "message": {
+    "salt": "102412815611287462193218283713587453612380483585130722463424346577",
+    "maker": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "receiver": "0x0000000000000000000000000000000000000000",
+    "makerAsset": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "takerAsset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "makingAmount": "1000000000000000000",
+    "takingAmount": "3500000000",
+    "makerTraits": "62419173104490761595518734106557662061518414611782227068396304425790442831872"
+   }
+  },
+  "expected": {
+   "domain_separator": "d999e213f11c7bfa3e796c3409e316f25e02aa3e25e5c207a92e381c7d22b6de",
+   "message_hash": "0dfdbba222c62bc366f22ca6339e12520ce10684376c80d61176781ac00c3f4b",
+   "digest": "cddd12ad70f117d173e3e40ae060696c549fdc0ec98bc913083f20f6ba3163d9"
+  }
+ },
+ {
+  "id": "cow-Order",
+  "source": [
+   "https://github.com/cowprotocol/contracts/blob/c07a93e3596194c5e3cf331c755a3f9f0e4a17d8/src/contracts/libraries/GPv2Order.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Order": [
+     {
+      "name": "sellToken",
+      "type": "address"
+     },
+     {
+      "name": "buyToken",
+      "type": "address"
+     },
+     {
+      "name": "receiver",
+      "type": "address"
+     },
+     {
+      "name": "sellAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "buyAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "validTo",
+      "type": "uint32"
+     },
+     {
+      "name": "appData",
+      "type": "bytes32"
+     },
+     {
+      "name": "feeAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "kind",
+      "type": "string"
+     },
+     {
+      "name": "partiallyFillable",
+      "type": "bool"
+     },
+     {
+      "name": "sellTokenBalance",
+      "type": "string"
+     },
+     {
+      "name": "buyTokenBalance",
+      "type": "string"
+     }
+    ]
+   },
+   "primaryType": "Order",
+   "domain": {
+    "name": "Gnosis Protocol",
+    "version": "v2",
+    "chainId": 1,
+    "verifyingContract": "0x9008D19f58AAbD9eD0D60971565AA8510560ab41"
+   },
+   "message": {
+    "sellToken": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "buyToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "receiver": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "sellAmount": "1000000000000000000",
+    "buyAmount": "3480000000",
+    "validTo": 1775803746,
+    "appData": "0xf785fae7a7c5abc49f3cd6a61f6df1ff26433392b066ee9ff2240ff1eb7ab6e4",
+    "feeAmount": "0",
+    "kind": "sell",
+    "partiallyFillable": false,
+    "sellTokenBalance": "erc20",
+    "buyTokenBalance": "erc20"
+   }
+  },
+  "expected": {
+   "domain_separator": "c078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943",
+   "message_hash": "cdc3f27a64d63d4d714edd7ac17d8ba1891d43b9743d7776cd58ad5fc4cec3a7",
+   "digest": "576a9e87719762457271789254f3ab5a2fa6a6bc7d20972883ac69ca076ffad8"
+  }
+ },
+ {
+  "id": "cow-OrderCancellations",
+  "source": [
+   "https://github.com/cowprotocol/cow-sdk/blob/8ac240cbea721a546618d3667a24c8054664d934/packages/contracts-ts/src/order.ts"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "OrderCancellations": [
+     {
+      "name": "orderUids",
+      "type": "bytes[]"
+     }
+    ]
+   },
+   "primaryType": "OrderCancellations",
+   "domain": {
+    "name": "Gnosis Protocol",
+    "version": "v2",
+    "chainId": 1,
+    "verifyingContract": "0x9008D19f58AAbD9eD0D60971565AA8510560ab41"
+   },
+   "message": {
+    "orderUids": [
+     "0xabababababababababababababababababababababababababababababababab9858effd232b4033e47d90003d41ec34ecaeda9469d89d62",
+     "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd9858effd232b4033e47d90003d41ec34ecaeda9469d89d63"
+    ]
+   }
+  },
+  "expected": {
+   "domain_separator": "c078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943",
+   "message_hash": "c2db95270ee0d0e6ae186f42a5acbd1d0809010e2f83398fca5ad7fa7e7dd803",
+   "digest": "5898792dcf9f9d984e4d0ce6b0dc8a10ebd652e8722e944b38bad099f1a968a4"
+  }
+ },
+ {
+  "id": "0x-LimitOrder",
+  "source": [
+   "https://github.com/0xProject/protocol/blob/2c8e51e36ccbafa39f7c9003f4087710665acb02/contracts/zero-ex/contracts/src/features/libs/LibNativeOrder.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "LimitOrder": [
+     {
+      "name": "makerToken",
+      "type": "address"
+     },
+     {
+      "name": "takerToken",
+      "type": "address"
+     },
+     {
+      "name": "makerAmount",
+      "type": "uint128"
+     },
+     {
+      "name": "takerAmount",
+      "type": "uint128"
+     },
+     {
+      "name": "takerTokenFeeAmount",
+      "type": "uint128"
+     },
+     {
+      "name": "maker",
+      "type": "address"
+     },
+     {
+      "name": "taker",
+      "type": "address"
+     },
+     {
+      "name": "sender",
+      "type": "address"
+     },
+     {
+      "name": "feeRecipient",
+      "type": "address"
+     },
+     {
+      "name": "pool",
+      "type": "bytes32"
+     },
+     {
+      "name": "expiry",
+      "type": "uint64"
+     },
+     {
+      "name": "salt",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "LimitOrder",
+   "domain": {
+    "name": "ZeroEx",
+    "version": "1.0.0",
+    "chainId": 1,
+    "verifyingContract": "0xDef1C0ded9bec7F1a1670819833240f027b25EfF"
+   },
+   "message": {
+    "makerToken": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "takerToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "makerAmount": "1000000000000000000",
+    "takerAmount": "3500000000",
+    "takerTokenFeeAmount": "0",
+    "maker": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "taker": "0x0000000000000000000000000000000000000000",
+    "sender": "0x0000000000000000000000000000000000000000",
+    "feeRecipient": "0x0000000000000000000000000000000000000000",
+    "pool": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "expiry": "1775803746",
+    "salt": "54308148374513278436071736734563213846290466613155327734536137082462373451223"
+   }
+  },
+  "expected": {
+   "domain_separator": "fe3a8808ff7909b8c36164e6e9a076597c21c3fc2ec6f2c8ac04529c41ce507e",
+   "message_hash": "52eeeafb7e1db5a5dd3c0604bac947a340ea48a297fb5b4eabe88509e4bd8688",
+   "digest": "474fd3e0afa906ca55fd290375e08ccde65bf824e8bf85fff0c656849e713e88"
+  }
+ },
+ {
+  "id": "0x-RfqOrder",
+  "source": [
+   "https://github.com/0xProject/protocol/blob/2c8e51e36ccbafa39f7c9003f4087710665acb02/contracts/zero-ex/contracts/src/features/libs/LibNativeOrder.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "RfqOrder": [
+     {
+      "name": "makerToken",
+      "type": "address"
+     },
+     {
+      "name": "takerToken",
+      "type": "address"
+     },
+     {
+      "name": "makerAmount",
+      "type": "uint128"
+     },
+     {
+      "name": "takerAmount",
+      "type": "uint128"
+     },
+     {
+      "name": "maker",
+      "type": "address"
+     },
+     {
+      "name": "taker",
+      "type": "address"
+     },
+     {
+      "name": "txOrigin",
+      "type": "address"
+     },
+     {
+      "name": "pool",
+      "type": "bytes32"
+     },
+     {
+      "name": "expiry",
+      "type": "uint64"
+     },
+     {
+      "name": "salt",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "RfqOrder",
+   "domain": {
+    "name": "ZeroEx",
+    "version": "1.0.0",
+    "chainId": 1,
+    "verifyingContract": "0xDef1C0ded9bec7F1a1670819833240f027b25EfF"
+   },
+   "message": {
+    "makerToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "takerToken": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "makerAmount": "3500000000",
+    "takerAmount": "1000000000000000000",
+    "maker": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "taker": "0x0000000000000000000000000000000000000000",
+    "txOrigin": "0x27213E28D7fDA5c57Fe9e5dD923818DBCcf71c47",
+    "pool": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "expiry": "1775803746",
+    "salt": "1775803000"
+   }
+  },
+  "expected": {
+   "domain_separator": "fe3a8808ff7909b8c36164e6e9a076597c21c3fc2ec6f2c8ac04529c41ce507e",
+   "message_hash": "4fe4aaaecb08c6b07ebd5c06ba57304d9e8bf650668e51afd87c81f243578043",
+   "digest": "24dd6dea5cd2de49c1701d67eaf8487efdc213828d2c00a97408379a0e1fcd98"
+  }
+ },
+ {
+  "id": "0x-OtcOrder",
+  "source": [
+   "https://github.com/0xProject/protocol/blob/2c8e51e36ccbafa39f7c9003f4087710665acb02/contracts/zero-ex/contracts/src/features/libs/LibNativeOrder.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "OtcOrder": [
+     {
+      "name": "makerToken",
+      "type": "address"
+     },
+     {
+      "name": "takerToken",
+      "type": "address"
+     },
+     {
+      "name": "makerAmount",
+      "type": "uint128"
+     },
+     {
+      "name": "takerAmount",
+      "type": "uint128"
+     },
+     {
+      "name": "maker",
+      "type": "address"
+     },
+     {
+      "name": "taker",
+      "type": "address"
+     },
+     {
+      "name": "txOrigin",
+      "type": "address"
+     },
+     {
+      "name": "expiryAndNonce",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "OtcOrder",
+   "domain": {
+    "name": "ZeroEx",
+    "version": "1.0.0",
+    "chainId": 1,
+    "verifyingContract": "0xDef1C0ded9bec7F1a1670819833240f027b25EfF"
+   },
+   "message": {
+    "makerToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "takerToken": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "makerAmount": "3500000000",
+    "takerAmount": "1000000000000000000",
+    "maker": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "taker": "0x0000000000000000000000000000000000000000",
+    "txOrigin": "0x27213E28D7fDA5c57Fe9e5dD923818DBCcf71c47",
+    "expiryAndNonce": "2724834893716958296099287542290232898829043766902734489108736"
+   }
+  },
+  "expected": {
+   "domain_separator": "fe3a8808ff7909b8c36164e6e9a076597c21c3fc2ec6f2c8ac04529c41ce507e",
+   "message_hash": "c3d531dfd43da6373e92accb783b6c56e7eaa7148a88b36a0bdd4b156c73133d",
+   "digest": "a575e5d5eab33f2c528564d24febb5c74ad8919c25581ac9c7012f338b0590d1"
+  }
+ },
+ {
+  "id": "safe-SafeTx",
+  "source": [
+   "https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/Safe.sol",
+   "https://github.com/safe-global/safe-smart-account/blob/v1.3.0/contracts/GnosisSafe.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "SafeTx": [
+     {
+      "name": "to",
+      "type": "address"
+     },
+     {
+      "name": "value",
+      "type": "uint256"
+     },
+     {
+      "name": "data",
+      "type": "bytes"
+     },
+     {
+      "name": "operation",
+      "type": "uint8"
+     },
+     {
+      "name": "safeTxGas",
+      "type": "uint256"
+     },
+     {
+      "name": "baseGas",
+      "type": "uint256"
+     },
+     {
+      "name": "gasPrice",
+      "type": "uint256"
+     },
+     {
+      "name": "gasToken",
+      "type": "address"
+     },
+     {
+      "name": "refundReceiver",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "SafeTx",
+   "domain": {
+    "chainId": 1,
+    "verifyingContract": "0x4F2083f5fBede34C2714aFfb3105539775f7FE64"
+   },
+   "message": {
+    "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "value": "0",
+    "data": "0xa9059cbb00000000000000000000000027213e28d7fda5c57fe9e5dd923818dbccf71c470000000000000000000000000000000000000000000000000000000059682f00",
+    "operation": 0,
+    "safeTxGas": "0",
+    "baseGas": "0",
+    "gasPrice": "0",
+    "gasToken": "0x0000000000000000000000000000000000000000",
+    "refundReceiver": "0x0000000000000000000000000000000000000000",
+    "nonce": "42"
+   }
+  },
+  "expected": {
+   "domain_separator": "facf7a68664ed3dabebe8e263b4cf03d3e1ba8bbda764c9697c80c7e38b41c62",
+   "message_hash": "f1e5adf415ba2dc900ccdd63831d31c79f9a30e40a2d41a8a0683c8d8f535f1d",
+   "digest": "c6d5a71fd45369207a574d910998c708553d0a8960cbc8ea4515f04891f78878"
+  }
+ },
+ {
+  "id": "safe-SafeTx-approve-unlimited",
+  "source": [
+   "https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/Safe.sol",
+   "https://github.com/safe-global/safe-smart-account/blob/v1.3.0/contracts/GnosisSafe.sol"
+  ],
+  "requires_capability": "erc20-unlimited-approve-review",
+  "unlimited_screen": "Allow 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45 to spend ALL your USDC",
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "SafeTx": [
+     {
+      "name": "to",
+      "type": "address"
+     },
+     {
+      "name": "value",
+      "type": "uint256"
+     },
+     {
+      "name": "data",
+      "type": "bytes"
+     },
+     {
+      "name": "operation",
+      "type": "uint8"
+     },
+     {
+      "name": "safeTxGas",
+      "type": "uint256"
+     },
+     {
+      "name": "baseGas",
+      "type": "uint256"
+     },
+     {
+      "name": "gasPrice",
+      "type": "uint256"
+     },
+     {
+      "name": "gasToken",
+      "type": "address"
+     },
+     {
+      "name": "refundReceiver",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "SafeTx",
+   "domain": {
+    "chainId": 1,
+    "verifyingContract": "0x4F2083f5fBede34C2714aFfb3105539775f7FE64"
+   },
+   "message": {
+    "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "value": "0",
+    "data": "0x095ea7b300000000000000000000000068b3465833fb72a70ecdf485e0e4c7bd8665fc45ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "operation": 0,
+    "safeTxGas": "0",
+    "baseGas": "0",
+    "gasPrice": "0",
+    "gasToken": "0x0000000000000000000000000000000000000000",
+    "refundReceiver": "0x0000000000000000000000000000000000000000",
+    "nonce": "43"
+   }
+  },
+  "expected": {
+   "domain_separator": "facf7a68664ed3dabebe8e263b4cf03d3e1ba8bbda764c9697c80c7e38b41c62",
+   "message_hash": "52f96cddec6b14f4496fe53708bb359ef7fcc6f1ccedf63177fd6237b5054b4b",
+   "digest": "efbe9929ce3de6463119639b299b403e582c1113a2d2a9434b4ba914a1dcffb3"
+  }
+ },
+ {
+  "id": "safe-SafeMessage",
+  "source": [
+   "https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/handler/CompatibilityFallbackHandler.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "SafeMessage": [
+     {
+      "name": "message",
+      "type": "bytes"
+     }
+    ]
+   },
+   "primaryType": "SafeMessage",
+   "domain": {
+    "chainId": 1,
+    "verifyingContract": "0x4F2083f5fBede34C2714aFfb3105539775f7FE64"
+   },
+   "message": {
+    "message": "0x5369676e20696e20746f206170702e6578616d706c652e6f7267207769746820796f75722053616665"
+   }
+  },
+  "expected": {
+   "domain_separator": "facf7a68664ed3dabebe8e263b4cf03d3e1ba8bbda764c9697c80c7e38b41c62",
+   "message_hash": "50c1323949a0f56f1d841a54dcf0b029edeeb52ad42daa386d59ce7d8f5d9e26",
+   "digest": "10d37e6ca3e5d88f02051f712267a3763f108f8cc1bf478290254f3f6770cc79"
+  }
+ },
+ {
+  "id": "eip2612-Permit",
+  "source": [
+   "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/c98b7188338e3c5fce903747894561af78863bbb/contracts/token/ERC20/extensions/ERC20Permit.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Permit": [
+     {
+      "name": "owner",
+      "type": "address"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "value",
+      "type": "uint256"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "Permit",
+   "domain": {
+    "name": "USD Coin",
+    "version": "2",
+    "chainId": 1,
+    "verifyingContract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+   },
+   "message": {
+    "owner": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "spender": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+    "value": "250000000",
+    "nonce": "0",
+    "deadline": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "06c37168a7db5138defc7866392bb87a741f9b3d104deb5094588ce041cae335",
+   "message_hash": "10de0bd7514d5a137be30ca8b8d727c944556d219ac5338577ea5b44bbecc21a",
+   "digest": "9dfbe3c2bc66846b4e4d05cf917567d5448bac92b4b575285df4b198f459ed94"
+  }
+ },
+ {
+  "id": "eip2612-Permit-unlimited",
+  "source": [
+   "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/c98b7188338e3c5fce903747894561af78863bbb/contracts/token/ERC20/extensions/ERC20Permit.sol"
+  ],
+  "requires_capability": "erc20-unlimited-permit-review",
+  "unlimited_screen": "value\nuint256: UNLIMITED",
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Permit": [
+     {
+      "name": "owner",
+      "type": "address"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "value",
+      "type": "uint256"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "Permit",
+   "domain": {
+    "name": "USD Coin",
+    "version": "2",
+    "chainId": 1,
+    "verifyingContract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+   },
+   "message": {
+    "owner": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "spender": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+    "value": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+    "nonce": "0",
+    "deadline": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "06c37168a7db5138defc7866392bb87a741f9b3d104deb5094588ce041cae335",
+   "message_hash": "33ffd631195880f28f81f273a3be51c770ca95311a3f90cf2caa81f3b338a26c",
+   "digest": "e8f07ca0d9556242ed695a7367e5ffe5d5e8b3913a82a763a83cf1be5d03ad1f"
+  }
+ },
+ {
+  "id": "dai-Permit",
+  "source": [
+   "https://github.com/makerdao/dss/blob/fa4f6630afb0624d04a003e920b0d71a00331d98/src/dai.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Permit": [
+     {
+      "name": "holder",
+      "type": "address"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "expiry",
+      "type": "uint256"
+     },
+     {
+      "name": "allowed",
+      "type": "bool"
+     }
+    ]
+   },
+   "primaryType": "Permit",
+   "domain": {
+    "name": "Dai Stablecoin",
+    "version": "1",
+    "chainId": 1,
+    "verifyingContract": "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+   },
+   "message": {
+    "holder": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "spender": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+    "nonce": "3",
+    "expiry": "1775803746",
+    "allowed": false
+   }
+  },
+  "expected": {
+   "domain_separator": "dbb8cf42e1ecb028be3f3dbc922e1d878b963f411dc388ced501601c60f7c6f7",
+   "message_hash": "ab11f761da4f18c351b557993fff3af1b5276e0ca318a34eb7ff374040587863",
+   "digest": "ea585737a895795b5b84df7ff9082e15098bda1e22cc312b27ce64c6b656bde6"
+  }
+ },
+ {
+  "id": "dai-Permit-allowed",
+  "source": [
+   "https://github.com/makerdao/dss/blob/fa4f6630afb0624d04a003e920b0d71a00331d98/src/dai.sol"
+  ],
+  "requires_capability": "erc20-unlimited-permit-review",
+  "unlimited_screen": "allowed\nbool: UNLIMITED (allowed)",
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Permit": [
+     {
+      "name": "holder",
+      "type": "address"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "expiry",
+      "type": "uint256"
+     },
+     {
+      "name": "allowed",
+      "type": "bool"
+     }
+    ]
+   },
+   "primaryType": "Permit",
+   "domain": {
+    "name": "Dai Stablecoin",
+    "version": "1",
+    "chainId": 1,
+    "verifyingContract": "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+   },
+   "message": {
+    "holder": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "spender": "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+    "nonce": "3",
+    "expiry": "1775803746",
+    "allowed": true
+   }
+  },
+  "expected": {
+   "domain_separator": "dbb8cf42e1ecb028be3f3dbc922e1d878b963f411dc388ced501601c60f7c6f7",
+   "message_hash": "d087cc737aa821393dd824ea87dcb51376c51b9815d52c6f5102c6e843b128c0",
+   "digest": "c2b81aa8b44a91816e41ff0810a9ccb9bf0226cbdfd901493205a18fc5eb94a4"
+  }
+ },
+ {
+  "id": "hyperliquid-Agent",
+  "source": [
+   "https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/2fdb18f9517675ea03695a0962bd19eece9c83f0/hyperliquid/utils/signing.py"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Agent": [
+     {
+      "name": "source",
+      "type": "string"
+     },
+     {
+      "name": "connectionId",
+      "type": "bytes32"
+     }
+    ]
+   },
+   "primaryType": "Agent",
+   "domain": {
+    "name": "Exchange",
+    "version": "1",
+    "chainId": 1337,
+    "verifyingContract": "0x0000000000000000000000000000000000000000"
+   },
+   "message": {
+    "source": "a",
+    "connectionId": "0x5a9c4e1b6f3d2a8c7e0b1d4f6a8c2e4b6d8f0a1c3e5b7d9f1a3c5e7b9d1f3a5c"
+   }
+  },
+  "expected": {
+   "domain_separator": "d79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+   "message_hash": "f4ece6c5a5f1499c017ee17624f5a4ac0a476f42a270b0300b96840c4fb407ad",
+   "digest": "6bce8eb48553ebe6181a9cdba358196071b0ac1f204f124cc3c6d9fcfe0d87e0"
+  }
+ },
+ {
+  "id": "hyperliquid-UsdSend",
+  "source": [
+   "https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/2fdb18f9517675ea03695a0962bd19eece9c83f0/hyperliquid/utils/signing.py"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "HyperliquidTransaction:UsdSend": [
+     {
+      "name": "hyperliquidChain",
+      "type": "string"
+     },
+     {
+      "name": "destination",
+      "type": "string"
+     },
+     {
+      "name": "amount",
+      "type": "string"
+     },
+     {
+      "name": "time",
+      "type": "uint64"
+     }
+    ]
+   },
+   "primaryType": "HyperliquidTransaction:UsdSend",
+   "domain": {
+    "name": "HyperliquidSignTransaction",
+    "version": "1",
+    "chainId": 421614,
+    "verifyingContract": "0x0000000000000000000000000000000000000000"
+   },
+   "message": {
+    "hyperliquidChain": "Mainnet",
+    "destination": "0x27213e28d7fda5c57fe9e5dd923818dbccf71c47",
+    "amount": "125.5",
+    "time": 1775803746123
+   }
+  },
+  "expected": {
+   "domain_separator": "feb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+   "message_hash": "518cb9e1a640cb3f4f1284c76dfd63a9a71962c694c22dc3f6dff33ba6f6ab92",
+   "digest": "ccaa5b3b61614b569661dc3b3898d09db03661064d3300c6dfc50a48c5257621"
+  }
+ },
+ {
+  "id": "hyperliquid-Withdraw",
+  "source": [
+   "https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/2fdb18f9517675ea03695a0962bd19eece9c83f0/hyperliquid/utils/signing.py"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "HyperliquidTransaction:Withdraw": [
+     {
+      "name": "hyperliquidChain",
+      "type": "string"
+     },
+     {
+      "name": "destination",
+      "type": "string"
+     },
+     {
+      "name": "amount",
+      "type": "string"
+     },
+     {
+      "name": "time",
+      "type": "uint64"
+     }
+    ]
+   },
+   "primaryType": "HyperliquidTransaction:Withdraw",
+   "domain": {
+    "name": "HyperliquidSignTransaction",
+    "version": "1",
+    "chainId": 421614,
+    "verifyingContract": "0x0000000000000000000000000000000000000000"
+   },
+   "message": {
+    "hyperliquidChain": "Mainnet",
+    "destination": "0x9858effd232b4033e47d90003d41ec34ecaeda94",
+    "amount": "1000",
+    "time": 1775803746124
+   }
+  },
+  "expected": {
+   "domain_separator": "feb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+   "message_hash": "dd5d1b845532de3345180aaeaf23bbb2b7bbcd4ff128c3278dae59485cb62609",
+   "digest": "7da96947dfdab71f98adc8b1dd35f14ca9d89a3748a47948fcbce63459a00153"
+  }
+ },
+ {
+  "id": "hyperliquid-SpotSend",
+  "source": [
+   "https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/2fdb18f9517675ea03695a0962bd19eece9c83f0/hyperliquid/utils/signing.py"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "HyperliquidTransaction:SpotSend": [
+     {
+      "name": "hyperliquidChain",
+      "type": "string"
+     },
+     {
+      "name": "destination",
+      "type": "string"
+     },
+     {
+      "name": "token",
+      "type": "string"
+     },
+     {
+      "name": "amount",
+      "type": "string"
+     },
+     {
+      "name": "time",
+      "type": "uint64"
+     }
+    ]
+   },
+   "primaryType": "HyperliquidTransaction:SpotSend",
+   "domain": {
+    "name": "HyperliquidSignTransaction",
+    "version": "1",
+    "chainId": 421614,
+    "verifyingContract": "0x0000000000000000000000000000000000000000"
+   },
+   "message": {
+    "hyperliquidChain": "Mainnet",
+    "destination": "0x27213e28d7fda5c57fe9e5dd923818dbccf71c47",
+    "token": "PURR:0xc4bf3f870c0e9465323c0b6ed28096c2",
+    "amount": "42",
+    "time": 1775803746125
+   }
+  },
+  "expected": {
+   "domain_separator": "feb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+   "message_hash": "9873b52950b87cda36625decbdeedcfbc0821cc1c49c413ec361f50286ed624a",
+   "digest": "024b66a25a2fd6473d749d58a5ab9811278d3ac66f0fa014d7a2c7ae3ef22086"
+  }
+ },
+ {
+  "id": "hyperliquid-ApproveAgent",
+  "source": [
+   "https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/2fdb18f9517675ea03695a0962bd19eece9c83f0/hyperliquid/utils/signing.py"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "HyperliquidTransaction:ApproveAgent": [
+     {
+      "name": "hyperliquidChain",
+      "type": "string"
+     },
+     {
+      "name": "agentAddress",
+      "type": "address"
+     },
+     {
+      "name": "agentName",
+      "type": "string"
+     },
+     {
+      "name": "nonce",
+      "type": "uint64"
+     }
+    ]
+   },
+   "primaryType": "HyperliquidTransaction:ApproveAgent",
+   "domain": {
+    "name": "HyperliquidSignTransaction",
+    "version": "1",
+    "chainId": 421614,
+    "verifyingContract": "0x0000000000000000000000000000000000000000"
+   },
+   "message": {
+    "hyperliquidChain": "Mainnet",
+    "agentAddress": "0x7FFC3DBF3B2b50Ff3A1D5523bc24Bb5043837B14",
+    "agentName": "keepkey",
+    "nonce": 1775803746126
+   }
+  },
+  "expected": {
+   "domain_separator": "feb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+   "message_hash": "0edbc16bac693bf270904285960c7a2aad984948616503c31b188cc314001f50",
+   "digest": "727fae5d7d7ffa519fb0f06bff340d863a9d366d3650feda6c25bc834d616b7e"
+  }
+ },
+ {
+  "id": "hyperliquid-ApproveBuilderFee",
+  "source": [
+   "https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/2fdb18f9517675ea03695a0962bd19eece9c83f0/hyperliquid/utils/signing.py"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "HyperliquidTransaction:ApproveBuilderFee": [
+     {
+      "name": "hyperliquidChain",
+      "type": "string"
+     },
+     {
+      "name": "maxFeeRate",
+      "type": "string"
+     },
+     {
+      "name": "builder",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint64"
+     }
+    ]
+   },
+   "primaryType": "HyperliquidTransaction:ApproveBuilderFee",
+   "domain": {
+    "name": "HyperliquidSignTransaction",
+    "version": "1",
+    "chainId": 421614,
+    "verifyingContract": "0x0000000000000000000000000000000000000000"
+   },
+   "message": {
+    "hyperliquidChain": "Mainnet",
+    "maxFeeRate": "0.1%",
+    "builder": "0xaab1d2c1fc1c5b4e8a1de8b3fe2f5fc6e2fb86d3",
+    "nonce": 1775803746127
+   }
+  },
+  "expected": {
+   "domain_separator": "feb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+   "message_hash": "40faac2eae76730154845cadb657e0eb6189a2e62d8996a3507384d37df30dd8",
+   "digest": "a157aa4e572a9371cd72316b9e56d5c6b870932d480b9c1c213ce754e27f0b7d"
+  }
+ },
+ {
+  "id": "polymarket-Order",
+  "source": [
+   "https://github.com/Polymarket/ctf-exchange/blob/ed5c7708b7be3aa98bf5f0c6602b57cc498e2ef4/src/exchange/libraries/OrderStructs.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Order": [
+     {
+      "name": "salt",
+      "type": "uint256"
+     },
+     {
+      "name": "maker",
+      "type": "address"
+     },
+     {
+      "name": "signer",
+      "type": "address"
+     },
+     {
+      "name": "taker",
+      "type": "address"
+     },
+     {
+      "name": "tokenId",
+      "type": "uint256"
+     },
+     {
+      "name": "makerAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "takerAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "expiration",
+      "type": "uint256"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "feeRateBps",
+      "type": "uint256"
+     },
+     {
+      "name": "side",
+      "type": "uint8"
+     },
+     {
+      "name": "signatureType",
+      "type": "uint8"
+     }
+    ]
+   },
+   "primaryType": "Order",
+   "domain": {
+    "name": "Polymarket CTF Exchange",
+    "version": "1",
+    "chainId": 137,
+    "verifyingContract": "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"
+   },
+   "message": {
+    "salt": "479249096354",
+    "maker": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "signer": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "taker": "0x0000000000000000000000000000000000000000",
+    "tokenId": "71321045679252212594626385532706912750332728571942532289631379312455583992563",
+    "makerAmount": "50000000",
+    "takerAmount": "100000000",
+    "expiration": "0",
+    "nonce": "0",
+    "feeRateBps": "0",
+    "side": 0,
+    "signatureType": 0
+   }
+  },
+  "expected": {
+   "domain_separator": "1a573e3617c78403b5b4b892827992f027b03d4eaf570048b8ee8cdd84d151be",
+   "message_hash": "02d6222deeec96f60bb0fd5b2fa76da7f7a416223bbb77a5126bdd95c6ed4c27",
+   "digest": "4adaa897f6212a9a351ea8f1e30129c3746eccf4a02e2128961a152e7c10ce0d"
+  }
+ },
+ {
+  "id": "polymarket-ClobAuth",
+  "source": [
+   "https://github.com/Polymarket/clob-client/blob/7df8257dc95f99edb257b53a7873e273a9b4a9b3/src/signing/eip712.ts"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     }
+    ],
+    "ClobAuth": [
+     {
+      "name": "address",
+      "type": "address"
+     },
+     {
+      "name": "timestamp",
+      "type": "string"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "message",
+      "type": "string"
+     }
+    ]
+   },
+   "primaryType": "ClobAuth",
+   "domain": {
+    "name": "ClobAuthDomain",
+    "version": "1",
+    "chainId": 137
+   },
+   "message": {
+    "address": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "timestamp": "1775803746",
+    "nonce": "0",
+    "message": "This message attests that I control the given wallet"
+   }
+  },
+  "expected": {
+   "domain_separator": "cfc66be2a3b30464cb3b588324101f660c9a205fa76e8e5f83ee16a528e1c4cb",
+   "message_hash": "6998fb300c3c08c2bafe9e47d73aab51025acdf054307f4f4583d94404c97fcf",
+   "digest": "26632c686b33505c3e6f3001b3a7581f30dce9f94720ad249a2286fea252adff"
+  }
+ },
+ {
+  "id": "compound-Ballot",
+  "source": [
+   "https://github.com/compound-finance/compound-protocol/blob/a3214f67b73310d547e00fc578e8355911c9d376/contracts/Governance/GovernorBravoDelegate.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Ballot": [
+     {
+      "name": "proposalId",
+      "type": "uint256"
+     },
+     {
+      "name": "support",
+      "type": "uint8"
+     }
+    ]
+   },
+   "primaryType": "Ballot",
+   "domain": {
+    "name": "Compound Governor Bravo",
+    "chainId": 1,
+    "verifyingContract": "0xc0Da02939E1441F497fd74F78cE7Decb17B66529"
+   },
+   "message": {
+    "proposalId": "289",
+    "support": 1
+   }
+  },
+  "expected": {
+   "domain_separator": "d34731531481fb0dd71602b43ef32fd12c76bc12d76869812352236afaa4b346",
+   "message_hash": "91d8e3e95c41471dd654460e8b12395e1b0ee5682bfc1598134898b7a964a582",
+   "digest": "5e70ede1f42b52b245a35a58e2f2da91eef453a540c808247f785ed62dc7c9e2"
+  }
+ },
+ {
+  "id": "oz-governor-v5-ExtendedBallot",
+  "source": [
+   "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.4.0/contracts/governance/Governor.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "ExtendedBallot": [
+     {
+      "name": "proposalId",
+      "type": "uint256"
+     },
+     {
+      "name": "support",
+      "type": "uint8"
+     },
+     {
+      "name": "voter",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "reason",
+      "type": "string"
+     },
+     {
+      "name": "params",
+      "type": "bytes"
+     }
+    ]
+   },
+   "primaryType": "ExtendedBallot",
+   "domain": {
+    "name": "Compound Governor",
+    "version": "1",
+    "chainId": 1,
+    "verifyingContract": "0x309a862bbC1A00e45506cB8A802D1ff10004c8C0"
+   },
+   "message": {
+    "proposalId": "10770658185911291573227826359627312367262036453227096346419573049937349025001",
+    "support": 1,
+    "voter": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "nonce": "0",
+    "reason": "Supports the risk parameter update.",
+    "params": "0x"
+   }
+  },
+  "expected": {
+   "domain_separator": "3abcb92fd8e6968fd834a2cc50bb05abdd78c74cd0fac3f017c47fcc8b743e87",
+   "message_hash": "05ce3e96fc27ffd71d0e36c688ecab14c00a49fac2c65bdfbd64af3ca49191f5",
+   "digest": "2f8c569b46c093b83c7ae290f31893ef6956910121ddcb1ca55f1326a6819845"
+  }
+ },
+ {
+  "id": "oz-governor-v4-ExtendedBallot",
+  "source": [
+   "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v4.9.6/contracts/governance/Governor.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "ExtendedBallot": [
+     {
+      "name": "proposalId",
+      "type": "uint256"
+     },
+     {
+      "name": "support",
+      "type": "uint8"
+     },
+     {
+      "name": "reason",
+      "type": "string"
+     },
+     {
+      "name": "params",
+      "type": "bytes"
+     }
+    ]
+   },
+   "primaryType": "ExtendedBallot",
+   "domain": {
+    "name": "ENS Governor",
+    "version": "1",
+    "chainId": 1,
+    "verifyingContract": "0x323A76393544d5ecca80cd6ef2A560C6a395b7E3"
+   },
+   "message": {
+    "proposalId": "42",
+    "support": 0,
+    "reason": "Against: needs an audit first.",
+    "params": "0x"
+   }
+  },
+  "expected": {
+   "domain_separator": "7569da846e8a3624f3e70461387f0c2bae53ef7edc30b5d3a5fbe2b74fa7c741",
+   "message_hash": "d0e00d45e7cd483b28090a1512888e0bd907dce94815a2750c5064941e7bf76b",
+   "digest": "1d95b248abb2fc734628421684b93ce1980641738dca34190a3ee4916c20f6d8"
+  }
+ },
+ {
+  "id": "compound-Delegation",
+  "source": [
+   "https://github.com/compound-finance/compound-protocol/blob/a3214f67b73310d547e00fc578e8355911c9d376/contracts/Governance/Comp.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Delegation": [
+     {
+      "name": "delegatee",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "expiry",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "Delegation",
+   "domain": {
+    "name": "Compound",
+    "chainId": 1,
+    "verifyingContract": "0xc00e94Cb662C3520282E6f5717214004A7f26888"
+   },
+   "message": {
+    "delegatee": "0x7FFC3DBF3B2b50Ff3A1D5523bc24Bb5043837B14",
+    "nonce": "0",
+    "expiry": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "97529df852bab657e1ffa498f205743fdd7e2b2dcbcc1173bacf2cd17133d278",
+   "message_hash": "ca7258eec1792ca72c50d4c4e2aca40d71485e77c86b39b9d04695ab7098500d",
+   "digest": "014c88c699f48e4680fdf86ab4a638876ff93812b0dd20106f3797caa8adb4ca"
+  }
+ },
+ {
+  "id": "aave-SubmitVote",
+  "source": [
+   "https://github.com/bgd-labs/aave-governance-v3/blob/497226efad1ca3723074034c8341fb90931fc2b2/src/contracts/voting/VotingMachineWithProofs.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "SubmitVote": [
+     {
+      "name": "proposalId",
+      "type": "uint256"
+     },
+     {
+      "name": "voter",
+      "type": "address"
+     },
+     {
+      "name": "support",
+      "type": "bool"
+     },
+     {
+      "name": "votingAssetsWithSlot",
+      "type": "VotingAssetWithSlot[]"
+     }
+    ],
+    "VotingAssetWithSlot": [
+     {
+      "name": "underlyingAsset",
+      "type": "address"
+     },
+     {
+      "name": "slot",
+      "type": "uint128"
+     }
+    ]
+   },
+   "primaryType": "SubmitVote",
+   "domain": {
+    "name": "Aave Voting Machine",
+    "version": "V1",
+    "chainId": 137,
+    "verifyingContract": "0xc8a2ADC4261c6b669CdFf69E717E77C9cFeB420d"
+   },
+   "message": {
+    "proposalId": "312",
+    "voter": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "support": true,
+    "votingAssetsWithSlot": [
+     {
+      "underlyingAsset": "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9",
+      "slot": "0"
+     },
+     {
+      "underlyingAsset": "0x4da27a545c0c5B758a6BA100e3a049001de870f5",
+      "slot": "0"
+     },
+     {
+      "underlyingAsset": "0xA700b4eB416Be35b2911fd5Dee80678ff64fF6C9",
+      "slot": "52"
+     }
+    ]
+   }
+  },
+  "expected": {
+   "domain_separator": "ae1a4d19b2c550c11439cbcb934c88b16b8585f876d64fe1a6a6ae8e9e863c46",
+   "message_hash": "0fbe44b065abb8e818ecd154ba83b7a7f6f4824400446e44e97c426eb4989019",
+   "digest": "ad46f18dee90c1e41f3505c75706e0780e5b47ceb64e6406e85863ad17278f2c"
+  }
+ },
+ {
+  "id": "dydx-DelegateByType",
+  "source": [
+   "https://github.com/dydxfoundation/governance-contracts/blob/804a6e41f96f8b67daeff1d681b4c1c66ceb2547/contracts/governance/token/GovernancePowerDelegationERC20Mixin.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "DelegateByType": [
+     {
+      "name": "delegatee",
+      "type": "address"
+     },
+     {
+      "name": "type",
+      "type": "uint256"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "expiry",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "DelegateByType",
+   "domain": {
+    "name": "dYdX",
+    "version": "1",
+    "chainId": 1,
+    "verifyingContract": "0x92D6C1e31e14520e676a687F0a93788B716BEff5"
+   },
+   "message": {
+    "delegatee": "0x7FFC3DBF3B2b50Ff3A1D5523bc24Bb5043837B14",
+    "type": "1",
+    "nonce": "0",
+    "expiry": "1775803746"
+   }
+  },
+  "expected": {
+   "domain_separator": "17e76dd75f3dfe3e50d31322433cc1405e898404a5724da2d4804cab81e0a88a",
+   "message_hash": "6dfed76dfede64f4af0c2768ac6d52b71f00d84ae5d32686448b7b5beb4c33a2",
+   "digest": "820d885ba6d39bf57def942b8c33ee3508d4fff87a09e50fb2f6ecaa486f8dd9"
+  }
+ },
+ {
+  "id": "across-GaslessCrossChainOrder",
+  "source": [
+   "https://github.com/across-protocol/contracts/blob/master/contracts/erc7683/ERC7683Permit2Lib.sol",
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitWitnessTransferFrom": [
+     {
+      "name": "permitted",
+      "type": "TokenPermissions"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "witness",
+      "type": "GaslessCrossChainOrder"
+     }
+    ],
+    "AcrossOrderData": [
+     {
+      "name": "inputToken",
+      "type": "address"
+     },
+     {
+      "name": "inputAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "outputToken",
+      "type": "address"
+     },
+     {
+      "name": "outputAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "destinationChainId",
+      "type": "uint256"
+     },
+     {
+      "name": "recipient",
+      "type": "bytes32"
+     },
+     {
+      "name": "exclusiveRelayer",
+      "type": "address"
+     },
+     {
+      "name": "exclusivityPeriod",
+      "type": "uint32"
+     },
+     {
+      "name": "message",
+      "type": "bytes"
+     }
+    ],
+    "GaslessCrossChainOrder": [
+     {
+      "name": "originSettler",
+      "type": "address"
+     },
+     {
+      "name": "user",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "originChainId",
+      "type": "uint256"
+     },
+     {
+      "name": "openDeadline",
+      "type": "uint32"
+     },
+     {
+      "name": "fillDeadline",
+      "type": "uint32"
+     },
+     {
+      "name": "orderDataType",
+      "type": "bytes32"
+     },
+     {
+      "name": "orderData",
+      "type": "AcrossOrderData"
+     }
+    ],
+    "TokenPermissions": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "PermitWitnessTransferFrom",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 42161,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "permitted": {
+     "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "amount": "500000000"
+    },
+    "spender": "0xB0B07055F214Ce59ccB968663d3435B9f3294998",
+    "nonce": "77",
+    "deadline": "1775803746",
+    "witness": {
+     "originSettler": "0xB0B07055F214Ce59ccB968663d3435B9f3294998",
+     "user": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+     "nonce": "77",
+     "originChainId": "42161",
+     "openDeadline": 1775803746,
+     "fillDeadline": 1775814546,
+     "orderDataType": "0x9df4b782e7bbc178b3b93bfe8aafb909e84e39484d7f3c59f400f1b4691f85e2",
+     "orderData": {
+      "inputToken": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "inputAmount": "500000000",
+      "outputToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "outputAmount": "499650000",
+      "destinationChainId": "1",
+      "recipient": "0x0000000000000000000000009858effd232b4033e47d90003d41ec34ecaeda94",
+      "exclusiveRelayer": "0x0000000000000000000000000000000000000000",
+      "exclusivityPeriod": 0,
+      "message": "0x"
+     }
+    }
+   }
+  },
+  "expected": {
+   "domain_separator": "8a6e6e19bdfb3db3409910416b47c2f8fc28b49488d6555c7fceaa4479135bc3",
+   "message_hash": "a0e1fae1fef174757d2b9652c3d1721a9262a393e50904e7f51ba49c2e5e18a6",
+   "digest": "89121d721fbf3935ca58a646da33ae08eef33bdc61fb9584826bc68eb5b867d9"
+  }
+ },
+ {
+  "id": "snapshot-Vote-uint32",
+  "source": [
+   "https://github.com/snapshot-labs/snapshot.js/blob/ae2a8209e03ca1fa133a9105949a9386f3b539ed/src/sign/types.ts"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     }
+    ],
+    "Vote": [
+     {
+      "name": "from",
+      "type": "string"
+     },
+     {
+      "name": "space",
+      "type": "string"
+     },
+     {
+      "name": "timestamp",
+      "type": "uint64"
+     },
+     {
+      "name": "proposal",
+      "type": "string"
+     },
+     {
+      "name": "choice",
+      "type": "uint32"
+     },
+     {
+      "name": "reason",
+      "type": "string"
+     },
+     {
+      "name": "app",
+      "type": "string"
+     },
+     {
+      "name": "metadata",
+      "type": "string"
+     }
+    ]
+   },
+   "primaryType": "Vote",
+   "domain": {
+    "name": "snapshot",
+    "version": "0.1.4"
+   },
+   "message": {
+    "from": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "space": "aavedao.eth",
+    "timestamp": 1775803746,
+    "proposal": "0x9e0b3d8a0b6b31c5c1b8c0b4e2c6b0bfa4f3dd1b0ec0e4b2d8a6b5c2e1f3a4d5",
+    "choice": 1,
+    "reason": "",
+    "app": "snapshot-v2",
+    "metadata": "{}"
+   }
+  },
+  "expected": {
+   "domain_separator": "484fce18f892e8535a4b6700e197a8026f4213f809d23ae117da03b497e18670",
+   "message_hash": "7fabb0616963ab661ad570fdac5cd6dfc1896f62e75891bde5fdcd8e8fda9c30",
+   "digest": "2ebf83b128be8aa355a81a15424a3fc8966f27c7c2bceadf191be84304a16760"
+  }
+ },
+ {
+  "id": "snapshot-Vote-reason-multiline",
+  "source": [
+   "https://github.com/snapshot-labs/snapshot.js/blob/ae2a8209e03ca1fa133a9105949a9386f3b539ed/src/sign/types.ts"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     }
+    ],
+    "Vote": [
+     {
+      "name": "from",
+      "type": "string"
+     },
+     {
+      "name": "space",
+      "type": "string"
+     },
+     {
+      "name": "timestamp",
+      "type": "uint64"
+     },
+     {
+      "name": "proposal",
+      "type": "string"
+     },
+     {
+      "name": "choice",
+      "type": "uint32"
+     },
+     {
+      "name": "reason",
+      "type": "string"
+     },
+     {
+      "name": "app",
+      "type": "string"
+     },
+     {
+      "name": "metadata",
+      "type": "string"
+     }
+    ]
+   },
+   "primaryType": "Vote",
+   "domain": {
+    "name": "snapshot",
+    "version": "0.1.4"
+   },
+   "message": {
+    "from": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "space": "aavedao.eth",
+    "timestamp": 1775803746,
+    "proposal": "0x9e0b3d8a0b6b31c5c1b8c0b4e2c6b0bfa4f3dd1b0ec0e4b2d8a6b5c2e1f3a4d5",
+    "choice": 1,
+    "reason": "Supporting this.\n\n\tThe treasury numbers check out;\r\nsee the forum thread.",
+    "app": "snapshot-v2",
+    "metadata": "{}"
+   }
+  },
+  "expected": {
+   "domain_separator": "484fce18f892e8535a4b6700e197a8026f4213f809d23ae117da03b497e18670",
+   "message_hash": "8b3db279e4027f639c6e9e69aeaa2760e4cbd76172e0508eb9d55504b0203dd5",
+   "digest": "fb036054282ff5c208db428da469c2aad81334ee2ea75713a848adefd932f8ae"
+  }
+ },
+ {
+  "id": "snapshot-Vote-uint32[]",
+  "source": [
+   "https://github.com/snapshot-labs/snapshot.js/blob/ae2a8209e03ca1fa133a9105949a9386f3b539ed/src/sign/types.ts"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     }
+    ],
+    "Vote": [
+     {
+      "name": "from",
+      "type": "string"
+     },
+     {
+      "name": "space",
+      "type": "string"
+     },
+     {
+      "name": "timestamp",
+      "type": "uint64"
+     },
+     {
+      "name": "proposal",
+      "type": "string"
+     },
+     {
+      "name": "choice",
+      "type": "uint32[]"
+     },
+     {
+      "name": "reason",
+      "type": "string"
+     },
+     {
+      "name": "app",
+      "type": "string"
+     },
+     {
+      "name": "metadata",
+      "type": "string"
+     }
+    ]
+   },
+   "primaryType": "Vote",
+   "domain": {
+    "name": "snapshot",
+    "version": "0.1.4"
+   },
+   "message": {
+    "from": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "space": "aavedao.eth",
+    "timestamp": 1775803746,
+    "proposal": "0x9e0b3d8a0b6b31c5c1b8c0b4e2c6b0bfa4f3dd1b0ec0e4b2d8a6b5c2e1f3a4d5",
+    "choice": [
+     1,
+     3
+    ],
+    "reason": "",
+    "app": "snapshot-v2",
+    "metadata": "{}"
+   }
+  },
+  "expected": {
+   "domain_separator": "484fce18f892e8535a4b6700e197a8026f4213f809d23ae117da03b497e18670",
+   "message_hash": "445458b701f220e28b2f7851e2fb67d2d30f86ee9cfec5e947a86915c5b374fa",
+   "digest": "8942a9b491d57715c6becc2325fbe330fcb3c1fb1d4027267b64ca0bfadaa60a"
+  }
+ },
+ {
+  "id": "snapshot-Vote-string",
+  "source": [
+   "https://github.com/snapshot-labs/snapshot.js/blob/ae2a8209e03ca1fa133a9105949a9386f3b539ed/src/sign/types.ts"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     }
+    ],
+    "Vote": [
+     {
+      "name": "from",
+      "type": "string"
+     },
+     {
+      "name": "space",
+      "type": "string"
+     },
+     {
+      "name": "timestamp",
+      "type": "uint64"
+     },
+     {
+      "name": "proposal",
+      "type": "string"
+     },
+     {
+      "name": "choice",
+      "type": "string"
+     },
+     {
+      "name": "reason",
+      "type": "string"
+     },
+     {
+      "name": "app",
+      "type": "string"
+     },
+     {
+      "name": "metadata",
+      "type": "string"
+     }
+    ]
+   },
+   "primaryType": "Vote",
+   "domain": {
+    "name": "snapshot",
+    "version": "0.1.4"
+   },
+   "message": {
+    "from": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "space": "aavedao.eth",
+    "timestamp": 1775803746,
+    "proposal": "0x9e0b3d8a0b6b31c5c1b8c0b4e2c6b0bfa4f3dd1b0ec0e4b2d8a6b5c2e1f3a4d5",
+    "choice": "{\"1\":60,\"2\":40}",
+    "reason": "",
+    "app": "snapshot-v2",
+    "metadata": "{}"
+   }
+  },
+  "expected": {
+   "domain_separator": "484fce18f892e8535a4b6700e197a8026f4213f809d23ae117da03b497e18670",
+   "message_hash": "c5740e9f7b1eb3cc1c58a4c2e7ece755e59f657c58e707ecfb699847e787954e",
+   "digest": "13505558c6022d086c119463c0c57887a4de806e74d298e3b26b95b31bd763c8"
+  }
+ },
+ {
+  "id": "snapshot-Vote-legacy-bytes32",
+  "source": [
+   "https://github.com/snapshot-labs/snapshot.js/blob/2a13d16e/src/sign/types.ts"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     }
+    ],
+    "Vote": [
+     {
+      "name": "from",
+      "type": "address"
+     },
+     {
+      "name": "space",
+      "type": "string"
+     },
+     {
+      "name": "timestamp",
+      "type": "uint64"
+     },
+     {
+      "name": "proposal",
+      "type": "bytes32"
+     },
+     {
+      "name": "choice",
+      "type": "uint32"
+     },
+     {
+      "name": "reason",
+      "type": "string"
+     },
+     {
+      "name": "app",
+      "type": "string"
+     },
+     {
+      "name": "metadata",
+      "type": "string"
+     }
+    ]
+   },
+   "primaryType": "Vote",
+   "domain": {
+    "name": "snapshot",
+    "version": "0.1.4"
+   },
+   "message": {
+    "from": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+    "space": "ens.eth",
+    "timestamp": 1775803746,
+    "proposal": "0x9e0b3d8a0b6b31c5c1b8c0b4e2c6b0bfa4f3dd1b0ec0e4b2d8a6b5c2e1f3a4d5",
+    "choice": 2,
+    "reason": "",
+    "app": "snapshot",
+    "metadata": "{}"
+   }
+  },
+  "expected": {
+   "domain_separator": "484fce18f892e8535a4b6700e197a8026f4213f809d23ae117da03b497e18670",
+   "message_hash": "39aed682da209db5214780de752b4319204bb3e8d48faa0bc1698c2bb0147637",
+   "digest": "6672ce6256f657e4e9af0ac1eb6f7ca3e256cbdc9c8052f743da4bf899e211d0"
+  }
+ },
+ {
+  "id": "metamask-Mail-v4",
+  "source": [
+   "https://github.com/MetaMask/test-dapp/blob/v7.0.0/src/index.js"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Mail": [
+     {
+      "name": "from",
+      "type": "Person"
+     },
+     {
+      "name": "to",
+      "type": "Person[]"
+     },
+     {
+      "name": "contents",
+      "type": "string"
+     }
+    ],
+    "Person": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "wallets",
+      "type": "address[]"
+     }
+    ],
+    "Group": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "members",
+      "type": "Person[]"
+     }
+    ]
+   },
+   "primaryType": "Mail",
+   "domain": {
+    "name": "Ether Mail",
+    "version": "1",
+    "chainId": 1,
+    "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
+   },
+   "message": {
+    "from": {
+     "name": "Cow",
+     "wallets": [
+      "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826",
+      "0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF"
+     ]
+    },
+    "to": [
+     {
+      "name": "Bob",
+      "wallets": [
+       "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB",
+       "0xB0BdaBea57B0BDABeA57b0bdABEA57b0BDabEa57",
+       "0xB0B0b0b0b0b0B000000000000000000000000000"
+      ]
+     }
+    ],
+    "contents": "Hello, Bob!"
+   }
+  },
+  "expected": {
+   "domain_separator": "f2cee375fa42b42143804025fc449deafd50cc031ca257e0b194a650a912090f",
+   "message_hash": "eb4221181ff3f1a83ea7313993ca9218496e424604ba9492bb4052c03d5c3df8",
+   "digest": "a85c2e2b118698e88db68a8105b794a8cc7cec074e89ef991cb4f5f533819cc2"
+  }
+ },
+ {
+  "id": "eip712-spec-Mail",
+  "source": [
+   "https://github.com/ethereum/EIPs/blob/master/assets/eip-712/Example.js"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "Mail": [
+     {
+      "name": "from",
+      "type": "Person"
+     },
+     {
+      "name": "to",
+      "type": "Person"
+     },
+     {
+      "name": "contents",
+      "type": "string"
+     }
+    ],
+    "Person": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "wallet",
+      "type": "address"
+     }
+    ]
+   },
+   "primaryType": "Mail",
+   "domain": {
+    "name": "Ether Mail",
+    "version": "1",
+    "chainId": 1,
+    "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
+   },
+   "message": {
+    "from": {
+     "name": "Cow",
+     "wallet": "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"
+    },
+    "to": {
+     "name": "Bob",
+     "wallet": "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+    },
+    "contents": "Hello, Bob!"
+   }
+  },
+  "expected": {
+   "domain_separator": "f2cee375fa42b42143804025fc449deafd50cc031ca257e0b194a650a912090f",
+   "message_hash": "c52c0ee5d84264471806290a3f2c4cecfc5490626bf912d01f240d7a274b371e",
+   "digest": "be609aee343fb3c4b28e1df9e632fca64fcfaede20f02e86244efddf30957bd2"
+  }
+ },
+ {
+  "id": "uniswapx-V3DutchOrder-arbitrum",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/V3DutchOrderLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/OrderInfoLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/DutchOrderLib.sol",
+   "https://arbiscan.io/tx/0x1f2f270bf65d2b7f02b2a141f71e23bfcc3a84b37c9a0921577516c58031678d"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitWitnessTransferFrom": [
+     {
+      "name": "permitted",
+      "type": "TokenPermissions"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "witness",
+      "type": "V3DutchOrder"
+     }
+    ],
+    "NonlinearDutchDecay": [
+     {
+      "name": "relativeBlocks",
+      "type": "uint256"
+     },
+     {
+      "name": "relativeAmounts",
+      "type": "int256[]"
+     }
+    ],
+    "OrderInfo": [
+     {
+      "name": "reactor",
+      "type": "address"
+     },
+     {
+      "name": "swapper",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "additionalValidationContract",
+      "type": "address"
+     },
+     {
+      "name": "additionalValidationData",
+      "type": "bytes"
+     }
+    ],
+    "TokenPermissions": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     }
+    ],
+    "V3DutchInput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "curve",
+      "type": "NonlinearDutchDecay"
+     },
+     {
+      "name": "maxAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "adjustmentPerGweiBaseFee",
+      "type": "uint256"
+     }
+    ],
+    "V3DutchOrder": [
+     {
+      "name": "info",
+      "type": "OrderInfo"
+     },
+     {
+      "name": "cosigner",
+      "type": "address"
+     },
+     {
+      "name": "startingBaseFee",
+      "type": "uint256"
+     },
+     {
+      "name": "baseInput",
+      "type": "V3DutchInput"
+     },
+     {
+      "name": "baseOutputs",
+      "type": "V3DutchOutput[]"
+     }
+    ],
+    "V3DutchOutput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "curve",
+      "type": "NonlinearDutchDecay"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     },
+     {
+      "name": "minAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "adjustmentPerGweiBaseFee",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "PermitWitnessTransferFrom",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 42161,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "permitted": {
+     "token": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+     "amount": "12514477"
+    },
+    "spender": "0xB274d5F4b833b61B340b654d600A864fB604a87c",
+    "nonce": "1993355410060173619975858542007397613024848003638926934372819132074995782145",
+    "deadline": "1791402675",
+    "witness": {
+     "info": {
+      "reactor": "0xB274d5F4b833b61B340b654d600A864fB604a87c",
+      "swapper": "0x7f05C94cE299Eea9FCdAE798Be34E226a0cb1e77",
+      "nonce": "1993355410060173619975858542007397613024848003638926934372819132074995782145",
+      "deadline": "1791402675",
+      "additionalValidationContract": "0x0000000000000000000000000000000000000000",
+      "additionalValidationData": "0x"
+     },
+     "cosigner": "0x4449Cd34d1eb1FEDCF02A1Be3834FfDe8E6A6180",
+     "startingBaseFee": "0",
+     "baseInput": {
+      "token": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+      "startAmount": "12514477",
+      "curve": {
+       "relativeBlocks": "32",
+       "relativeAmounts": [
+        "0"
+       ]
+      },
+      "maxAmount": "12514477",
+      "adjustmentPerGweiBaseFee": "0"
+     },
+     "baseOutputs": [
+      {
+       "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "startAmount": "10407262726",
+       "curve": {
+        "relativeBlocks": "32",
+        "relativeAmounts": [
+         "260181569"
+        ]
+       },
+       "recipient": "0x7f05C94cE299Eea9FCdAE798Be34E226a0cb1e77",
+       "minAmount": "10147081157",
+       "adjustmentPerGweiBaseFee": "0"
+      }
+     ]
+    }
+   }
+  },
+  "expected": {
+   "domain_separator": "8a6e6e19bdfb3db3409910416b47c2f8fc28b49488d6555c7fceaa4479135bc3",
+   "message_hash": "d9f38d5095c80dc8118342f144211cb537cc6b9b98027c20cefed85ffaf1cf5c",
+   "digest": "2a1fba9e8c26066eadd659350dc6e6cc17a9a63c8c4fbdbd771049adb754c33a"
+  }
+ },
+ {
+  "id": "uniswapx-V3DutchOrder-arbitrum-curve16",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/V3DutchOrderLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/OrderInfoLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/DutchOrderLib.sol",
+   "https://arbiscan.io/tx/0x1f2f270bf65d2b7f02b2a141f71e23bfcc3a84b37c9a0921577516c58031678d",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/NonlinearDutchDecayLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/types/Uint16Array.sol"
+  ],
+  "requires_capability": "eip712-chunked-values",
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitWitnessTransferFrom": [
+     {
+      "name": "permitted",
+      "type": "TokenPermissions"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "witness",
+      "type": "V3DutchOrder"
+     }
+    ],
+    "NonlinearDutchDecay": [
+     {
+      "name": "relativeBlocks",
+      "type": "uint256"
+     },
+     {
+      "name": "relativeAmounts",
+      "type": "int256[]"
+     }
+    ],
+    "OrderInfo": [
+     {
+      "name": "reactor",
+      "type": "address"
+     },
+     {
+      "name": "swapper",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "additionalValidationContract",
+      "type": "address"
+     },
+     {
+      "name": "additionalValidationData",
+      "type": "bytes"
+     }
+    ],
+    "TokenPermissions": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     }
+    ],
+    "V3DutchInput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "curve",
+      "type": "NonlinearDutchDecay"
+     },
+     {
+      "name": "maxAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "adjustmentPerGweiBaseFee",
+      "type": "uint256"
+     }
+    ],
+    "V3DutchOrder": [
+     {
+      "name": "info",
+      "type": "OrderInfo"
+     },
+     {
+      "name": "cosigner",
+      "type": "address"
+     },
+     {
+      "name": "startingBaseFee",
+      "type": "uint256"
+     },
+     {
+      "name": "baseInput",
+      "type": "V3DutchInput"
+     },
+     {
+      "name": "baseOutputs",
+      "type": "V3DutchOutput[]"
+     }
+    ],
+    "V3DutchOutput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "curve",
+      "type": "NonlinearDutchDecay"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     },
+     {
+      "name": "minAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "adjustmentPerGweiBaseFee",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "PermitWitnessTransferFrom",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 42161,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "permitted": {
+     "token": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+     "amount": "12514477"
+    },
+    "spender": "0xB274d5F4b833b61B340b654d600A864fB604a87c",
+    "nonce": "1993355410060173619975858542007397613024848003638926934372819132074995782145",
+    "deadline": "1791402675",
+    "witness": {
+     "info": {
+      "reactor": "0xB274d5F4b833b61B340b654d600A864fB604a87c",
+      "swapper": "0x7f05C94cE299Eea9FCdAE798Be34E226a0cb1e77",
+      "nonce": "1993355410060173619975858542007397613024848003638926934372819132074995782145",
+      "deadline": "1791402675",
+      "additionalValidationContract": "0x0000000000000000000000000000000000000000",
+      "additionalValidationData": "0x"
+     },
+     "cosigner": "0x4449Cd34d1eb1FEDCF02A1Be3834FfDe8E6A6180",
+     "startingBaseFee": "0",
+     "baseInput": {
+      "token": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+      "startAmount": "12514477",
+      "curve": {
+       "relativeBlocks": "56539914882827008174051697847791522700364166669018632573655171137406238722",
+       "relativeAmounts": [
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+       ]
+      },
+      "maxAmount": "12514477",
+      "adjustmentPerGweiBaseFee": "0"
+     },
+     "baseOutputs": [
+      {
+       "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "startAmount": "10407262726",
+       "curve": {
+        "relativeBlocks": "56539914882827008174051697847791522700364166669018632573655171137406238722",
+        "relativeAmounts": [
+         "16261348",
+         "32522696",
+         "48784044",
+         "65045392",
+         "81306740",
+         "97568088",
+         "113829436",
+         "130090784",
+         "146352132",
+         "162613480",
+         "178874828",
+         "195136176",
+         "211397524",
+         "227658872",
+         "243920220",
+         "260181568"
+        ]
+       },
+       "recipient": "0x7f05C94cE299Eea9FCdAE798Be34E226a0cb1e77",
+       "minAmount": "10147081157",
+       "adjustmentPerGweiBaseFee": "0"
+      }
+     ]
+    }
+   }
+  },
+  "expected": {
+   "domain_separator": "8a6e6e19bdfb3db3409910416b47c2f8fc28b49488d6555c7fceaa4479135bc3",
+   "message_hash": "1b7a77c239ffc05a83f3ac787234661b980a447d8791a54a785d9bb8950f3255",
+   "digest": "95fbdb5178abf6c7d90c1f5d463cc767e7b08ae701238bde83b16d002e2d5a5a"
+  }
+ },
+ {
+  "id": "uniswapx-V3DutchOrder-arbitrum-fee-output",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/V3DutchOrderLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/OrderInfoLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/DutchOrderLib.sol",
+   "https://arbiscan.io/tx/0x3c67c0eb31f12747d675fe1c65734b2ce7b3ce608dcc02be348285b7435e7855"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitWitnessTransferFrom": [
+     {
+      "name": "permitted",
+      "type": "TokenPermissions"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "witness",
+      "type": "V3DutchOrder"
+     }
+    ],
+    "NonlinearDutchDecay": [
+     {
+      "name": "relativeBlocks",
+      "type": "uint256"
+     },
+     {
+      "name": "relativeAmounts",
+      "type": "int256[]"
+     }
+    ],
+    "OrderInfo": [
+     {
+      "name": "reactor",
+      "type": "address"
+     },
+     {
+      "name": "swapper",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "additionalValidationContract",
+      "type": "address"
+     },
+     {
+      "name": "additionalValidationData",
+      "type": "bytes"
+     }
+    ],
+    "TokenPermissions": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     }
+    ],
+    "V3DutchInput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "curve",
+      "type": "NonlinearDutchDecay"
+     },
+     {
+      "name": "maxAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "adjustmentPerGweiBaseFee",
+      "type": "uint256"
+     }
+    ],
+    "V3DutchOrder": [
+     {
+      "name": "info",
+      "type": "OrderInfo"
+     },
+     {
+      "name": "cosigner",
+      "type": "address"
+     },
+     {
+      "name": "startingBaseFee",
+      "type": "uint256"
+     },
+     {
+      "name": "baseInput",
+      "type": "V3DutchInput"
+     },
+     {
+      "name": "baseOutputs",
+      "type": "V3DutchOutput[]"
+     }
+    ],
+    "V3DutchOutput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "curve",
+      "type": "NonlinearDutchDecay"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     },
+     {
+      "name": "minAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "adjustmentPerGweiBaseFee",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "PermitWitnessTransferFrom",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 42161,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "permitted": {
+     "token": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+     "amount": "1226547455"
+    },
+    "spender": "0xB274d5F4b833b61B340b654d600A864fB604a87c",
+    "nonce": "1993355115482027011983709557485874525075304680291794092761105090895583133443",
+    "deadline": "1791393631",
+    "witness": {
+     "info": {
+      "reactor": "0xB274d5F4b833b61B340b654d600A864fB604a87c",
+      "swapper": "0xD606742f4f6a05305B59174C9DA0B3BB30987556",
+      "nonce": "1993355115482027011983709557485874525075304680291794092761105090895583133443",
+      "deadline": "1791393631",
+      "additionalValidationContract": "0x0000000000000000000000000000000000000000",
+      "additionalValidationData": "0x"
+     },
+     "cosigner": "0x4449Cd34d1eb1FEDCF02A1Be3834FfDe8E6A6180",
+     "startingBaseFee": "0",
+     "baseInput": {
+      "token": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+      "startAmount": "1226547455",
+      "curve": {
+       "relativeBlocks": "32",
+       "relativeAmounts": [
+        "0"
+       ]
+      },
+      "maxAmount": "1226547455",
+      "adjustmentPerGweiBaseFee": "0"
+     },
+     "baseOutputs": [
+      {
+       "token": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+       "startAmount": "1446161",
+       "curve": {
+        "relativeBlocks": "32",
+        "relativeAmounts": [
+         "7232"
+        ]
+       },
+       "recipient": "0xD606742f4f6a05305B59174C9DA0B3BB30987556",
+       "minAmount": "1438929",
+       "adjustmentPerGweiBaseFee": "0"
+      },
+      {
+       "token": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+       "startAmount": "23514",
+       "curve": {
+        "relativeBlocks": "32",
+        "relativeAmounts": [
+         "117"
+        ]
+       },
+       "recipient": "0x147CF09E7373B8FDA6f12021F1b0f98D6da1A566",
+       "minAmount": "23397",
+       "adjustmentPerGweiBaseFee": "0"
+      }
+     ]
+    }
+   }
+  },
+  "expected": {
+   "domain_separator": "8a6e6e19bdfb3db3409910416b47c2f8fc28b49488d6555c7fceaa4479135bc3",
+   "message_hash": "d4e97cc058c321e71216e131c51438117e2c106360aa5d893bc194c54b51bfe1",
+   "digest": "4ef893b03e07c41dad0a7811640b7fcd7eafd518099eea36a6191f7c56061595"
+  }
+ },
+ {
+  "id": "uniswapx-V3DutchOrder-arbitrum-negative-curve",
+  "source": [
+   "https://github.com/Uniswap/permit2/blob/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219/src/libraries/PermitHash.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/V3DutchOrderLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/OrderInfoLib.sol",
+   "https://github.com/Uniswap/UniswapX/blob/eb7ce077036258b9510b42ad37aa920cf3aaf308/src/lib/DutchOrderLib.sol",
+   "https://arbiscan.io/tx/0xfa14890926a78bb4095b7453c97150b3dea12fe8d53d21d97fd7366dfb595b7a"
+  ],
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "PermitWitnessTransferFrom": [
+     {
+      "name": "permitted",
+      "type": "TokenPermissions"
+     },
+     {
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "witness",
+      "type": "V3DutchOrder"
+     }
+    ],
+    "NonlinearDutchDecay": [
+     {
+      "name": "relativeBlocks",
+      "type": "uint256"
+     },
+     {
+      "name": "relativeAmounts",
+      "type": "int256[]"
+     }
+    ],
+    "OrderInfo": [
+     {
+      "name": "reactor",
+      "type": "address"
+     },
+     {
+      "name": "swapper",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     },
+     {
+      "name": "deadline",
+      "type": "uint256"
+     },
+     {
+      "name": "additionalValidationContract",
+      "type": "address"
+     },
+     {
+      "name": "additionalValidationData",
+      "type": "bytes"
+     }
+    ],
+    "TokenPermissions": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "amount",
+      "type": "uint256"
+     }
+    ],
+    "V3DutchInput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "curve",
+      "type": "NonlinearDutchDecay"
+     },
+     {
+      "name": "maxAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "adjustmentPerGweiBaseFee",
+      "type": "uint256"
+     }
+    ],
+    "V3DutchOrder": [
+     {
+      "name": "info",
+      "type": "OrderInfo"
+     },
+     {
+      "name": "cosigner",
+      "type": "address"
+     },
+     {
+      "name": "startingBaseFee",
+      "type": "uint256"
+     },
+     {
+      "name": "baseInput",
+      "type": "V3DutchInput"
+     },
+     {
+      "name": "baseOutputs",
+      "type": "V3DutchOutput[]"
+     }
+    ],
+    "V3DutchOutput": [
+     {
+      "name": "token",
+      "type": "address"
+     },
+     {
+      "name": "startAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "curve",
+      "type": "NonlinearDutchDecay"
+     },
+     {
+      "name": "recipient",
+      "type": "address"
+     },
+     {
+      "name": "minAmount",
+      "type": "uint256"
+     },
+     {
+      "name": "adjustmentPerGweiBaseFee",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "PermitWitnessTransferFrom",
+   "domain": {
+    "name": "Permit2",
+    "chainId": 42161,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+   },
+   "message": {
+    "permitted": {
+     "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "amount": "18453595142"
+    },
+    "spender": "0xB274d5F4b833b61B340b654d600A864fB604a87c",
+    "nonce": "1993353428323324451238365100392469529508888071612295616155122962755034285057",
+    "deadline": "1791397885",
+    "witness": {
+     "info": {
+      "reactor": "0xB274d5F4b833b61B340b654d600A864fB604a87c",
+      "swapper": "0xd603a49886c9B500f96C0d798aed10068D73bF7C",
+      "nonce": "1993353428323324451238365100392469529508888071612295616155122962755034285057",
+      "deadline": "1791397885",
+      "additionalValidationContract": "0x0000000000000000000000000000000000000000",
+      "additionalValidationData": "0x"
+     },
+     "cosigner": "0x4449Cd34d1eb1FEDCF02A1Be3834FfDe8E6A6180",
+     "startingBaseFee": "0",
+     "baseInput": {
+      "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "startAmount": "18361786211",
+      "curve": {
+       "relativeBlocks": "32",
+       "relativeAmounts": [
+        "-91808931"
+       ]
+      },
+      "maxAmount": "18453595142",
+      "adjustmentPerGweiBaseFee": "0"
+     },
+     "baseOutputs": [
+      {
+       "token": "0x0000000000000000000000000000000000000000",
+       "startAmount": "7165000000000000000",
+       "curve": {
+        "relativeBlocks": "32",
+        "relativeAmounts": [
+         "0"
+        ]
+       },
+       "recipient": "0xd603a49886c9B500f96C0d798aed10068D73bF7C",
+       "minAmount": "7165000000000000000",
+       "adjustmentPerGweiBaseFee": "0"
+      }
+     ]
+    }
+   }
+  },
+  "expected": {
+   "domain_separator": "8a6e6e19bdfb3db3409910416b47c2f8fc28b49488d6555c7fceaa4479135bc3",
+   "message_hash": "b8c2d5a7b402683b9422031588d6231566d3813eb284905088fdab5bbbfb3e27",
+   "digest": "6e576a58ecf5e234ea6fc3eae0b97fe2ac8fa90c5a8e822da53fad929b5977b2"
+  }
+ },
+ {
+  "id": "safe-SafeTx-multisend-4900",
+  "source": [
+   "https://github.com/safe-global/safe-smart-account/blob/v1.3.0/contracts/GnosisSafe.sol",
+   "https://api.safe.global/tx-service/eth/api/v1/multisig-transactions/0x41bb8e482fadb98e15032ad92890e4289e3986030b7eee9ad061284481ceefc5/",
+   "https://etherscan.io/tx/0x9ab909ba050b277e8b426b90e299b6bd107a1baf8c59f95153b45e067475bf38"
+  ],
+  "requires_capability": "eip712-chunked-values",
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "SafeTx": [
+     {
+      "name": "to",
+      "type": "address"
+     },
+     {
+      "name": "value",
+      "type": "uint256"
+     },
+     {
+      "name": "data",
+      "type": "bytes"
+     },
+     {
+      "name": "operation",
+      "type": "uint8"
+     },
+     {
+      "name": "safeTxGas",
+      "type": "uint256"
+     },
+     {
+      "name": "baseGas",
+      "type": "uint256"
+     },
+     {
+      "name": "gasPrice",
+      "type": "uint256"
+     },
+     {
+      "name": "gasToken",
+      "type": "address"
+     },
+     {
+      "name": "refundReceiver",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "SafeTx",
+   "domain": {
+    "chainId": 1,
+    "verifyingContract": "0x849D52316331967b6fF1198e5E32A0eB168D039d"
+   },
+   "message": {
+    "to": "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D",
+    "value": "0",
+    "data": "0x8d80ff0a000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000012d20027d8bb2e33bc38a9ce93fdd90c80677b8436affb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000440c6c76b8475541524449414e2d4175726152656c6f636b657200000000000000000000000000000000000000000000005b2364fd757e262253423373e4d57c5c011ad7f40027d8bb2e33bc38a9ce93fdd90c80677b8436affb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011e47508dd98475541524449414e2d4175726152656c6f636b657200000000000000000000000000000000000000000000005b2364fd757e262253423373e4d57c5c011ad7f4d34640b20000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000002c00000000000000000000000000000000000000000000000000000000000000360000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000004a0000000000000000000000000000000000000000000000000000000000000054000000000000000000000000000000000000000000000000000000000000005e00000000000000000000000000000000000000000000000000000000000000680000000000000000000000000000000000000000000000000000000000000072000000000000000000000000000000000000000000000000000000000000007c00000000000000000000000000000000000000000000000000000000000000860000000000000000000000000000000000000000000000000000000000000090000000000000000000000000000000000000000000000000000000000000009a00000000000000000000000000000000000000000000000000000000000000a400000000000000000000000000000000000000000000000000000000000000ae00000000000000000000000000000000000000000000000000000000000000b800000000000000000000000000000000000000000000000000000000000000c200000000000000000000000000000000000000000000000000000000000000cc00000000000000000000000000000000000000000000000000000000000000d600000000000000000000000000000000000000000000000000000000000000e200000000000000000000000000000000000000000000000000000000000000ee00000000000000000000000000000000000000000000000000000000000000fa0000000000000000000000000000000000000000000000000000000000000106000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000",
+    "operation": 1,
+    "safeTxGas": "0",
+    "baseGas": "0",
+    "gasPrice": "0",
+    "gasToken": "0x0000000000000000000000000000000000000000",
+    "refundReceiver": "0x0000000000000000000000000000000000000000",
+    "nonce": "2372"
+   }
+  },
+  "expected": {
+   "domain_separator": "561d71a273896bbd4ecfb3e135730658c966531ed15bdee93660d109a8970f01",
+   "message_hash": "0d579dc9c09d2e219fdeb0e2e000ca33371e6f426ebf26f2a73e0559dd5b8e78",
+   "digest": "41bb8e482fadb98e15032ad92890e4289e3986030b7eee9ad061284481ceefc5"
+  }
+ },
+ {
+  "id": "safe-SafeTx-multisend-approve-unlimited",
+  "source": [
+   "https://github.com/safe-global/safe-smart-account/blob/v1.3.0/contracts/GnosisSafe.sol",
+   "https://github.com/safe-global/safe-smart-account/blob/v1.3.0/contracts/libraries/MultiSendCallOnly.sol",
+   "https://api.safe.global/tx-service/eth/api/v1/multisig-transactions/0xc5a2fac8f82fb6185796bf07e1c1d17b52538414c6e87c3dbc7b4f1bb2e16c12/",
+   "https://etherscan.io/tx/0x171f08630810946c52d3b379839e66b2dcb67db91f1be9ab3acbe74bac16af06"
+  ],
+  "requires_capability": "eip712-chunked-values",
+  "unlimited_screen": "Allow 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110 to spend ALL your WETH",
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ],
+    "SafeTx": [
+     {
+      "name": "to",
+      "type": "address"
+     },
+     {
+      "name": "value",
+      "type": "uint256"
+     },
+     {
+      "name": "data",
+      "type": "bytes"
+     },
+     {
+      "name": "operation",
+      "type": "uint8"
+     },
+     {
+      "name": "safeTxGas",
+      "type": "uint256"
+     },
+     {
+      "name": "baseGas",
+      "type": "uint256"
+     },
+     {
+      "name": "gasPrice",
+      "type": "uint256"
+     },
+     {
+      "name": "gasToken",
+      "type": "address"
+     },
+     {
+      "name": "refundReceiver",
+      "type": "address"
+     },
+     {
+      "name": "nonce",
+      "type": "uint256"
+     }
+    ]
+   },
+   "primaryType": "SafeTx",
+   "domain": {
+    "chainId": 1,
+    "verifyingContract": "0x245cc372C84B3645Bf0Ffe6538620B04a217988B"
+   },
+   "message": {
+    "to": "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D",
+    "value": "0",
+    "data": "0x8d80ff0a0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000019200c02aaa39b223fe8d0a0e5c4f27ead9083c756cc200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044095ea7b3000000000000000000000000c92e8bdf79f0507f65a392b0ab4667716bfe0110ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff009008d19f58aabd9ed0d60971565aa8510560ab41000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a4ec6cb13f0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000380c22c8071c7af43fd1f72d8f076e5ca5ef1bc341cd07607f2eef6a63d5940c80245cc372c84b3645bf0ffe6538620b04a217988b692df75700000000000000000000000000000000000000000000",
+    "operation": 1,
+    "safeTxGas": 0,
+    "baseGas": 0,
+    "gasPrice": "0",
+    "gasToken": "0x0000000000000000000000000000000000000000",
+    "refundReceiver": "0x0000000000000000000000000000000000000000",
+    "nonce": "1802"
+   }
+  },
+  "expected": {
+   "domain_separator": "962a762e4486fcd558237b6934e27ec2383bc843e1bba8996935225f84c910ec",
+   "message_hash": "9b200c822d235c9321d93e495fa4e3b53eb7aa570ea8746e886b96a8a72386f0",
+   "digest": "c5a2fac8f82fb6185796bf07e1c1d17b52538414c6e87c3dbc7b4f1bb2e16c12"
+  }
+ },
+ {
+  "id": "snapshot-Proposal-body-3929",
+  "source": [
+   "https://github.com/snapshot-labs/snapshot.js/blob/ae2a8209e03ca1fa133a9105949a9386f3b539ed/src/sign/types.ts",
+   "https://snapshot.box/#/s:arbitrumfoundation.eth/proposal/0xa69fce8c756ac96160ddb6ac09653d3254415d046fdd43e5876663e9f343f183",
+   "ipfs://bafkreibjtqf4eeo3lstytfcqaxeyr2ycxzxysjhtuyyxe7bkf5rzowfvtu"
+  ],
+  "requires_capability": "eip712-chunked-values",
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     }
+    ],
+    "Proposal": [
+     {
+      "name": "from",
+      "type": "string"
+     },
+     {
+      "name": "space",
+      "type": "string"
+     },
+     {
+      "name": "timestamp",
+      "type": "uint64"
+     },
+     {
+      "name": "type",
+      "type": "string"
+     },
+     {
+      "name": "title",
+      "type": "string"
+     },
+     {
+      "name": "body",
+      "type": "string"
+     },
+     {
+      "name": "discussion",
+      "type": "string"
+     },
+     {
+      "name": "choices",
+      "type": "string[]"
+     },
+     {
+      "name": "labels",
+      "type": "string[]"
+     },
+     {
+      "name": "start",
+      "type": "uint64"
+     },
+     {
+      "name": "end",
+      "type": "uint64"
+     },
+     {
+      "name": "snapshot",
+      "type": "uint64"
+     },
+     {
+      "name": "plugins",
+      "type": "string"
+     },
+     {
+      "name": "privacy",
+      "type": "string"
+     },
+     {
+      "name": "app",
+      "type": "string"
+     }
+    ]
+   },
+   "primaryType": "Proposal",
+   "domain": {
+    "name": "snapshot",
+    "version": "0.1.4"
+   },
+   "message": {
+    "from": "0xb4c064f466931B8d0F637654c916E3F203c46f13",
+    "timestamp": 1781800138,
+    "space": "arbitrumfoundation.eth",
+    "title": "Extending DRIP\u2019s Mandate",
+    "body": "### Non-Constitutional\n\n## Abstract\n\nThis proposal extends the DRIP program's mandate end date from July 1st, 2026 to July 1st, 2027, giving the Season Selection Committee additional time to deploy remaining funds across future seasons. No additional funding is requested in this proposal. All other terms of the original DRIP proposal remain unchanged, such as the committee composition and the DAO's ability to terminate the program via an offchain vote.\n\n## Motivation\n\nAs background, when the DAO approved DRIP in June 2025, the proposal outlined a 1-year mandate to execute up to 4 seasons with a total budget of 80M ARB. Season durations were originally estimated to be ~3-months, despite the proposal acknowledging this length was somewhat [arbitrary](https://forum.arbitrum.foundation/t/defi-renaissance-incentive-program-drip/29049#:~:text=The%20committee%20will%20maintain%20the%20right%20to%20modify%2C%20extend%2C%20or%20discontinue%20a%20season%20during%20its%20lifecycle.%20The%20%E2%80%9C3%2Dmonth%E2%80%9D%20timeline%20is%20somewhat%20arbitrary%2C%20and%20is%20open%20to%20change%20dependent%20on%20perceived%20program%20success%20and%20market%20conditions.) and the Season Selection Committee retained the ability to modify or extend season lengths.\n\nWhen designing Season 1 in collaboration with the selected distribution partner, Merkl, it became clear that a 3-month season was likely too short of a time period to run an effective campaign. Going live in early September, Season 1 ultimately ran for approximately 5.5 months to fully utilize the distribution partnerships secured and to create a slower tapering of rewards. We believe these design decisions helped the campaign achieve an overall adjusted cost-effectiveness ratio of 51 (76 on USD assets specifically), the highest of any major Arbitrum incentive program to date, alongside yield-bearing stablecoin supply growth on Arbitrum from $130M to over $1B, as detailed in the season [retrospective](https://forum.arbitrum.foundation/t/drip-season-1-retrospective/30644).\n\nWe want to address the most obvious question upfront. Since DRIP Season 1 concluded on February 18, 2026, the program has been quiet. We recognize that work on the next season has taken longer than we anticipated and appreciate the DAO\u2019s patience.\n\nThere are several strategic developments in flight that materially affect what an effective Season 2 should be designed around. We judged it more prudent to wait than to deploy meaningful ARB in a shortened season that did not fully align with these developments should they be confirmed. Spending 15-20M ARB on the wrong campaign is a much worse outcome than waiting a few additional months to run the right one. We are not in a position to detail every development driving this judgment publicly, but the OAT, Offchain, and the Arbitrum Foundation have been looped in throughout, and we hope to be able to share more in the coming weeks. The remaining ~63.7M ARB budget continues to sit with the AF, with deployment subject to Season Selection Committee approval.\n\n## Specification\n\nExtend the DRIP mandate end date from July 1st, 2026 to July 1st, 2027.\n\nThe following language from the original proposal:\n\n> \"DRIP End Date (funds returned if not used or another proposal is not passed): July 1, 2026. An ongoing season may go past this date, but new seasons will not begin after this date.\"\n\nIs amended to:\n\n> \"DRIP End Date (funds returned if not used or another proposal is not passed): July 1, 2027. An ongoing season may go past this date, but new seasons will not begin after this date.\"\n\nAll other terms of the original DRIP proposal, including the 80M ARB total budget, season structure, Season Selection Committee composition and approval thresholds, and the DAO's ability to terminate the program remain unchanged.\n\n## Timeline\n\n-   Forum: Thursday June 11th, 2026\n    \n-   Offchain vote: Thursday June 18th, 2026",
+    "type": "basic",
+    "discussion": "https://forum.arbitrum.foundation/t/extending-drips-mandate/30985/1",
+    "choices": [
+     "For",
+     "Against",
+     "Abstain"
+    ],
+    "privacy": "",
+    "labels": [],
+    "start": 1781800800,
+    "end": 1782405600,
+    "snapshot": 474836218,
+    "plugins": "{}",
+    "app": "snapshot-v2"
+   }
+  },
+  "expected": {
+   "domain_separator": "484fce18f892e8535a4b6700e197a8026f4213f809d23ae117da03b497e18670",
+   "message_hash": "19195d2352d10330a4ad01c832298eea9b353e113154932be82e856eb3aa87c1",
+   "digest": "a69fce8c756ac96160ddb6ac09653d3254415d046fdd43e5876663e9f343f183"
+  }
+ },
+ {
+  "id": "evmos-MsgSend",
+  "source": [
+   "https://github.com/evmos/evmosjs/blob/e47e44b1683ffa57737cee2f6abbd138436d9fc3/packages/eip712/src/messages/base.ts",
+   "https://github.com/evmos/evmosjs/blob/e47e44b1683ffa57737cee2f6abbd138436d9fc3/packages/eip712/src/messages/bank/send.ts",
+   "https://github.com/evmos/evmosjs/blob/e47e44b1683ffa57737cee2f6abbd138436d9fc3/packages/eip712/src/tests/utils.ts"
+  ],
+  "requires_capability": "eip712-chunked-values",
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "string"
+     },
+     {
+      "name": "salt",
+      "type": "string"
+     }
+    ],
+    "Tx": [
+     {
+      "name": "account_number",
+      "type": "string"
+     },
+     {
+      "name": "chain_id",
+      "type": "string"
+     },
+     {
+      "name": "fee",
+      "type": "Fee"
+     },
+     {
+      "name": "memo",
+      "type": "string"
+     },
+     {
+      "name": "msgs",
+      "type": "Msg[]"
+     },
+     {
+      "name": "sequence",
+      "type": "string"
+     }
+    ],
+    "Fee": [
+     {
+      "name": "feePayer",
+      "type": "string"
+     },
+     {
+      "name": "amount",
+      "type": "Coin[]"
+     },
+     {
+      "name": "gas",
+      "type": "string"
+     }
+    ],
+    "Coin": [
+     {
+      "name": "denom",
+      "type": "string"
+     },
+     {
+      "name": "amount",
+      "type": "string"
+     }
+    ],
+    "Msg": [
+     {
+      "name": "type",
+      "type": "string"
+     },
+     {
+      "name": "value",
+      "type": "MsgValue"
+     }
+    ],
+    "MsgValue": [
+     {
+      "name": "from_address",
+      "type": "string"
+     },
+     {
+      "name": "to_address",
+      "type": "string"
+     },
+     {
+      "name": "amount",
+      "type": "TypeAmount[]"
+     }
+    ],
+    "TypeAmount": [
+     {
+      "name": "denom",
+      "type": "string"
+     },
+     {
+      "name": "amount",
+      "type": "string"
+     }
+    ]
+   },
+   "primaryType": "Tx",
+   "domain": {
+    "name": "Cosmos Web3",
+    "version": "1.0.0",
+    "chainId": 9001,
+    "verifyingContract": "cosmos",
+    "salt": "0"
+   },
+   "message": {
+    "account_number": "10",
+    "chain_id": "evmos_9001-2",
+    "fee": {
+     "feePayer": "evmos1pmk2r32ssqwps42y3c9d4clqlca403yd9wymgr",
+     "amount": [
+      {
+       "denom": "aevmos",
+       "amount": "4000000000000000"
+      }
+     ],
+     "gas": "200000"
+    },
+    "memo": "Transaction Memo",
+    "msgs": [
+     {
+      "type": "cosmos-sdk/MsgSend",
+      "value": {
+       "from_address": "evmos1pmk2r32ssqwps42y3c9d4clqlca403yd9wymgr",
+       "to_address": "evmos12nml2w93uva0smjw3c36stczfay0k67ny94ecz",
+       "amount": [
+        {
+         "denom": "aevmos",
+         "amount": "1000000000000000000"
+        }
+       ]
+      }
+     }
+    ],
+    "sequence": "6"
+   }
+  },
+  "expected": {
+   "domain_separator": "1633cfb1cf33b8790808cb60604cfd1f261c59a367ccb3aaff568a000149ace9",
+   "message_hash": "57c04fd23163cd0f2f0d20d6e9228010f7b111e0a499c208bc798b6e1aae9d0c",
+   "digest": "a475e759cc3637f92de75029aeb2eee6e410efae4a0b1834d8529853f06cf5f8"
+  }
+ },
+ {
+  "id": "injective-MsgSend-v2",
+  "source": [
+   "https://github.com/InjectiveLabs/injective-ts/blob/f8373753d6fe0662c1a8af7fb88192ad126e2e2e/packages/sdk-ts/src/core/tx/eip712/eip712.spec.ts",
+   "https://github.com/InjectiveLabs/injective-ts/blob/f8373753d6fe0662c1a8af7fb88192ad126e2e2e/packages/sdk-ts/src/core/tx/eip712/utils.ts",
+   "https://github.com/InjectiveLabs/injective-ts/blob/f8373753d6fe0662c1a8af7fb88192ad126e2e2e/packages/utils/src/test-utils/mocks/index.ts"
+  ],
+  "requires_capability": "eip712-chunked-values",
+  "doc": {
+   "types": {
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     },
+     {
+      "name": "salt",
+      "type": "string"
+     }
+    ],
+    "Tx": [
+     {
+      "name": "context",
+      "type": "string"
+     },
+     {
+      "name": "msgs",
+      "type": "string"
+     }
+    ]
+   },
+   "primaryType": "Tx",
+   "domain": {
+    "name": "Injective Web3",
+    "version": "1.0.0",
+    "chainId": "0x5",
+    "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
+    "salt": "0"
+   },
+   "message": {
+    "context": "{\"account_number\":11,\"chain_id\":\"injective-777\",\"fee\":{\"amount\":[{\"denom\":\"inj\",\"amount\":\"64000000000000\"}],\"gas\":400000,\"payer\":\"inj18j2myhaf2at75kwwaqxfstk4q28n4am45nlfg7\",\"granter\":\"inj1granter\"},\"memo\":\"\",\"sequence\":88,\"timeout_height\":1896}",
+    "msgs": "[{\"@type\":\"/cosmos.bank.v1beta1.MsgSend\",\"from_address\":\"inj14au322k9munkmx5wrchz9q30juf5wjgz2cfqku\",\"to_address\":\"inj14au322k9munkmx5wrchz9q30juf5wjgz2cfqku\",\"amount\":[{\"denom\":\"inj\",\"amount\":\"10000000000000000\"}]}]"
+   }
+  },
+  "expected": {
+   "domain_separator": "a908147858193dcbc852a78aa9ab32d35da72e7229292dd41a6d1b02b305d1cd",
+   "message_hash": "699085c19a1eae36c57c33a44f907a1e805ce9f7c5ee1a0cdec62057839e85fb",
+   "digest": "0a599095745e1057fe40b2c5e36bcf753d38d1fcb8106f12c15c51aed3237e2e"
+  }
+ }
+]

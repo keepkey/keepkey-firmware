@@ -19,7 +19,7 @@ gap is not the dice-entry UI, which is comparable. It is the derivation.
 | Rolls required for a new seed | no, opt-in via `dice_entropy` | no; dice, coin flips, or timed key presses are required alternatives since 5.6.1 / 1.5.1Q |
 | Roll count for 24 words | 99 | 99 |
 | Roll count for 12 words | 50 | 50 |
-| Bias rejection on rolls | none | rejects any face over 30% frequency |
+| Bias rejection on rolls | none | rejects one face on 25/50, 32/75 or 39/99 rolls (fair-die false alarm ≤ 1e-6) |
 | Digest shown while rolling | after entry, **first 8 bytes** | live, **full 32 bytes** |
 | Digest is `SHA256(rolls)` | yes | yes |
 | Host can contribute entropy | **yes — optional `EntropyAck.entropy`; omission contributes zero host bytes** | **no such command exists** |
@@ -117,8 +117,10 @@ ColdCard offers both and labels dice-only as advanced.
    string and word count and printing the mnemonic and fingerprint.
 3. **Show the full 32-byte digest.** 64 bits already resists grinding, so this
    is parity rather than a fix, but it costs one line and removes an argument.
-4. **Bias rejection on the roll distribution**, matching ColdCard's 30% rule.
-   Cheap, and the only guard against a user whose die is visibly loaded.
+4. **Bias rejection on the roll distribution**, at a threshold a fair die
+   reaches in at most 1 in 1,000,000 ceremonies (ColdCard's 30% rule aborted
+   3.4% of fair 50-roll ceremonies). Cheap, and the only guard against a user
+   whose die is visibly loaded.
 5. **Never make dice-only the default.** It stakes the entire wallet on the
    user's dice and their privacy. It is the advanced option, and the warning
    screen has to say so.
