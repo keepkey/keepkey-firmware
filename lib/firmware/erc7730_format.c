@@ -17,12 +17,10 @@ bool erc7730_format_text(const uint8_t* bytes, size_t length, char* output,
   size_t written = 0;
   for (size_t i = 0; i < length; i++) {
     const uint8_t byte = bytes[i];
-    const bool plain_space = byte == ' ' && i != 0 && i + 1u != length &&
-                             bytes[i - 1u] != ' ' && bytes[i + 1u] != ' ';
     size_t needed = 1;
     if (byte == '\\') {
       needed = 2;
-    } else if (byte < 0x20 || byte >= 0x7f || (byte == ' ' && !plain_space)) {
+    } else if (byte <= 0x20 || byte >= 0x7f) {
       needed = 4;
     }
     if (output_size - written <= needed) {

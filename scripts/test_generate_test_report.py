@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import unittest
 import unittest.mock
@@ -14,6 +15,125 @@ SPEC = importlib.util.spec_from_file_location(
     "report", Path(__file__).with_name("generate-test-report.py"))
 report = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(report)
+
+
+class ReleaseCapabilities(unittest.TestCase):
+    """A release must not ship with a required capability's controls skipped,
+    in either product; a staged block may lack later capabilities."""
+
+    def test_lists_are_known_and_bitcoin_only_is_a_subset(self):
+        for lists in report.RELEASE_CAPABILITIES.values():
+            self.assertLessEqual(lists["full"], report.KNOWN_CAPABILITIES)
+            self.assertLessEqual(lists["bitcoin-only"], lists["full"])
+
+    def test_a_skipped_required_capability_is_a_gap_in_either_product(self):
+        for product in ("full", "bitcoin-only"):
+            self.assertEqual(
+                ["safe-reset-ceremony"],
+                report.release_capability_gaps(
+                    "7.15.0", product, {"safe-reset-ceremony"}))
+
+    def test_later_release_capabilities_and_full_only_ones_are_not_gaps(self):
+        self.assertEqual([], report.release_capability_gaps(
+            "7.15.0", "full", {"permit2-review"}))
+        self.assertEqual([], report.release_capability_gaps(
+            "7.15.0", "bitcoin-only", {"hive-release-review"}))
+
+    def test_a_version_without_a_list_has_no_verdict(self):
+        self.assertIsNone(report.release_capability_gaps("9.9.9", "full", set()))
+
+
+def passed(name):
+    classname, method = name.rsplit(".", 1)
+    return {"classname": classname, "name": method, "status": "pass",
+            "skip_reason": ""}
+
+
+def census(product):
+    return [passed("tests." + report.CENSUS_TEST + c.replace("-", "_"))
+            for c in sorted(report.RELEASE_CAPABILITIES["7.15.0"][product])]
+
+
+class ReleaseControlGaps(unittest.TestCase):
+    """A required capability counts only if its census test passed and none of
+    its tests skipped on a device flag, which carries no capability prefix."""
+
+    def test_complete_census_has_no_gaps(self):
+        for product in ("full", "bitcoin-only"):
+            self.assertEqual([], report.release_control_gaps(
+                "7.15.0", product, census(product)))
+
+    def test_flag_skip_of_a_required_capability_is_a_gap(self):
+        lut = {"classname": "tests.test_msg_solana_lut_attestation.T",
+               "name": "test_x", "status": "skip", "skip_reason":
+               "Firmware does not report supports_solana_lut_attestation"}
+        self.assertEqual(
+            ["tests.test_msg_solana_lut_attestation.T.test_x skipped: "
+             "supports_solana_lut_attestation"],
+            report.release_control_gaps("7.15.0", "full", census("full") + [lut]))
+        # Not required of bitcoin-only, so not a gap there.
+        self.assertEqual([], report.release_control_gaps(
+            "7.15.0", "bitcoin-only", census("bitcoin-only") + [lut]))
+        unmapped = dict(lut, skip_reason="Firmware does not report supports_x")
+        self.assertEqual(1, len(report.release_control_gaps(
+            "7.15.0", "bitcoin-only", census("bitcoin-only") + [unmapped])))
+
+    def test_a_missing_or_duplicated_census_is_a_gap(self):
+        cases = census("bitcoin-only")
+        self.assertEqual(1, len(report.release_control_gaps(
+            "7.15.0", "bitcoin-only", cases[1:])))
+        self.assertEqual(1, len(report.release_control_gaps(
+            "7.15.0", "bitcoin-only", cases + cases[:1])))
+
+    def test_flag_mapping_names_known_capabilities(self):
+        self.assertLessEqual(set(report.SUPPORTS_FLAG_CAPABILITY.values()),
+                             report.KNOWN_CAPABILITIES)
+
+
+class BitcoinOnlyControls(unittest.TestCase):
+    """Bitcoin-only must pass the base controls that exist in that product."""
+
+    def test_derivation_drops_only_named_base_cases(self):
+        self.assertLessEqual(set(report.BITCOIN_ONLY_EXCLUDED_BASE_CASES),
+                             report.BASE_REQUIRED_CASES)
+        self.assertEqual(report.BASE_REQUIRED_CASES,
+                         report.BITCOIN_ONLY_REQUIRED_CASES |
+                         set(report.BITCOIN_ONLY_EXCLUDED_BASE_CASES))
+        self.assertIn("DiceCeremonyPrivacy.AbortClearsCanvasBeforeDiagnosticsResume",
+                      report.BITCOIN_ONLY_REQUIRED_CASES)
+
+    def test_each_required_case_skipped_missing_or_failed_is_a_gap(self):
+        cases = [passed("tests." + n)
+                 for n in sorted(report.BITCOIN_ONLY_REQUIRED_CASES)]
+        self.assertEqual([], report.bitcoin_only_control_gaps(cases))
+        for index in range(len(cases)):
+            for status in ("skip", "fail", "remove"):
+                altered = [dict(case) for case in cases]
+                if status == "remove":
+                    del altered[index]
+                else:
+                    altered[index]["status"] = status
+                with self.subTest(case=index, status=status):
+                    self.assertTrue(report.bitcoin_only_control_gaps(altered))
+
+    def test_bitcoin_only_merge_keeps_the_full_merged_junit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            full, btc = root / "full.xml", root / "btc.xml"
+            for path in (full, btc):
+                suite = ET.Element("testsuite")
+                ET.SubElement(suite, "testcase",
+                              {"classname": path.stem, "name": "t"})
+                ET.ElementTree(suite).write(path)
+            with unittest.mock.patch.multiple(
+                    report, ROOT=root, MERGED_JUNIT=root / "merged.xml",
+                    BTC_MERGED_JUNIT=root / "merged-btc.xml"):
+                report.merge_junit([full])
+                report.merge_junit([btc], report.BTC_MERGED_JUNIT)
+            self.assertIn('classname="full"',
+                          (root / "merged.xml").read_text())
+            self.assertIn('classname="btc"',
+                          (root / "merged-btc.xml").read_text())
 
 
 class ContractEvidence(unittest.TestCase):
@@ -292,6 +412,14 @@ class CapabilitySkips(unittest.TestCase):
                  set(report.NATIVE_CAPABILITY.values()) |
                  {"hive-release-review", "evm-max-amount-review",
                   "ripple-memo-policy", "osmosis-wire-guards"})
+        self.assertLessEqual(named, report.KNOWN_CAPABILITIES)
+
+    def test_every_protocol_census_capability_is_known(self):
+        protocol = (report.ROOT / "deps/device-protocol/messages.proto").read_text()
+        values = re.findall(r"\bCAPABILITY_([A-Z0-9_]+)\s*=\s*(\d+)\s*;", protocol)
+        self.assertTrue(values, "the pinned protocol must define capabilities")
+        named = {name.lower().replace("_", "-") for name, value in values
+                 if int(value) != 0}
         self.assertLessEqual(named, report.KNOWN_CAPABILITIES)
 
 

@@ -32,12 +32,16 @@ TEST(Erc7730Format, TextEscapesNulControlsAndDelete) {
   EXPECT_STREQ(output, "\\x09");
 }
 
-TEST(Erc7730Format, TextEscapesBackslashEdgeSpacesAndNonAscii) {
+// Every space is escaped, not only edge or doubled ones: the renderer drops a
+// space at a line wrap or page start, so a literal one can vanish.
+TEST(Erc7730Format, TextEscapesBackslashSpacesAndNonAscii) {
   char output[64];
   ASSERT_TRUE(text("a\\b", 3, output, sizeof(output)));
   EXPECT_STREQ(output, "a\\\\b");
   ASSERT_TRUE(text("a b", 3, output, sizeof(output)));
-  EXPECT_STREQ(output, "a b");
+  EXPECT_STREQ(output, "a\\x20b");
+  ASSERT_TRUE(text("pay to 0x1", 10, output, sizeof(output)));
+  EXPECT_STREQ(output, "pay\\x20to\\x200x1");
   ASSERT_TRUE(text(" ab", 3, output, sizeof(output)));
   EXPECT_STREQ(output, "\\x20ab");
   ASSERT_TRUE(text("ab ", 3, output, sizeof(output)));

@@ -481,13 +481,21 @@ bool msg_debug_write(MessageType msg_id, const void* msg) {
 }
 #endif
 
+#ifdef EMULATOR
+/* Weak so a unit test can observe U2F replies; kkemu has no FIDO interface. */
+__attribute__((weak)) void emulator_u2f_tx(const U2FHID_FRAME* u2f_pkt) {
+  (void)u2f_pkt;
+  assert(false && "Emulator does not support FIDO u2f");
+}
+#endif
+
 void queue_u2f_pkt(const U2FHID_FRAME* u2f_pkt) {
 #ifndef EMULATOR
   while (usbd_ep_write_packet(usbd_dev, ENDPOINT_ADDRESS_U2F_IN, u2f_pkt, 64) ==
          0) {
   };
 #else
-  assert(false && "Emulator does not support FIDO u2f");
+  emulator_u2f_tx(u2f_pkt);
 #endif
 }
 

@@ -17,6 +17,7 @@
 extern "C" {
 #include "messages-ethereum.pb.h" /* full EthereumSignTx definition */
 #include "keepkey/board/draw.h"   /* draw_bitmap_mono_rle (icon decoder) */
+#include "keepkey/board/font.h"   /* calc_str_line, get_title_font */
 #include "keepkey/board/layout.h" /* LEFT_MARGIN_WITH_ICON */
 #include "keepkey/firmware/signed_metadata.h"
 #include "keepkey/firmware/storage.h"
@@ -36,6 +37,10 @@ void setup(void);
 #include <cstring>
 #include <string>
 #include <vector>
+
+void kkconfirm_capture_start(void);
+std::vector<std::string> kkconfirm_capture_finish(void);
+std::vector<std::string> kkconfirm_captured_titles(void);
 
 namespace {
 
@@ -1542,6 +1547,38 @@ TEST_F(SignedMetadataTest, FixedBytesSchemaDecodesEntireWord) {
   ASSERT_TRUE(kkconfirm_preload(5, 1));
   EXPECT_FALSE(signed_metadata_confirm());
   EXPECT_EQ(0, kkconfirm_drain());
+}
+
+/* Titles do not move the body down when they wrap, so a 64-character method
+ * name used as a title would draw over the contract, arguments and byte pages.
+ * Every screen's title must fit one title row. */
+TEST_F(SignedMetadataTest, LongMethodNameNeverWrapsTheTitle) {
+  Spec s = base_spec();
+  s.method = std::string(METADATA_MAX_METHOD_LEN, 'W');
+  const uint8_t raw[20] = {0xab};
+  s.args.push_back(mk_arg("data", ARG_FORMAT_BYTES, raw, sizeof(raw)));
+  std::vector<uint8_t> blob = sign_body(build_body(s));
+  ASSERT_EQ(METADATA_VERIFIED,
+            signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID));
+  EthereumSignTx msg;
+  make_matching_msg(&msg);
+  ASSERT_TRUE(signed_metadata_matches_tx(&msg));
+  // identity, call (two pages), contract, to, amount, two byte pages.
+  ASSERT_TRUE(kkconfirm_preload(8, 0));
+  kkconfirm_capture_start();
+  EXPECT_TRUE(signed_metadata_confirm());
+  const std::vector<std::string> bodies = kkconfirm_capture_finish();
+  EXPECT_EQ(0, kkconfirm_drain());
+  const std::vector<std::string> titles = kkconfirm_captured_titles();
+  ASSERT_EQ(8u, titles.size());
+  // The Call screen still discloses the whole name.
+  EXPECT_NE(std::string::npos, (bodies[1] + bodies[2]).find(s.method));
+  for (std::string title : titles) {
+    for (char& c : title) c = (char)toupper((unsigned char)c);
+    EXPECT_EQ(1u, calc_str_line(get_title_font(), title.c_str(),
+                                TITLE_WIDTH_WITH_ICON))
+        << title;
+  }
 }
 
 /* Tampered v2 body must fail the signature check. */

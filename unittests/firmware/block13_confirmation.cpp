@@ -71,8 +71,16 @@ class Block13Confirmation : public ::testing::Test {
         0, connect(fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)));
     // Establish this socket as the real emulator USB reply destination.
     queue(tinyFrame(MessageType_MessageType_GetFeatures));
-    usbPoll();
-    collect();
+    // Loopback delivery is asynchronous. A single poll can miss this packet,
+    // leaving GetFeatures queued until the next protected confirmation and
+    // shifting every later decision into the following request.
+    for (int attempt = 0;
+         attempt < 100 && count(MessageType_MessageType_Features) == 0;
+         ++attempt) {
+      usbPoll();
+      collect();
+    }
+    ASSERT_EQ(1u, count(MessageType_MessageType_Features));
     replies.clear();
   }
 
@@ -103,23 +111,55 @@ class Block13Confirmation : public ::testing::Test {
     }
   }
 
+  struct Reply {
+    uint16_t id;
+    std::vector<uint8_t> payload;
+  };
+
+  std::vector<Reply> messages() const {
+    std::vector<Reply> result;
+    size_t remaining = 0;
+    for (const auto& frame : replies) {
+      if (frame[0] != '?') {
+        ADD_FAILURE() << "Invalid response report";
+        return {};
+      }
+      size_t offset = 1;
+      if (remaining == 0) {
+        if (frame[1] != '#' || frame[2] != '#') {
+          ADD_FAILURE() << "Invalid response header";
+          return {};
+        }
+        result.push_back({uint16_t((uint16_t(frame[3]) << 8) | frame[4]), {}});
+        remaining = (uint32_t(frame[5]) << 24) | (uint32_t(frame[6]) << 16) |
+                    (uint32_t(frame[7]) << 8) | frame[8];
+        offset = 9;
+      }
+      const size_t take = std::min(remaining, frame.size() - offset);
+      result.back().payload.insert(result.back().payload.end(),
+                                   frame.begin() + offset,
+                                   frame.begin() + offset + take);
+      remaining -= take;
+    }
+    EXPECT_EQ(0u, remaining) << "Truncated response";
+    return result;
+  }
+
   size_t count(MessageType id) const {
-    return std::count_if(replies.begin(), replies.end(), [id](const Frame& f) {
-      return f[0] == '?' && f[1] == '#' && f[2] == '#' &&
-             ((f[3] << 8) | f[4]) == id;
-    });
+    const auto decoded = messages();
+    return std::count_if(decoded.begin(), decoded.end(),
+                         [id](const Reply& reply) { return reply.id == id; });
   }
 
   template <typename T>
   T response(MessageType id, const pb_field_t* fields) const {
     T result = {};
     bool found = false;
-    for (const auto& f : replies) {
-      if (f[1] != '#' || f[2] != '#' || ((f[3] << 8) | f[4]) != id) continue;
+    for (const auto& reply : messages()) {
+      if (reply.id != id) continue;
       found = true;
-      EXPECT_EQ(0, f[5] | f[6] | f[7]);
-      EXPECT_LE(f[8], 55);
-      pb_istream_t stream = pb_istream_from_buffer(f.data() + 9, f[8]);
+      pb_istream_t stream =
+          pb_istream_from_buffer(reply.payload.data(), reply.payload.size());
       EXPECT_TRUE(pb_decode(&stream, fields, &result));
     }
     EXPECT_TRUE(found);
@@ -313,7 +353,7 @@ TEST_F(Block13Confirmation,
   GetEntropy entropy = {};
   entropy.size = 32;
   dispatch(MessageType_MessageType_GetEntropy, GetEntropy_fields, &entropy);
-  EXPECT_EQ(1u, replies.size());
+  EXPECT_EQ(1u, messages().size());
   EXPECT_EQ(
       FailureType_Failure_UnexpectedMessage,
       response<Failure>(MessageType_MessageType_Failure, Failure_fields).code);
@@ -323,8 +363,8 @@ TEST_F(Block13Confirmation,
   EXPECT_EQ(expected, pixels());
   replies.clear();
 
-  // VerifyMessage is allowed during setup. Its invalid signature path draws
-  // a progress message and Home while keeping the recovery ceremony armed.
+  // Any other request is refused by the dispatch gate before its handler
+  // can draw, keeping the recovery ceremony armed and on screen.
   VerifyMessage unrelated = {};
   unrelated.has_address = unrelated.has_message = true;
   std::strcpy(unrelated.address, "invalid-address");
@@ -334,7 +374,7 @@ TEST_F(Block13Confirmation,
            &unrelated);
   EXPECT_EQ(1u, count(MessageType_MessageType_Failure));
   EXPECT_EQ(
-      FailureType_Failure_InvalidSignature,
+      FailureType_Failure_UnexpectedMessage,
       response<Failure>(MessageType_MessageType_Failure, Failure_fields).code);
   EXPECT_EQ(0u, count(MessageType_MessageType_CharacterRequest));
   EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
@@ -350,7 +390,7 @@ TEST_F(Block13Confirmation,
   auto unknown = tinyFrame(0xffff);
   usb_test_receive(unknown.data(), unknown.size());
   collect();
-  EXPECT_EQ(1u, replies.size());
+  EXPECT_EQ(1u, messages().size());
   EXPECT_EQ(1u, count(MessageType_MessageType_Failure));
   EXPECT_EQ(cipher, recovery_get_cipher());
   EXPECT_EQ(expected, framebuffer());

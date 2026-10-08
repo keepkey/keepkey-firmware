@@ -190,7 +190,8 @@ bool ripple_b58enc(char* b58, size_t* b58sz, const void* data, size_t binsz) {
 
 int ripple_encode_check(const uint8_t* data, int datalen,
                         HasherType hasher_type, char* str, int strsize) {
-  if (datalen < 0 || datalen > RIPPLE_BASE58_MAX_CHECK_DATA) {
+  /* Both lengths are signed; a negative strsize would become a huge size_t. */
+  if (datalen < 0 || datalen > RIPPLE_BASE58_MAX_CHECK_DATA || strsize <= 0) {
     return 0;
   }
   uint8_t buf[RIPPLE_BASE58_MAX_CHECK_DATA + 32];

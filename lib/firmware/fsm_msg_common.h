@@ -153,6 +153,9 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
       Features_Capability_CAPABILITY_EVM_MAX_AMOUNT_REVIEW,
       Features_Capability_CAPABILITY_EVM_UNKNOWN_TOKEN_REVIEW,
       Features_Capability_CAPABILITY_EVM_TX_METADATA,
+      Features_Capability_CAPABILITY_ERC20_UNLIMITED_APPROVE_REVIEW,
+      Features_Capability_CAPABILITY_ERC20_UNLIMITED_PERMIT_REVIEW,
+      Features_Capability_CAPABILITY_EIP712_CHUNKED_VALUES,
 #endif
   };
   _Static_assert(sizeof(capabilities) <= sizeof(resp->capabilities),
@@ -182,19 +185,23 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
   const size_t coin_table_count = COINS_COUNT + TOKENS_COUNT;
 #endif
 
-  CHECK_PARAM(has_start == has_end, "Incorrect GetCoinTable parameters");
-
   const size_t chunk_size =
       sizeof(((CoinTable*)0)->table) / sizeof(((CoinTable*)0)->table[0]);
 
-  if (has_start) {
-    if (coin_table_count <= start || coin_table_count < end || end < start ||
-        chunk_size < end - start) {
-      fsm_sendFailure(FailureType_Failure_Other,
-                      "Incorrect GetCoinTable parameters");
+  if (has_start != has_end ||
+      (has_start && (coin_table_count <= start || coin_table_count < end ||
+                     end < start || chunk_size < end - start))) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    "Incorrect GetCoinTable parameters");
+    /* The gate lets GetCoinTable through mid-workflow (CHECK_PARAM would go
+     * home), so a malformed one must not hide an armed recovery cipher, an
+     * armed reset or a signer's screen. Same rule as fsm_msgPing(). */
+    if (setup_isArmedAs(SETUP_RECOVERY)) {
+      recovery_cipher_redraw();
+    } else if (!fsm_workflowInProgress()) {
       layoutHome();
-      return;
     }
+    return;
   }
 
   CoinTable* resp = (CoinTable*)msg_decoded_request_response_scratch();
@@ -264,6 +271,7 @@ void fsm_msgPing(Ping* msg) {
       "Auth secret unknown error",
       "Authenticator account already exists",
       "Action cancelled",
+      "OTP time slice timed out, regenerate OTP",
   };
 
   typedef enum _AUTH_MSG_TYPE {
@@ -296,6 +304,20 @@ void fsm_msgPing(Ping* msg) {
     }
   }
 
+  /* During a setup ceremony only a plain Ping is answered: a protected one
+   * would draw its prompt over the ceremony and go home on cancel, and an
+   * authenticator one would be served on a PIN cached for a dry run. */
+  if (setup_isArmed() &&
+      (authMsg < NUM_AUTHMESSAGES ||
+       (msg->has_button_protection && msg->button_protection) ||
+       (msg->has_pin_protection && msg->pin_protection) ||
+       (msg->has_passphrase_protection && msg->passphrase_protection))) {
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("Device is in the middle of setup. Send "
+                      "Initialize or Cancel first."));
+    return;
+  }
+
   /* A protected Ping can block inside its confirmation or PIN/passphrase
    * prompt while the main-loop auto-lock check is suspended. End any older
    * signing stream before it can wait, so a Cancel cannot resume it. This is
@@ -306,6 +328,10 @@ void fsm_msgPing(Ping* msg) {
       (msg->has_pin_protection && msg->pin_protection) ||
       (msg->has_passphrase_protection && msg->passphrase_protection)) {
     fsm_abort_signing_workflows();
+    /* The gate passed Ping without ending the stream, so the deadline it
+     * deferred was not checked. Lock now if it has passed, before CHECK_PIN
+     * could serve this request from the cached PIN. */
+    auto_lock_if_due();
   }
 
   if (authMsg < NUM_AUTHMESSAGES) {

@@ -601,6 +601,8 @@ static void eip712_pump(void) {
       resp->member_path_count = next->member_path_len;
       memcpy(resp->member_path, next->member_path,
              next->member_path_len * sizeof(uint32_t));
+      resp->has_value_offset = next->has_value_offset;
+      resp->value_offset = next->value_offset;
       note_workflow_progress();
       msg_write(MessageType_MessageType_EthereumTypedDataValueRequest, resp);
       return;
