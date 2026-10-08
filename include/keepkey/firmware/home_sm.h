@@ -22,6 +22,7 @@
 
 #include "keepkey/board/timer.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /* State for Home SM */
@@ -31,10 +32,19 @@ void layoutHome(void);
 void layoutHomeForced(void);
 void leave_home(void);
 void toggle_screensaver(void);
+/* Monotonic ms clock behind auto-lock; getSysTime() outside unit tests. */
+uint32_t home_clock_ms(void);
+/* Test hook: charge simulated idle time. Production uses the clock only. */
 void increment_idle_time(uint32_t increment_ms);
 void reset_idle_time(void);
-/* Call only after validated workflow progress, never on raw host traffic. */
+/* Call only after validated workflow progress, never on raw host traffic.
+ * Defers the auto-lock while that workflow runs; never renews it. */
 void note_workflow_progress(void);
+/* Forget recorded progress once no workflow runs (after an abort or end). */
+void drop_workflow_progress_if_idle(void);
+/* Lock now (abort workflows, clear the PIN) if the idle deadline has passed
+ * and no progressing workflow defers it. True if this call locked. */
+bool auto_lock_if_due(void);
 void note_pin_accepted(void);
 HomeState home_get_state(void);
 

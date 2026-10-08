@@ -50,8 +50,12 @@ uint32_t dice_rolls_for_strength(uint32_t strength_bits);
 /// host cancelled (Cancel/Initialize).
 bool dice_input_collect(char *rolls, uint32_t target);
 
-/// Coldcard's rule: any face landing on more than 30% of the rolls is not a
-/// fair die (or not a real one). Also true for any non-'1'..'6' byte.
+/// True when one face lands at least 25 of 50, 32 of 75 or 39 of 99 rolls:
+/// a fair d6 does that in at most 1 in 1,000,000 ceremonies (exact
+/// multinomial), so it refuses only grossly loaded dice or one face entered
+/// over and over. It is no test of fairness or of randomness: a sequence
+/// typed in a pattern passes. Also true for any non-'1'..'6' byte and for
+/// any count other than 50, 75 or 99.
 bool dice_rolls_look_biased(const char *rolls, uint32_t count);
 
 /// ONLY mode: out = SHA256(rolls), byte-identical to Coldcard's.

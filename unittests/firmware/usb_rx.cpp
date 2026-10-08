@@ -344,8 +344,8 @@ static void expectWrongAcknowledgementRejected(MessageType wrong, int handler) {
   EXPECT_TRUE(msg_handler_rejected());
   EXPECT_FALSE(session_isPassphraseCached());
 
-  // Reset the terminal marker before draining the trailing Cancel; otherwise
-  // check_for_tiny_msg() deliberately returns Cancel without polling again.
+  // A normal frame clears the rejection marker before the trailing Cancel is
+  // drained. The next tiny poll would clear it as well.
   uint8_t reset_frame[64] = {};
   handle_usb_rx(reset_frame, sizeof(reset_frame));
   (void)kkconfirm_drain();

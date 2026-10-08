@@ -65,11 +65,17 @@ jobs:
 
           with open('/tmp/ci-runs.json', encoding='utf-8') as handle:
               runs = json.load(handle).get('workflow_runs', [])
+          # Only a push to master: a pull_request run takes its workflow from
+          # the base branch, so its evidence need not come from the ci.yml at
+          # the tag. A master push run also proves the tag is on master.
           runs = [run for run in runs
                   if run.get('head_sha') == os.environ['GITHUB_SHA']
-                  and run.get('conclusion') == 'success']
+                  and run.get('conclusion') == 'success'
+                  and run.get('event') == 'push'
+                  and run.get('head_branch') == 'master']
           if not runs:
-              raise SystemExit('no successful CI run exists for the tagged commit')
+              raise SystemExit('no successful master push CI run exists for '
+                               'the tagged commit')
           run = max(runs, key=lambda item: item.get('created_at', ''))
           run_id = str(run['id'])
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
@@ -146,6 +152,34 @@ jobs:
           run_id = os.environ['CI_RUN_ID']
           if not manifest.get('run_url', '').endswith('/' + run_id):
               raise SystemExit('presign manifest names a different CI run')
+          # Capability-gated controls may skip on a staged block, never in a
+          # release: a build that stops reporting a capability would otherwise
+          # ship with that capability's security tests silently skipped. The
+          # required set per release is defined in generate-test-report.py.
+          gaps = manifest.get('release_capability_gaps')
+          if not isinstance(gaps, dict):
+              raise SystemExit('presign manifest has no release capability check')
+          for product in ('full', 'bitcoin-only'):
+              if not isinstance(gaps.get(product), list):
+                  raise SystemExit('no release capability list for this '
+                                   'version (%s)' % product)
+              if gaps[product]:
+                  raise SystemExit('release evidence skipped required '
+                                   'capabilities (%s): %s'
+                                   % (product, ', '.join(gaps[product])))
+          # Base security controls, per product. CI enforces the full
+          # product's; bitcoin-only's are recorded and refused here.
+          controls = manifest.get('required_controls')
+          if not isinstance(controls, dict):
+              raise SystemExit('presign manifest has no required-control check')
+          for product in ('full', 'bitcoin-only'):
+              if not isinstance(controls.get(product), list):
+                  raise SystemExit('presign manifest has no required-control '
+                                   'result for %s' % product)
+              if controls[product]:
+                  raise SystemExit('release evidence is missing required '
+                                   'controls (%s): %s'
+                                   % (product, ', '.join(controls[product])))
           pdf = report_dir / manifest['pdf']['path']
           if digest(pdf) != manifest['pdf']['sha256']:
               raise SystemExit('presign PDF hash mismatch')

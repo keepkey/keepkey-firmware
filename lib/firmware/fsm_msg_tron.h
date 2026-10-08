@@ -108,8 +108,15 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
   TronTxType tx_type =
       tron_parseRawTx(msg->raw_data.bytes, msg->raw_data.size, &parsed);
 
-  if (tx_type == TRON_TX_UNVERIFIED) {
-    /* Unrecognized payload: explicit blind-sign only, as for Solana. */
+  /* Unrecognized payloads are explicit blind-sign only, as for Solana. So is
+   * a TRC-20 call to a contract outside the trusted table: the transfer
+   * selector alone does not prove what that contract executes. Its decoded
+   * fields follow the warning. */
+  const TronToken* token = tx_type == TRON_TX_TRC20_TRANSFER
+                               ? tron_knownToken(parsed.contract)
+                               : NULL;
+  if (tx_type == TRON_TX_UNVERIFIED ||
+      (tx_type == TRON_TX_TRC20_TRANSFER && !token)) {
     if (!storage_isPolicyEnabled("AdvancedMode")) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_Other,
@@ -127,7 +134,8 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
       layoutHome();
       return;
     }
-  } else {
+  }
+  if (tx_type != TRON_TX_UNVERIFIED) {
     /* The parsed owner account is the one spending — it must be ours. */
     char derived_addr[TRON_ADDRESS_MAX_LEN];
     char owner_addr[TRON_ADDRESS_MAX_LEN];
@@ -156,26 +164,42 @@ void fsm_msgTronSignTx(TronSignTx* msg) {
       tron_formatAmount(amount_str, sizeof(amount_str), parsed.amount);
       confirmed = confirm(ButtonRequestType_ButtonRequest_SignTx, "TRON",
                           "Send %s to %s?", amount_str, to_str);
-    } else { /* TRON_TX_TRC20_TRANSFER */
+    } else if (token) { /* trusted TRC-20: symbol and decimals are known */
+      char amount_str[96];
+      confirmed =
+          tron_formatTrc20Amount(parsed.trc20_amount, token, amount_str,
+                                 sizeof(amount_str)) &&
+          confirm(ButtonRequestType_ButtonRequest_SignTx, "TRC-20 Transfer",
+                  "Send %s to %s?", amount_str, to_str);
+    } else { /* blind-signed TRC-20 */
       char contract_str[TRON_ADDRESS_MAX_LEN];
       char amount_str[90];
       confirmed =
           tron_addressFromBytes(parsed.contract, contract_str,
                                 sizeof(contract_str)) &&
-          tron_formatTrc20Amount(parsed.trc20_amount, amount_str,
+          tron_formatTrc20Amount(parsed.trc20_amount, NULL, amount_str,
                                  sizeof(amount_str)) &&
           confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                   "TRC-20 Transfer", "Token contract %s", contract_str) &&
-          /* Token decimals are not known on-device; show base units. */
+          /* Unknown token: decimals are not known; show base units. */
           confirm(ButtonRequestType_ButtonRequest_SignTx, "TRC-20 Transfer",
                   "Send %s base units to %s?", amount_str, to_str);
     }
 
     if (confirmed && parsed.has_fee_limit) {
+      /* fee_limit caps smart-contract energy only: bandwidth is charged on
+       * top, and a native transfer ignores it. */
       char fee_str[32];
       tron_formatAmount(fee_str, sizeof(fee_str), parsed.fee_limit);
-      confirmed = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "TRON",
-                          "Max network fee %s", fee_str);
+      if (tx_type == TRON_TX_TRANSFER) {
+        confirmed =
+            confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "TRON",
+                    "Energy fee limit %s\nNot used by TRX transfers", fee_str);
+      } else {
+        confirmed =
+            confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "TRON",
+                    "Energy fee limit %s\nBandwidth fees are extra", fee_str);
+      }
     }
 
     if (confirmed && parsed.memo_len > 0) {

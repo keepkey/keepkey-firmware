@@ -74,6 +74,8 @@ void fsm_init(void);
  * state. Call before any operation that clears or revokes a session. */
 void fsm_abort_workflows(void);
 void fsm_abort_signing_workflows(void);
+/* True while a setup ceremony is armed or any signer waits for the host. */
+bool fsm_workflowInProgress(void);
 
 void fsm_sendSuccess(const char* text);
 

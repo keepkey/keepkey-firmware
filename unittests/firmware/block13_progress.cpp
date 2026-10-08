@@ -29,6 +29,7 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck* msg);
 #include <thread>
 #include <vector>
 
+extern "C" void keepkey_user_activity(void);  // lib/firmware/home_sm.c
 void kk_test_board_init(void);
 bool kkconfirm_preload(int nYes, int nNo);
 int kkconfirm_drain(void);
@@ -170,6 +171,10 @@ TEST_F(Block13ResetProgress, EntropyReplyAdvancesOnceIncludingAbsentAndEmpty) {
     EXPECT_FALSE(setup_isArmed());
     EXPECT_FALSE(storage_isInitialized());
     EXPECT_EQ(0, kkconfirm_drain());
+    // The preloaded decline stands in for the user's press on the device.
+    // A DebugLink decision is not user activity, so the test supplies the
+    // press; the EntropyAck itself never renews the deadline.
+    keepkey_user_activity();
     increment_idle_time(1);
     toggle_screensaver();
     ASSERT_NE(SCREENSAVER, home_get_state());
@@ -392,12 +397,15 @@ TEST_P(Block13CoinProgress, InvalidInitialRequestCannotRenewDeadline) {
   EXPECT_EQ(SCREENSAVER, home_get_state());
 }
 
-TEST_P(Block13CoinProgress, AcceptedContinuationsRenewThenPollingExpires) {
+TEST_P(Block13CoinProgress, AcceptedContinuationsDeferThenPollingExpires) {
   Start();
   ASSERT_TRUE(Active());
   for (int i = 0; i < 2; ++i) {
     ASSERT_TRUE(kkconfirm_preload(ReviewCount(), 0));
-    increment_idle_time(kDeadline - 1);
+    // No press renews the deadline, so each continuation must land inside the
+    // window its predecessor's progress opened (one delay after it, the
+    // stalled stream is locked at dispatch).
+    increment_idle_time(kDeadline - 1 - i);
     Continue();
     EXPECT_EQ(0, kkconfirm_drain());
     ASSERT_EQ(0, static_cast<int>(fsm_test_lastFailureCode()));

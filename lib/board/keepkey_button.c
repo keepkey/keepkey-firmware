@@ -115,6 +115,11 @@ void keepkey_button_set_on_release_handler(Handler handler, void* context) {
   on_release_handler_context = context;
 }
 
+#ifdef EMULATOR
+/* Weak so a unit test can drive the button; the emulator has no button. */
+__attribute__((weak)) bool emulator_button_up(void) { return false; }
+#endif
+
 /*
  * keepkey_button_up() - Get push button in up state
  *
@@ -128,7 +133,7 @@ bool keepkey_button_up(void) {
   uint16_t port = gpio_port_read(BUTTON_PORT);
   return port & BUTTON_PIN;
 #else
-  return false;
+  return emulator_button_up();
 #endif
 }
 

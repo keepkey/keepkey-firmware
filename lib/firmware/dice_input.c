@@ -143,9 +143,24 @@ bool dice_rolls_look_biased(const char *rolls, uint32_t count) {
     }
     face[rolls[i] - '1']++;
   }
+  /* Smallest per-face count a fair d6 reaches with probability <= 1e-6 per
+   * ceremony (exact multinomial): P = 3.4e-7, 6.2e-7, 3.7e-7. */
+  uint32_t limit;
+  switch (count) {
+    case 50:
+      limit = 25;
+      break;
+    case 75:
+      limit = 32;
+      break;
+    case 99:
+      limit = 39;
+      break;
+    default:
+      return true; /* no computed bound for this count */
+  }
   for (uint32_t f = 0; f < 6; f++) {
-    /* face/count > 0.30, in integers */
-    if (face[f] * 10 > count * 3) {
+    if (face[f] >= limit) {
       return true;
     }
   }
