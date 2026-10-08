@@ -93,13 +93,47 @@ static std::string rolls_with_ones(size_t ones, size_t total) {
   return s;
 }
 
-TEST(Dice, BiasGateIsThirtyPercentPerFace) {
-  // Coldcard's rule: any face over 30% of the rolls. 30/99 = 30.3% fails,
-  // 29/99 = 29.3% passes; 16/50 = 32% fails, 15/50 = 30% exactly passes.
-  EXPECT_TRUE(dice_rolls_look_biased(rolls_with_ones(30, 99).c_str(), 99));
-  EXPECT_FALSE(dice_rolls_look_biased(rolls_with_ones(29, 99).c_str(), 99));
-  EXPECT_TRUE(dice_rolls_look_biased(rolls_with_ones(16, 50).c_str(), 50));
-  EXPECT_FALSE(dice_rolls_look_biased(rolls_with_ones(15, 50).c_str(), 50));
+static std::string rolls_with_face(char face, size_t hits, size_t total) {
+  std::string s(hits, face);
+  for (size_t i = 0; s.size() < total; i++) {
+    char c = (char)('1' + i % 6);
+    if (c != face) s += c;
+  }
+  return s;
+}
+
+TEST(Dice, BiasGateRefusesOnlyAtOneInAMillion) {
+  // Thresholds computed in Python as exact multinomial tail probabilities for
+  // a fair d6: P(some face >= t) is 3.4e-7 (50 rolls, t=25), 6.2e-7 (75,
+  // t=32) and 3.7e-7 (99, t=39); one roll lower each is above 1e-6.
+  // t-1 must pass and t must refuse, on every face.
+  const size_t n[3] = {50, 75, 99};
+  const size_t t[3] = {25, 32, 39};
+  for (int i = 0; i < 3; i++) {
+    for (char face = '1'; face <= '6'; face++) {
+      SCOPED_TRACE(std::string(1, face) + " of " + std::to_string(n[i]));
+      EXPECT_FALSE(dice_rolls_look_biased(
+          rolls_with_face(face, t[i] - 1, n[i]).c_str(), n[i]));
+      EXPECT_TRUE(dice_rolls_look_biased(
+          rolls_with_face(face, t[i], n[i]).c_str(), n[i]));
+    }
+    EXPECT_TRUE(dice_rolls_look_biased(std::string(n[i], '4').c_str(), n[i]));
+  }
+}
+
+TEST(Dice, BiasGateAcceptsFairRolls) {
+  // Python random.Random(20261007), 99 fair rolls; the 50- and 75-roll
+  // prefixes are used as is (the 50 hold 15 ones, a 30% face).
+  const char *fair =
+      "23135565613255114162615221362354215336561251161111514163136116425456"
+      "4225546215563143345143362442344";
+  EXPECT_FALSE(dice_rolls_look_biased(fair, 50));
+  EXPECT_FALSE(dice_rolls_look_biased(fair, 75));
+  EXPECT_FALSE(dice_rolls_look_biased(fair, 99));
+}
+
+TEST(Dice, BiasGateRefusesCountsWithoutABound) {
+  EXPECT_TRUE(dice_rolls_look_biased("1234561", 7));
 }
 
 TEST(Dice, BiasGateRejectsNonDiceBytes) {

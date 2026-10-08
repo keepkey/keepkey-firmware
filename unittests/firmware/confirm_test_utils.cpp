@@ -50,8 +50,7 @@ std::vector<std::string> kkconfirm_capture_finish(void) {
 
 static int kkconfirm_fd = -1;
 
-static bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload,
-                               uint8_t len) {
+bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload, uint8_t len) {
   if (kkconfirm_fd < 0) kkconfirm_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (kkconfirm_fd < 0) return false;
 

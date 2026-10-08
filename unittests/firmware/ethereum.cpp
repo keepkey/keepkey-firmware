@@ -327,6 +327,9 @@ static void MakeThorDeposit(EthereumSignTx* msg, const char* to_hex,
   msg->data_initial_chunk.size = 4 + 6 * 32;
   std::memcpy(msg->data_initial_chunk.bytes, THOR_SELECTOR_DEPOSIT_WITH_EXPIRY,
               4);
+  // A real deadline: expiry 0 reverts on the classic routers and is refused.
+  const uint8_t epoch[4] = {0x65, 0x53, 0xf1, 0x00};  // 1700000000
+  std::memcpy(msg->data_initial_chunk.bytes + 4 + 4 * 32 + 28, epoch, 4);
 }
 
 TEST(Ethereum, ThorchainDepositIsPinnedToItsRouterOnItsChain) {
@@ -362,6 +365,117 @@ TEST(Ethereum, ThorchainDepositIsPinnedToItsRouterOnItsChain) {
   MakeThorDeposit(&msg, THOR_ROUTER, 1);
   msg.has_chain_id = false;
   EXPECT_FALSE(thor_isThorchainTx(&msg));
+}
+
+// The BSC, Base and Arbitrum routers from /inbound_addresses are pinned on
+// their own chain only. Base's router shares Avalanche's address.
+TEST(Ethereum, ThorchainDepositIsPinnedOnBscBaseAndArbitrum) {
+  EthereumSignTx msg;
+
+  MakeThorDeposit(&msg, THOR_ROUTER_BSC, 56);
+  EXPECT_TRUE(thor_isThorchainTx(&msg));
+  MakeThorDeposit(&msg, THOR_ROUTER_BASE, 8453);
+  EXPECT_TRUE(thor_isThorchainTx(&msg));
+  MakeThorDeposit(&msg, MAYA_ROUTER_ARB, 42161);
+  EXPECT_TRUE(thor_isThorchainTx(&msg));
+
+  // The right address on the wrong chain still falls to the gate.
+  MakeThorDeposit(&msg, THOR_ROUTER_BSC, 1);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+  MakeThorDeposit(&msg, THOR_ROUTER_BSC, 8453);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+  MakeThorDeposit(&msg, THOR_ROUTER_BASE, 1);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+  MakeThorDeposit(&msg, THOR_ROUTER_BASE, 56);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+  MakeThorDeposit(&msg, THOR_ROUTER_BASE, 42161);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+  MakeThorDeposit(&msg, MAYA_ROUTER_ARB, 1);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+  MakeThorDeposit(&msg, MAYA_ROUTER_ARB, 8453);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+  MakeThorDeposit(&msg, MAYA_ROUTER, 42161);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+  MakeThorDeposit(&msg, THOR_ROUTER, 42161);
+  EXPECT_FALSE(thor_isThorchainTx(&msg));
+}
+
+// A complete depositWithExpiry() to `router`, accepted on every screen.
+// Native deposits send two coins as both msg.value and the ABI amount; token
+// deposits move two whole units of an unlisted token and send no value.
+static std::vector<std::string> ThorFullDepositScreens(
+    const char* router, uint32_t chain_id, bool native, bool* confirmed,
+    bool zero_expiry = false) {
+  static const char kMemo[] =
+      "=:ETH.ETH:0x41e5560054824ea6b0732e656e3ad64e20e94e45:0";
+  const size_t memo_len = sizeof(kMemo) - 1;
+  EthereumSignTx msg;
+  MakeThorDeposit(&msg, router, chain_id);
+  uint8_t* d = msg.data_initial_chunk.bytes;
+  std::memset(d + 4 + 12, 0x22, 20);                    // vault
+  if (!native) std::memset(d + 4 + 32 + 12, 0x11, 20);  // token
+  if (zero_expiry) std::memset(d + 4 + 4 * 32, 0, 32);
+  const uint64_t two = 2000000000000000000ULL;
+  for (int i = 0; i < 8; i++)
+    d[4 + 2 * 32 + 24 + i] = (uint8_t)(two >> (56 - 8 * i));
+  d[4 + 3 * 32 + 31] = 0xa0;
+  d[4 + 5 * 32 + 31] = (uint8_t)memo_len;
+  std::memcpy(d + 4 + 6 * 32, kMemo, memo_len);
+  msg.data_initial_chunk.size = 4 + 6 * 32 + ((memo_len + 31) / 32) * 32;
+  msg.has_value = true;
+  msg.value.size = 8;
+  if (native) std::memcpy(msg.value.bytes, d + 4 + 2 * 32 + 24, 8);
+
+  // Routed to this decoder, not to the blind-sign gate.
+  EXPECT_TRUE(thor_isThorchainTx(&msg)) << chain_id;
+  EXPECT_TRUE(kkconfirm_preload(20, 0));
+  kkconfirm_capture_start();
+  *confirmed = thor_confirmThorTx(msg.data_initial_chunk.size, &msg);
+  const auto screens = kkconfirm_capture_finish();
+  kkconfirm_drain();
+  return screens;
+}
+
+static bool HasScreen(const std::vector<std::string>& screens,
+                      const std::string& body) {
+  return std::find(screens.begin(), screens.end(), body) != screens.end();
+}
+
+TEST(Ethereum, ThorNewRoutersClearSignNativeAndTokenDeposits) {
+  struct Case {
+    const char* router;
+    uint32_t chain_id;
+    const char* label;
+    const char* native_amount;
+  };
+  static const Case kCases[] = {
+      {THOR_ROUTER_BSC, 56, "Routing through Thorchain router",
+       "Confirm sending 2 BNB"},
+      {THOR_ROUTER_BASE, 8453, "Routing through Thorchain router",
+       "Confirm sending 2 ETH"},
+      {MAYA_ROUTER_ARB, 42161, "Routing through Mayachain router",
+       "Confirm sending 2 ETH"},
+  };
+  for (const Case& c : kCases) {
+    bool confirmed = false;
+    auto screens =
+        ThorFullDepositScreens(c.router, c.chain_id, true, &confirmed);
+    EXPECT_TRUE(confirmed) << c.chain_id;
+    ASSERT_FALSE(screens.empty()) << c.chain_id;
+    EXPECT_EQ(c.label, screens[0]) << c.chain_id;
+    EXPECT_TRUE(HasScreen(screens, c.native_amount)) << c.chain_id;
+    EXPECT_TRUE(HasScreen(screens, "Expiry epoch 1700000000")) << c.chain_id;
+
+    screens = ThorFullDepositScreens(c.router, c.chain_id, false, &confirmed);
+    EXPECT_TRUE(confirmed) << c.chain_id;
+    ASSERT_FALSE(screens.empty()) << c.chain_id;
+    EXPECT_EQ(c.label, screens[0]) << c.chain_id;
+    EXPECT_TRUE(HasScreen(
+        screens, "from asset 1111111111111111111111111111111111111111"))
+        << c.chain_id;
+    EXPECT_TRUE(HasScreen(screens, "amount 2000000000000000000 unformatted"))
+        << c.chain_id;
+  }
 }
 
 // A canonical transformERC20 call with one transformation whose data is one
@@ -565,4 +679,183 @@ TEST(Ethereum, NativeThorConfirmationDisplaysValueInsteadOfAbiAmount) {
             std::find(screens.begin(), screens.end(), "Confirm sending 2 ETH"));
   EXPECT_EQ(screens.end(),
             std::find(screens.begin(), screens.end(), "Confirm sending 1 ETH"));
+}
+
+// A native deposit signs the ABI amount word, which the router ignores in
+// favour of msg.value. Real hosts send amount == value (or 0); any other word
+// must be shown rather than signed behind identical screens. Returns the
+// screen after "Confirm sending", rejecting it so the memo is never reached.
+static std::string ThorNativeScreenAfterSending(const char* router,
+                                                uint32_t chain_id,
+                                                uint8_t amount_coins,
+                                                uint8_t value_coins) {
+  EthereumSignTx msg;
+  MakeThorDeposit(&msg, router, chain_id);
+  msg.data_initial_chunk.bytes[4 + 3 * 32 + 31] = 0xa0;
+  // Whole-coin values: n * 1e18 wei, big-endian in the low 8 bytes.
+  const uint64_t amount = amount_coins * 1000000000000000000ULL;
+  const uint64_t value = value_coins * 1000000000000000000ULL;
+  msg.has_value = true;
+  msg.value.size = 8;
+  for (int i = 0; i < 8; i++) {
+    msg.data_initial_chunk.bytes[4 + 2 * 32 + 24 + i] =
+        (uint8_t)(amount >> (56 - 8 * i));
+    msg.value.bytes[i] = (uint8_t)(value >> (56 - 8 * i));
+  }
+
+  // Accept router, vault and amount; reject whatever comes fourth.
+  EXPECT_TRUE(kkconfirm_preload(3, 1));
+  kkconfirm_capture_start();
+  EXPECT_FALSE(thor_confirmThorTx(msg.data_initial_chunk.size, &msg));
+  const auto screens = kkconfirm_capture_finish();
+  EXPECT_EQ(0, kkconfirm_drain());
+  if (screens.size() < 4) return "";
+  EXPECT_EQ(std::string("Confirm sending ") + std::to_string(value_coins) +
+                (chain_id == 43114 ? " AVAX"
+                                   : chain_id == 56 ? " BNB"
+                                                    : " ETH"),
+            screens[2]);
+  return screens[3];
+}
+
+TEST(Ethereum, ThorNativeAmountEqualToValueNeedsNoExtraScreen) {
+  EXPECT_EQ("Expiry epoch 1700000000",
+            ThorNativeScreenAfterSending(THOR_ROUTER, 1, 2, 2));
+  EXPECT_EQ("Expiry epoch 1700000000",
+            ThorNativeScreenAfterSending(MAYA_ROUTER, 1, 2, 2));
+  EXPECT_EQ("Expiry epoch 1700000000",
+            ThorNativeScreenAfterSending(THOR_ROUTER_AVAX, 43114, 2, 2));
+}
+
+TEST(Ethereum, ThorNativeAmountZeroNeedsNoExtraScreen) {
+  EXPECT_EQ("Expiry epoch 1700000000",
+            ThorNativeScreenAfterSending(THOR_ROUTER, 1, 0, 2));
+  EXPECT_EQ("Expiry epoch 1700000000",
+            ThorNativeScreenAfterSending(MAYA_ROUTER, 1, 0, 2));
+}
+
+TEST(Ethereum, ThorNativeAmountDifferentFromValueIsShown) {
+  EXPECT_EQ("1 ETH (ignored by router; value sent: 2 ETH)",
+            ThorNativeScreenAfterSending(THOR_ROUTER, 1, 1, 2));
+  EXPECT_EQ("3 ETH (ignored by router; value sent: 2 ETH)",
+            ThorNativeScreenAfterSending(MAYA_ROUTER, 1, 3, 2));
+  EXPECT_EQ("1 BNB (ignored by router; value sent: 2 BNB)",
+            ThorNativeScreenAfterSending(THOR_ROUTER_BSC, 56, 1, 2));
+}
+
+// THORChain_RouterV6 (Avalanche, Base) skips the deadline when expiration is
+// 0, so the screen says so instead of an epoch that reads as already expired.
+TEST(Ethereum, ThorV6ExpiryZeroShowsNoExpiry) {
+  const struct {
+    const char* router;
+    uint32_t chain_id;
+  } kV6[] = {{THOR_ROUTER_AVAX, 43114}, {THOR_ROUTER_BASE, 8453}};
+  for (const auto& c : kV6) {
+    for (bool native : {true, false}) {
+      bool confirmed = false;
+      const auto screens = ThorFullDepositScreens(c.router, c.chain_id, native,
+                                                  &confirmed, true);
+      EXPECT_TRUE(confirmed) << c.chain_id;
+      EXPECT_TRUE(HasScreen(screens, "No expiry")) << c.chain_id;
+      for (const auto& body : screens) {
+        EXPECT_EQ(std::string::npos, body.find("Expiry epoch")) << body;
+      }
+    }
+  }
+}
+
+// RouterV6 reverts a native deposit unless msg.value == amount ("TC:eth amount
+// mismatch"), so a mismatch, amount 0 included, is refused before any screen.
+// Token deposits keep their behaviour.
+TEST(Ethereum, ThorV6NativeAmountMismatchIsRefused) {
+  const struct {
+    const char* router;
+    uint32_t chain_id;
+  } kV6[] = {{THOR_ROUTER_AVAX, 43114}, {THOR_ROUTER_BASE, 8453}};
+  for (const auto& c : kV6) {
+    for (int amount_coins : {0, 1, 3}) {
+      EthereumSignTx msg;
+      MakeThorDeposit(&msg, c.router, c.chain_id);
+      msg.data_initial_chunk.bytes[4 + 3 * 32 + 31] = 0xa0;
+      msg.has_value = true;
+      msg.value.size = 1;
+      msg.value.bytes[0] = 2;
+      msg.data_initial_chunk.bytes[4 + 3 * 32 - 1] = (uint8_t)amount_coins;
+      ASSERT_TRUE(thor_isThorchainTx(&msg));
+      ASSERT_NE(nullptr, thor_depositRefusal(&msg)) << c.chain_id;
+      EXPECT_STREQ("Router would revert: native amount must equal value",
+                   thor_depositRefusal(&msg));
+      ASSERT_TRUE(kkconfirm_preload(0, 0));
+      EXPECT_FALSE(thor_confirmThorTx(msg.data_initial_chunk.size, &msg));
+      EXPECT_EQ(0, kkconfirm_drain()) << "no screen for a doomed deposit";
+    }
+
+    // amount == value is what every host sends; it signs.
+    bool confirmed = false;
+    const auto screens =
+        ThorFullDepositScreens(c.router, c.chain_id, true, &confirmed);
+    EXPECT_TRUE(confirmed) << c.chain_id;
+    for (const auto& body : screens) {
+      EXPECT_EQ(std::string::npos, body.find("ignored by router")) << body;
+    }
+
+    // A token deposit's amount is pulled by transferFrom and value is 0.
+    EthereumSignTx token;
+    MakeThorDeposit(&token, c.router, c.chain_id);
+    std::memset(token.data_initial_chunk.bytes + 4 + 32 + 12, 0x11, 20);
+    token.data_initial_chunk.bytes[4 + 3 * 32 - 1] = 5;
+    EXPECT_EQ(nullptr, thor_depositRefusal(&token)) << c.chain_id;
+  }
+}
+
+// Every classic router requires block.timestamp < expiration, so expiry 0 can
+// only revert: refused before any screen. A real deadline, the legacy
+// deposit() selector, and native amount != value keep their behaviour there.
+TEST(Ethereum, ThorClassicExpiryZeroIsRefused) {
+  const struct {
+    const char* router;
+    uint32_t chain_id;
+  } kClassic[] = {{THOR_ROUTER, 1},
+                  {MAYA_ROUTER, 1},
+                  {THOR_ROUTER_BSC, 56},
+                  {MAYA_ROUTER_ARB, 42161}};
+  for (const auto& c : kClassic) {
+    EthereumSignTx msg;
+    MakeThorDeposit(&msg, c.router, c.chain_id);
+    EXPECT_EQ(nullptr, thor_depositRefusal(&msg)) << c.chain_id;
+
+    std::memset(msg.data_initial_chunk.bytes + 4 + 4 * 32, 0, 32);
+    ASSERT_TRUE(thor_isThorchainTx(&msg));
+    EXPECT_STREQ("Router would revert: deposit expiry is 0",
+                 thor_depositRefusal(&msg))
+        << c.chain_id;
+    ASSERT_TRUE(kkconfirm_preload(0, 0));
+    EXPECT_FALSE(thor_confirmThorTx(msg.data_initial_chunk.size, &msg));
+    EXPECT_EQ(0, kkconfirm_drain()) << c.chain_id;
+
+    // deposit() has no expiry word; the same zero word is its memo offset.
+    std::memcpy(msg.data_initial_chunk.bytes, THOR_SELECTOR_DEPOSIT, 4);
+    EXPECT_EQ(nullptr, thor_depositRefusal(&msg)) << c.chain_id;
+  }
+}
+
+// The largest word must still render (not cancel an approved flow).
+TEST(Ethereum, ThorNativeMaxAmountWordStillRenders) {
+  EthereumSignTx msg;
+  MakeThorDeposit(&msg, THOR_ROUTER, 1);
+  msg.data_initial_chunk.bytes[4 + 3 * 32 + 31] = 0xa0;
+  std::memset(msg.data_initial_chunk.bytes + 4 + 2 * 32, 0xff, 32);
+  msg.has_value = true;
+  msg.value.size = 1;
+  msg.value.bytes[0] = 1;
+  ASSERT_TRUE(kkconfirm_preload(3, 1));
+  kkconfirm_capture_start();
+  EXPECT_FALSE(thor_confirmThorTx(msg.data_initial_chunk.size, &msg));
+  const auto screens = kkconfirm_capture_finish();
+  EXPECT_EQ(0, kkconfirm_drain());
+  ASSERT_EQ(4u, screens.size());
+  EXPECT_EQ(0u, screens[3].rfind("115792089237316195423570985008687907853269984"
+                                 "665640564039457.584007913129639935 ETH",
+                                 0))
+      << screens[3];
 }

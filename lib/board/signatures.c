@@ -32,6 +32,32 @@ volatile const uint8_t valid_pubkey[PUBKEYS] = {
     0xff, 0xff, 0xff, 0xff, 0xff,
 };
 
+int signatures_verify3(const uint8_t* const keys[3],
+                       const uint8_t* const sigs[3], const uint8_t digest[32]) {
+  /* Fault-injection hardening: refuse right after each verify, then
+   * re-check the volatile accumulator and the sentinel at the end, so
+   * skipping any one branch still leaves later refusals in the path. */
+  volatile int verify_acc = 0;
+  volatile int verify_sentinel = 0;
+
+  for (int i = 0; i < 3; i++) {
+    verify_acc |= ecdsa_verify_digest(&secp256k1, keys[i], sigs[i], digest);
+    asm volatile("" ::: "memory");
+    if (verify_acc != 0) {
+      return SIG_FAIL;
+    }
+    verify_sentinel++;
+  }
+
+  if (verify_sentinel != 3) {
+    return SIG_FAIL;
+  }
+  if (verify_acc != 0) {
+    return SIG_FAIL;
+  }
+  return SIG_OK;
+}
+
 int signatures_ok(void) {
   uint32_t codelen = *((uint32_t*)FLASH_META_CODELEN);
   uint8_t sigindex1, sigindex2, sigindex3, firmware_fingerprint[32];
@@ -83,39 +109,12 @@ int signatures_ok(void) {
   }
   memzero(firmware_fingerprint2, sizeof(firmware_fingerprint2));
 
-  /* F3: aggregate all three results (no early return), so a glitch must
-   * corrupt all three verifies. */
-  volatile int verify_acc = 0;
-  volatile int verify_sentinel = 0;
-
-  verify_acc |=
-      ecdsa_verify_digest(&secp256k1, pubkey[sigindex1 - 1],
-                          (uint8_t*)FLASH_META_SIG1, firmware_fingerprint);
-  verify_sentinel++;
-  asm volatile("" ::: "memory");
-
-  verify_acc |=
-      ecdsa_verify_digest(&secp256k1, pubkey[sigindex2 - 1],
-                          (uint8_t*)FLASH_META_SIG2, firmware_fingerprint);
-  verify_sentinel++;
-  asm volatile("" ::: "memory");
-
-  verify_acc |=
-      ecdsa_verify_digest(&secp256k1, pubkey[sigindex3 - 1],
-                          (uint8_t*)FLASH_META_SIG3, firmware_fingerprint);
-  verify_sentinel++;
-  asm volatile("" ::: "memory");
-
+  const uint8_t* const keys[3] = {pubkey[sigindex1 - 1], pubkey[sigindex2 - 1],
+                                  pubkey[sigindex3 - 1]};
+  const uint8_t* const sigs[3] = {(const uint8_t*)FLASH_META_SIG1,
+                                  (const uint8_t*)FLASH_META_SIG2,
+                                  (const uint8_t*)FLASH_META_SIG3};
+  int ret = signatures_verify3(keys, sigs, firmware_fingerprint);
   memzero(firmware_fingerprint, sizeof(firmware_fingerprint));
-
-  /* All three verifies must have executed and all must have passed */
-  if (verify_sentinel != 3) {
-    return SIG_FAIL;
-  }
-
-  if (verify_acc != 0) {
-    return SIG_FAIL;
-  }
-
-  return SIG_OK;
+  return ret;
 }

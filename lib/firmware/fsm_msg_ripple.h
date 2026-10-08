@@ -75,6 +75,7 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
   if (msg->has_memo && msg->memo[0] != '\0') {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Ripple memos are not supported by this firmware build"));
+    layoutHome();
     return;
   }
 

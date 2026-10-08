@@ -18,6 +18,7 @@ extern "C" {
 #include <thread>
 #include <vector>
 
+extern "C" void keepkey_user_activity(void);  // lib/firmware/home_sm.c
 void kk_test_board_init(void);
 bool kkconfirm_preload(int nYes, int nNo);
 int kkconfirm_drain(void);
@@ -159,6 +160,10 @@ TEST_F(Block13ResetProgress, EntropyReplyAdvancesOnceIncludingAbsentAndEmpty) {
     EXPECT_FALSE(setup_isArmed());
     EXPECT_FALSE(storage_isInitialized());
     EXPECT_EQ(0, kkconfirm_drain());
+    // The preloaded decline stands in for the user's press on the device.
+    // A DebugLink decision is not user activity, so the test supplies the
+    // press; the EntropyAck itself never renews the deadline.
+    keepkey_user_activity();
     increment_idle_time(1);
     toggle_screensaver();
     ASSERT_NE(SCREENSAVER, home_get_state());

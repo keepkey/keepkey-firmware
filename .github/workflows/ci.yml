@@ -159,6 +159,9 @@ jobs:
           echo "gitleaks ${INSTALLED_VERSION}"
           test "${INSTALLED_VERSION}" = "${GITLEAKS_VERSION}"
 
+      - name: Check secret-scan exceptions
+        run: python3 -B -m unittest tools/test_gitleaks_allowlists.py
+
       - name: Run gitleaks
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -882,12 +885,9 @@ jobs:
   # macOS / .so on Linux when supported) and runs the dylib-specific
   # screenshot regression tests in python-keepkey.
   #
-  # macOS-only for now. The Linux build hits a duplicate-symbol link
-  # error: __stack_chk_guard is defined by both lib/board/keepkey_board.c
-  # and lib/emulator/setup.c. The Apple linker silently picks one
-  # (matching local macos arm64 builds); GNU ld is strict and fails.
-  # Fixing requires deduping the symbol — out of scope for this PR.
-  # TODO: enable ubuntu-latest in a follow-up after the symbol cleanup.
+  # macOS-only for now. The duplicate __stack_chk_guard that broke the
+  # GNU ld link is gone (only lib/board/keepkey_board.c defines it), but
+  # a Linux run of this job has not been added yet.
   #
   # Why a separate job from python-integration-tests:
   #   - Different artifact: .dylib (in-process FFI), not the kkemu
@@ -911,6 +911,72 @@ jobs:
   #   - KK_DEBUG_LINK=ON (default OFF; without it,
   #     fsm_msgDebugLinkGetState is excluded from the build and any
   #     read_layout() call hangs the test).
+  # Cross-builds the Windows emulator DLL (libkkemu.dll) with MinGW-w64 on
+  # Linux, so the _WIN32 code paths and cmake/toolchains/mingw-w64-x86_64.cmake
+  # cannot rot unnoticed. Build only: no Windows runner executes it here.
+  windows-dylib-build:
+    needs: [lint-format, check-submodules, secret-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Init submodules
+        run: |
+          git submodule update --init deps/crypto/trezor-firmware
+          git submodule update --init deps/device-protocol
+          git submodule update --init --recursive deps/python-keepkey
+          git submodule update --init deps/qrenc/QR-Code-generator
+          git submodule update --init deps/sca-hardening/SecAESSTM32
+          git submodule update --init deps/googletest
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.10'
+
+      - name: Install MinGW-w64 and pinned Python deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mingw-w64
+          python -m pip install --upgrade pip
+          pip install "protobuf==3.20.3" "nanopb==0.3.9.4.post3" requests
+
+      - name: Install pinned protoc 3.21
+        run: |
+          PROTOC_VERSION=21.12
+          curl -sSL -fL -o /tmp/protoc.zip \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          sudo unzip -o /tmp/protoc.zip -d /usr/local
+          sudo chmod +x /usr/local/bin/protoc
+          protoc --version
+
+      - name: Build nanopb generator's own .pb2 files
+        run: |
+          NANOPB_PROTO_DIR=$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')/generator/proto
+          cd "$NANOPB_PROTO_DIR"
+          /usr/local/bin/protoc --python_out=. nanopb.proto
+          /usr/local/bin/protoc --python_out=. plugin.proto
+
+      - name: Cross-build kkemulator_dylib for Windows
+        run: |
+          NANOPB_DIR=$(python -c 'import os, nanopb; print(os.path.dirname(nanopb.__file__))')
+          export PATH="$PATH:$NANOPB_DIR/generator"
+          cmake \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/mingw-w64-x86_64.cmake \
+            -DKK_EMULATOR=ON \
+            -DKK_BUILD_DYLIB=ON \
+            -DKK_DEBUG_LINK=ON \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -B build-win .
+          cmake --build build-win --target kkemulator_dylib -j "$(nproc)"
+          DLL=$(find build-win -name 'libkkemu*.dll' | head -1)
+          test -f "$DLL" || (echo "::error::libkkemu.dll not built" && exit 1)
+          ls -la "$DLL"
+
   python-dylib-tests:
     needs: [lint-format, check-submodules, secret-scan]
     runs-on: macos-latest
@@ -1133,9 +1199,9 @@ jobs:
       - name: Download bitcoin-only python test results
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          # Only the dedicated contract JUnit files are consumed from this leg;
-          # they prove bitcoin-only still runs Stack 06/07 with the expected
-          # intentional skips.
+          # Bitcoin-only's own release evidence: base controls, capability
+          # census, and the dedicated contract files with their intentional
+          # skips.
           name: python-test-results-bitcoin-only
           path: test-reports/bitcoin-only/python-keepkey/
 
@@ -1234,6 +1300,7 @@ jobs:
       - unit-tests
       - python-integration-tests
       - python-dylib-tests
+      - windows-dylib-build
       - generate-test-report
       - release-evidence-gate
     runs-on: ubuntu-latest

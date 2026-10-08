@@ -425,7 +425,7 @@ static void sendFailureWrapper(FailureType code, const char* text) {
 }
 
 /* True while a setup ceremony is armed or any signer waits for the host. */
-static bool fsm_workflowInProgress(void) {
+bool fsm_workflowInProgress(void) {
   if (setup_isArmed() || signing_is_active()) return true;
 #if !BITCOIN_ONLY
   if (ethereum_signing_isInProgress() ||
@@ -468,7 +468,7 @@ static bool reject_stale_continuation(const char* text) {
   return false;
 }
 
-bool keepkey_before_message_dispatch(MessageType msg_id) {
+static bool fsm_dispatchGate(MessageType msg_id) {
   switch (msg_id) {
     case MessageType_MessageType_GetFeatures:
     case MessageType_MessageType_GetCoinTable:
@@ -519,7 +519,12 @@ bool keepkey_before_message_dispatch(MessageType msg_id) {
     default:
       /* A new signing operation may replace an old signer, but it must never
        * coexist with recovery/reset and borrow that ceremony's progress or
-       * blocking screens. Administrative requests still preserve ceremonies. */
+       * blocking screens. While a ceremony is armed, anything else is refused
+       * without touching the screen or the cached PIN: a dry run keeps the
+       * PIN cached and its character stream defers the lock, so a read served
+       * here could outlive the deadline. Only requests that end the ceremony
+       * (Initialize, Cancel, ClearSession) or are refused by their handler (a
+       * second ResetDevice/RecoveryDevice) get through. */
       switch (msg_id) {
         case MessageType_MessageType_SignTx:
         case MessageType_MessageType_SignMessage:
@@ -560,12 +565,38 @@ bool keepkey_before_message_dispatch(MessageType msg_id) {
 #endif
           setup_abort();
           break;
+        case MessageType_MessageType_Initialize:
+        case MessageType_MessageType_Cancel:
+        case MessageType_MessageType_ClearSession:
+        case MessageType_MessageType_ResetDevice:
+        case MessageType_MessageType_RecoveryDevice:
+          break;
         default:
+          if (setup_isArmed()) {
+            fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                            "Device is in the middle of setup. Send "
+                            "Initialize or Cancel first.");
+            return false;
+          }
           break;
       }
       fsm_abort_signing_workflows();
       return true;
   }
+}
+
+/* An expired idle deadline must never serve a PIN-gated request. The main
+ * loop checks it only once per pass, and a workflow defers it only while it
+ * runs; the gate above ends that workflow for any unrelated request, which
+ * would then run on the cached PIN before the next pass. So check on both
+ * sides of the gate: before, so a stalled workflow's own ACK is refused as
+ * "not in progress"; after, so the request that just ended a workflow runs
+ * on a locked session. */
+bool keepkey_before_message_dispatch(MessageType msg_id) {
+  auto_lock_if_due();
+  if (!fsm_dispatchGate(msg_id)) return false;
+  auto_lock_if_due();
+  return true;
 }
 
 void keepkey_after_message_dispatch(void) {
@@ -640,6 +671,7 @@ void fsm_abort_signing_workflows(void) {
 #endif
   authenticator_clear_cache();
   memzero(&fsm_derived_node, sizeof(fsm_derived_node));
+  drop_workflow_progress_if_idle();
 }
 
 void fsm_msgClearSession(ClearSession* msg) {

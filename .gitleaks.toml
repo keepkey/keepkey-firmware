@@ -37,6 +37,7 @@ paths = [
 # exempted is a subset of this one.
 [[allowlists]]
 description = "Git commit SHAs quoted in markdown docs"
+targetRules = ["generic-api-key"]
 condition = "AND"
 paths = ['''(^|/)docs/.*\.md$''']
 regexes = ['''\b[0-9a-f]{40}\b''']
