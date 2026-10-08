@@ -34,6 +34,7 @@
 #include "keepkey/firmware/ethereum_contracts.h"
 #include "keepkey/firmware/erc7730_workflow.h"
 #include "keepkey/firmware/ethereum_contracts/makerdao.h"
+#include "keepkey/firmware/ethereum_contracts/thortx.h"
 #include "keepkey/firmware/signed_metadata.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/storage.h"
@@ -136,6 +137,32 @@ static bool ethereum_isERC20ApproveCall(const EthereumSignTx* msg) {
   return false;
 }
 
+static bool ethereum_isUnlimitedApproval(const EthereumSignTx* msg) {
+  if (!ethereum_isERC20ApproveCall(msg)) return false;
+  for (size_t i = 36; i < 68; ++i)
+    if (msg->data_initial_chunk.bytes[i] != 0xff) return false;
+  return true;
+}
+
+/* An unlimited approve signs only after this warning, with the full spender
+ * and the token named by symbol, or by contract when the table lacks it. */
+bool ethereum_confirmUnlimitedApproval(uint32_t cid,
+                                       const uint8_t* spender_address,
+                                       const uint8_t* token_address) {
+  char spender[43] = "0x";
+  ethereum_address_checksum(spender_address, spender + 2, false, cid);
+  char asset[43] = "0x";
+  const TokenType* token = tokenByChainAddress(cid, token_address);
+  if (token != UnknownToken) {
+    strlcpy(asset, token->ticker + 1, sizeof(asset));
+  } else {
+    ethereum_address_checksum(token_address, asset + 2, false, cid);
+  }
+  return confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                 "UNLIMITED approval", "Allow %s to spend ALL your %s", spender,
+                 asset);
+}
+
 bool ethereum_isStandardERC20Approve(const EthereumSignTx* msg) {
   return ethereum_valueIsZero(msg) && msg->data_initial_chunk.size == 68 &&
          ethereum_isERC20ApproveCall(msg);
@@ -224,15 +251,16 @@ bool ethereumFormatUnknownTokenReview(const EthereumSignTx* msg, char* buf,
   ethereum_address_checksum(msg->data_initial_chunk.bytes + 16,
                             counterparty + 2, false, msg->chain_id);
 
+  const bool approve = ethereum_isStandardERC20Approve(msg);
   bignum256 raw_value;
   bn_from_bytes(msg->data_initial_chunk.bytes + 36, 32, &raw_value);
-  char amount[96];
-  if (bn_format(&raw_value, NULL, " base units", 0, 0, false, amount,
+  char amount[96] = "UNLIMITED";
+  if (!(approve && ethereum_isUnlimitedApproval(msg)) &&
+      bn_format(&raw_value, NULL, " base units", 0, 0, false, amount,
                 sizeof(amount)) == 0) {
     return false;
   }
 
-  const bool approve = ethereum_isStandardERC20Approve(msg);
   const int written =
       approve
           ? snprintf(buf, buflen,
@@ -831,21 +859,6 @@ static bool ethereum_signing_check(const EthereumSignTx* msg) {
     return false;
   }
 
-  /* The same sanity check, for the field the EIP-1559 fee screen actually
-     multiplies. confirmEthereumTx() feeds max_fee_per_gas into
-     bn_multiply(&val, &gas, &secp256k1.prime), which reduces its product
-     modulo the curve prime. The legacy bound above never reaches it: a 1559
-     transaction carries no gas_price, so gas_price.size is 0 and a 32-byte
-     max_fee_per_gas paired with a 32-byte gas_limit passes untouched. The
-     product then wraps and the approval screen names a gas cost that is not
-     the one being signed -- the display diverges from the signature, which is
-     the one thing this release line exists to prevent. Hold the 1559 pair to
-     the same 30-byte budget. */
-  if (msg->has_max_fee_per_gas &&
-      msg->max_fee_per_gas.size + msg->gas_limit.size > 30) {
-    return false;
-  }
-
   return true;
 }
 
@@ -1030,18 +1043,26 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
       ethereum_signing_abort();
       return;
     }
-    // Native value cannot exempt a payable token from this allowance policy.
-    // Unlimited approval grants open-ended authority and is refused before
-    // any generic transaction confirmation can mask this policy decision.
-    const uint8_t* allowance = msg->data_initial_chunk.bytes + 36;
-    bool unlimited = true;
-    for (size_t i = 0; i < 32; ++i) unlimited &= allowance[i] == 0xff;
-    if (unlimited) {
+    // Native value cannot exempt a payable token from this warning. It comes
+    // before any contract, metadata or generic screen, so none can mask it.
+    if (ethereum_isUnlimitedApproval(msg) &&
+        !ethereum_confirmUnlimitedApproval(
+            msg->has_chain_id ? msg->chain_id : 0,
+            msg->data_initial_chunk.bytes + 16, msg->to.bytes)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                      _("Unlimited ERC20 approval is disabled"));
+                      "Signing cancelled by user");
       ethereum_signing_abort();
       return;
     }
+  }
+
+  /* A deposit its pinned THORChain/Maya router can only revert is refused
+   * with the reason, before any screen, rather than signed. */
+  const char* thor_refusal = thor_depositRefusal(msg);
+  if (thor_refusal) {
+    fsm_sendFailure(FailureType_Failure_Other, thor_refusal);
+    ethereum_signing_abort();
+    return;
   }
 
   bool data_needs_confirm = true;

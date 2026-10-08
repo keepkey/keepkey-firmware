@@ -323,6 +323,13 @@ bool confirm_nano_address(const char* desc, const char* address) {
       ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
+/* confirm_qr() - Show desc and a QR code of data, without text. */
+bool confirm_qr(const char* desc, const char* data) {
+  return confirm_address_with_custom_layout(
+      &layout_qr_notification, ButtonRequestType_ButtonRequest_Address, desc,
+      "%s", data);
+}
+
 /*
  * confirm_zcash_address() - Full address text, then its QR.
  */
@@ -349,6 +356,12 @@ bool confirm_zcash_address(const char* desc, const char* address) {
  *
  */
 bool confirm_address(const char* desc, const char* address) {
+  /* A multi-line address crowds its QR: show the text alone, then the QR. */
+  if (!layout_address_fits_one_line(address)) {
+    return confirm(ButtonRequestType_ButtonRequest_Address, desc, "%s",
+                   address) &&
+           confirm_qr(desc, address);
+  }
   return confirm_address_with_custom_layout(
       &layout_address_notification, ButtonRequestType_ButtonRequest_Address,
       desc, "%s", address);

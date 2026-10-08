@@ -45,6 +45,17 @@ static const uint8_t EMPTY_IRONWOOD_DIGEST_V6[32] = {
     0x0d, 0x52, 0x23, 0xe4, 0x75, 0x97, 0x2f, 0x2a, 0x14, 0x9d, 0xc5,
     0x44, 0x04, 0xfd, 0x83, 0x65, 0x52, 0x1f, 0x84, 0x16, 0xc5};
 
+/* The empty Orchard bundle digest: ZIP-244 for v5, ZIP-229 for v6. */
+static void zcash_empty_orchard_digest(bool transaction_v6, uint8_t out[32]) {
+  if (transaction_v6) {
+    memcpy(out, EMPTY_ORCHARD_DIGEST_V6, 32);
+    return;
+  }
+  BLAKE2B_CTX ctx;
+  blake2b_InitPersonal(&ctx, 32, "ZTxIdOrchardHash", 16);
+  blake2b_Final(&ctx, out, 32);
+}
+
 #define ZCASH_MAX_ACTIONS 16
 #define ZCASH_MAX_TRANSPARENT_INPUTS 8
 #define ZCASH_MAX_TRANSPARENT_OUTPUTS 8
@@ -78,24 +89,33 @@ static CONFIDENTIAL struct {
   uint64_t fee;
   uint32_t branch_id;
   ZcashOrchardKeys keys;
+  /* The account's internal-scope (change) ivk, and the value of the outputs
+   * proven to pay it: shown once, at the final gate. */
+  uint8_t ivk_internal[32];
+  uint64_t change_value;
   uint8_t header_digest[32];
   uint8_t sighash[32];
   bool transaction_v6;
+  /* The pool of the actions being streamed. A crossing transaction (ZIP 318)
+   * streams n_orchard_actions Orchard actions, then the Ironwood ones. */
   bool is_ironwood;
+  uint32_t n_orchard_actions;
   uint8_t orchard_component_digest[32];
   uint8_t ironwood_component_digest[32];
-  /* Phase 2a: on-device sighash computation */
+  /* Set only at the final gate, from device-computed digests. */
   bool has_device_sighash;
   /* Phase 2b: incremental orchard digest verification */
   bool verify_orchard_digest;
-  uint8_t expected_orchard_digest[32];
   BLAKE2B_CTX compact_ctx;
   BLAKE2B_CTX memos_ctx;
   BLAKE2B_CTX noncompact_ctx;
-  uint8_t orchard_flags;
-  int64_t orchard_value_balance;
+  /* Per bundle, indexed by pool (0 Orchard, 1 Ironwood). */
+  uint8_t expected_bundle_digest[2][32];
+  uint8_t bundle_flags[2];
+  int64_t bundle_value_balance[2];
   uint8_t orchard_anchor[32];
-  /* One 64-byte sig per REAL spend; dummies are never signed here. */
+  /* One slot per REAL spend; dummies are never signed here. While streaming a
+   * slot holds alpha || rk, at the final gate the 64-byte signature. */
   uint8_t signatures[ZCASH_MAX_ACTIONS][64];
   uint32_t signature_count;
   /* Phase 3: transparent shielding state */
@@ -122,6 +142,15 @@ void zcash_signing_abort(void) {
 }
 
 bool zcash_signing_is_active(void) { return zcash_signing.active; }
+
+#if DEBUG_LINK
+static uint32_t zcash_test_sign_operations;
+uint32_t zcash_test_signOperations(void) { return zcash_test_sign_operations; }
+void zcash_test_clearSignOperations(void) { zcash_test_sign_operations = 0; }
+#define ZCASH_TEST_COUNT_SIGN() (zcash_test_sign_operations++)
+#else
+#define ZCASH_TEST_COUNT_SIGN() ((void)0)
+#endif
 
 /* Every mid-session failure reports, wipes the session, then returns home. */
 static void zcash_fail(FailureType code, const char* text) {
@@ -164,6 +193,43 @@ static bool zcash_transparent_script_to_address(const uint8_t* script,
   memcpy(raw + prefix_len, hash160, 20);
   return base58_encode_check(raw, (int)(prefix_len + 20), HASHER_SHA2D, out,
                              (int)out_size) != 0;
+}
+
+/* m/44'/133'/account'/change/index for the session account, unhardened
+ * change and index. change is 0 (external), 1 (internal) or 2, the ZIP 320
+ * ephemeral scope (TransparentKeyScope::EPHEMERAL). NULL when valid. */
+static const char* zcash_transparent_path_error(const uint32_t* address_n,
+                                                uint32_t count) {
+  if (count != 5) return "Path must be m/44'/133'/account'/change/index";
+  if (address_n[0] != (0x80000000 | 44) || address_n[1] != (0x80000000 | 133))
+    return "Path must start with m/44'/133'";
+  if (!(address_n[2] & 0x80000000)) return "Account must be hardened";
+  if ((address_n[2] & 0x7FFFFFFF) != zcash_signing.account)
+    return "Account does not match approved session";
+  if (address_n[3] > 2) return "Change must be 0, 1 or 2";
+  if (address_n[4] & 0x80000000) return "Index must not be hardened";
+  return NULL;
+}
+
+/* Whether script is P2PKH paying the key at address_n. *reported is set when
+ * a helper (fsm_getCoin/fsm_getDerivedNode) has already sent the Failure. */
+static bool zcash_script_pays_path(const uint32_t* address_n, uint32_t count,
+                                   const uint8_t* script, size_t script_size,
+                                   bool* reported) {
+  *reported = false;
+  const CoinType* coin = fsm_getCoin(true, "Zcash");
+  HDNode* node =
+      coin ? fsm_getDerivedNode(coin->curve_name, address_n, count, NULL)
+           : NULL;
+  if (!node) {
+    *reported = true;
+    return false;
+  }
+  hdnode_fill_public_key(node);
+  const bool matches =
+      zcash_p2pkh_script_matches_pubkey(script, script_size, node->public_key);
+  memzero(node, sizeof(*node));
+  return matches;
 }
 
 static void zcash_format_amount(uint64_t amount, char* out, size_t out_size) {
@@ -231,8 +297,9 @@ static bool zcash_check_seed_fingerprint(bool has_expected,
 static bool zcash_verify_and_confirm_orchard_output(
     const ZcashPCZTAction* msg, ZcashOrchardProgressCallback progress,
     void* progress_context) {
-  /* All five are read as fixed 32 bytes; nanopb zero-fills an omitted field,
-   * so e.g. a dropped nullifier would mean an implicit rho of zero. */
+  /* value is a uint64, recipient a 43-byte raw receiver, and rseed, nullifier
+   * and cmx 32 bytes each. All five are required: nanopb zero-fills an omitted
+   * field, so e.g. a dropped nullifier would mean an implicit rho of zero. */
   if (!msg->has_value || !msg->has_recipient ||
       msg->recipient.size != ZCASH_ORCHARD_RAW_RECEIVER_SIZE ||
       !msg->has_rseed || msg->rseed.size != 32 || !msg->has_nullifier ||
@@ -267,8 +334,80 @@ static bool zcash_verify_and_confirm_orchard_output(
   }
   memzero(computed_cmx, sizeof(computed_cmx));
 
+  /* The cmx checked above binds value 0, so this output pays no one: padding
+   * dummies (protocol spec 4.8.3) and, from NU6.3, the fabricated output paired
+   * with each spend (ZIP 326), whose ciphertext may be random bytes. Without a
+   * user_address it is accepted unshown whether or not it decrypts, as
+   * Keystone does. With one it is a deliberate send, e.g. memo-only, and is
+   * checked and shown like any other. */
+  if (msg->value == 0 && !msg->has_user_address) return true;
+
+  /* cmx alone does not reach the recipient: a corrupted epk or ciphertext
+   * leaves a valid note that normal wallet scanning can never find. */
+  if (!zcash_orchard_note_ciphertext_valid(
+          msg->recipient.bytes, msg->value, msg->nullifier.bytes,
+          msg->rseed.bytes, zcash_signing.is_ironwood, msg->epk.bytes,
+          msg->enc_compact.bytes, msg->enc_memo.bytes,
+          msg->enc_noncompact.bytes)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Shielded note ciphertext mismatch"));
+    return false;
+  }
+
+  /* ZIP 374: show the address the user entered only once it is proven to
+   * hold this output's Orchard receiver; any doubt refuses the transaction. */
   char address[ZCASH_ORCHARD_UNIFIED_ADDRESS_SIZE];
-  if (!zcash_orchard_receiver_to_unified_address(msg->recipient.bytes, "u",
+  const char* shown = address;
+  const char* title = "Orchard address";
+  if (msg->has_user_address) {
+    switch (zcash_user_address_check(msg->user_address, msg->recipient.bytes)) {
+      case ZCASH_USER_ADDRESS_MATCH:
+        break;
+      case ZCASH_USER_ADDRESS_NOT_MAINNET:
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Recipient address is not mainnet"));
+        return false;
+      case ZCASH_USER_ADDRESS_UNSUPPORTED:
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Recipient address metadata unsupported"));
+        return false;
+      case ZCASH_USER_ADDRESS_MISMATCH:
+        fsm_sendFailure(FailureType_Failure_Other,
+                        _("Recipient address does not match output"));
+        return false;
+      default:
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        _("Invalid recipient address"));
+        return false;
+    }
+    /* The check refused mixed case, so this only turns an all-uppercase
+     * address (a QR scan) into the lowercase form wallets show. msg lives in
+     * the writable decode buffer. */
+    for (char* c = (char*)msg->user_address; *c; c++)
+      if (*c >= 'A' && *c <= 'Z') *c = (char)(*c + ('a' - 'A'));
+    shown = msg->user_address;
+    title = "Shielded recipient";
+  }
+
+  /* Change, as Ledger finds it: the recipient is proven to be this account's
+   * internal-scope address, pk_d = [ivk_internal] g_d, so the note returns to
+   * the key that signs. Its value is shown once, as a total, at the final
+   * gate. An output to any other address, the account's external ones
+   * included, is shown on its own. */
+  if (msg->value > 0 && zcash_orchard_receiver_matches_ivk(
+                            zcash_signing.ivk_internal, msg->recipient.bytes)) {
+    if (zcash_signing.change_value > UINT64_MAX - msg->value) {
+      fsm_sendFailure(FailureType_Failure_Other, _("Invalid change value"));
+      return false;
+    }
+    zcash_signing.change_value += msg->value;
+    return true;
+  }
+
+  /* Without a user_address, show the Orchard-only address rebuilt from the
+   * receiver. */
+  if (!msg->has_user_address &&
+      !zcash_orchard_receiver_to_unified_address(msg->recipient.bytes, "u",
                                                  address, sizeof(address))) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Invalid Orchard recipient"));
@@ -290,8 +429,8 @@ static bool zcash_verify_and_confirm_orchard_output(
     return false;
   }
 
-  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-               "Shielded recipient", "%s", address)) {
+  if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, title, "%s",
+               shown)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     _("Signing cancelled"));
     memzero(address, sizeof(address));
@@ -324,13 +463,15 @@ static bool zcash_compute_verified_fee(uint64_t* fee_out) {
     net_transparent -= (int64_t)amount;
   }
 
-  const int64_t value_balance = zcash_signing.orchard_value_balance;
-  if ((value_balance > 0 && net_transparent > INT64_MAX - value_balance) ||
-      (value_balance < 0 && net_transparent < INT64_MIN - value_balance)) {
-    return false;
+  int64_t signed_fee = net_transparent;
+  for (int pool = 0; pool < 2; pool++) {
+    const int64_t value_balance = zcash_signing.bundle_value_balance[pool];
+    if ((value_balance > 0 && signed_fee > INT64_MAX - value_balance) ||
+        (value_balance < 0 && signed_fee < INT64_MIN - value_balance)) {
+      return false;
+    }
+    signed_fee += value_balance;
   }
-
-  const int64_t signed_fee = net_transparent + value_balance;
   if (signed_fee < 0) return false;
 
   *fee_out = (uint64_t)signed_fee;
@@ -453,45 +594,38 @@ static bool zcash_compute_active_sighash(const uint8_t transparent_digest[32],
       zcash_signing.orchard_component_digest, zcash_signing.branch_id, sighash);
 }
 
-static bool zcash_finalize_transparent_digest(void) {
-  if (!zcash_signing.has_expected_transparent_digest) return false;
+/* The transparent component digest from the device-held plaintext; the empty
+ * digest for a shielded-only transaction. */
+static bool zcash_device_transparent_digest(uint8_t transparent_digest[32]) {
+  if (zcash_signing.n_transparent_inputs == 0 &&
+      zcash_signing.n_transparent_outputs == 0) {
+    memcpy(transparent_digest, EMPTY_TRANSPARENT_DIGEST, 32);
+    return true;
+  }
 
   ZcashTransparentInputDigestInfo inputs[ZCASH_MAX_TRANSPARENT_INPUTS] = {0};
   ZcashTransparentOutputDigestInfo outputs[ZCASH_MAX_TRANSPARENT_OUTPUTS] = {0};
-  uint8_t transparent_digest[32] = {0};
-
-  if (!zcash_build_transparent_digest_info(inputs, outputs) ||
-      !zcash_compute_orchard_transparent_sig_digest(
-          inputs, zcash_signing.n_transparent_inputs, outputs,
-          zcash_signing.n_transparent_outputs, transparent_digest)) {
-    memzero(transparent_digest, sizeof(transparent_digest));
-    memzero(inputs, sizeof(inputs));
-    memzero(outputs, sizeof(outputs));
-    return false;
-  }
-
-  if (memcmp(transparent_digest, zcash_signing.expected_transparent_digest,
-             32) != 0) {
-    memzero(transparent_digest, sizeof(transparent_digest));
-    memzero(inputs, sizeof(inputs));
-    memzero(outputs, sizeof(outputs));
-    return false;
-  }
-
-  if (!zcash_compute_active_sighash(transparent_digest,
-                                    zcash_signing.sighash)) {
-    memzero(transparent_digest, sizeof(transparent_digest));
-    memzero(inputs, sizeof(inputs));
-    memzero(outputs, sizeof(outputs));
-    return false;
-  }
-  zcash_signing.has_device_sighash = true;
-  zcash_signing.transparent_digest_verified = true;
-
-  memzero(transparent_digest, sizeof(transparent_digest));
+  const bool ok = zcash_build_transparent_digest_info(inputs, outputs) &&
+                  zcash_compute_orchard_transparent_sig_digest(
+                      inputs, zcash_signing.n_transparent_inputs, outputs,
+                      zcash_signing.n_transparent_outputs, transparent_digest);
   memzero(inputs, sizeof(inputs));
   memzero(outputs, sizeof(outputs));
-  return true;
+  return ok;
+}
+
+/* Early, friendly check of the host's transparent digest claim. The sighash
+ * is computed only at the final gate, from the device digest. */
+static bool zcash_finalize_transparent_digest(void) {
+  if (!zcash_signing.has_expected_transparent_digest) return false;
+
+  uint8_t transparent_digest[32] = {0};
+  const bool ok = zcash_device_transparent_digest(transparent_digest) &&
+                  memcmp(transparent_digest,
+                         zcash_signing.expected_transparent_digest, 32) == 0;
+  memzero(transparent_digest, sizeof(transparent_digest));
+  if (ok) zcash_signing.transparent_digest_verified = true;
+  return ok;
 }
 
 /* *reported is set when a helper (fsm_getCoin/fsm_getDerivedNode) has already
@@ -499,7 +633,7 @@ static bool zcash_finalize_transparent_digest(void) {
 static bool zcash_sign_transparent_inputs(bool* cancelled, bool* reported) {
   if (cancelled) *cancelled = false;
   if (reported) *reported = false;
-  if (!zcash_signing.transparent_digest_verified) return false;
+  if (!zcash_signing.has_device_sighash) return false;
 
   bool ok = false;
   ZcashTransparentInputDigestInfo inputs[ZCASH_MAX_TRANSPARENT_INPUTS] = {0};
@@ -551,6 +685,7 @@ static bool zcash_sign_transparent_inputs(bool* cancelled, bool* reported) {
     if (sign_ok) {
       sign_ok = zcash_compute_active_sighash(t_sig_digest, full_sighash);
     }
+    if (sign_ok) ZCASH_TEST_COUNT_SIGN();
     sign_ok =
         sign_ok && hdnode_sign_digest(node, full_sighash, sig, NULL, NULL) == 0;
 
@@ -581,6 +716,196 @@ cleanup:
   return ok;
 }
 
+/* RedPallas-signs every buffered spend, in action order, over the final
+ * device sighash. Sends the Failure itself. */
+static bool zcash_sign_orchard_spends(void) {
+  const uint32_t count = zcash_signing.signature_count;
+  for (uint32_t i = 0; i < count; i++) {
+    uint8_t* slot = zcash_signing.signatures[i];
+    uint8_t alpha[32], rk[32];
+    memcpy(alpha, slot, 32);
+    memcpy(rk, slot + 32, 32);
+
+    /* T must be unpredictable: rk and M are public, so a guessable T makes
+     * r = H*(T || rk || M) computable and one signature discloses ask. Draw it
+     * from the checked RNG and refuse on a failed verdict. 80 bytes per the
+     * Zcash spec so H* is uniform over the scalar field; the signer also
+     * refuses an all-zero T. */
+    uint8_t zcash_T[80];
+    if (!rng_health_check() ||
+        !random_buffer_checked(zcash_T, sizeof(zcash_T))) {
+      memzero(zcash_T, sizeof(zcash_T));
+      memzero(alpha, sizeof(alpha));
+      memzero(rk, sizeof(rk));
+      zcash_fail(FailureType_Failure_Other,
+                 _("RNG health check failed; refusing to sign"));
+      return false;
+    }
+
+    const uint32_t base = (i * 1000) / count;
+    ZcashActionProgress progress = {base, ((i + 1) * 1000) / count - base,
+                                    base};
+    /* _with_ak, never _for_rk: rk is re-derived from the device's OWN ak and
+     * alpha, so the device cannot sign under a key that is not its own. */
+    ZCASH_TEST_COUNT_SIGN();
+    int sign_rc = redpallas_sign_digest_with_ak(
+        zcash_signing.keys.ask, zcash_signing.keys.ak, alpha, rk,
+        zcash_signing.sighash, zcash_T, slot, zcash_action_progress, &progress);
+    memzero(zcash_T, sizeof(zcash_T));
+    memzero(alpha, sizeof(alpha));
+    memzero(rk, sizeof(rk));
+    if (sign_rc != 0) {
+      zcash_fail(FailureType_Failure_Other,
+                 _("Orchard spend authorization failed"));
+      return false;
+    }
+  }
+  return true;
+}
+
+static void zcash_start_bundle(bool is_ironwood) {
+  zcash_signing.is_ironwood = is_ironwood;
+  blake2b_InitPersonal(&zcash_signing.compact_ctx, 32,
+                       is_ironwood ? "ZTxIdIrnActCH_v6" : "ZTxIdOrcActCHash",
+                       16);
+  blake2b_InitPersonal(&zcash_signing.memos_ctx, 32,
+                       is_ironwood ? "ZTxIdIrnActMH_v6" : "ZTxIdOrcActMHash",
+                       16);
+  blake2b_InitPersonal(&zcash_signing.noncompact_ctx, 32,
+                       is_ironwood ? "ZTxIdIrnActNH_v6" : "ZTxIdOrcActNHash",
+                       16);
+}
+
+/* Finalize the streamed bundle's digest into its sighash component. The
+ * device digest is what gets signed; the host claim is compared only to fail
+ * early with a clear error. */
+static bool zcash_finish_bundle(void) {
+  const int pool = zcash_signing.is_ironwood ? 1 : 0;
+  uint8_t compact_hash[32], memos_hash[32], noncompact_hash[32];
+
+  blake2b_Final(&zcash_signing.compact_ctx, compact_hash, 32);
+  blake2b_Final(&zcash_signing.memos_ctx, memos_hash, 32);
+  blake2b_Final(&zcash_signing.noncompact_ctx, noncompact_hash, 32);
+
+  /* Every v6 bundle digest, Orchard or Ironwood, omits the anchor: v6 moves
+   * it to the auth digest. The action digests keep their v5 personalizations
+   * for the Orchard pool (ZIP-229). */
+  BLAKE2B_CTX bundle_ctx;
+  blake2b_InitPersonal(
+      &bundle_ctx, 32,
+      pool ? "ZTxIdIronwd_H_v6"
+           : (zcash_signing.transaction_v6 ? "ZTxIdOrchardH_v6"
+                                           : "ZTxIdOrchardHash"),
+      16);
+  blake2b_Update(&bundle_ctx, compact_hash, 32);
+  blake2b_Update(&bundle_ctx, memos_hash, 32);
+  blake2b_Update(&bundle_ctx, noncompact_hash, 32);
+  blake2b_Update(&bundle_ctx, &zcash_signing.bundle_flags[pool], 1);
+  blake2b_Update(&bundle_ctx,
+                 (const uint8_t*)&zcash_signing.bundle_value_balance[pool], 8);
+  if (!zcash_signing.transaction_v6) {
+    blake2b_Update(&bundle_ctx, zcash_signing.orchard_anchor, 32);
+  }
+
+  uint8_t* bundle_digest = pool ? zcash_signing.ironwood_component_digest
+                                : zcash_signing.orchard_component_digest;
+  blake2b_Final(&bundle_ctx, bundle_digest, 32);
+
+  if (memcmp(bundle_digest, zcash_signing.expected_bundle_digest[pool], 32) !=
+      0) {
+    zcash_fail(FailureType_Failure_Other,
+               _("Shielded digest mismatch: transaction data "
+                 "does not match sighash"));
+    return false;
+  }
+  return true;
+}
+
+/* Final gate: verify everything, then sign over device digests only. Reached
+ * after the last action, or after the last transparent input when there are
+ * no actions. Ends the session either way. */
+static void zcash_final_gate(void) {
+  if (zcash_signing.n_actions > 0) {
+    if (!zcash_finish_bundle()) return;
+  } else {
+    /* Transparent-only: both bundles are empty, by the device's constants. */
+    zcash_empty_orchard_digest(zcash_signing.transaction_v6,
+                               zcash_signing.orchard_component_digest);
+    memcpy(zcash_signing.ironwood_component_digest, EMPTY_IRONWOOD_DIGEST_V6,
+           32);
+  }
+
+  uint8_t t_digest[32];
+  const bool sighash_ok =
+      zcash_signing.transparent_digest_verified &&
+      zcash_device_transparent_digest(t_digest) &&
+      zcash_compute_active_sighash(t_digest, zcash_signing.sighash);
+  memzero(t_digest, sizeof(t_digest));
+  if (!sighash_ok) {
+    zcash_fail(FailureType_Failure_Other, _("Sighash computation failed"));
+    return;
+  }
+  zcash_signing.has_device_sighash = true;
+
+  if (zcash_signing.change_value > 0) {
+    char change_str[32];
+    zcash_format_amount(zcash_signing.change_value, change_str,
+                        sizeof(change_str));
+    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Zcash Change",
+                 "Change back to your wallet:\n%s", change_str)) {
+      zcash_fail(FailureType_Failure_ActionCancelled, _("Signing cancelled"));
+      return;
+    }
+  }
+
+  if (!zcash_verify_and_confirm_fee()) {
+    zcash_signing_abort();
+    layoutHome();
+    return;
+  }
+
+  if (zcash_signing.n_transparent_inputs > 0) {
+    bool cancelled = false;
+    bool reported = false;
+    if (!zcash_sign_transparent_inputs(&cancelled, &reported)) {
+      if (reported) {
+        zcash_signing_abort();  // the helper already answered the host
+        return;
+      }
+      zcash_fail(cancelled ? FailureType_Failure_ActionCancelled
+                           : FailureType_Failure_Other,
+                 cancelled ? _("Signing cancelled")
+                           : _("Transparent input signing failed"));
+      return;
+    }
+  }
+
+  layoutProgress(_("Signing Zcash"), 0);
+  if (!zcash_sign_orchard_spends()) return;
+
+  /* Transparent sigs are released only at this final gate. */
+  if (zcash_signing.has_pending_transparent) {
+    ZcashTransparentSigned* t_resp = (ZcashTransparentSigned*)msg_resp;
+    memcpy(t_resp, &zcash_signing.pending_transparent,
+           sizeof(ZcashTransparentSigned));
+    msg_write(MessageType_MessageType_ZcashTransparentSigned, t_resp);
+  }
+
+  ZcashSignedPCZT* resp_signed = (ZcashSignedPCZT*)msg_resp;
+  memset(resp_signed, 0, sizeof(ZcashSignedPCZT));
+
+  resp_signed->signatures_count = zcash_signing.signature_count;
+  for (uint32_t i = 0; i < zcash_signing.signature_count; i++) {
+    resp_signed->signatures[i].size = 64;
+    memcpy(resp_signed->signatures[i].bytes, zcash_signing.signatures[i], 64);
+  }
+
+  zcash_signing_abort();
+
+  msg_write(MessageType_MessageType_ZcashSignedPCZT, resp_signed);
+  layoutHome();
+}
+
 void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   RESP_INIT(ZcashPCZTActionAck);
 
@@ -588,13 +913,21 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
 
   CHECK_PIN
 
-  if (!msg->has_n_actions || msg->n_actions == 0) {
+  const uint32_t n_ironwood_actions =
+      msg->has_n_ironwood_actions ? msg->n_ironwood_actions : 0;
+  /* No shielded action is a transparent-only transaction (ZIP 320: a TEX
+   * payment's second step), which needs a transparent input to sign. */
+  const bool transparent_only = msg->has_n_actions && msg->n_actions == 0;
+  if (!msg->has_n_actions ||
+      (transparent_only &&
+       (n_ironwood_actions > 0 || !msg->has_n_transparent_inputs ||
+        msg->n_transparent_inputs == 0))) {
     fsm_sendFailure(FailureType_Failure_SyntaxError, _("No actions specified"));
     layoutHome();
     return;
   }
-
-  if (msg->n_actions > ZCASH_MAX_ACTIONS) {
+  if (msg->n_actions > ZCASH_MAX_ACTIONS ||
+      n_ironwood_actions > ZCASH_MAX_ACTIONS - msg->n_actions) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Too many Orchard actions"));
     layoutHome();
@@ -656,9 +989,23 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     return;
   }
 
-  /* Only the ACTIVE pool is verified, so the inactive pool's digest must be
-   * the empty one, never host-attested; otherwise the device would sign over
-   * an unseen bundle. Also fails closed on cross-pool migrations. */
+  /* ZIP 318 pool crossing: an Orchard bundle and an Ironwood bundle in one
+   * NU6.3 v6 transaction. Both are streamed and verified. */
+  const bool crossing = n_ironwood_actions > 0;
+  if (crossing &&
+      (is_ironwood || msg->tx_version != 6 || branch_id != 0x37A5165B ||
+       !msg->has_ironwood_digest || msg->ironwood_digest.size != 32 ||
+       !msg->has_ironwood_flags || msg->ironwood_flags > 0xff ||
+       !msg->has_ironwood_value_balance)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid pool-crossing transaction"));
+    layoutHome();
+    return;
+  }
+
+  /* Otherwise only one pool is verified, so the other pool's digest must be
+   * the empty one, never host-attested; else the device would sign over an
+   * unseen bundle. */
   if (is_ironwood &&
       memcmp(msg->orchard_digest.bytes, EMPTY_ORCHARD_DIGEST_V6, 32) != 0) {
     fsm_sendFailure(
@@ -668,7 +1015,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     return;
   }
   /* Reciprocal: refuse, not replace, a supplied Ironwood digest. */
-  if (!is_ironwood && msg->tx_version == 6 &&
+  if (!is_ironwood && !crossing && msg->tx_version == 6 &&
       !zcash_v6_orchard_ironwood_digest_valid(msg->has_ironwood_digest,
                                               msg->ironwood_digest.size,
                                               msg->ironwood_digest.bytes)) {
@@ -695,6 +1042,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   signing_meta.transparent_digest_size = msg->transparent_digest.size;
   signing_meta.has_sapling_digest = msg->has_sapling_digest;
   signing_meta.sapling_digest_size = msg->sapling_digest.size;
+  signing_meta.sapling_digest = msg->sapling_digest.bytes;
   signing_meta.has_orchard_digest = msg->has_orchard_digest;
   signing_meta.orchard_digest_size = msg->orchard_digest.size;
   signing_meta.is_ironwood = is_ironwood;
@@ -738,6 +1086,44 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     return;
   }
 
+  /* Transparent-only: the sighash commits to the empty bundle digests, which
+   * the device supplies itself. Refuse, never replace, a host claim of any
+   * other bundle. */
+  if (transparent_only) {
+    uint8_t empty_orchard[32];
+    zcash_empty_orchard_digest(msg->tx_version == 6, empty_orchard);
+    if (memcmp(msg->orchard_digest.bytes, empty_orchard, 32) != 0 ||
+        msg->orchard_value_balance != 0 ||
+        (msg->has_ironwood_digest &&
+         memcmp(msg->ironwood_digest.bytes, EMPTY_IRONWOOD_DIGEST_V6, 32) !=
+             0) ||
+        (msg->has_ironwood_value_balance && msg->ironwood_value_balance != 0)) {
+      fsm_sendFailure(
+          FailureType_Failure_SyntaxError,
+          _("Transparent transaction must have empty shielded bundles"));
+      layoutHome();
+      return;
+    }
+  }
+
+  /* Consensus (ZIP 229, ZIP 258): reserved flag bits are zero, Orchard bit 2
+   * included, and from NU6.3 no value may enter the Orchard pool. Such a
+   * transaction can never be mined; refuse it before any screen. */
+  if ((msg->orchard_flags & (is_ironwood ? 0xF8u : 0xFCu)) != 0 ||
+      (crossing && (msg->ironwood_flags & 0xF8u) != 0)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Invalid shielded bundle flags"));
+    layoutHome();
+    return;
+  }
+  if (!is_ironwood && branch_id == 0x37A5165B &&
+      msg->orchard_value_balance < 0) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Value cannot enter the Orchard pool"));
+    layoutHome();
+    return;
+  }
+
   /* Shielded-only: the transparent component is the empty one. Refuse, not
    * replace, a different supplied digest, as for the inactive pool above. */
   if (n_tinputs == 0 && n_toutputs == 0 && msg->has_transparent_digest &&
@@ -762,22 +1148,33 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
 
   /* The summary shows no amount. total_amount is host-supplied and nothing
    * the device signs commits to it, so it must never be displayed as a fact;
-   * every value that is signed is shown on its own verified screen (Orchard
-   * outputs, transparent outputs). The fee shown here is the host's claim and
-   * is checked against the device-computed fee, then confirmed again, before
-   * any signature is released. */
+   * every value that is signed is shown on a verified screen (Orchard
+   * outputs, proven change as one total, transparent outputs). The fee shown
+   * here is the host's claim and is checked against the device-computed fee,
+   * then confirmed again, before any signature is released. */
   char fee_str[32];
   uint64_t fee = msg->has_fee ? msg->fee : 0;
 
   /* 1 ZEC = 100,000,000 zatoshis */
   zcash_format_amount(fee, fee_str, sizeof(fee_str));
 
-  if (n_tinputs > 0) {
+  if (transparent_only) {
+    if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Zcash Transparent",
+                 "Send transparent ZEC?\n"
+                 "Fee: %s\nInputs: %lu\nOutputs: %lu",
+                 fee_str, (unsigned long)n_tinputs,
+                 (unsigned long)n_toutputs)) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                      _("Signing cancelled"));
+      layoutHome();
+      return;
+    }
+  } else if (n_tinputs > 0) {
     if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Zcash Shield",
                  "Shield transparent ZEC?\n"
                  "Fee: %s\nInputs: %lu\nOutputs: %lu\nActions: %lu",
                  fee_str, (unsigned long)n_tinputs, (unsigned long)n_toutputs,
-                 (unsigned long)msg->n_actions)) {
+                 (unsigned long)(msg->n_actions + n_ironwood_actions))) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Signing cancelled"));
       layoutHome();
@@ -788,7 +1185,7 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
                  "Sign transaction with transparent outputs?\n"
                  "Fee: %s\nOutputs: %lu\nActions: %lu",
                  fee_str, (unsigned long)n_toutputs,
-                 (unsigned long)msg->n_actions)) {
+                 (unsigned long)(msg->n_actions + n_ironwood_actions))) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Signing cancelled"));
       layoutHome();
@@ -798,7 +1195,8 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Zcash Shielded",
                  "Sign shielded transaction?\n"
                  "Fee: %s\nActions: %lu",
-                 fee_str, (unsigned long)msg->n_actions)) {
+                 fee_str,
+                 (unsigned long)(msg->n_actions + n_ironwood_actions))) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Signing cancelled"));
       layoutHome();
@@ -826,6 +1224,16 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
     layoutHome();
     return;
   }
+  /* Change is recognised by the internal-scope ivk, derived once here. */
+  if (!zcash_orchard_derive_internal_ivk(
+          zcash_signing.keys.ak, zcash_signing.keys.nk, zcash_signing.keys.rivk,
+          zcash_signing.ivk_internal)) {
+    zcash_signing_abort();
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Orchard key derivation failed"));
+    layoutHome();
+    return;
+  }
   /* The session signs with ask/ak only; do not keep sk, nk, rivk, dk. */
   memzero(zcash_signing.keys.sk, sizeof(zcash_signing.keys.sk));
   memzero(zcash_signing.keys.nk, sizeof(zcash_signing.keys.nk));
@@ -834,17 +1242,19 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
 
   zcash_signing.active = true;
   zcash_signing.account = account;
-  zcash_signing.n_actions = msg->n_actions;
+  zcash_signing.n_actions = msg->n_actions + n_ironwood_actions;
+  zcash_signing.n_orchard_actions = is_ironwood ? 0 : msg->n_actions;
   zcash_signing.current_action = 0;
   zcash_signing.fee = fee;
   zcash_signing.branch_id = branch_id;
   zcash_signing.transaction_v6 = msg->tx_version == 6;
   zcash_signing.is_ironwood = is_ironwood;
   memcpy(zcash_signing.header_digest, header_digest, 32);
-  memcpy(zcash_signing.orchard_component_digest, msg->orchard_digest.bytes, 32);
+  /* The active pool's component digest is set only at the final gate, from
+   * the device-computed bundle digest; the inactive one is the empty digest
+   * (Ironwood's empty Orchard digest was checked above). */
   if (is_ironwood) {
-    memcpy(zcash_signing.ironwood_component_digest, msg->ironwood_digest.bytes,
-           32);
+    memcpy(zcash_signing.orchard_component_digest, EMPTY_ORCHARD_DIGEST_V6, 32);
   } else if (zcash_signing.transaction_v6) {
     /* Orchard-v6: bind the canonical empty Ironwood component. */
     memcpy(zcash_signing.ironwood_component_digest, EMPTY_IRONWOOD_DIGEST_V6,
@@ -861,42 +1271,38 @@ void fsm_msgZcashSignPCZT(const ZcashSignPCZT* msg) {
   zcash_signing.has_expected_transparent_digest = false;
   zcash_signing.transparent_digest_verified = false;
 
-  /* Phase 2a: sighash assembled on-device. TRUST MODEL -- before any
-   * signature is released the device recomputes: the active-pool digest
-   * (Phase 2b), each Orchard output's cmx from recipient/value/rseed/rho,
-   * the fee, transparent_digest (empty hash when shielded-only) and
-   * header_digest. Sapling is unsupported: always the empty digest. */
-  uint8_t t_digest[32];
-
+  /* TRUST MODEL -- verify, then sign. Nothing is signed while streaming. At
+   * the final gate the device finalizes the active-pool digest from the
+   * streamed actions (each output's cmx and ciphertext checked, each spend's
+   * rk derived from its own ak), computes the sighash from its OWN digests
+   * (header, transparent, active pool; Sapling unsupported, always empty),
+   * checks and confirms the fee, and only then signs. Host digest claims are
+   * compared only for an early, friendly error. */
   if (n_tinputs == 0 && n_toutputs == 0) {
-    memcpy(t_digest, EMPTY_TRANSPARENT_DIGEST, 32);
-    zcash_compute_active_sighash(t_digest, zcash_signing.sighash);
-    zcash_signing.has_device_sighash = true;
     zcash_signing.transparent_digest_verified = true;
   } else {
     memcpy(zcash_signing.expected_transparent_digest,
            msg->transparent_digest.bytes, 32);
     zcash_signing.has_expected_transparent_digest = true;
   }
-  memzero(t_digest, sizeof(t_digest));
 
-  /* Phase 2b: the active-pool digest is mandatory and recomputed. */
-  memcpy(zcash_signing.expected_orchard_digest,
+  /* Phase 2b: every streamed bundle's digest is recomputed. An Ironwood-only
+   * request describes its bundle with the orchard_* fields. */
+  const int first_pool = is_ironwood ? 1 : 0;
+  memcpy(zcash_signing.expected_bundle_digest[first_pool],
          is_ironwood ? msg->ironwood_digest.bytes : msg->orchard_digest.bytes,
          32);
-  zcash_signing.orchard_flags = (uint8_t)msg->orchard_flags;
-  zcash_signing.orchard_value_balance = msg->orchard_value_balance;
+  zcash_signing.bundle_flags[first_pool] = (uint8_t)msg->orchard_flags;
+  zcash_signing.bundle_value_balance[first_pool] = msg->orchard_value_balance;
+  if (crossing) {
+    memcpy(zcash_signing.expected_bundle_digest[1], msg->ironwood_digest.bytes,
+           32);
+    zcash_signing.bundle_flags[1] = (uint8_t)msg->ironwood_flags;
+    zcash_signing.bundle_value_balance[1] = msg->ironwood_value_balance;
+  }
   memcpy(zcash_signing.orchard_anchor, msg->orchard_anchor.bytes, 32);
 
-  blake2b_InitPersonal(&zcash_signing.compact_ctx, 32,
-                       is_ironwood ? "ZTxIdIrnActCH_v6" : "ZTxIdOrcActCHash",
-                       16);
-  blake2b_InitPersonal(&zcash_signing.memos_ctx, 32,
-                       is_ironwood ? "ZTxIdIrnActMH_v6" : "ZTxIdOrcActMHash",
-                       16);
-  blake2b_InitPersonal(&zcash_signing.noncompact_ctx, 32,
-                       is_ironwood ? "ZTxIdIrnActNH_v6" : "ZTxIdOrcActNHash",
-                       16);
+  zcash_start_bundle(is_ironwood);
   zcash_signing.verify_orchard_digest = true;
 
   /* Static draw first: layoutProgress() after arming freezes the trickle. */
@@ -1060,6 +1466,12 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
   /* Stop the trickle; the next ack re-arms it. */
   layoutProgressTrickleStop();
 
+  /* A transparent-only session ends at its last input. */
+  if (zcash_signing.n_actions == 0) {
+    zcash_fail(FailureType_Failure_UnexpectedMessage, _("No actions expected"));
+    return;
+  }
+
   /* Declared transparent data must be fully streamed and verified first, so a
    * host cannot skip transparent confirmations. */
   if (zcash_signing.current_transparent_output <
@@ -1093,13 +1505,6 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
     return;
   }
 
-  /* Phase 2a: a device-computed sighash is mandatory. */
-  if (!zcash_signing.has_device_sighash) {
-    zcash_fail(FailureType_Failure_SyntaxError,
-               _("Missing transaction digests"));
-    return;
-  }
-
   const bool has_orchard_action_data =
       zcash_signing.verify_orchard_digest && msg->has_is_spend &&
       msg->has_nullifier && msg->nullifier.size == 32 && msg->has_cmx &&
@@ -1122,11 +1527,8 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
       (zcash_signing.current_action * 1000) / zcash_signing.n_actions;
   const uint32_t action_target =
       ((zcash_signing.current_action + 1) * 1000) / zcash_signing.n_actions;
-  const uint32_t action_span = action_target - action_base;
-  const uint32_t verification_target =
-      msg->is_spend ? action_base + action_span / 3 : action_target;
   ZcashActionProgress verification_progress = {
-      action_base, verification_target - action_base, action_base};
+      action_base, action_target - action_base, action_base};
 
   /* 1086-bit note commitment = 109 public Sinsemilla rounds. */
   layoutProgress(_("Signing Zcash"), action_base);
@@ -1136,8 +1538,6 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
     layoutHome();
     return;
   }
-
-  layoutProgress(_("Signing Zcash"), verification_target);
 
   /* Phase 2b: feed action data into incremental BLAKE2b contexts */
   blake2b_Update(&zcash_signing.compact_ctx, msg->nullifier.bytes, 32);
@@ -1153,43 +1553,20 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
                  msg->enc_noncompact.size);
   blake2b_Update(&zcash_signing.noncompact_ctx, msg->out_ciphertext.bytes, 80);
 
-  const uint8_t* sighash = zcash_signing.sighash;
-
   /* The host's PCZT IO finalizer already signed dummy spends with their
-   * ephemeral keys; sign only real spends, in action order. Every action is
-   * still verified. */
+   * ephemeral keys; only real spends are signed, at the final gate. rk is
+   * hashed into the bundle digest, so check here that it is the device's own
+   * ak re-randomized by alpha, and keep alpha || rk for the signer. */
   if (msg->is_spend) {
-    /* T must be unpredictable: rk and M are public, so a guessable T makes
-     * r = H*(T || rk || M) computable and one signature discloses ask. Draw it
-     * from the checked RNG and refuse on a failed verdict. 80 bytes per the
-     * Zcash spec so H* is uniform over the scalar field; the signer also
-     * refuses an all-zero T. */
-    uint8_t zcash_T[80];
-    if (!rng_health_check() ||
-        !random_buffer_checked(zcash_T, sizeof(zcash_T))) {
-      memzero(zcash_T, sizeof(zcash_T));
-      zcash_fail(FailureType_Failure_Other,
-                 _("RNG health check failed; refusing to sign"));
-      return;
-    }
-
-    ZcashActionProgress signing_progress = {verification_target,
-                                            action_target - verification_target,
-                                            verification_target};
-    /* _with_ak, never _for_rk: rk is derived from the device's OWN ak and
-     * alpha and a mismatching host rk is refused, so the device cannot sign
-     * under a verification key that is not its own. */
-    int sign_rc = redpallas_sign_digest_with_ak(
-        zcash_signing.keys.ask, zcash_signing.keys.ak, msg->alpha.bytes,
-        msg->rk.bytes, sighash, zcash_T,
-        zcash_signing.signatures[zcash_signing.signature_count],
-        zcash_action_progress, &signing_progress);
-    memzero(zcash_T, sizeof(zcash_T));
-    if (sign_rc != 0) {
+    uint8_t* slot = zcash_signing.signatures[zcash_signing.signature_count];
+    if (redpallas_derive_rk_from_ak(zcash_signing.keys.ak, msg->alpha.bytes,
+                                    slot + 32) != 0 ||
+        memcmp(slot + 32, msg->rk.bytes, 32) != 0) {
       zcash_fail(FailureType_Failure_Other,
                  _("Orchard spend authorization failed"));
       return;
     }
+    memcpy(slot, msg->alpha.bytes, 32);
     zcash_signing.signature_count++;
   }
 
@@ -1199,73 +1576,17 @@ void fsm_msgZcashPCZTAction(const ZcashPCZTAction* msg) {
       (zcash_signing.current_action * 1000) / zcash_signing.n_actions;
   layoutProgress(_("Signing Zcash"), progress);
 
+  /* The last Orchard action of a crossing transaction closes the Orchard
+   * bundle; the Ironwood actions follow. */
+  if (!zcash_signing.is_ironwood &&
+      zcash_signing.current_action == zcash_signing.n_orchard_actions &&
+      zcash_signing.current_action < zcash_signing.n_actions) {
+    if (!zcash_finish_bundle()) return;
+    zcash_start_bundle(true);
+  }
+
   if (zcash_signing.current_action >= zcash_signing.n_actions) {
-    /* Phase 2b: verify orchard digest before returning signatures */
-    if (zcash_signing.verify_orchard_digest) {
-      uint8_t compact_hash[32], memos_hash[32], noncompact_hash[32];
-
-      blake2b_Final(&zcash_signing.compact_ctx, compact_hash, 32);
-      blake2b_Final(&zcash_signing.memos_ctx, memos_hash, 32);
-      blake2b_Final(&zcash_signing.noncompact_ctx, noncompact_hash, 32);
-
-      /* v6 Ironwood moves the anchor to the auth digest (ZIP-229). */
-      BLAKE2B_CTX orchard_ctx;
-      blake2b_InitPersonal(
-          &orchard_ctx, 32,
-          zcash_signing.is_ironwood
-              ? "ZTxIdIronwd_H_v6"
-              : (zcash_signing.transaction_v6 ? "ZTxIdOrchardH_v6"
-                                              : "ZTxIdOrchardHash"),
-          16);
-      blake2b_Update(&orchard_ctx, compact_hash, 32);
-      blake2b_Update(&orchard_ctx, memos_hash, 32);
-      blake2b_Update(&orchard_ctx, noncompact_hash, 32);
-      blake2b_Update(&orchard_ctx, &zcash_signing.orchard_flags, 1);
-      blake2b_Update(&orchard_ctx,
-                     (const uint8_t*)&zcash_signing.orchard_value_balance, 8);
-      if (!zcash_signing.transaction_v6) {
-        blake2b_Update(&orchard_ctx, zcash_signing.orchard_anchor, 32);
-      }
-
-      uint8_t computed_orchard_digest[32];
-      blake2b_Final(&orchard_ctx, computed_orchard_digest, 32);
-
-      if (memcmp(computed_orchard_digest, zcash_signing.expected_orchard_digest,
-                 32) != 0) {
-        zcash_fail(FailureType_Failure_Other,
-                   _("Shielded digest mismatch: transaction data "
-                     "does not match sighash"));
-        return;
-      }
-    }
-
-    if (!zcash_verify_and_confirm_fee()) {
-      zcash_signing_abort();
-      layoutHome();
-      return;
-    }
-
-    /* Transparent sigs are released only at this final gate. */
-    if (zcash_signing.has_pending_transparent) {
-      ZcashTransparentSigned* t_resp = (ZcashTransparentSigned*)msg_resp;
-      memcpy(t_resp, &zcash_signing.pending_transparent,
-             sizeof(ZcashTransparentSigned));
-      msg_write(MessageType_MessageType_ZcashTransparentSigned, t_resp);
-    }
-
-    ZcashSignedPCZT* resp_signed = (ZcashSignedPCZT*)msg_resp;
-    memset(resp_signed, 0, sizeof(ZcashSignedPCZT));
-
-    resp_signed->signatures_count = zcash_signing.signature_count;
-    for (uint32_t i = 0; i < zcash_signing.signature_count; i++) {
-      resp_signed->signatures[i].size = 64;
-      memcpy(resp_signed->signatures[i].bytes, zcash_signing.signatures[i], 64);
-    }
-
-    zcash_signing_abort();
-
-    msg_write(MessageType_MessageType_ZcashSignedPCZT, resp_signed);
-    layoutHome();
+    zcash_final_gate();
   } else {
     zcash_send_action_ack(zcash_signing.current_action);
   }
@@ -1316,10 +1637,46 @@ void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg) {
     return;
   }
 
+  /* An output with a path pays the account's own ZIP 320 one-time
+   * (ephemeral) address, the first step of a TEX payment from shielded funds.
+   * It is shown as such only once the script is proven to pay that key. */
+  const bool own = msg->address_n_count > 0;
+  const bool tex = msg->has_is_tex && msg->is_tex;
+  if (own) {
+    const char* path_error =
+        zcash_transparent_path_error(msg->address_n, msg->address_n_count);
+    if (!path_error && msg->address_n[3] != 2)
+      path_error = "Output path must be a one-time address";
+    if (!path_error && tex) path_error = "A one-time address is not a TEX";
+    if (path_error) {
+      zcash_fail(FailureType_Failure_SyntaxError, _(path_error));
+      return;
+    }
+    bool reported;
+    if (!zcash_script_pays_path(msg->address_n, msg->address_n_count,
+                                msg->script_pubkey.bytes,
+                                msg->script_pubkey.size, &reported)) {
+      if (reported) {
+        zcash_signing_abort();
+        return;
+      }
+      zcash_fail(FailureType_Failure_SyntaxError,
+                 _("Transparent output script does not match path"));
+      return;
+    }
+  }
+
+  /* is_tex is a host hint the chain cannot show: a TEX address (ZIP 320) is
+   * the same P2PKH key hash, so the destination shown is the same either
+   * way. */
   char address[64];
-  if (!zcash_transparent_script_to_address(msg->script_pubkey.bytes,
-                                           msg->script_pubkey.size, address,
-                                           sizeof(address))) {
+  const bool show_tex = tex && zcash_script_is_p2pkh(msg->script_pubkey.bytes,
+                                                     msg->script_pubkey.size);
+  if (!(show_tex ? zcash_tex_address(msg->script_pubkey.bytes + 3, address,
+                                     sizeof(address))
+                 : zcash_transparent_script_to_address(
+                       msg->script_pubkey.bytes, msg->script_pubkey.size,
+                       address, sizeof(address)))) {
     zcash_fail(FailureType_Failure_SyntaxError,
                _("Unsupported transparent output script"));
     return;
@@ -1328,7 +1685,10 @@ void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg) {
   char amount_str[32];
   zcash_format_amount(msg->amount, amount_str, sizeof(amount_str));
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Zcash Output",
-               "Send transparent ZEC?\n%s\nAmount: %s", address, amount_str)) {
+               own        ? "To your one-time address:\n%s\nAmount: %s"
+               : show_tex ? "Send to TEX address?\n%s\nAmount: %s"
+                          : "Send transparent ZEC?\n%s\nAmount: %s",
+               address, amount_str)) {
     zcash_fail(FailureType_Failure_ActionCancelled, _("Signing cancelled"));
     return;
   }
@@ -1360,8 +1720,8 @@ void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg) {
   }
 }
 
-/* Phase 3: transparent outputs then inputs are streamed; ECDSA sigs only
- * after transparent_digest verifies against the plaintext. */
+/* Phase 3: transparent outputs then inputs are streamed and checked; ECDSA
+ * signing waits for the final gate. */
 void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
   if (!zcash_signing.active) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
@@ -1425,65 +1785,23 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
     return;
   }
 
-  /* Inputs must be m/44'/133'/account'/{0,1}/index with the session account,
-   * so a shielding approval cannot sign with arbitrary secp256k1 keys. */
-  if (msg->address_n_count != 5) {
-    zcash_fail(FailureType_Failure_SyntaxError,
-               _("Path must be m/44'/133'/account'/change/index"));
+  /* The path is the session account's, so a shielding approval cannot sign
+   * with arbitrary secp256k1 keys, and the scriptPubKey is the sighash
+   * scriptCode: it must pay the key that address_n will sign with. */
+  const char* path_error =
+      zcash_transparent_path_error(msg->address_n, msg->address_n_count);
+  if (path_error) {
+    zcash_fail(FailureType_Failure_SyntaxError, _(path_error));
     return;
   }
-
-  if (msg->address_n[0] != (0x80000000 | 44) ||
-      msg->address_n[1] != (0x80000000 | 133)) {
-    zcash_fail(FailureType_Failure_SyntaxError,
-               _("Path must start with m/44'/133'"));
-    return;
-  }
-
-  /* Account must be hardened and match the approved session */
-  if (!(msg->address_n[2] & 0x80000000)) {
-    zcash_fail(FailureType_Failure_SyntaxError, _("Account must be hardened"));
-    return;
-  }
-
-  uint32_t path_account = msg->address_n[2] & 0x7FFFFFFF;
-  if (path_account != zcash_signing.account) {
-    zcash_fail(FailureType_Failure_SyntaxError,
-               _("Account does not match approved session"));
-    return;
-  }
-
-  /* Change must be 0 (external) or 1 (internal), unhardened */
-  if (msg->address_n[3] > 1) {
-    zcash_fail(FailureType_Failure_SyntaxError, _("Change must be 0 or 1"));
-    return;
-  }
-
-  /* Index must be unhardened */
-  if (msg->address_n[4] & 0x80000000) {
-    zcash_fail(FailureType_Failure_SyntaxError,
-               _("Index must not be hardened"));
-    return;
-  }
-
-  /* The scriptPubKey is the sighash scriptCode: it must pay the key that
-   * address_n will sign with. */
-  const CoinType* coin = fsm_getCoin(true, "Zcash");
-  if (!coin) {
-    zcash_signing_abort();
-    return;
-  }
-  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
-                                    msg->address_n_count, NULL);
-  if (!node) {
-    zcash_signing_abort();
-    return;
-  }
-  hdnode_fill_public_key(node);
-  const bool script_matches = zcash_p2pkh_script_matches_pubkey(
-      msg->script_pubkey.bytes, msg->script_pubkey.size, node->public_key);
-  memzero(node, sizeof(*node));
-  if (!script_matches) {
+  bool reported;
+  if (!zcash_script_pays_path(msg->address_n, msg->address_n_count,
+                              msg->script_pubkey.bytes, msg->script_pubkey.size,
+                              &reported)) {
+    if (reported) {
+      zcash_signing_abort();
+      return;
+    }
     zcash_fail(FailureType_Failure_SyntaxError,
                _("Transparent input script does not match path"));
     return;
@@ -1517,21 +1835,12 @@ void fsm_msgZcashTransparentInput(const ZcashTransparentInput* msg) {
     return;
   }
 
-  bool cancelled = false;
-  bool reported = false;
-  if (!zcash_sign_transparent_inputs(&cancelled, &reported)) {
-    if (reported) {
-      zcash_signing_abort();  // the helper already answered the host
-      return;
-    }
-    zcash_fail(cancelled ? FailureType_Failure_ActionCancelled
-                         : FailureType_Failure_Other,
-               cancelled ? _("Signing cancelled")
-                         : _("Transparent input signing failed"));
+  /* Inputs are confirmed and signed only at the final gate, reached here
+   * when there are no shielded actions. Static draw before arming. */
+  if (zcash_signing.n_actions == 0) {
+    zcash_final_gate();
     return;
   }
-
-  /* Sigs stay buffered until the final gate. Static draw before arming. */
   layoutProgress(_("Signing Zcash"), 0);
   zcash_send_action_ack(0);
 }

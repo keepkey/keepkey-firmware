@@ -38,9 +38,8 @@ std::vector<uint8_t> pseudo(size_t len, uint32_t seed = 1) {
 //
 // A test-only reset restores the initial verdict regardless of test order.
 //
-// WHAT IT DOES NOT PIN: the `!rng_source_live() -> RNG_FAILED` arm, and the
-// size of the sample drawn. Both need an emulator seam in lib/rand/rng_health.c
-// that can make the source report dead or stuck, which does not exist yet.
+// The RngBootGate fixture below checks draw size and mid-sample faults. The
+// initial `!rng_source_live() -> RNG_FAILED` arm still needs a dead-source seam.
 TEST(RngHealth, BootGateRunsOnAFreshVerdict) {
   rng_health_reset_for_test();
   EXPECT_TRUE(rng_health_check())

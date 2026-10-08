@@ -4,7 +4,7 @@
 
 bool erc7730_abi_node_dynamic(const Erc7730AbiProgram* p, uint16_t index,
                               uint8_t depth, bool* dynamic) {
-  if (!p || !p->nodes || index >= p->node_count ||
+  if (!p || !p->nodes || !dynamic || index >= p->node_count ||
       depth > ERC7730_ABI_MAX_DEPTH)
     return false;
   const Erc7730AbiNode* n = &p->nodes[index];

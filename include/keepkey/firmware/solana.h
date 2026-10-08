@@ -177,6 +177,8 @@ typedef struct {
   uint8_t recent_blockhash[SOL_PUBKEY_SIZE];
   uint8_t num_instructions;
   SolanaParsedInstruction instructions[SOL_MAX_INSTRUCTIONS];
+  /* v0 message carries an address-table section (KKSOLSC1 refuses it). */
+  bool has_lookup_tables;
 } SolanaParsedTx;
 
 /* Firmware review result for a Solana message */
@@ -196,8 +198,8 @@ typedef struct {
 /* ── KKSOLSC1: reusable instruction schemas, attested once per (program,
  * discriminator); values are decoded from the signed bytes. Safety is
  * structural completeness: disc + arg widths == data length EXACTLY; every
- * displayed account index exists; no lookup table; every OTHER instruction is
- * one firmware already recognises.
+ * displayed account index exists; no address-table section; every OTHER
+ * instruction is a compute-budget or Memo companion.
  *
  * Canonical payload (every numeric field is one byte; text printable ASCII,
  * no '%'). The 8-byte instruction arguments it describes (U64, LAMPORTS,
@@ -229,7 +231,7 @@ typedef enum {
   SOL_SCHEMA_ARG_U64 = 1,          /* 8 bytes, shown as a decimal integer */
   SOL_SCHEMA_ARG_U8 = 2,           /* 1 byte */
   SOL_SCHEMA_ARG_PUBKEY = 3,       /* 32 bytes, shown base58 */
-  SOL_SCHEMA_ARG_OPAQUE32 = 4,     /* 32 bytes, shown truncated hex */
+  SOL_SCHEMA_ARG_OPAQUE32 = 4,     /* 32 bytes, paged in full as hex */
   SOL_SCHEMA_ARG_LAMPORTS = 5,     /* 8 bytes, shown as SOL */
   SOL_SCHEMA_ARG_TOKEN_AMOUNT = 6, /* 8 bytes; mint is an ix account */
   SOL_SCHEMA_ARG_DURATION = 7,     /* 8-byte seconds */

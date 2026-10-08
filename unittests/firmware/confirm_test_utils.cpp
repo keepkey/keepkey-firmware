@@ -36,12 +36,20 @@ extern "C" {
 
 static bool capture_screens;
 static std::vector<std::string> captured_screens;
-extern "C" void emulator_confirm_screen(const char*, const char* body) {
-  if (capture_screens) captured_screens.emplace_back(body ? body : "");
+static std::vector<std::string> captured_titles;
+extern "C" void emulator_confirm_screen(const char* title, const char* body) {
+  if (!capture_screens) return;
+  captured_screens.emplace_back(body ? body : "");
+  captured_titles.emplace_back(title ? title : "");
 }
 void kkconfirm_capture_start(void) {
   captured_screens.clear();
+  captured_titles.clear();
   capture_screens = true;
+}
+// Titles of the last capture, in screen order.
+std::vector<std::string> kkconfirm_captured_titles(void) {
+  return captured_titles;
 }
 std::vector<std::string> kkconfirm_capture_finish(void) {
   capture_screens = false;
@@ -50,8 +58,7 @@ std::vector<std::string> kkconfirm_capture_finish(void) {
 
 static int kkconfirm_fd = -1;
 
-static bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload,
-                               uint8_t len) {
+bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload, uint8_t len) {
   if (kkconfirm_fd < 0) kkconfirm_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (kkconfirm_fd < 0) return false;
 
@@ -193,6 +200,35 @@ bool kkconfirm_readResponse(uint16_t expected, const pb_field_t* fields,
     }
   }
   return false;
+}
+
+// Message ids of every response already sent, in order, consuming them. A
+// refusal test uses it to show a response type was never emitted.
+std::vector<uint16_t> kkconfirm_readResponseIds(void) {
+  std::vector<uint16_t> ids;
+  size_t announced = 0, consumed = 0;
+  for (int idle_us = 0; idle_us < KKCONFIRM_DRAIN_GRACE_US;) {
+    uint8_t frame[64] = {};
+    const ssize_t count =
+        recv(kkconfirm_fd, frame, sizeof(frame), MSG_DONTWAIT);
+    if (count <= 0) {
+      usleep(1000);
+      idle_us += 1000;
+      continue;
+    }
+    size_t offset = 1;
+    if (consumed == announced) {
+      ids.push_back((uint16_t(frame[3]) << 8) | frame[4]);
+      announced = (uint32_t(frame[5]) << 24) | (uint32_t(frame[6]) << 16) |
+                  (uint32_t(frame[7]) << 8) | frame[8];
+      consumed = 0;
+      offset = 9;
+    }
+    const size_t available = sizeof(frame) - offset;
+    consumed +=
+        announced - consumed < available ? announced - consumed : available;
+  }
+  return ids;
 }
 
 #include "gtest/gtest.h"

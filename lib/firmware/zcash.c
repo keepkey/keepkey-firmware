@@ -25,6 +25,7 @@
 #include "trezor/crypto/aes/aes.h"
 #include "trezor/crypto/bignum.h"
 #include "trezor/crypto/blake2b.h"
+#include "trezor/crypto/chacha20poly1305/rfc7539.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/hasher.h"
 #include "trezor/crypto/memzero.h"
@@ -33,6 +34,7 @@
 #include "trezor/crypto/pallas_sinsemilla.h"
 #include "trezor/crypto/pallas_swu.h"
 #include "trezor/crypto/redpallas.h"
+#include "trezor/crypto/segwit_addr.h"
 #include "trezor/crypto/zcash_zip316.h"
 
 /* ZIP-32 Orchard master key only; children use PRF^expand. */
@@ -346,6 +348,40 @@ bool zcash_orchard_derive_ivk(const uint8_t ak[32], const uint8_t nk[32],
   return ok;
 }
 
+bool zcash_orchard_derive_internal_ivk(const uint8_t ak[32],
+                                       const uint8_t nk[32],
+                                       const uint8_t rivk[32],
+                                       uint8_t ivk_out[32]) {
+  if (!ak || !nk || !rivk || !ivk_out) return false;
+
+  /* ZIP 32: rivk_internal = ToScalar(PRF^expand_rivk([0x83] || ak || nk)). */
+  uint8_t input[1 + 32 + 32];
+  uint8_t expanded[64];
+  uint8_t rivk_internal[32];
+  input[0] = 0x83;
+  memcpy(input + 1, ak, 32);
+  memcpy(input + 33, nk, 32);
+  prf_expand(rivk, input, sizeof(input), expanded);
+  to_scalar(expanded, rivk_internal);
+
+  bool ok = zcash_orchard_derive_ivk(ak, nk, rivk_internal, ivk_out);
+  memzero(input, sizeof(input));
+  memzero(expanded, sizeof(expanded));
+  memzero(rivk_internal, sizeof(rivk_internal));
+  return ok;
+}
+
+bool zcash_orchard_receiver_matches_ivk(const uint8_t ivk[32],
+                                        const uint8_t receiver[43]) {
+  if (!ivk || !receiver) return false;
+
+  uint8_t pkd[32];
+  bool ok = zcash_orchard_derive_transmission_key(ivk, receiver, NULL, pkd) &&
+            memcmp(pkd, receiver + 11, sizeof(pkd)) == 0;
+  memzero(pkd, sizeof(pkd));
+  return ok;
+}
+
 bool zcash_orchard_derive_receiver(const uint8_t ak[32], const uint8_t nk[32],
                                    const uint8_t rivk[32], const uint8_t dk[32],
                                    const uint8_t index_le[11],
@@ -414,6 +450,152 @@ bool zcash_orchard_receiver_to_unified_address(
   if (!receiver || !hrp || !address_out) return false;
   return zcash_zip316_encode_orchard_unified_address(hrp, receiver, address_out,
                                                      address_out_len) == 0;
+}
+
+static uint32_t zcash_bech32_polymod_step(uint32_t pre) {
+  const uint8_t b = pre >> 25;
+  return ((pre & 0x1FFFFFF) << 5) ^ (-((b >> 0) & 1) & 0x3b6a57b2UL) ^
+         (-((b >> 1) & 1) & 0x26508e6dUL) ^ (-((b >> 2) & 1) & 0x1ea119faUL) ^
+         (-((b >> 3) & 1) & 0x3d4233ddUL) ^ (-((b >> 4) & 1) & 0x2a1462b3UL);
+}
+
+/* A canonical compactSize no greater than 0x2000000 (ZIP 316). */
+static bool zcash_read_compact_size(const uint8_t* buf, size_t end, size_t* pos,
+                                    uint32_t* out) {
+  if (*pos >= end) return false;
+  const uint8_t tag = buf[(*pos)++];
+  if (tag < 0xfd) {
+    *out = tag;
+    return true;
+  }
+  /* 0xff introduces a 64-bit value, always above the ZIP 316 bound. */
+  const size_t n = tag == 0xfd ? 2 : tag == 0xfe ? 4 : 0;
+  if (n == 0 || end - *pos < n) return false;
+  uint32_t v = 0;
+  for (size_t i = 0; i < n; i++) v |= (uint32_t)buf[*pos + i] << (8 * i);
+  *pos += n;
+  if (v < (n == 2 ? 0xfdu : 0x10000u) || v > 0x2000000u) return false;
+  *out = v;
+  return true;
+}
+
+static char zcash_ascii_lower(char c) {
+  return c >= 'A' && c <= 'Z' ? (char)(c + ('a' - 'A')) : c;
+}
+
+/* bech32m (any length), F4Jumble^-1, HRP padding, then the item walk of
+ * ZIP 316. Accepts the mainnet HRPs "u" (Revision 0) and "zu"/"tu"
+ * (Revision 2), whose encodings differ only in the HRP and permitted items.
+ * BIP 350 allows all-uppercase (QR alphanumeric mode) and forbids mixed
+ * case; an accepted string is read as its lowercase form. */
+ZcashUserAddressCheck zcash_user_address_check(
+    const char* address,
+    const uint8_t recipient[ZCASH_ORCHARD_RAW_RECEIVER_SIZE]) {
+  static const char charset[] = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+  if (!address || !recipient) return ZCASH_USER_ADDRESS_INVALID;
+
+  const size_t len = strnlen(address, ZCASH_USER_ADDRESS_MAX_LEN + 1);
+  const char* sep = strrchr(address, '1');
+  if (len > ZCASH_USER_ADDRESS_MAX_LEN || !sep)
+    return ZCASH_USER_ADDRESS_INVALID;
+  bool lower = false, upper = false;
+  for (size_t i = 0; i < len; i++) {
+    lower |= address[i] >= 'a' && address[i] <= 'z';
+    upper |= address[i] >= 'A' && address[i] <= 'Z';
+  }
+  if (lower && upper) return ZCASH_USER_ADDRESS_INVALID;
+  const size_t hrp_len = (size_t)(sep - address);
+  const size_t data_len = len - hrp_len - 1;
+  /* The longest known HRP, "zutest", is 6 characters. */
+  char hrp[7] = {0};
+  for (size_t i = 0; i < hrp_len && i < sizeof(hrp) - 1; i++)
+    hrp[i] = zcash_ascii_lower(address[i]);
+
+  bool zu = false;
+  if (hrp_len == 2 && memcmp(hrp, "zu", 2) == 0) {
+    zu = true;
+  } else if (!(hrp_len == 1 && hrp[0] == 'u') &&
+             !(hrp_len == 2 && memcmp(hrp, "tu", 2) == 0)) {
+    const bool testnet = (hrp_len == 5 && memcmp(hrp, "utest", 5) == 0) ||
+                         (hrp_len == 6 && (memcmp(hrp, "zutest", 6) == 0 ||
+                                           memcmp(hrp, "tutest", 6) == 0));
+    return testnet ? ZCASH_USER_ADDRESS_NOT_MAINNET
+                   : ZCASH_USER_ADDRESS_INVALID;
+  }
+  if (data_len < 6) return ZCASH_USER_ADDRESS_INVALID;
+
+  uint32_t chk = 1;
+  for (size_t i = 0; i < hrp_len; i++)
+    chk = zcash_bech32_polymod_step(chk) ^ ((uint8_t)hrp[i] >> 5);
+  chk = zcash_bech32_polymod_step(chk);
+  for (size_t i = 0; i < hrp_len; i++)
+    chk = zcash_bech32_polymod_step(chk) ^ (hrp[i] & 0x1f);
+
+  /* Five-bit groups to bytes as the checksum runs; the 6 checksum groups
+   * are not data. */
+  uint8_t raw[(ZCASH_USER_ADDRESS_MAX_LEN - 2 - 6) * 5 / 8];
+  size_t raw_len = 0;
+  uint32_t acc = 0;
+  unsigned bits = 0;
+  for (size_t i = 0; i < data_len; i++) {
+    const char* p = strchr(charset, zcash_ascii_lower(sep[1 + i]));
+    if (!p) return ZCASH_USER_ADDRESS_INVALID;
+    const uint32_t v = (uint32_t)(p - charset);
+    chk = zcash_bech32_polymod_step(chk) ^ v;
+    if (i + 6 >= data_len) continue;
+    acc = (acc << 5) | v;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      raw[raw_len++] = (uint8_t)(acc >> bits);
+    }
+  }
+  if (chk != 0x2bc830a3UL || bits >= 5 || (acc & ((1u << bits) - 1)) != 0)
+    return ZCASH_USER_ADDRESS_INVALID;
+
+  /* Rejects fewer than 48 bytes, the F4Jumble minimum. */
+  if (zcash_zip316_f4jumble_inv(raw, raw_len) != 0)
+    return ZCASH_USER_ADDRESS_INVALID;
+  const size_t end = raw_len - ZCASH_ZIP316_PADDING_LEN;
+  for (size_t i = 0; i < ZCASH_ZIP316_PADDING_LEN; i++) {
+    if (raw[end + i] != (i < hrp_len ? (uint8_t)hrp[i] : 0))
+      return ZCASH_USER_ADDRESS_INVALID;
+  }
+
+  /* Strictly ascending typecodes: canonical order and no duplicates. */
+  bool first = true, p2pkh = false, p2sh = false, orchard_match = false;
+  uint32_t prev = 0;
+  size_t pos = 0;
+  while (pos < end) {
+    uint32_t typecode, item_len;
+    if (!zcash_read_compact_size(raw, end, &pos, &typecode) ||
+        !zcash_read_compact_size(raw, end, &pos, &item_len) ||
+        item_len > end - pos || (!first && typecode <= prev))
+      return ZCASH_USER_ADDRESS_INVALID;
+    first = false;
+    prev = typecode;
+    const uint8_t* item = raw + pos;
+    pos += item_len;
+
+    if (typecode <= 0x01) { /* P2PKH, P2SH */
+      if (item_len != 20 || zu) return ZCASH_USER_ADDRESS_INVALID;
+      p2pkh |= typecode == 0x00;
+      p2sh |= typecode == 0x01;
+    } else if (typecode <= 0x03) { /* Sapling, Orchard */
+      if (item_len != ZCASH_ORCHARD_RAW_RECEIVER_SIZE)
+        return ZCASH_USER_ADDRESS_INVALID;
+      if (typecode == 0x03)
+        orchard_match = memcmp(item, recipient, item_len) == 0;
+    } else if (typecode >= 0xE0 && typecode <= 0xFC) {
+      /* MUST-understand: invalid in Revision 0; in Revision 2 only expiry
+       * (0xE0, 0xE1) is defined, and a signer without a clock cannot honor
+       * an expiry time. */
+      return ZCASH_USER_ADDRESS_UNSUPPORTED;
+    }
+    /* Any other typecode is ignored, as ZIP 316 requires. */
+  }
+  if (p2pkh && p2sh) return ZCASH_USER_ADDRESS_INVALID;
+  return orchard_match ? ZCASH_USER_ADDRESS_MATCH : ZCASH_USER_ADDRESS_MISMATCH;
 }
 
 static bool zcash_pack_orchard_note_commit_msg(const uint8_t receiver[43],
@@ -530,6 +712,97 @@ bool zcash_ironwood_compute_cmx_with_progress(
     ZcashOrchardProgressCallback progress, void* progress_context) {
   return zcash_orchard_family_compute_cmx_with_progress(
       receiver, value, rho, rseed, cmx_out, true, progress, progress_context);
+}
+
+/* repr_P decoding for a public point (here pk_d): canonical x, on-curve,
+ * not the identity. */
+static bool pallas_decode_public_point(const uint8_t in[32], curve_point* p) {
+  uint8_t buf[32];
+  memcpy(buf, in, 32);
+  const int y_odd = buf[31] >> 7;
+  buf[31] &= 0x7f;
+  bn_read_le(buf, &p->x);
+  if (!bn_is_less(&p->x, &pallas_prime)) return false;
+
+  bignum256 y2, five;
+  bn_copy(&p->x, &y2);
+  pallas_mul_mod_p(&y2, &p->x);
+  pallas_mul_mod_p(&y2, &p->x);
+  bn_read_uint32(5, &five);
+  pallas_add_mod_p(&y2, &five, &y2);
+  bn_copy(&y2, &p->y);
+  if (pallas_sqrt_mod_p(&p->y) != 0) return false;
+
+  bignum256 check;
+  bn_copy(&p->y, &check);
+  pallas_mul_mod_p(&check, &p->y);
+  bn_normalize(&check);
+  bn_normalize(&y2);
+  bn_normalize(&p->y);
+  if (!bn_is_equal(&check, &y2)) return false;
+  if (bn_is_zero(&p->y)) return !y_odd;
+  if (bn_is_odd(&p->y) != y_odd) pallas_sub_mod_p(&pallas_prime, &p->y, &p->y);
+  return !pallas_point_is_identity(p);
+}
+
+bool zcash_orchard_note_ciphertext_valid(
+    const uint8_t receiver[ZCASH_ORCHARD_RAW_RECEIVER_SIZE], uint64_t value,
+    const uint8_t rho[32], const uint8_t rseed[32], bool ironwood,
+    const uint8_t epk[32], const uint8_t enc_compact[52],
+    const uint8_t enc_memo[512], const uint8_t enc_tag[16]) {
+  if (!receiver || !rho || !rseed || !epk || !enc_compact || !enc_memo ||
+      !enc_tag) {
+    return false;
+  }
+
+  /* Every input is host-supplied, so esk is public: fast multiplies are
+   * fine and nothing here needs wiping. */
+  uint8_t prf_in[33], prf_out[64], esk_bytes[32], point_bytes[32];
+  prf_in[0] = 0x04;
+  memcpy(prf_in + 1, rho, 32);
+  prf_expand(rseed, prf_in, sizeof(prf_in), prf_out);
+  to_scalar(prf_out, esk_bytes);
+
+  bignum256 esk;
+  bn_read_le(esk_bytes, &esk);
+  curve_point gd, pkd, point;
+  if (bn_is_zero(&esk) || !orchard_diversify_point(receiver, &gd) ||
+      !pallas_decode_public_point(receiver + 11, &pkd)) {
+    return false;
+  }
+
+  pallas_point_mult(&esk, &gd, &point);
+  pallas_point_encode(&point, point_bytes);
+  if (memcmp(point_bytes, epk, 32) != 0) return false;
+
+  /* K_enc = KDF^Orchard([esk] pk_d, epk) */
+  pallas_point_mult(&esk, &pkd, &point);
+  pallas_point_encode(&point, point_bytes);
+  uint8_t key[32];
+  BLAKE2B_CTX kdf;
+  blake2b_InitPersonal(&kdf, 32, "Zcash_OrchardKDF", 16);
+  blake2b_Update(&kdf, point_bytes, 32);
+  blake2b_Update(&kdf, epk, 32);
+  blake2b_Final(&kdf, key, 32);
+
+  /* AEAD_CHACHA20_POLY1305, zero nonce, no AD, over compact || memo. */
+  static const uint8_t nonce[12] = {0};
+  chacha20poly1305_ctx aead;
+  uint8_t compact[52], tag[16];
+  rfc7539_init(&aead, key, nonce);
+  chacha20poly1305_decrypt(&aead, enc_compact, compact, sizeof(compact));
+  chacha20poly1305_auth(&aead, enc_memo, 512);
+  rfc7539_finish(&aead, 0, sizeof(compact) + 512, tag);
+  if (memcmp(tag, enc_tag, sizeof(tag)) != 0) return false;
+
+  uint8_t expected[52];
+  expected[0] = ironwood ? 0x03 : 0x02;
+  memcpy(expected + 1, receiver, 11);
+  for (size_t i = 0; i < 8; i++) {
+    expected[12 + i] = (uint8_t)(value >> (8 * i));
+  }
+  memcpy(expected + 20, rseed, 32);
+  return memcmp(compact, expected, sizeof(expected)) == 0;
 }
 
 bool zcash_derive_orchard_keys_with_progress(
@@ -727,6 +1000,24 @@ bool zcash_v6_orchard_ironwood_digest_valid(bool present, size_t size,
   uint8_t empty[32];
   zcash_blake2b_personal_256("ZTxIdIronwd_H_v6", NULL, 0, empty);
   return memcmp(digest, empty, 32) == 0;
+}
+
+bool zcash_tex_address(const uint8_t hash160[20], char* out, size_t out_size) {
+  /* "tex" + '1' + 32 data + 6 checksum characters + NUL. */
+  if (!hash160 || !out || out_size < 3 + 1 + 32 + 6 + 1) return false;
+  uint8_t words[32];
+  uint32_t acc = 0;
+  int bits = 0;
+  size_t n = 0;
+  for (size_t i = 0; i < 20; i++) {
+    acc = (acc << 8) | hash160[i];
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      words[n++] = (acc >> bits) & 0x1f;
+    }
+  }
+  return bech32_encode(out, "tex", words, n, BECH32_ENCODING_BECH32M) == 1;
 }
 
 bool zcash_script_is_p2pkh(const uint8_t* script, size_t script_size) {
@@ -1045,9 +1336,15 @@ ZcashPCZTSigningRequestStatus zcash_pczt_signing_request_status(
     return ZCASH_PCZT_SIGNING_REQUEST_INVALID_DIGEST_SIZE;
   }
 
-  (void)meta->sapling_digest_size;
+  /* Sapling is unsupported: only the canonical empty digest, which is what the
+   * device signs over anyway, may be supplied. */
   if (meta->has_sapling_digest) {
-    return ZCASH_PCZT_SIGNING_REQUEST_UNSUPPORTED_SAPLING_COMPONENT;
+    uint8_t empty[32];
+    zcash_blake2b_personal_256("ZTxIdSaplingHash", NULL, 0, empty);
+    if (meta->sapling_digest_size != 32 || !meta->sapling_digest ||
+        memcmp(meta->sapling_digest, empty, 32) != 0) {
+      return ZCASH_PCZT_SIGNING_REQUEST_UNSUPPORTED_SAPLING_COMPONENT;
+    }
   }
 
   if (!meta->has_header_fields) {

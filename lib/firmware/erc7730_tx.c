@@ -25,11 +25,11 @@ bool erc7730_tx_continuation_capture(Erc7730TxContinuation* continuation,
 
 bool erc7730_tx_continuation_restore(const Erc7730TxContinuation* continuation,
                                      EthereumSignTx* tx) {
+  if (tx) memzero(tx, sizeof(*tx));
   if (!continuation || !tx || continuation->length == 0 ||
       continuation->length > sizeof(continuation->encoded)) {
     return false;
   }
-  memzero(tx, sizeof(*tx));
   pb_istream_t stream =
       pb_istream_from_buffer(continuation->encoded, continuation->length);
   if (!pb_decode(&stream, EthereumSignTx_fields, tx) ||

@@ -46,20 +46,22 @@ bool erc7730_format_integer(const uint8_t value[32], bool negative,
   return written != 0;
 }
 
-bool erc7730_format_text(const uint8_t* bytes, size_t length, char* output,
-                         size_t output_size) {
+static bool format_escaped(const uint8_t* bytes, size_t length,
+                           bool keep_single_spaces, char* output,
+                           size_t output_size) {
   if (!output || output_size == 0) return false;
   output[0] = '\0';
   if (!bytes && length != 0) return false;
   size_t written = 0;
   for (size_t i = 0; i < length; i++) {
     const uint8_t byte = bytes[i];
-    const bool plain_space = byte == ' ' && i != 0 && i + 1u != length &&
-                             bytes[i - 1u] != ' ' && bytes[i + 1u] != ' ';
+    const bool plain_space = keep_single_spaces && byte == ' ' && i != 0 &&
+                             i + 1u != length && bytes[i - 1u] != ' ' &&
+                             bytes[i + 1u] != ' ';
     size_t needed = 1;
     if (byte == '\\') {
       needed = 2;
-    } else if (byte < 0x20 || byte >= 0x7f || (byte == ' ' && !plain_space)) {
+    } else if ((byte <= 0x20 && !plain_space) || byte >= 0x7f) {
       needed = 4;
     }
     if (output_size - written <= needed) {
@@ -80,6 +82,16 @@ bool erc7730_format_text(const uint8_t* bytes, size_t length, char* output,
   }
   output[written] = '\0';
   return true;
+}
+
+bool erc7730_format_text(const uint8_t* bytes, size_t length, char* output,
+                         size_t output_size) {
+  return format_escaped(bytes, length, false, output, output_size);
+}
+
+bool erc7730_format_label(const uint8_t* bytes, size_t length, char* output,
+                          size_t output_size) {
+  return format_escaped(bytes, length, true, output, output_size);
 }
 
 bool erc7730_format_raw(const Erc7730AbiProgram* program,

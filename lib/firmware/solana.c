@@ -138,12 +138,16 @@ static void copy_account(uint8_t out[SOL_PUBKEY_SIZE], const SolanaParsedTx* tx,
 }
 
 /* allow_external_indices: v0 lookup-table accounts (index >= static list)
- * cannot be verified, so they force the tx opaque. Never valid in legacy. */
+ * cannot be verified, so they force the tx opaque. Never valid in legacy.
+ * Program ids must always be static. *accounts_needed is one past the highest
+ * account operand index, so the caller can bound it once the loaded-account
+ * count is known. */
 static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
                                      size_t* pos_io, SolanaParsedTx* tx,
                                      uint16_t num_accounts, bool* has_unknown,
                                      bool* force_opaque,
-                                     bool allow_external_indices) {
+                                     bool allow_external_indices,
+                                     uint16_t* accounts_needed) {
   size_t pos = *pos_io;
   uint16_t num_instructions;
   int n = read_compact_u16(raw + pos, raw_len - pos, &num_instructions);
@@ -160,15 +164,13 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
 
   bool seen_compute_limit = false;
   bool seen_compute_price = false;
+  *accounts_needed = 0;
 
   for (uint16_t i = 0; i < num_instructions; i++) {
     if (pos >= raw_len) return -1;
     uint8_t program_idx = raw[pos++];
+    if (program_idx >= num_accounts) return -1;
     bool external = false;
-    if (program_idx >= num_accounts) {
-      if (!allow_external_indices) return -1;
-      external = true;
-    }
 
     uint16_t num_acct_indices;
     n = read_compact_u16(raw + pos, raw_len - pos, &num_acct_indices);
@@ -180,6 +182,8 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
     pos += num_acct_indices;
 
     for (uint16_t j = 0; j < num_acct_indices; j++) {
+      if (acct_indices[j] >= *accounts_needed)
+        *accounts_needed = (uint16_t)acct_indices[j] + 1;
       if (acct_indices[j] >= num_accounts) {
         if (!allow_external_indices) return -1;
         external = true;
@@ -335,8 +339,8 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
           *force_opaque = true;
         } else if (token_instr == SOL_TOKEN_TRANSFER_CHECKED_IX &&
                    data_len == 10 && num_acct_indices >= 4) {
-          /* Canonical only: opcode + amount(8) + decimals(1), accounts
-           * [source, mint, dest, authority]; anything else is UNKNOWN. */
+          /* Canonical data only: opcode + amount(8) + decimals(1). Accounts
+           * [source, mint, dest, authority], then any multisig signers. */
           pi->type = SOL_INSTR_TOKEN_TRANSFER_CHECKED;
           pi->amount = read_le64(instr_data + 1);
           copy_account(pi->from, tx, acct_indices, num_acct_indices, 0);
@@ -620,6 +624,16 @@ static int parse_instruction_section(const uint8_t* raw, size_t raw_len,
 /*  Transaction parser                                                 */
 /* ------------------------------------------------------------------ */
 
+/* Solana's message sanitize rules for the header: a writable signer (the fee
+ * payer) exists, and the signer and read-only unsigned ranges fit inside the
+ * static keys without overlapping. Checked before any review classification,
+ * since even an opaque message is signable under AdvancedMode. */
+static bool solana_header_ok(const SolanaParsedTx* tx, uint16_t num_accounts) {
+  return tx->num_readonly_signed < tx->num_required_sigs &&
+         (uint16_t)tx->num_required_sigs + tx->num_readonly_unsigned <=
+             num_accounts;
+}
+
 static SolanaTxReview solana_parseLegacyTx(const uint8_t* raw, size_t raw_len,
                                            SolanaParsedTx* tx) {
   memset(tx, 0, sizeof(*tx));
@@ -638,6 +652,7 @@ static SolanaTxReview solana_parseLegacyTx(const uint8_t* raw, size_t raw_len,
   int n = read_compact_u16(raw + pos, raw_len - pos, &num_accounts);
   if (n < 0) return SOL_TX_REVIEW_MALFORMED;
   pos += n;
+  if (!solana_header_ok(tx, num_accounts)) return SOL_TX_REVIEW_MALFORMED;
 
   if (num_accounts > SOL_MAX_ACCOUNTS) return SOL_TX_REVIEW_OPAQUE;
   tx->num_accounts = (uint8_t)num_accounts;
@@ -654,9 +669,10 @@ static SolanaTxReview solana_parseLegacyTx(const uint8_t* raw, size_t raw_len,
   memcpy(tx->recent_blockhash, raw + pos, SOL_PUBKEY_SIZE);
   pos += SOL_PUBKEY_SIZE;
 
-  n = parse_instruction_section(raw, raw_len, &pos, tx, num_accounts,
-                                &has_unknown, &force_opaque,
-                                /*allow_external_indices=*/false);
+  uint16_t accounts_needed;
+  n = parse_instruction_section(
+      raw, raw_len, &pos, tx, num_accounts, &has_unknown, &force_opaque,
+      /*allow_external_indices=*/false, &accounts_needed);
   if (n < 0) return SOL_TX_REVIEW_MALFORMED;
 
   /* Reject if there are unconsumed bytes — prevents hidden trailing data */
@@ -666,15 +682,6 @@ static SolanaTxReview solana_parseLegacyTx(const uint8_t* raw, size_t raw_len,
     return SOL_TX_REVIEW_OPAQUE;
   }
   return SOL_TX_REVIEW_VERIFIED;
-}
-
-/* Solana's message sanitize rules for the header: a writable signer (the fee
- * payer) exists, and the signer and read-only unsigned ranges fit inside the
- * static keys without overlapping. */
-static bool solana_header_ok(const SolanaParsedTx* tx) {
-  return tx->num_readonly_signed < tx->num_required_sigs &&
-         (uint16_t)tx->num_required_sigs + tx->num_readonly_unsigned <=
-             tx->num_accounts;
 }
 
 static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
@@ -699,6 +706,7 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
   int n = read_compact_u16(raw + pos, raw_len - pos, &num_accounts);
   if (n < 0) return SOL_TX_REVIEW_MALFORMED;
   pos += n;
+  if (!solana_header_ok(tx, num_accounts)) return SOL_TX_REVIEW_MALFORMED;
 
   if (num_accounts > SOL_MAX_ACCOUNTS) return SOL_TX_REVIEW_OPAQUE;
   tx->num_accounts = (uint8_t)num_accounts;
@@ -713,9 +721,10 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
   memcpy(tx->recent_blockhash, raw + pos, SOL_PUBKEY_SIZE);
   pos += SOL_PUBKEY_SIZE;
 
-  n = parse_instruction_section(raw, raw_len, &pos, tx, num_accounts,
-                                &has_unknown, &force_opaque,
-                                /*allow_external_indices=*/true);
+  uint16_t accounts_needed;
+  n = parse_instruction_section(
+      raw, raw_len, &pos, tx, num_accounts, &has_unknown, &force_opaque,
+      /*allow_external_indices=*/true, &accounts_needed);
   if (n < 0) return SOL_TX_REVIEW_MALFORMED;
 
   uint16_t lookup_table_count;
@@ -725,8 +734,10 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
   if (lookup_table_count != 0) {
     /* Any ALT section needs unresolved chain state: opaque. */
     force_opaque = true;
+    tx->has_lookup_tables = true;
   }
 
+  uint32_t loaded_accounts = 0;
   for (uint16_t i = 0; i < lookup_table_count; i++) {
     uint16_t writable_count, readonly_count;
     if (pos + SOL_PUBKEY_SIZE > raw_len) return SOL_TX_REVIEW_MALFORMED;
@@ -743,11 +754,13 @@ static SolanaTxReview solana_parseVersionedTx(const uint8_t* raw,
     pos += n;
     if (pos + readonly_count > raw_len) return SOL_TX_REVIEW_MALFORMED;
     pos += readonly_count;
+    loaded_accounts += (uint32_t)writable_count + readonly_count;
   }
 
   if (pos != raw_len) return SOL_TX_REVIEW_MALFORMED;
-  /* Zero-LUT v0 messages can verify, so their header must be well formed. */
-  if (!solana_header_ok(tx)) return SOL_TX_REVIEW_MALFORMED;
+  /* An operand past the static plus loaded accounts does not exist. */
+  if (accounts_needed > num_accounts + loaded_accounts)
+    return SOL_TX_REVIEW_MALFORMED;
 
   /* A zero-LUT v0 message verifies like legacy. */
   if (tx->num_instructions == 0 || has_unknown || force_opaque) {
@@ -910,6 +923,7 @@ bool solana_parseInstrSchema(const uint8_t* payload, size_t payload_len,
 bool solana_schemaApplies(const SolanaInstrSchema* schema,
                           const SolanaParsedTx* tx, uint8_t* out_index) {
   if (!schema || !tx || !out_index) return false;
+  if (tx->has_lookup_tables) return false;
 
   bool found = false;
   uint8_t match = 0;

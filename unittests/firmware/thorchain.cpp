@@ -213,7 +213,9 @@ TEST(Thorchain, ThorchainDenomValidation) {
   EXPECT_FALSE(tendermint_isValidDenom("ru ne"));    // embedded space
 }
 
-// Invalid denom must cause thorchain_signTxUpdateMsgSend to return false
+// An invalid denom is refused before it reaches the signed document: the
+// pending message is not consumed and the hash is unchanged, so the same
+// transaction still completes with the default denom and the known signature.
 TEST(Thorchain, ThorchainSignTxInvalidDenom) {
   HDNode node = kSignNode;
   hdnode_fill_public_key(&node);
@@ -236,8 +238,14 @@ TEST(Thorchain, ThorchainSignTxInvalidDenom) {
      returned false and the test could never have passed -- which nobody
      noticed, because the file was not compiled. Same 20-byte payload,
      correct thor checksum. */
-  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(
-      100000, "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n", NULL));
+  const char* const to = "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n";
+  for (const char* denom : {"RUNE", "rune\"", "rune\\n", " rune", "ru ne"}) {
+    SCOPED_TRACE(denom);
+    EXPECT_FALSE(thorchain_signTxUpdateMsgSend(100000, to, denom));
+    EXPECT_FALSE(thorchain_signingIsFinished());
+  }
+  ASSERT_TRUE(thorchain_signTxUpdateMsgSend(100000, to, NULL));
+  ASSERT_TRUE(thorchain_signingIsFinished());
 
   uint8_t public_key[33];
   uint8_t signature[64];
@@ -375,6 +383,13 @@ TEST(Thorchain, DepositAssetAndSignerFailClosed) {
 TEST(Thorchain, DeclaredDepositAssetValidatorEnforcesGrammar) {
   EXPECT_TRUE(tendermint_isValidAsset("THOR.RUNE"));
   EXPECT_TRUE(tendermint_isValidAsset("BTC/BTC"));
+  // Trade (CHAIN~SYMBOL) and secured (CHAIN-SYMBOL) assets, as thornode's
+  // NewAsset splits them.
+  EXPECT_TRUE(tendermint_isValidAsset("BTC~BTC"));
+  EXPECT_TRUE(tendermint_isValidAsset("ETH~USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48"));
+  EXPECT_TRUE(tendermint_isValidAsset("BTC-BTC"));
+  EXPECT_FALSE(tendermint_isValidAsset("BTC~BTC:x"));
+  EXPECT_FALSE(tendermint_isValidAsset("BTC~BTC\"\n"));
   EXPECT_FALSE(tendermint_isValidAsset("THOR:RUNE"));
   EXPECT_FALSE(tendermint_isValidAsset("THOR_RUNE"));
   EXPECT_FALSE(tendermint_isValidAsset(nullptr));

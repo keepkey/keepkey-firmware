@@ -95,12 +95,33 @@ TEST(Signing, AbortScrubsAllInstrumentedSignerState) {
 }
 
 extern "C" {
+#include "keepkey/board/layout.h"
+#include "keepkey/firmware/app_confirm.h"
+#include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 void extract_input_bip32_path(const TxInputType* input);
 bool check_change_bip32_path(const TxOutputType* output);
 }
 bool kkconfirm_preload(int nYes, int nNo);
 int kkconfirm_drain(void);
+
+// A 62-character bech32 address does not fit beside its QR, so it is shown
+// as text on its own screen and the QR follows: two approvals, not one.
+TEST(Signing, LongAddressIsShownAsTextThenQr) {
+  const char* p2tr =
+      "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr";
+  const char* p2pkh = "1JAd7XCBzGudGpJQSDSfpmJhiygtLQWaGL";
+  ASSERT_FALSE(layout_address_fits_one_line(p2tr));
+  ASSERT_TRUE(layout_address_fits_one_line(p2pkh));
+
+  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  EXPECT_TRUE(confirm_address("m/86'/0'/0'/0/0", p2tr));
+  EXPECT_EQ(0, kkconfirm_drain());
+
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  EXPECT_TRUE(confirm_address("m/44'/0'/0'/0/0", p2pkh));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
 
 TEST(Signing, MixedModeChangeMustPreserveLeadingPathComponents) {
   ASSERT_TRUE(kkconfirm_preload(0, 0));

@@ -259,7 +259,9 @@ static Erc7730AbiResult consume_word(Erc7730AbiStream* s) {
     if (f->capture && s->capture_locate) {
       s->located_length = length;
       s->located_offset = s->received; /* the payload starts next */
-      s->capture.length = length < 4 ? length : 4;
+      s->capture.length = length < ERC7730_ABI_LOCATE_PREFIX
+                              ? length
+                              : ERC7730_ABI_LOCATE_PREFIX;
       s->capture.node = f->node;
     } else if (f->capture) {
       if (length > sizeof(s->capture.data)) {
@@ -285,7 +287,7 @@ static Erc7730AbiResult consume_word(Erc7730AbiStream* s) {
       }
     }
     if (f->capture && s->capture_locate) {
-      /* Keep only the leading bytes: the selector of an embedded call. */
+      /* Keep only the leading bytes: an embedded call's selector and words. */
       const size_t done = s->located_length - f->payload_remaining;
       for (size_t i = 0; i < used && done + i < s->capture.length; i++)
         s->capture.data[done + i] = s->word[i];

@@ -432,10 +432,12 @@ static void sendFailureWrapper(FailureType code, const char* text) {
 }
 
 /* True while a setup ceremony is armed or any signer waits for the host. */
-static bool fsm_workflowInProgress(void) {
+bool fsm_workflowInProgress(void) {
   if (setup_isArmed() || signing_is_active()) return true;
 #if !BITCOIN_ONLY
   if (ethereum_signing_isInProgress() ||
+      eip712_stream_waiting() != EIP712_IDLE ||
+      erc7730_workflow_active(erc7730_workflow_state()) ||
       tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS) ||
       tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC) ||
       osmosis_signingIsInited() || binance_signingIsInited() ||
@@ -443,6 +445,9 @@ static bool fsm_workflowInProgress(void) {
       mayachain_signingIsInited()) {
     return true;
   }
+#endif
+#if ZCASH_PRIVACY
+  if (zcash_signing_is_active()) return true;
 #endif
   return false;
 }
@@ -477,7 +482,7 @@ static bool reject_stale_continuation(const char* text) {
   return false;
 }
 
-bool keepkey_before_message_dispatch(MessageType msg_id) {
+static bool fsm_dispatchGate(MessageType msg_id) {
   switch (msg_id) {
     case MessageType_MessageType_GetFeatures:
     case MessageType_MessageType_GetCoinTable:
@@ -501,15 +506,16 @@ bool keepkey_before_message_dispatch(MessageType msg_id) {
        * clears the tx<->metadata binding, so accepting it mid-signing would
        * let a host approve one decode and then sign different calldata
        * without the enforce check. The default path below would end the
-       * signer and then accept the metadata, so refuse it here instead. */
-      if (ethereum_signing_isInProgress())
+       * signer and then accept the metadata, so refuse it here instead. A
+       * typed-data stream waiting for its next ack counts as signing too. */
+      if (fsm_workflowInProgress())
         return reject_stale_continuation("Metadata not allowed during signing");
       fsm_abort_signing_workflows();
       return true;
     case MessageType_MessageType_LoadClearsignSigner:
       /* Storing a signer clears the same binding (signed_metadata_clear()),
        * so it is refused mid-signing for the same reason. */
-      if (ethereum_signing_isInProgress())
+      if (fsm_workflowInProgress())
         return reject_stale_continuation(
             "Signer load not allowed during signing");
       fsm_abort_signing_workflows();
@@ -569,7 +575,12 @@ bool keepkey_before_message_dispatch(MessageType msg_id) {
     default:
       /* A new signing operation may replace an old signer, but it must never
        * coexist with recovery/reset and borrow that ceremony's progress or
-       * blocking screens. Administrative requests still preserve ceremonies. */
+       * blocking screens. While a ceremony is armed, anything else is refused
+       * without touching the screen or the cached PIN: a dry run keeps the
+       * PIN cached and its character stream defers the lock, so a read served
+       * here could outlive the deadline. Only requests that end the ceremony
+       * (Initialize, Cancel, ClearSession) or are refused by their handler (a
+       * second ResetDevice/RecoveryDevice) get through. */
       switch (msg_id) {
         case MessageType_MessageType_SignTx:
         case MessageType_MessageType_SignMessage:
@@ -611,7 +622,19 @@ bool keepkey_before_message_dispatch(MessageType msg_id) {
 #endif
           setup_abort();
           break;
+        case MessageType_MessageType_Initialize:
+        case MessageType_MessageType_Cancel:
+        case MessageType_MessageType_ClearSession:
+        case MessageType_MessageType_ResetDevice:
+        case MessageType_MessageType_RecoveryDevice:
+          break;
         default:
+          if (setup_isArmed()) {
+            fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                            "Device is in the middle of setup. Send "
+                            "Initialize or Cancel first.");
+            return false;
+          }
           break;
       }
       switch (msg_id) {
@@ -629,6 +652,20 @@ bool keepkey_before_message_dispatch(MessageType msg_id) {
       }
       return true;
   }
+}
+
+/* An expired idle deadline must never serve a PIN-gated request. The main
+ * loop checks it only once per pass, and a workflow defers it only while it
+ * runs; the gate above ends that workflow for any unrelated request, which
+ * would then run on the cached PIN before the next pass. So check on both
+ * sides of the gate: before, so a stalled workflow's own ACK is refused as
+ * "not in progress"; after, so the request that just ended a workflow runs
+ * on a locked session. */
+bool keepkey_before_message_dispatch(MessageType msg_id) {
+  auto_lock_if_due();
+  if (!fsm_dispatchGate(msg_id)) return false;
+  auto_lock_if_due();
+  return true;
 }
 
 void keepkey_after_message_dispatch(void) {
@@ -707,6 +744,7 @@ static void abort_signing_engines(void) {
 #endif
   authenticator_clear_cache();
   memzero(&fsm_derived_node, sizeof(fsm_derived_node));
+  drop_workflow_progress_if_idle();
 }
 
 /* A preloaded ERC-7730 definition is consumed only by the signing request that

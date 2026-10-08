@@ -353,11 +353,22 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
     memset(node_str, 0, sizeof(node_str));
   }
 
+  /* fee_amount is in base units; show it in whole coins, as the amount
+     screens do. The raw count overstated it 10^8-fold for RUNE. */
+  char fee_str[32];
+  if (!thorchain_formatAmount(sign_tx->fee_amount, "RUNE", fee_str,
+                              sizeof(fee_str))) {
+    thorchain_signAbort();
+    fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid fee amount");
+    layoutHome();
+    return;
+  }
+
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign %s on %s? Fee: %" PRIu32 " rune. Gas: %" PRIu32 ".",
+               "Sign %s on %s? Fee: %s. Gas: %" PRIu32 ".",
                (msg->has_send && strcmp(coin_denom, "rune") != 0) ? coin_denom
                                                                   : "RUNE",
-               sign_tx->chain_id, sign_tx->fee_amount, sign_tx->gas)) {
+               sign_tx->chain_id, fee_str, sign_tx->gas)) {
     thorchain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();

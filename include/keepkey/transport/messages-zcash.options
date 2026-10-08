@@ -7,6 +7,7 @@ ZcashSignPCZT.transparent_digest                    max_size:32
 ZcashSignPCZT.sapling_digest                        max_size:32
 ZcashSignPCZT.orchard_digest                        max_size:32
 ZcashSignPCZT.ironwood_digest                       max_size:32
+ZcashSignPCZT.ironwood_value_balance                int_size:IS_64
 ZcashSignPCZT.orchard_value_balance                 int_size:IS_64
 ZcashSignPCZT.orchard_anchor                        max_size:32
 ZcashSignPCZT.expected_seed_fingerprint             max_size:32
@@ -25,6 +26,7 @@ ZcashPCZTAction.rk                                  max_size:32
 ZcashPCZTAction.out_ciphertext                      max_size:80
 ZcashPCZTAction.recipient                           max_size:43
 ZcashPCZTAction.rseed                               max_size:32
+ZcashPCZTAction.user_address                        max_size:256
 
 ZcashSignedPCZT.signatures                          max_count:16, max_size:64
 ZcashSignedPCZT.txid                                max_size:32
@@ -38,6 +40,7 @@ ZcashOrchardFVK.seed_fingerprint                    max_size:32
 
 ZcashTransparentOutput.amount                       int_size:IS_64
 ZcashTransparentOutput.script_pubkey                max_size:128
+ZcashTransparentOutput.address_n                    max_count:8
 
 ZcashTransparentInput.sighash                       max_size:32
 ZcashTransparentInput.address_n                     max_count:8

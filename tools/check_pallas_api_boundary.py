@@ -147,6 +147,9 @@ def token_pattern(token):
 
 def require(body, token, where):
     guard(token)
+    # A named operation must be called; taking its address proves nothing.
+    if re.fullmatch(r"[A-Za-z_]\w*", token) and not token.endswith("_"):
+        token += "("
     if not token_pattern(token).search(body):
         raise AssertionError("{} must call {}".format(where, token))
 
@@ -160,6 +163,26 @@ def forbid(body, token, where):
         found = token in body
     if found:
         raise AssertionError("{} must not call {}".format(where, token))
+
+
+# Every reduction in the ZIP-32 wide reductions handles key material: each
+# must be the constant-time operation by name, and its variable-time twin is
+# refused. A bare "pallas_ct_" prefix passed with any one of them swapped.
+WIDE_REDUCTIONS = {
+    "to_scalar": ("pallas_ct_mod_q", "pallas_ct_mul_mod_q",
+                  "pallas_ct_add_mod_q"),
+    "to_base": ("pallas_ct_mod_p", "pallas_ct_mul_mod_p",
+                "pallas_ct_add_mod_p"),
+}
+
+
+def check_wide_reductions(zcash):
+    for name, operations in WIDE_REDUCTIONS.items():
+        body = code_only(function_body(zcash, name))
+        for operation in operations:
+            require(body, operation, name)
+            forbid(body, operation.replace("pallas_ct_", "pallas_") + "(",
+                   name)
 
 
 def main():
@@ -293,15 +316,27 @@ def main():
     # two available implementations by name (see the normaliser note above).
     # Requiring a function by name pins whichever one happened to be in use;
     # forbid the unsafe one as well, so the gate states the property.
-    require(action_handler, "redpallas_sign_digest_with_ak",
-            "PCZT action handler")
-    forbid(action_handler, "redpallas_sign_digest_for_rk(",
-           "PCZT action handler")
+    #
+    # Nothing is signed while actions stream: the last action, or the last
+    # transparent input of a transaction with none, reaches zcash_final_gate,
+    # which signs every buffered spend in zcash_sign_orchard_spends. Follow
+    # that chain rather than the handler alone.
+    require(action_handler, "zcash_final_gate(", "PCZT action handler")
+    final_gate = code_only(function_body(zcash_fsm, "zcash_final_gate"))
+    require(final_gate, "zcash_sign_orchard_spends(", "Zcash final gate")
+    spend_signer = code_only(function_body(zcash_fsm,
+                                           "zcash_sign_orchard_spends"))
+    require(spend_signer, "redpallas_sign_digest_with_ak",
+            "Orchard spend signer")
+    for body, where in ((action_handler, "PCZT action handler"),
+                        (final_gate, "Zcash final gate"),
+                        (spend_signer, "Orchard spend signer")):
+        forbid(body, "redpallas_sign_digest_for_rk(", where)
     require(action_handler, "signatures[zcash_signing.signature_count]",
             "compact PCZT signature collection")
     require(action_handler, "zcash_signing.signature_count++",
             "compact PCZT signature collection")
-    require(action_handler,
+    require(final_gate,
             "resp_signed->signatures_count = zcash_signing.signature_count",
             "compact PCZT signature response")
     output_verification = code_only(function_body(
@@ -326,9 +361,7 @@ def main():
 
     # ZIP-32 key reduction and transmission-key derivation also process
     # device-secret viewing/spending material.
-    for name in ("to_scalar", "to_base"):
-        body = code_only(function_body(zcash, name))
-        require(body, "pallas_ct_", name)
+    check_wide_reductions(zcash)
     key_derivation = code_only(function_body(
         zcash, "zcash_derive_orchard_keys_with_progress"))
     require(key_derivation, "redpallas_scalar_mult_spendauth_G_progress",

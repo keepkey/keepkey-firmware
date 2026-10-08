@@ -30,7 +30,7 @@ bool tendermint_getAddress(const HDNode* node, const char* prefix,
 
 // Denom: non-empty [a-z0-9./-] only, so it is safe in JSON without escaping.
 bool tendermint_isValidDenom(const char* denom);
-// Deposit asset: as above, uppercase also allowed.
+// Deposit asset: as above, plus uppercase and '~' (trade assets).
 bool tendermint_isValidAsset(const char* asset);
 
 /**

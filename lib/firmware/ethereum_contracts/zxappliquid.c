@@ -118,10 +118,14 @@ bool zx_confirmApproveLiquidity(uint32_t data_total,
   char amount_text[UNISWAP_AMOUNT_TEXT_SIZE];
   bignum256 amount;
   bn_from_bytes(allowance, 32, &amount);
-  if (bn_format(&amount, NULL, " LP", 18, 0, false, amount_text,
-                sizeof(amount_text)) == 0 ||
-      calc_str_line(get_body_font(), amount_text, BODY_WIDTH) > BODY_ROWS)
+  if (memcmp(allowance, MAX_ALLOWANCE, 32) == 0) {
+    strlcpy(amount_text, "UNLIMITED LP", sizeof(amount_text));
+  } else if (bn_format(&amount, NULL, " LP", 18, 0, false, amount_text,
+                       sizeof(amount_text)) == 0 ||
+             calc_str_line(get_body_font(), amount_text, BODY_WIDTH) >
+                 BODY_ROWS) {
     return false;
+  }
 
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                "Uniswap LP Approval", "%s", amount_text))
