@@ -102,6 +102,12 @@
 #define _(X) (X)
 
 static uint8_t msg_resp[MAX_FRAME_SIZE] __attribute__((aligned(4)));
+#if DEBUG_LINK
+uint8_t* fsm_test_responseArena(size_t* size) {
+  *size = sizeof(msg_resp);
+  return msg_resp;
+}
+#endif
 /* Shared scratch returned by fsm_getDerivedNode(). It may hold a root or
  * derived private key after any chain handler, so session revocation scrubs it
  * centrally. */
@@ -318,7 +324,7 @@ static void sendFailureWrapper(FailureType code, const char* text) {
 }
 
 /* True while a setup ceremony is armed or any signer waits for the host. */
-static bool fsm_workflowInProgress(void) {
+bool fsm_workflowInProgress(void) {
   if (setup_isArmed() || signing_is_active()) return true;
 #if !BITCOIN_ONLY
   if (ethereum_signing_isInProgress() ||
@@ -377,10 +383,10 @@ void fsm_init(void) {
  * Deliberately NOT session_clear(true): that is a LOCK. It would drop the PIN,
  * passphrase and seed cache, disarm AdvancedMode and revoke ClearSign signers
  * on every request, so ApplyPolicies/LoadClearsignSigner could never reach the
- * EthereumSignTx that needs them. Idle locking stays with toggle_screensaver.
+ * EthereumSignTx that needs them. Idle locking stays with auto_lock_if_due().
  * Metadata loaded before a sign survives: ethereum_signing_abort() only clears
  * it while a stream is active. */
-bool keepkey_before_message_dispatch(MessageType msg_id) {
+static bool fsm_dispatchGate(MessageType msg_id) {
   switch (msg_id) {
     case MessageType_MessageType_GetFeatures:
     case MessageType_MessageType_GetCoinTable:
@@ -473,6 +479,20 @@ bool keepkey_before_message_dispatch(MessageType msg_id) {
   }
 }
 
+/* An expired idle deadline must never serve a PIN-gated request. The main
+ * loop checks it only once per pass, and a workflow defers it only while it
+ * runs; the gate above ends that workflow for any unrelated request, which
+ * would then run on the cached PIN before the next pass. So check on both
+ * sides of the gate: before, so a stalled workflow's own ACK is refused as
+ * "not in progress"; after, so the request that just ended a workflow runs
+ * on a locked session. */
+bool keepkey_before_message_dispatch(MessageType msg_id) {
+  auto_lock_if_due();
+  if (!fsm_dispatchGate(msg_id)) return false;
+  auto_lock_if_due();
+  return true;
+}
+
 void fsm_sendSuccess(const char* text) {
   if (reset_msg_stack) {
     fsm_msgInitialize((Initialize*)0);
@@ -534,6 +554,7 @@ void fsm_abort_signing_workflows(void) {
 #endif
   authenticator_clear_cache();
   memzero(&fsm_derived_node, sizeof(fsm_derived_node));
+  drop_workflow_progress_if_idle();
 }
 
 void fsm_msgClearSession(ClearSession* msg) {

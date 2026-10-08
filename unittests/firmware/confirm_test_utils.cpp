@@ -45,8 +45,7 @@ std::vector<std::string> kkconfirm_capture_finish(void) {
   return std::move(captured_screens);
 }
 
-static bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload,
-                               uint8_t len) {
+bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload, uint8_t len) {
   static int fd = -1;
   if (fd < 0) fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (fd < 0) return false;

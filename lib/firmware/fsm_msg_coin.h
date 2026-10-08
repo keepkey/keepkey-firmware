@@ -307,6 +307,16 @@ void fsm_msgSignMessage(SignMessage* msg) {
     return;
   }
 
+  /* Message signatures are ECDSA with a p2pkh/segwit header; there is no
+     taproot form. compute_address() now yields a bc1p address, so signing
+     would return a signature that can never verify against it. */
+  if (msg->script_type == InputScriptType_SPENDTAPROOT) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Taproot message signing is not supported"));
+    layoutHome();
+    return;
+  }
+
   const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
   if (!coin) return;
 

@@ -62,6 +62,8 @@ void usb_set_rx_callback(usb_rx_callback_t callback);
 #ifdef EMULATOR
 /// Test-only: deliver a frame through the currently registered callback.
 void usb_test_receive(const void* buf, size_t len);
+/// Test-only: deliver a U2F frame with the current usbTiny() setting.
+void usb_test_receive_u2f(const U2FHID_FRAME* f);
 #endif
 void usb_set_u2f_rx_callback(usb_u2f_rx_callback_t callback);
 

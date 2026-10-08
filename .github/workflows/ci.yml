@@ -210,6 +210,9 @@ jobs:
           rm -f "$TARBALL"
           gitleaks version
 
+      - name: Check secret-scan exceptions
+        run: python3 -B -m unittest tools/test_gitleaks_allowlists.py
+
       - name: Run gitleaks
         env:
           EVENT_NAME: ${{ github.event_name }}
