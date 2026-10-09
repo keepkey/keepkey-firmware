@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import unittest
 import unittest.mock
@@ -411,6 +412,14 @@ class CapabilitySkips(unittest.TestCase):
                  set(report.NATIVE_CAPABILITY.values()) |
                  {"hive-release-review", "evm-max-amount-review",
                   "ripple-memo-policy", "osmosis-wire-guards"})
+        self.assertLessEqual(named, report.KNOWN_CAPABILITIES)
+
+    def test_every_protocol_census_capability_is_known(self):
+        protocol = (report.ROOT / "deps/device-protocol/messages.proto").read_text()
+        values = re.findall(r"\bCAPABILITY_([A-Z0-9_]+)\s*=\s*(\d+)\s*;", protocol)
+        self.assertTrue(values, "the pinned protocol must define capabilities")
+        named = {name.lower().replace("_", "-") for name, value in values
+                 if int(value) != 0}
         self.assertLessEqual(named, report.KNOWN_CAPABILITIES)
 
 

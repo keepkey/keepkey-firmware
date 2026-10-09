@@ -33,6 +33,8 @@ typedef struct _EthereumMessageSignature EthereumMessageSignature;
 typedef struct _TokenType TokenType;
 typedef struct _CoinType CoinType;
 
+#define ETHEREUM_CONFIRM_BODY_SIZE 352
+
 void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
                            bool needs_confirm);
 void ethereum_signing_abort(void);
@@ -41,12 +43,22 @@ void ethereum_signing_txack(EthereumTxAck* tx);
 void format_ethereum_address(const uint8_t* to, char* destination_str,
                              uint32_t destination_str_len);
 bool ethereum_isStandardERC20Transfer(const EthereumSignTx* msg);
+bool ethereum_confirmUnlimitedApproval(uint32_t cid,
+                                       const uint8_t* spender_address,
+                                       const uint8_t* token_address);
 bool ethereum_chainIdIsValid(const EthereumSignTx* msg);
+bool ethereum_valueIsZero(const EthereumSignTx* msg);
+bool ethereumFormatTransferAmount(const EthereumSignTx* msg, char* buf,
+                                  int buflen)
+    __attribute__((warn_unused_result));
+bool ethereum_streamed_eip712_enabled(void);
 
 /// \pre requires that `ethereum_isStandardERC20Transfer(msg)`
 /// \returns true iff successful
 bool ethereum_getStandardERC20Recipient(const EthereumSignTx* msg,
                                         char* address, size_t len);
+bool ethereumFormatUnknownTokenReview(const EthereumSignTx* msg, char* buf,
+                                      size_t buflen);
 
 /// \pre requires that `ethereum_isStandardERC20Transfer(msg)`
 /// \returns true iff successful
@@ -66,12 +78,6 @@ int ethereum_message_verify(const EthereumVerifyMessage* msg);
 
 bool ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
                           uint32_t cid, char* buf, int buflen)
-    __attribute__((warn_unused_result));
-
-/// Format the amount shown by OutputAddressType_TRANSFER from the same
-/// chain_id and payload that ethereum_signing_init() will sign.
-bool ethereumFormatTransferAmount(const EthereumSignTx* msg, char* buf,
-                                  int buflen)
     __attribute__((warn_unused_result));
 
 void bn_from_bytes(const uint8_t* value, size_t value_len, bignum256* val);

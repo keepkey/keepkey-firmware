@@ -25,11 +25,13 @@ if(NOT ${KK_BITCOIN_ONLY})
   list(APPEND sources
       binance.c
       eip712.c
+      eip712_stream.c
       eos.c
       eos-contracts/eosio.system.c
       eos-contracts/eosio.token.c
       ethereum.c
       ethereum_contracts.c
+      erc7730_format.c
       ethereum_contracts/makerdao.c
       ethereum_contracts/saproxy.c
       ethereum_contracts/zxappliquid.c
@@ -38,6 +40,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       ethereum_contracts/zxtransERC20.c
       ethereum_contracts/zxswap.c
       ethereum_tokens.c
+      signed_metadata.c
       mayachain.c
       nano.c
       osmosis.c

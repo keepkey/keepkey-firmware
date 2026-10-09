@@ -152,7 +152,7 @@ _STACK10_EVM = [
         "test_transfer_account_keeps_raw_review_and_recipient_binding",
         "test_transfer_account_padded_zero_keeps_contract_review",
         "test_transfer_account_rejects_noncanonical_total_length",
-        "test_unlimited_approval_and_disabled_advanced_mode_still_refuse",
+        "test_unlimited_approval_warns_and_raw_signing_requires_advanced_mode",
     )]
 
 _STACK12_HIVE = [
@@ -400,7 +400,7 @@ def firmware_version_tuple():
     return tuple(int(value) for value in match.groups())
 
 
-# Every Features.Capability the stack can report (device-protocol), as the
+# Every Features.Capability the firmware can report (device-protocol), as the
 # names capability-gated python-keepkey tests skip with.
 KNOWN_CAPABILITIES = frozenset((
     "eip712-chunked-values", "entropy-audit-budget", "erc20-unlimited-approve-review",
@@ -449,7 +449,7 @@ RELEASE_CAPABILITIES = {
             "session-trust-lifetime",
         )),
         "full": frozenset((
-            "entropy-audit-budget", "prompt-workflow-unwind",
+            "eip712-chunked-values", "entropy-audit-budget", "prompt-workflow-unwind",
             "protected-ping-presence", "safe-reset-ceremony",
             "session-trust-lifetime", "legacy-evm-router-signing",
             "thor-deposit-review", "evm-max-amount-review",

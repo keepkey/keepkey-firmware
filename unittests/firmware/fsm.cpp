@@ -16,6 +16,8 @@ extern "C" {
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
+#include "keepkey/firmware/ethereum_contracts/thortx.h"
+#include "keepkey/firmware/eip712_stream.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
@@ -55,6 +57,9 @@ bool kkconfirm_preload(int nYes, int nNo);
 bool kkconfirm_preload_no_sentinel(int nYes, int nNo);
 int kkconfirm_drain(void);
 bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload, uint8_t len);
+void kkconfirm_capture_start(void);
+std::vector<std::string> kkconfirm_capture_finish(void);
+std::vector<std::string> kkconfirm_captured_titles(void);
 bool kkconfirm_openDebugPeer(void);
 bool kkconfirm_readDebugFrame(uint8_t frame[64]);
 extern "C" void keepkey_user_activity(void);  // lib/firmware/home_sm.c
@@ -1639,6 +1644,147 @@ TEST_F(AutoLockProgress, EthereumChunksRenewButFeaturePollingDoesNot) {
   EXPECT_EQ(SCREENSAVER, home_get_state());
 }
 
+TEST_F(AutoLockProgress, TypedDataProgressDefersButPollingEventuallyLocks) {
+  signing_abort();
+  ScopedFlash flash;
+  storage_setMnemonic("all all all all all all all all all all all all");
+  ASSERT_TRUE(storage_isInitialized());
+  EthereumSignTypedData start{};
+  std::strcpy(start.primary_type, "Mail");
+  receiveMessage(MessageType_MessageType_EthereumSignTypedData,
+                 EthereumSignTypedData_fields, &start);
+  ASSERT_EQ(eip712_stream_waiting(), EIP712_WANT_STRUCT);
+  storage_setAutoLockDelayMs(STORAGE_MIN_SCREENSAVER_TIMEOUT);
+  EthereumTypedDataStructAck empty{};
+  for (int i = 0; i < 2; i++) {
+    increment_idle_time(STORAGE_MIN_SCREENSAVER_TIMEOUT - 1);
+    receiveMessage(MessageType_MessageType_EthereumTypedDataStructAck,
+                   EthereumTypedDataStructAck_fields, &empty);
+    toggle_screensaver();
+    ASSERT_EQ(eip712_stream_waiting(), EIP712_WANT_STRUCT);
+  }
+  GetFeatures poll{};
+  for (int i = 0; i < 4; i++) {
+    increment_idle_time(STORAGE_MIN_SCREENSAVER_TIMEOUT / 4);
+    receiveMessage(MessageType_MessageType_GetFeatures, GetFeatures_fields,
+                   &poll);
+    toggle_screensaver();
+  }
+  EXPECT_EQ(home_get_state(), SCREENSAVER);
+  EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
+  EXPECT_FALSE(keepkey_before_message_dispatch(
+      MessageType_MessageType_EthereumTypedDataStructAck));
+}
+
+TEST(Fsm, TypedDataContinuationAndSessionBoundariesAreExplicit) {
+  kk_test_board_init();
+  fsm_init();
+  keepkey_user_activity();  // a fresh deadline; dispatch checks it
+  for (auto boundary :
+       {MessageType_MessageType_Initialize, MessageType_MessageType_Cancel,
+        MessageType_MessageType_ClearSession,
+        MessageType_MessageType_EthereumGetAddress}) {
+    EthereumSignTypedData start{};
+    std::strcpy(start.primary_type, "Mail");
+    ASSERT_TRUE(eip712_stream_begin(&start, false));
+    EXPECT_TRUE(keepkey_before_message_dispatch(
+        MessageType_MessageType_EthereumTypedDataStructAck));
+    EXPECT_TRUE(keepkey_before_message_dispatch(boundary));
+    EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
+  }
+}
+
+// Both loads clear the metadata binding, so a waiting typed-data stream must
+// refuse them before their handlers run, exactly as an EVM tx signer does.
+TEST(Fsm, TypedDataStreamRefusesMetadataAndSignerLoads) {
+  kk_test_board_init();
+  fsm_init();
+  for (auto load : {MessageType_MessageType_EthereumTxMetadata,
+                    MessageType_MessageType_LoadClearsignSigner}) {
+    EthereumSignTypedData start{};
+    std::strcpy(start.primary_type, "Mail");
+    ASSERT_TRUE(eip712_stream_begin(&start, false));
+    ASSERT_EQ(eip712_stream_waiting(), EIP712_WANT_STRUCT);
+    fsm_test_clearLastFailure();
+    EXPECT_FALSE(keepkey_before_message_dispatch(load));
+    EXPECT_EQ(FailureType_Failure_UnexpectedMessage,
+              fsm_test_lastFailureCode());
+    eip712_stream_abort();
+  }
+}
+
+// The final screen names the action being authorised. A primary type longer
+// than a row (Hyperliquid's are up to 40 characters) is paged, never cut.
+TEST(Fsm, TypedDataFinalScreenShowsTheWholePrimaryType) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  loadAllWallet();
+  const char* primary = "HyperliquidTransaction:ApproveBuilderFee";
+  EthereumTypedDataStructAck domain{};
+  EthereumTypedDataStructAck message{};
+  message.members_count = 1;
+  std::strcpy(message.members[0].name, "nonce");
+  message.members[0].type.data_type =
+      EthereumTypedDataStructAck_EthereumDataType_UINT;
+  message.members[0].type.has_size = true;
+  message.members[0].type.size = 8;
+  ASSERT_TRUE(kkconfirm_preload(10, 0));
+  kkconfirm_capture_start();
+  EthereumSignTypedData start{};
+  std::strcpy(start.primary_type, primary);
+  receiveMessage(MessageType_MessageType_EthereumSignTypedData,
+                 EthereumSignTypedData_fields, &start);
+  for (int step = 0; step < 20 && eip712_stream_waiting() != EIP712_IDLE;
+       step++) {
+    if (eip712_stream_waiting() == EIP712_WANT_STRUCT) {
+      const bool is_domain =
+          std::strcmp(eip712_stream_next()->struct_name, "EIP712Domain") == 0;
+      receiveMessage(MessageType_MessageType_EthereumTypedDataStructAck,
+                     EthereumTypedDataStructAck_fields,
+                     is_domain ? &domain : &message);
+    } else {
+      EthereumTypedDataValueAck value{};
+      value.value.size = 8;
+      value.value.bytes[7] = 1;
+      receiveMessage(MessageType_MessageType_EthereumTypedDataValueAck,
+                     EthereumTypedDataValueAck_fields, &value);
+    }
+  }
+  const std::vector<std::string> bodies = kkconfirm_capture_finish();
+  const std::vector<std::string> titles = kkconfirm_captured_titles();
+  kkconfirm_drain();
+  ASSERT_GE(bodies.size(), 2u);
+  // The leaf, then the final screen's pages; pages are verbatim slices.
+  std::string final_screen;
+  for (size_t i = 1; i < bodies.size(); i++) {
+    EXPECT_EQ(0u, titles[i].rfind("Sign Typed Data", 0)) << titles[i];
+    final_screen += bodies[i];
+  }
+  EXPECT_NE(std::string::npos,
+            final_screen.find(std::string("Sign ") + primary + "\nfrom 0x"))
+      << final_screen;
+}
+
+// Ping between typed-data acks must not draw home over a live stream.
+TEST(Fsm, PingKeepsAWaitingTypedDataStreamOnScreen) {
+  kk_test_board_init();
+  fsm_init();
+  keepkey_user_activity();  // a fresh deadline; dispatch checks it
+  EthereumSignTypedData start{};
+  std::strcpy(start.primary_type, "Mail");
+  ASSERT_TRUE(eip712_stream_begin(&start, false));
+  leave_home();
+  ASSERT_EQ(AWAY_FROM_HOME, home_get_state());
+  Ping ping = {};
+  ASSERT_TRUE(keepkey_before_message_dispatch(MessageType_MessageType_Ping));
+  fsm_msgPing(&ping);
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+  EXPECT_EQ(eip712_stream_waiting(), EIP712_WANT_STRUCT);
+  eip712_stream_abort();
+  layoutHomeForced();
+}
+
 TEST_F(AutoLockProgress, EosDataProgressRenewsButEmptyChunksDoNot) {
   signing_abort();
   storage_reset();
@@ -2126,6 +2272,266 @@ TEST(Fsm, StaleEthereumAckCannotReplaceARecoveryCeremony) {
 
   setup_abort();
   layoutHomeForced();
+}
+
+// Pre-0.8 Solidity masks an address argument's high bytes, so a dirty spender
+// word still grants the allowance. It must not slip past the approval policy
+// into generic signing.
+TEST(Fsm, DirtySpenderWordCannotBypassApprovalPolicy) {
+  kk_test_board_init();
+  fsm_init();
+  for (bool unlimited : {true, false}) {
+    fsm_test_clearLastFailure();
+    kkconfirm_drain();
+    ASSERT_TRUE(kkconfirm_preload(0, 1));
+
+    EthereumSignTx msg = {};
+    msg.has_chain_id = true;
+    msg.chain_id = 1;
+    msg.has_gas_price = msg.has_gas_limit = true;
+    msg.gas_price.size = msg.gas_limit.size = 1;
+    msg.gas_price.bytes[0] = msg.gas_limit.bytes[0] = 1;
+    msg.has_to = true;
+    msg.to.size = 20;
+    msg.to.bytes[0] = 1;
+    msg.has_data_length = msg.has_data_initial_chunk = true;
+    msg.data_length = msg.data_initial_chunk.size = 68;
+    memcpy(msg.data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4);
+    msg.data_initial_chunk.bytes[4] = 0x01;  // dirty high byte
+    memset(msg.data_initial_chunk.bytes + 16, 0x22, 20);
+    memset(msg.data_initial_chunk.bytes + 36, unlimited ? 0xff : 0x00, 32);
+    msg.data_initial_chunk.bytes[67] = 1;
+
+    HDNode node = {};
+    const uint8_t seed[32] = {1};
+    ASSERT_TRUE(hdnode_from_seed(seed, sizeof(seed), "secp256k1", &node));
+    ethereum_signing_init(&msg, &node, false);
+
+    EXPECT_FALSE(ethereum_signing_isInProgress());
+    EXPECT_EQ(FailureType_Failure_SyntaxError, fsm_test_lastFailureCode());
+    EXPECT_EQ(2, kkconfirm_drain()) << "a screen ran before the refusal";
+  }
+}
+
+namespace {
+
+const uint8_t kUsdc[20] = {0xa0, 0xb8, 0x69, 0x91, 0xc6, 0x21, 0x8b,
+                           0x36, 0xc1, 0xd1, 0x9d, 0x4a, 0x2e, 0x9e,
+                           0xb0, 0xce, 0x36, 0x06, 0xeb, 0x48};
+// The spender is 0x2222...2222; checksummed, as the warning shows it.
+const char kSpender[] = "0x2222222222222222222222222222222222222222";
+
+EthereumSignTx usdcApproval(uint8_t amount_byte) {
+  EthereumSignTx msg = {};
+  msg.has_chain_id = true;
+  msg.chain_id = 1;
+  msg.has_gas_price = msg.has_gas_limit = true;
+  msg.gas_price.size = msg.gas_limit.size = 1;
+  msg.gas_price.bytes[0] = msg.gas_limit.bytes[0] = 1;
+  msg.has_to = true;
+  msg.to.size = 20;
+  memcpy(msg.to.bytes, kUsdc, 20);
+  msg.has_data_length = msg.has_data_initial_chunk = true;
+  msg.data_length = msg.data_initial_chunk.size = 68;
+  memcpy(msg.data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4);
+  memset(msg.data_initial_chunk.bytes + 16, 0x22, 20);
+  memset(msg.data_initial_chunk.bytes + 36, amount_byte, 32);
+  return msg;
+}
+
+struct Shown {
+  std::vector<std::string> titles, bodies;
+};
+
+// Runs signing with `yes` accepted screens, then rejects the next.
+Shown signApproval(EthereumSignTx* msg, int yes) {
+  kk_test_board_init();
+  fsm_init();
+  fsm_test_clearLastFailure();
+  kkconfirm_drain();
+  EXPECT_TRUE(kkconfirm_preload(yes, 1));
+  HDNode node = {};
+  const uint8_t seed[32] = {1};
+  EXPECT_TRUE(hdnode_from_seed(seed, sizeof(seed), "secp256k1", &node));
+  kkconfirm_capture_start();
+  ethereum_signing_init(msg, &node, true);
+  Shown shown;
+  shown.bodies = kkconfirm_capture_finish();
+  shown.titles = kkconfirm_captured_titles();
+  kkconfirm_drain();
+  return shown;
+}
+
+}  // namespace
+
+// Owner decision 2026-10-07: an unlimited approve is signed, never refused,
+// after a warning that names the full spender and the token. The warning is
+// the first screen, and a non-canonical zero value does not change that.
+TEST(Fsm, UnlimitedApprovalSignsAfterTheWarning) {
+  EthereumSignTx msg = usdcApproval(0xff);
+  msg.has_value = true;
+  msg.value.size = 32;  // Non-canonical spelling of zero.
+  Shown shown = signApproval(&msg, 3);
+  EXPECT_EQ(0, static_cast<int>(fsm_test_lastFailureCode()))
+      << fsm_test_lastFailureMessage();
+  EXPECT_FALSE(ethereum_signing_isInProgress());
+  ASSERT_EQ(3u, shown.titles.size()) << ::testing::PrintToString(shown.titles);
+  EXPECT_EQ("UNLIMITED approval", shown.titles[0]);
+  EXPECT_EQ(std::string("Allow ") + kSpender + " to spend ALL your USDC",
+            shown.bodies[0]);
+  EXPECT_EQ("Approve", shown.titles[1]);
+  EXPECT_EQ(std::string("Unlock full USDC balance for withdrawal by ") +
+                kSpender + "?",
+            shown.bodies[1]);
+  EXPECT_EQ("Transaction", shown.titles[2]);
+}
+
+TEST(Fsm, DecliningTheUnlimitedWarningSignsNothing) {
+  EthereumSignTx msg = usdcApproval(0xff);
+  Shown shown = signApproval(&msg, 0);
+  EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+  EXPECT_FALSE(ethereum_signing_isInProgress());
+  ASSERT_EQ(1u, shown.titles.size());
+  EXPECT_EQ("UNLIMITED approval", shown.titles[0]);
+}
+
+// Control: a finite approve has no warning and reads as before.
+TEST(Fsm, FiniteApprovalHasNoUnlimitedWarning) {
+  EthereumSignTx msg = usdcApproval(0x00);
+  msg.data_initial_chunk.bytes[67] = 1;
+  Shown shown = signApproval(&msg, 3);
+  EXPECT_EQ(0, static_cast<int>(fsm_test_lastFailureCode()))
+      << fsm_test_lastFailureMessage();
+  EXPECT_EQ(
+      (std::vector<std::string>{"Approve 1/2", "Approve 2/2", "Transaction"}),
+      shown.titles);
+  const std::string review = shown.bodies[0] + shown.bodies[1];
+  EXPECT_EQ(0u, review.find("Approve withdrawal of up to 0.000001 USDC by"))
+      << review;
+  EXPECT_NE(std::string::npos, review.find(kSpender)) << review;
+}
+
+// A THORChain deposit of an unlisted token shows the raw amount. The largest
+// one, 2^256 - 1 (78 digits), renders in full and the transaction signs.
+TEST(Fsm, ThorchainDepositOfAnUnknownTokenSignsTheLargestAmount) {
+  static const char kMemo[] = "=:ETH.ETH:0x41e5560054824ea6b0732e656e3ad64e20e94e45:0";
+  const size_t memo_len = sizeof(kMemo) - 1;
+  EthereumSignTx msg = {};
+  msg.has_chain_id = true;
+  msg.chain_id = 1;
+  msg.has_gas_price = msg.has_gas_limit = true;
+  msg.gas_price.size = msg.gas_limit.size = 1;
+  msg.gas_price.bytes[0] = msg.gas_limit.bytes[0] = 1;
+  msg.has_to = true;
+  msg.to.size = 20;
+  for (size_t i = 0; i < 20; i++) {
+    const char byte[3] = {THOR_ROUTER[2 * i], THOR_ROUTER[2 * i + 1], 0};
+    msg.to.bytes[i] = (uint8_t)strtoul(byte, nullptr, 16);
+  }
+  uint8_t* d = msg.data_initial_chunk.bytes;
+  memcpy(d, THOR_SELECTOR_DEPOSIT, 4);
+  memset(d + 4 + 12, 0x11, 20);       // vault
+  memset(d + 4 + 32 + 12, 0x42, 20);  // an unlisted token
+  memset(d + 4 + 2 * 32, 0xff, 32);   // amount 2^256 - 1
+  d[4 + 3 * 32 + 31] = 0x80;          // memo offset
+  d[4 + 4 * 32 + 31] = (uint8_t)memo_len;
+  memcpy(d + 4 + 5 * 32, kMemo, memo_len);
+  msg.has_data_length = msg.has_data_initial_chunk = true;
+  msg.data_length = msg.data_initial_chunk.size =
+      4 + 5 * 32 + ((memo_len + 31) / 32) * 32;
+  ASSERT_EQ(UnknownToken, tokenByChainAddress(1, d + 4 + 32 + 12));
+
+  Shown shown = signApproval(&msg, 20);
+  EXPECT_EQ(0, static_cast<int>(fsm_test_lastFailureCode()))
+      << fsm_test_lastFailureMessage();
+  EXPECT_FALSE(ethereum_signing_isInProgress());
+  ASSERT_FALSE(shown.titles.empty());
+  EXPECT_EQ("Transaction", shown.titles.back())
+      << ::testing::PrintToString(shown.titles);
+  std::string pages;  // A long body is paged; nothing is cut.
+  for (const std::string& page : shown.bodies) pages += page;
+  EXPECT_NE(std::string::npos,
+            pages.find("amount 115792089237316195423570985008687907853269984665"
+                       "640564039457584007913129639935 unformatted"))
+      << pages;
+}
+
+// An unknown token is named by its full contract address. The body is
+// longer than one page, so confirm() pages it; nothing is cut.
+TEST(Fsm, UnlimitedApprovalOfAnUnknownTokenNamesItsContract) {
+  EthereumSignTx msg = usdcApproval(0xff);
+  memset(msg.to.bytes, 0x33, 20);
+  Shown shown = signApproval(&msg, 6);
+  ASSERT_LE(3u, shown.titles.size()) << ::testing::PrintToString(shown.titles);
+  EXPECT_EQ("UNLIMITED approval 1/2", shown.titles[0]);
+  EXPECT_EQ("UNLIMITED approval 2/2", shown.titles[1]);
+  EXPECT_EQ(0u, shown.bodies[0].find(std::string("Allow ") + kSpender));
+  EXPECT_EQ(std::string("Allow ") + kSpender +
+                " to spend ALL your 0x3333333333333333333333333333333333333333",
+            shown.bodies[0] + shown.bodies[1]);
+  // The unknown-token review then shows UNLIMITED, not a 78-digit number.
+  std::string review;
+  for (size_t i = 2; i < shown.titles.size(); i++)
+    if (shown.titles[i].rfind("Approve", 0) == 0) review += shown.bodies[i];
+  EXPECT_NE(std::string::npos, review.find("withdraw up to UNLIMITED?"))
+      << review;
+}
+
+// Native value or trailing calldata make it no standard approve, but the
+// warning still comes first, before any generic or blind-signing screen.
+TEST(Fsm, NonStandardUnlimitedApprovalShowsTheWarningFirst) {
+  for (bool trailing : {false, true}) {
+    EthereumSignTx msg = usdcApproval(0xff);
+    if (trailing) {
+      msg.data_length = msg.data_initial_chunk.size = 69;
+    } else {
+      msg.has_value = true;
+      msg.value.size = 1;
+      msg.value.bytes[0] = 1;  // A payable token may accept value.
+    }
+    Shown shown = signApproval(&msg, 0);
+    EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+    ASSERT_EQ(1u, shown.titles.size()) << trailing;
+    EXPECT_EQ("UNLIMITED approval", shown.titles[0]) << trailing;
+  }
+}
+TEST(Fsm, SplitCalldataCannotBypassUnlimitedApprovalRefusal) {
+  for (size_t initial : {1u, 2u, 3u, 4u, 16u, 67u}) {
+    kk_test_board_init();
+    fsm_init();
+    fsm_test_clearLastFailure();
+    kkconfirm_drain();
+    ASSERT_TRUE(kkconfirm_preload(0, 1));
+
+    EthereumSignTx msg = {};
+    msg.has_chain_id = true;
+    msg.chain_id = 1;
+    msg.has_gas_price = msg.has_gas_limit = true;
+    msg.gas_price.size = msg.gas_limit.size = 1;
+    msg.gas_price.bytes[0] = msg.gas_limit.bytes[0] = 1;
+    msg.has_to = true;
+    msg.to.size = 20;
+    msg.to.bytes[0] = 1;
+    msg.has_value = true;
+    msg.value.size = 1;
+    msg.value.bytes[0] = 1;  // A payable token may accept value with approve.
+    msg.has_data_length = msg.has_data_initial_chunk = true;
+    msg.data_length = 68;
+    msg.data_initial_chunk.size = initial;
+    memcpy(msg.data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4);
+    memset(msg.data_initial_chunk.bytes + 36, 0xff, 32);
+
+    HDNode node = {};
+    const uint8_t seed[32] = {1};
+    ASSERT_TRUE(hdnode_from_seed(seed, sizeof(seed), "secp256k1", &node));
+    ethereum_signing_init(&msg, &node, false);
+
+    EXPECT_FALSE(ethereum_signing_isInProgress());
+    EXPECT_EQ(1u, msg.value.size);
+    EXPECT_EQ(FailureType_Failure_SyntaxError, fsm_test_lastFailureCode());
+    EXPECT_EQ(2, kkconfirm_drain())
+        << "a generic-signing confirmation ran before the global refusal";
+  }
 }
 #endif
 

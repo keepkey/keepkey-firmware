@@ -42,6 +42,19 @@ class GitleaksAllowlists(unittest.TestCase):
             ("outside.md", 1, "generic-api-key"),
         ])
 
+    def test_token_address_does_not_exempt_credentials(self):
+        credential = "synthetic_" + "39oG97AmQf6SvR8kT2uZhP0cE5jW4xBn"
+        address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        actual = self.scan({
+            "unittests/firmware/eip712_corpus.json": json.dumps(
+                {"token": address, "api_key": credential}, indent=2),
+            "outside.json": json.dumps({"token": address}, indent=2),
+        })
+        self.assertEqual(actual, [
+            ("outside.json", 2, "generic-api-key"),
+            ("unittests/firmware/eip712_corpus.json", 3, "generic-api-key"),
+        ])
+
 
 if __name__ == "__main__":
     unittest.main()

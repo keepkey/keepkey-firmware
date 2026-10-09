@@ -42,10 +42,8 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
   resp->has_supports_taproot = true;
   resp->supports_taproot = true;
 
-  /* Verifiable dice modes: the on-device consent screen, ResetDevice.dice_only
-     and the tagged MIXED derivation. Reported as a capability because older
-     firmware skips the unknown dice_only field and would derive a different
-     wallet without complaint; a host must fail closed on this bit. */
+  /* Verifiable dice modes. Old firmware silently skips dice_only, so a host
+     must fail closed on this bit. */
   resp->has_supports_dice_modes = true;
   resp->supports_dice_modes = true;
 
@@ -148,9 +146,16 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
       Features_Capability_CAPABILITY_PROMPT_WORKFLOW_UNWIND,
       Features_Capability_CAPABILITY_PROTECTED_PING_PRESENCE,
       Features_Capability_CAPABILITY_SAFE_RESET_CEREMONY,
+      Features_Capability_CAPABILITY_SESSION_TRUST_LIFETIME,
 #if !BITCOIN_ONLY
       Features_Capability_CAPABILITY_LEGACY_EVM_ROUTER_SIGNING,
       Features_Capability_CAPABILITY_THOR_DEPOSIT_REVIEW,
+      Features_Capability_CAPABILITY_EVM_MAX_AMOUNT_REVIEW,
+      Features_Capability_CAPABILITY_EVM_UNKNOWN_TOKEN_REVIEW,
+      Features_Capability_CAPABILITY_EVM_TX_METADATA,
+      Features_Capability_CAPABILITY_ERC20_UNLIMITED_APPROVE_REVIEW,
+      Features_Capability_CAPABILITY_ERC20_UNLIMITED_PERMIT_REVIEW,
+      Features_Capability_CAPABILITY_EIP712_CHUNKED_VALUES,
 #endif
   };
   _Static_assert(sizeof(capabilities) <= sizeof(resp->capabilities),
@@ -168,8 +173,7 @@ void fsm_msgGetCoinTable(GetCoinTable* msg) {
   _Static_assert(_Alignof(CoinTable) <= 8,
                  "CoinTable requires stronger scratch alignment");
 
-  /* The incoming GetCoinTable is held in decode_buffer. Copy its fields and
-   * validate them before reclaiming that storage for the large response. */
+  /* Copy and validate the request before reusing its buffer. */
   const bool has_start = msg->has_start;
   const bool has_end = msg->has_end;
   const uint32_t start = msg->start;
@@ -560,8 +564,7 @@ void fsm_msgChangeWipeCode(ChangeWipeCode* msg) {
 #endif
 }
 
-/* Budget returned bytes, not requests. A confirmed factory wipe starts a new
- * uninitialized audit; Initialize and session changes must not replenish it. */
+/* Byte budget; only a confirmed wipe replenishes it. */
 #define ENTROPY_AUDIT_BUDGET (64u * 1024u)
 static uint32_t entropy_audit_remaining = ENTROPY_AUDIT_BUDGET;
 
@@ -615,8 +618,7 @@ void fsm_msgFirmwareUpload(FirmwareUpload* msg) {
 
 // cppcheck-suppress constParameterPointer -- protobuf dispatcher ABI is mutable
 void fsm_msgGetEntropy(GetEntropy* msg) {
-  /* Uninitialized storage does not mean there is no secret: reset/recovery
-   * may already hold one in RAM. Preserve that ceremony and its screen. */
+  /* Reset/recovery may hold a secret in RAM: preserve that ceremony. */
   if (setup_isArmed()) {
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     "Entropy unavailable during setup");
@@ -665,6 +667,9 @@ void fsm_msgLoadDevice(LoadDevice* msg) {
   }
 
   storage_loadDevice(msg);
+#if !BITCOIN_ONLY
+  signed_metadata_clear_signers();
+#endif
 
   storage_commit();
 
@@ -678,6 +683,9 @@ void fsm_msgResetDevice(ResetDevice* msg) {
   CHECK_NOT_BTC_ONLY_LOCKED
   CHECK_NOT_INITIALIZED
   CHECK_NO_CEREMONY
+#if !BITCOIN_ONLY
+  signed_metadata_clear_signers();
+#endif
 
   // display_random remains in the wire schema for host compatibility, but is
   // intentionally ignored: internal entropy is seed pre-image material and
@@ -824,6 +832,11 @@ void fsm_msgRecoveryDevice(RecoveryDevice* msg) {
    * after both init-state checks have passed: a recovery that is about to be
    * rejected must not tear down work it never replaces. */
   fsm_abort_workflows();
+#if !BITCOIN_ONLY
+  if (!(msg->has_dry_run && msg->dry_run)) {
+    signed_metadata_clear_signers();
+  }
+#endif
 
   recovery_cipher_init(
       msg->has_word_count ? msg->word_count : 0,

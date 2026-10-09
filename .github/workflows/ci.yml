@@ -1232,10 +1232,10 @@ jobs:
           FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
           echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Init python-keepkey submodule
+      - name: Init report and protocol submodules
         id: python
         run: |
-          git submodule update --init deps/python-keepkey
+          git submodule update --init deps/device-protocol deps/python-keepkey
           echo "sha=$(git rev-parse HEAD:deps/python-keepkey)" >> "$GITHUB_OUTPUT"
 
       - name: Check report gate regressions

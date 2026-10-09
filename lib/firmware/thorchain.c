@@ -21,6 +21,7 @@
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tendermint.h"
 #include "trezor/crypto/secp256k1.h"
@@ -29,8 +30,14 @@
 #include "trezor/crypto/segwit_addr.h"
 
 #include <stdbool.h>
+#include <string.h>
 #include <time.h>
 
+bool thorchain_confirm_full_memo(const char* title, const char* memo,
+                                 size_t len) {
+  return confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput, title,
+                       (const uint8_t*)memo, len);
+}
 static CONFIDENTIAL HDNode node;
 static SHA256_CTX ctx;
 static bool initialized;
