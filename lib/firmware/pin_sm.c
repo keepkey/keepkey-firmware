@@ -27,6 +27,7 @@
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
+#include "keepkey/rand/rng_health.h"
 #include "trezor/crypto/memzero.h"
 
 #include <stdbool.h>
@@ -165,7 +166,12 @@ static bool pin_request(const char* prompt, PINInfo* pin_info) {
 
   /* Init and randomize pin matrix */
   strlcpy(pin_matrix, "123456789", PIN_BUF);
-  random_permute_char(pin_matrix, 9);
+  if (!random_permute_char_checked(pin_matrix, 9)) {
+    /* Halt like every failed secret draw; false would yield two Failures.
+     * The verdict is latched anyway. */
+    layout_warning_static("RNG self-test failed. Reboot device!");
+    shutdown();
+  }
 
   /* Show layout */
   layout_pin(prompt, pin_matrix);

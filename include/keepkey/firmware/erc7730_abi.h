@@ -11,7 +11,7 @@
 #define ERC7730_ABI_MAX_DEPTH 8
 #define ERC7730_ABI_MAX_ARRAY_ELEMENTS 64
 #define ERC7730_ABI_MAX_PATH 16
-/* Pending dynamic offsets the streaming decoder may hold at once. */
+/* Pending dynamic offsets the stream decoder may hold. */
 #define ERC7730_ABI_MAX_PENDING 64
 
 #define ERC7730_ABI_DYNAMIC_ARRAY UINT16_MAX

@@ -1,10 +1,26 @@
 /* Compile the real implementation into firmware-unit to inspect live scratch;
  * production has neither a secret getter nor test mutation hooks. */
+#include "keepkey/board/layout.h"
+#include "keepkey/firmware/app_layout.h"
+
+static unsigned cipher_draws;
+static void observed_layout_cipher(const char* current_word, const char* cipher,
+                                   const char* previous, bool animate) {
+  ++cipher_draws;
+  layout_cipher(current_word, cipher, previous, animate);
+}
+
+#define layout_cipher observed_layout_cipher
 #include "../../lib/firmware/recovery_cipher.c"
+#undef layout_cipher
+
+void recovery_review_reset_cipher_draws(void) { cipher_draws = 0; }
+unsigned recovery_review_cipher_draws(void) { return cipher_draws; }
 
 bool recovery_review_scratch_empty(void) {
   /* prev_info is function-local in render_current_cipher() and wiped before it
-   * returns, so last_completed_word is the only file-scope previous-word copy. */
+   * returns, so last_completed_word is the only file-scope previous-word copy.
+   */
   for (size_t i = 0; i < sizeof(last_completed_word); ++i)
     if (last_completed_word[i]) return false;
   return true;

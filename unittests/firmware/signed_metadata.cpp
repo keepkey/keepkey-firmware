@@ -49,6 +49,8 @@ void setup(void);
 void kkconfirm_capture_start(void);
 std::vector<std::string> kkconfirm_capture_finish(void);
 std::vector<std::string> kkconfirm_captured_titles(void);
+bool kkconfirm_readResponse(uint16_t expected, const pb_field_t* fields,
+                            void* response);
 
 namespace {
 
@@ -1913,7 +1915,8 @@ TEST_F(SolanaSchemaSignTest, MemoCompanionIsShown) {
 
   uint8_t program[32];
   memset(program, 0x42, sizeof(program));
-  const std::string memo = "=:ETH.ETH:0x4E9B2CA2A1Bb8e5c1C5A0bdf0fA7F5F3dDeadBeE";
+  const std::string memo =
+      "=:ETH.ETH:0x4E9B2CA2A1Bb8e5c1C5A0bdf0fA7F5F3dDeadBeE";
 
   /* Legacy message: [payer, program, memo program]; ix0 = schema match
    * (one-byte discriminator, no args), ix1 = Memo. */
@@ -1964,6 +1967,119 @@ TEST_F(SolanaSchemaSignTest, MemoCompanionIsShown) {
   std::string shown;
   for (const std::string& b : bodies) shown += b;
   EXPECT_NE(std::string::npos, shown.find(memo)) << shown;
+}
+
+TEST_F(SolanaSchemaSignTest, FeaturesReportLutAttestation) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  ASSERT_EQ(0, kkconfirm_drain());
+  GetFeatures request = {};
+  fsm_msgGetFeatures(&request);
+  static Features features;
+  features = Features{};
+  ASSERT_TRUE(kkconfirm_readResponse(MessageType_MessageType_Features,
+                                     Features_fields, &features));
+  EXPECT_TRUE(features.has_supports_solana_lut_attestation);
+  EXPECT_TRUE(features.supports_solana_lut_attestation);
+  bool reported = false;
+  for (pb_size_t i = 0; i < features.capabilities_count; ++i)
+    reported |= features.capabilities[i] ==
+                Features_Capability_CAPABILITY_SOLANA_LUT_ATTESTATION;
+  EXPECT_TRUE(reported);
+}
+
+TEST_F(SolanaSchemaSignTest,
+       LutAttestationBindsAccountsToTransactionAndSigner) {
+  const uint32_t path[4] = {0x80000000u | 44, 0x80000000u | 501, 0x80000000u,
+                            0x80000000u};
+  uint8_t seed[64];
+  mnemonic_to_seed("all all all all all all all all all all all all", "", seed,
+                   NULL);
+  HDNode node;
+  ASSERT_EQ(1, hdnode_from_seed(seed, sizeof(seed), ED25519_NAME, &node));
+  for (uint32_t i : path) ASSERT_EQ(1, hdnode_private_ckd(&node, i));
+  hdnode_fill_public_key(&node);
+
+  /* v0 message with two static keys and one writable lookup-table account.
+   * The loaded account is absent from the signed transaction bytes. */
+  std::vector<uint8_t> raw = {0x80, 1, 0, 1, 2};
+  raw.insert(raw.end(), node.public_key + 1, node.public_key + 33);
+  raw.insert(raw.end(), 32, 0);    /* system program */
+  raw.insert(raw.end(), 32, 0xBB); /* blockhash at offset 69 */
+  raw.insert(raw.end(), {1, 1, 1, 2, 4, 2, 0, 0, 0, 1});
+  raw.insert(raw.end(), 32, 0x77);  /* lookup table address */
+  raw.insert(raw.end(), {1, 3, 0}); /* writable index 3, no readonly keys */
+
+  SolanaSignTx original = {};
+  original.address_n_count = 4;
+  memcpy(original.address_n, path, sizeof(path));
+  original.has_raw_tx = true;
+  original.raw_tx.size = raw.size();
+  memcpy(original.raw_tx.bytes, raw.data(), raw.size());
+  original.lut_account_count = 1;
+  original.lut_account[0].size = 32;
+  memset(original.lut_account[0].bytes, 0x51, 32);
+  original.has_lut_signer_key_id = true;
+  original.lut_signer_key_id = TEST_KEY_ID;
+
+  /* Independent issuer construction, not the firmware's trust helper. */
+  const char tag[] = "KeepKeySolanaTxAccounts/1";
+  std::vector<uint8_t> preimage(tag, tag + sizeof(tag) - 1);
+  uint8_t digest[32];
+  sha256_Raw(raw.data(), raw.size(), digest);
+  preimage.insert(preimage.end(), digest, digest + sizeof(digest));
+  preimage.insert(preimage.end(), {1, 0, 0, 0}); /* le32 account count */
+  preimage.insert(preimage.end(), 32, 0x51);
+  sha256_Raw(preimage.data(), preimage.size(), digest);
+  original.has_lut_signature = true;
+  original.lut_signature.size = 64;
+  ASSERT_EQ(0, ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest,
+                                 original.lut_signature.bytes, NULL, NULL));
+
+  /* Independently encoded base58 of 32 bytes of 0x51. */
+  const char account[] = "6URwbPipuA4MJLG7LCRRZuWnms3JZ9cRG3z9indXWz8G";
+  const std::vector<std::string> blind_titles = {"Blind Sign", "Solana"};
+  const std::vector<std::string> blind_bodies = {
+      "Sign unverified Solana transaction? "
+      "The device cannot fully verify the contents.",
+      "Sign this Solana transaction?"};
+  for (int mutation = 0; mutation < 6; ++mutation) {
+    SCOPED_TRACE(mutation);
+    ASSERT_TRUE(kkconfirm_preload(mutation == 0 ? 4 : 2, 0));
+    signed_metadata_clear_signers();
+    if (mutation != 5)
+      ASSERT_TRUE(signed_metadata_store_signer(
+          TEST_KEY_ID, EXPECTED_SLOT3_PUB, TEST_ALIAS, NULL, 0, 0, 0, false));
+    SolanaSignTx msg = original;
+    if (mutation == 1) msg.raw_tx.bytes[69] ^= 1;
+    if (mutation == 2) msg.lut_account[0].bytes[0] ^= 1;
+    if (mutation == 3) msg.lut_signature.bytes[0] ^= 1;
+    if (mutation == 4) msg.lut_signer_key_id = 256; /* must not narrow */
+    kkconfirm_capture_start();
+    fsm_test_clearLastFailure();
+    fsm_msgSolanaSignTx(&msg);
+    const auto bodies = kkconfirm_capture_finish();
+    const auto titles = kkconfirm_captured_titles();
+    EXPECT_EQ(0, fsm_test_lastFailureCode()) << fsm_test_lastFailureMessage();
+    SolanaSignedTx response = {};
+    ASSERT_TRUE(kkconfirm_readResponse(MessageType_MessageType_SolanaSignedTx,
+                                       SolanaSignedTx_fields, &response));
+    EXPECT_EQ(64u, response.signature.size);
+    EXPECT_EQ(0, kkconfirm_drain());
+    if (mutation == 0) {
+      ASSERT_EQ(4u, bodies.size());
+      EXPECT_EQ((std::vector<std::string>{"Lookup Accounts", "Lookup Account",
+                                          "Blind Sign", "Solana"}),
+                titles);
+      EXPECT_NE(std::string::npos, bodies[0].find(TEST_ALIAS));
+      EXPECT_NE(std::string::npos, bodies[0].find("NOT verified by KeepKey."));
+      EXPECT_EQ(std::string("1/1\n") + account, bodies[1]);
+      EXPECT_EQ(blind_bodies[0], bodies[2]);
+      EXPECT_EQ(blind_bodies[1], bodies[3]);
+    } else {
+      EXPECT_EQ(blind_titles, titles);
+      EXPECT_EQ(blind_bodies, bodies);
+    }
+  }
 }
 
 }  // namespace

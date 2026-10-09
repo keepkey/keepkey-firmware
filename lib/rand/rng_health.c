@@ -341,6 +341,38 @@ bool random_buffer_checked(uint8_t* buf, size_t len) {
   return true;
 }
 
+static bool random_uniform_checked(uint32_t n, uint32_t* out) {
+  if (n == 0 || out == NULL) return false;
+
+  const uint32_t max = UINT32_MAX - (UINT32_MAX % n);
+  uint32_t value;
+  do {
+    if (!random_buffer_checked((uint8_t*)&value, sizeof(value))) return false;
+  } while (value >= max);
+
+  *out = value / (max / n);
+  return true;
+}
+
+bool random_permute_char_checked(char* str, size_t len) {
+  if (str == NULL && len != 0) return false;
+  if (len < 2) return true;
+
+  for (size_t i = len - 1; i >= 1; i--) {
+    uint32_t j;
+    if (!random_uniform_checked((uint32_t)(i + 1), &j)) {
+      /* Do not leave a partially shuffled secret mapping available to a
+       * caller that accidentally ignores the result. */
+      memzero(str, len);
+      return false;
+    }
+    const char tmp = str[j];
+    str[j] = str[i];
+    str[i] = tmp;
+  }
+  return true;
+}
+
 bool rng_health_observe(const uint8_t* buf, size_t len) {
   if (rng_verdict != RNG_PASSED) return false;
   rng_health_update(&rng_continuous, buf, len);

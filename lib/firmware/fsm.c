@@ -747,9 +747,11 @@ static void abort_signing_engines(void) {
   drop_workflow_progress_if_idle();
 }
 
-/* A preloaded ERC-7730 definition is consumed only by the signing request that
- * follows it. Every other abort -- Initialize, Cancel, ClearSession, autolock,
- * a rejected frame or any unrelated request -- discards it too. */
+/* A preloaded ERC-7730 definition is for the next signing request only, and
+ * any message that reaches this abort discards it. Messages that return
+ * earlier in keepkey_before_message_dispatch() keep it: the status requests
+ * answered there (GetFeatures, GetCoinTable, unprotected Ping), an active
+ * workflow's own acks, and the preload's own chunks and consumers. */
 void fsm_abort_signing_workflows(void) {
   abort_signing_engines();
 #if !BITCOIN_ONLY
