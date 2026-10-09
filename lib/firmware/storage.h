@@ -32,6 +32,9 @@
 #define V16_ENCSEC_SIZE 512  // for reading old encrypted sec size
 #define V17_ENCSEC_SIZE 1024
 
+/* Persisted clear-sign identities are deliberately absent. Runtime signers
+ * are session-only, AdvancedMode-only, and never become flash trust anchors. */
+
 typedef struct _authBlockType {
   authType authData[AUTHDATA_SIZE];                          // 450
   uint8_t reserved[512 - sizeof(authType) * AUTHDATA_SIZE];  // 62
@@ -185,6 +188,13 @@ typedef enum {
   SUS_Invalid,
   SUS_Valid,
   SUS_Updated,
+  /// Storage was written by bitcoin-only firmware and this build must not load
+  /// it. The wallet stays INTACT in flash -- this is a refusal, never a wipe.
+  SUS_BitcoinOnlyLocked,
+  /// A Bitcoin-only wallet was written by a newer format than this firmware.
+  SUS_BitcoinOnlyTooNew,
+  /// Storage was written by newer firmware. Refuse it without touching flash.
+  SUS_TooNew,
 } StorageUpdateStatus;
 
 /// \brief Copy configuration from storage partition in flash memory to shadow

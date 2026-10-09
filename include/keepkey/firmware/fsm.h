@@ -23,6 +23,38 @@
 #include "keepkey/transport/interface.h"
 #include "keepkey/board/messages.h"
 
+/* Scrub the function-static HDNode used by synchronous FSM derivations. */
+void fsm_clearDerivedNode(void);
+#if DEBUG_LINK
+void fsm_test_seedDerivedNode(void);
+bool fsm_test_derivedNodeIsZero(void);
+void fsm_test_clearLastFailure(void);
+FailureType fsm_test_lastFailureCode(void);
+const char* fsm_test_lastFailureMessage(void);
+/* The shared response arena that RESP_INIT() hands to handlers. */
+uint8_t* fsm_test_responseArena(size_t* size);
+/* Wipes routed through FSM_SCRUB() since the last clear, by buffer size, so a
+ * test can tell that a function-local secret buffer was wiped. */
+void fsm_test_recordScrub(size_t size);
+void fsm_test_clearScrubs(void);
+size_t fsm_test_scrubCount(size_t size);
+/* memzero() of a whole array or object, observable by tests in DEBUG_LINK
+ * builds. FSM_SCRUB takes an array; FSM_SCRUB_OBJ takes any lvalue. */
+#define FSM_SCRUB(array)                 \
+  do {                                   \
+    memzero((array), sizeof(array));     \
+    fsm_test_recordScrub(sizeof(array)); \
+  } while (0)
+#define FSM_SCRUB_OBJ(obj)             \
+  do {                                 \
+    memzero(&(obj), sizeof(obj));      \
+    fsm_test_recordScrub(sizeof(obj)); \
+  } while (0)
+#else
+#define FSM_SCRUB(array) memzero((array), sizeof(array))
+#define FSM_SCRUB_OBJ(obj) memzero(&(obj), sizeof(obj))
+#endif
+
 #define RESP_INIT(TYPE)                                                    \
   TYPE* resp = (TYPE*)msg_resp;                                            \
   _Static_assert(sizeof(msg_resp) >= sizeof(TYPE), #TYPE " is too large"); \
@@ -41,6 +73,9 @@ void fsm_init(void);
 /* End every in-flight workflow and scrub its volatile authorization/key
  * state. Call before any operation that clears or revokes a session. */
 void fsm_abort_workflows(void);
+void fsm_abort_signing_workflows(void);
+/* True while a setup ceremony is armed or any signer waits for the host. */
+bool fsm_workflowInProgress(void);
 
 void fsm_sendSuccess(const char* text);
 
@@ -145,5 +180,7 @@ void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump* msg);
 void fsm_msgFlashWrite(FlashWrite* msg);
 void fsm_msgFlashHash(FlashHash* msg);
 void fsm_msgSoftReset(SoftReset* msg);
+
+void fsm_msgGetBip85Mnemonic(const GetBip85Mnemonic* msg);
 
 #endif

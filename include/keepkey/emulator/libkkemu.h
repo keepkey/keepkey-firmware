@@ -4,6 +4,8 @@
  * The host process provides a pre-allocated 1MB flash buffer.
  * All I/O goes through ring buffers (no UDP sockets).
  * Single-threaded: call kkemu_poll() from your event loop.
+ * Or kkemu_start() a dylib poll thread (needed when confirm_helper blocks);
+ * the host then uses only the rings and kkemu_lock() for flash reads.
  */
 #ifndef LIBKKEMU_H
 #define LIBKKEMU_H
@@ -79,18 +81,11 @@ int kkemu_poll(void);
 /**
  * Get the OLED framebuffer (256x64, 1-bit per pixel = 2048 bytes).
  *
- * This returns a pointer to internal scratch storage containing a snapshot
- * of the current display in packed SSD1306 page format.
+ * Unsynchronized: do NOT call once kkemu_start() runs; use kkemu_pop_frame().
+ * Valid until the next call; NULL if the emulator is not initialized.
  *
  * @param width   Receives 256.
  * @param height  Receives 64.
- * @return Pointer to framebuffer data. The pointer remains valid only until
- *         the next call to kkemu_get_display(), which overwrites the same
- *         scratch buffer. Calling kkemu_poll() may update the emulator's
- *         display state, but it does not refresh previously returned data
- *         in place; call kkemu_get_display() again after kkemu_poll() to
- *         obtain an updated framebuffer snapshot. Returns NULL if emulator
- *         is not initialized.
  */
 const uint8_t* kkemu_get_display(int* width, int* height);
 
@@ -98,14 +93,11 @@ const uint8_t* kkemu_get_display(int* width, int* height);
  * Pop the next captured framebuffer from the display capture ring.
  *
  * Every display_refresh() inside the firmware (including those that fire
- * inside confirm_helper's busy loop within a single kkemu_poll() call)
- * snapshots the canvas into a ring buffer. Adjacent identical frames
- * are deduplicated. This lets the host see intermediate screen states
- * (confirm dialogs, cipher prompts, recovery screens) that would
- * otherwise be invisible — they exist only inside synchronous C calls.
+ * inside confirm_helper's busy loop) snapshots the canvas into a lock-free
+ * SPSC ring, deduplicating adjacent frames. Safe while the poll thread runs.
  *
  * @param out_packed  Buffer of at least 2048 bytes (256x64, 1-bit packed
- *                    SSD1306 page format — same as kkemu_get_display).
+ *                    SSD1306 page format: byte x + (y/8)*256, bit y%8).
  * @return 1 if a frame was popped, 0 if the ring is empty.
  */
 int kkemu_pop_frame(uint8_t* out_packed);
@@ -114,6 +106,22 @@ int kkemu_pop_frame(uint8_t* out_packed);
  * Check if the emulator has been initialized.
  */
 int kkemu_is_running(void);
+
+/* Start the poll thread; after 0 the host MUST NOT call kkemu_poll().
+ * Idempotent; requires kkemu_init(). Returns -1 on error. */
+int kkemu_start(void);
+
+/* Stop + join the poll thread, injecting a Cancel to unblock a pending
+ * confirm. Idempotent; called by kkemu_shutdown(). */
+void kkemu_stop(void);
+
+/* Bracket host flash reads so they cannot tear a storage_commit(). Blocks:
+ * never call from a loop that must deliver a confirm; use kkemu_trylock(). */
+void kkemu_lock(void);
+void kkemu_unlock(void);
+
+/* 1 if acquired (or no poll thread), 0 if held: yield and retry. */
+int kkemu_trylock(void);
 
 #ifdef __cplusplus
 }

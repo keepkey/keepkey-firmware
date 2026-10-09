@@ -38,7 +38,8 @@
  0x0000 |  4 bytes    |  magic = 'stor'
  0x0004 |  12 bytes   |  uuid
  0x0010 |  25 bytes   |  uuid_str
- 0x0029 |  ?          |  Storage structure
+ 0x0029 |  3 bytes    |  alignment padding
+ 0x002c |  ?          |  Storage structure
  */
 
 #define STORAGE_SECTOR_LEN 0x00004000

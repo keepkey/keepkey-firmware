@@ -18,7 +18,7 @@ on:
         description: 'Docker Hub image to mirror (must match BASE_IMAGE in ci.yml)'
         required: true
         type: string
-        default: 'kktech/firmware:v15'
+        default: 'kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2'
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -46,20 +46,20 @@ jobs:
           # destination name is fixed rather than derived from the input.
           #
           # Both matter. ci.yml pulls BASE_IMAGE_MIRROR and builds firmware
-          # from it, so whatever lands at ghcr.io/<owner>/firmware:<tag> is
+          # from it, so whatever lands at ghcr.io/<owner>/firmware:<digest> is
           # trusted by every subsequent build. Deriving the destination from
           # the input -- as this previously did, via ${SOURCE##*/} -- meant a
-          # dispatch of `anyone/firmware:v15` would resolve to that same
+          # dispatch of an attacker-controlled image would resolve to that same
           # destination and overwrite the image CI trusts. Dispatch needs
           # write access, but "a writer can typo" and "a writer can silently
           # replace the firmware build base" are different blast radii.
-          if [[ ! "${SOURCE}" =~ ^kktech/firmware:[A-Za-z0-9._-]+$ ]]; then
-            echo "::error::refusing to mirror '${SOURCE}'. This workflow only mirrors kktech/firmware:<tag>, because ci.yml builds firmware from whatever it publishes."
+          if [[ ! "${SOURCE}" =~ ^kktech/firmware@sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::refusing to mirror '${SOURCE}'. This workflow only mirrors a digest-pinned kktech/firmware image."
             exit 1
           fi
 
-          TAG="${SOURCE##*:}"
-          DEST="ghcr.io/${{ github.repository_owner }}/firmware:${TAG}"
+          DIGEST="${SOURCE##*@sha256:}"
+          DEST="ghcr.io/${{ github.repository_owner }}/firmware:sha256-${DIGEST}"
           echo "mirroring ${SOURCE} -> ${DEST}"
           docker pull "${SOURCE}"
           docker tag  "${SOURCE}" "${DEST}"

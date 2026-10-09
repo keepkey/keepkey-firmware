@@ -66,6 +66,8 @@
 #define CIPHER_FOREGROUND 0X99
 #define CIPHER_START_X 76
 #define CIPHER_START_Y 3
+/* Ends left of the cipher grid, which starts at CIPHER_START_X - 4. */
+#define CIPHER_PREV_WORD_WIDTH 68
 #define CIPHER_MASK_COLOR 0x00
 #define CIPHER_FONT_COLOR 0x99
 #define CIPHER_MAP_FONT_COLOR 0xFF
@@ -108,6 +110,9 @@ void layout_notification_no_title_no_bold(const char* title, const char* body,
                                           NotificationType type);
 void layout_xpub_notification(const char* desc, const char* xpub,
                               NotificationType type);
+bool layout_address_fits_one_line(const char* address);
+void layout_qr_notification(const char* desc, const char* data,
+                            NotificationType type);
 void layout_address_notification(const char* desc, const char* address,
                                  NotificationType type);
 void layout_cosmos_address_notification(const char* desc, const char* address,
@@ -119,7 +124,8 @@ void layout_ethereum_address_notification(const char* desc, const char* address,
 void layout_nano_address_notification(const char* desc, const char* address,
                                       NotificationType type);
 void layout_pin(const char* str, char* pin);
-void layout_cipher(const char* current_word, const char* cipher);
+void layout_cipher(const char* current_word, const char* cipher,
+                   const char* prev_word_info, bool animate_cipher);
 void layout_address(const char* address, QRSize qr_size);
 void set_leaving_handler(leaving_handler_t leaving_func);
 

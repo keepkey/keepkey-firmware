@@ -666,15 +666,25 @@ TEST(Solana, PriorityFeeCalculationIsRoundedAndOverflowSafe) {
   EXPECT_TRUE(has_fee);
   EXPECT_EQ(fee, 70000000ULL);
 
+  /* Solana caps even an explicit request above 1.4M CU. The old screen
+   * multiplied the raw UINT32_MAX request by the price. */
+  tx.instructions[0].extra_value = UINT32_MAX;
+  tx.instructions[1].extra_value = 2000000;
+  ASSERT_TRUE(solana_calculatePriorityFee(&tx, &fee, &has_fee));
+  EXPECT_TRUE(has_fee);
+  EXPECT_EQ(fee, 2800000ULL);
+
   /* With no explicit limit, use the limit the RUNTIME will request: 200,000
-     compute units per non-ComputeBudget instruction, capped at 1,400,000.
+     compute units per non-ComputeBudget instruction plus 3,000 for each
+     ComputeBudget instruction, capped at 1,400,000.
 
      This replaces an earlier rule that assumed the 1,400,000 cap whenever
      SetComputeUnitLimit was absent. That could not understate the fee, but it
      overstated it badly -- a transfer alongside a unit-price instruction is
-     charged on 200,000 CUs and was shown as seven times that. Deriving the
-     limit still cannot understate what the runtime charges, because it is
-     exactly what the runtime charges. */
+     charged on a few thousand CUs and was shown as several hundred times that.
+     The derived limit must still be an UPPER bound on what the runtime
+     charges, which is why the ComputeBudget instructions are counted at the
+     builtin rate rather than at nothing. */
   memset(&tx, 0, sizeof(tx));
   tx.num_instructions = 2;
   tx.instructions[0].type = SOL_INSTR_SYSTEM_TRANSFER;
@@ -682,11 +692,32 @@ TEST(Solana, PriorityFeeCalculationIsRoundedAndOverflowSafe) {
   tx.instructions[1].extra_value = 2000000;
   ASSERT_TRUE(solana_calculatePriorityFee(&tx, &fee, &has_fee));
   EXPECT_TRUE(has_fee);
-  EXPECT_EQ(fee, 400000ULL); /* 2 lamports/CU * 1 * 200,000 CUs */
+  EXPECT_EQ(fee, 406000ULL); /* 2 lamports/CU * (200,000 + 3,000) CUs */
 
-  /* Seven non-budget instructions reach the 1,400,000 cap exactly, which is
-     also the most SOL_MAX_INSTRUCTIONS (8) allows alongside a price
-     instruction. The clamp stays as defence rather than as a reachable path. */
+  /* THE UNDERSTATEMENT, PINNED. Expected value derived from the runtime rule
+     (SIMD-0170), not from the device's own formula: SetComputeUnitPrice is a
+     ComputeBudget instruction and the ComputeBudget program is a builtin, so
+     the runtime allocates it 3,000 CUs; the SPL Token program is not a
+     builtin, so TransferChecked gets 200,000. The runtime therefore charges on
+     203,000 CUs and the device must not quote a "Maximum priority fee" below
+     that. Charging the budget instructions 0 CUs showed 2.000000000 SOL where
+     2.030000000 was debited. There is deliberately no non-budget BUILTIN
+     instruction here: one of those is over-counted at 200,000 and its slack
+     hides the gap. */
+  memset(&tx, 0, sizeof(tx));
+  tx.num_instructions = 2;
+  tx.instructions[0].type = SOL_INSTR_COMPUTE_BUDGET_UNIT_PRICE;
+  tx.instructions[0].extra_value = 1000000; /* 1 lamport/CU, so fee == CUs */
+  tx.instructions[1].type = SOL_INSTR_TOKEN_TRANSFER_CHECKED;
+  ASSERT_TRUE(solana_calculatePriorityFee(&tx, &fee, &has_fee));
+  EXPECT_TRUE(has_fee);
+  EXPECT_GE(fee, 203000ULL) << "quoted maximum is below what the runtime "
+                               "charges for the common token send";
+
+  /* Seven non-budget instructions plus a price instruction derive 1,403,000
+     CUs -- the most SOL_MAX_INSTRUCTIONS (8) allows -- so the clamp to
+     1,400,000 is a reachable path, not just defence, now that the budget
+     instruction is charged its builtin 3,000. */
   memset(&tx, 0, sizeof(tx));
   tx.num_instructions = 8;
   for (int i = 0; i < 7; i++)

@@ -114,6 +114,14 @@ bool confirm_constant_power_paged(ButtonRequestType type,
 /// \param request_title   Title of confirm message.
 /// \param request_body    Body of confirm message.
 /// \returns true iff the device confirmed.
+#if DEBUG_LINK
+const char* confirm_debug_title(void);
+const char* confirm_debug_body(void);
+/// Forget the retained confirmation text, e.g. the last page of a private
+/// seed display, before DebugLinkState is allowed to report it again.
+void confirm_debug_clear(void);
+#endif
+
 bool confirm(ButtonRequestType type, const char* request_title,
              const char* request_body, ...)
     __attribute__((format(printf, 3, 4)));

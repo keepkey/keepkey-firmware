@@ -3,10 +3,9 @@
 # plain `docker build` keeps working unchanged.
 #
 # The DEFAULT is a digest, not the :v15 tag develop carries. A release build
-# has to name an immutable base -- kktech/firmware:v15 resolves to exactly this
-# digest today, but a tag can be moved and a signed release should not depend
-# on that. CI overrides it with the mirror it resolved, which is the same image
-# either way.
+# has to name an immutable base. A moving release tag may resolve to this
+# digest today, but a signed release should not depend on that. CI overrides
+# it with the mirror it resolved, which is the same image either way.
 ARG BASE_IMAGE=kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
 FROM ${BASE_IMAGE}
 
@@ -27,4 +26,3 @@ RUN make -j
 EXPOSE 11044/udp 11045/udp
 EXPOSE 5000
 CMD ["/kkemu/scripts/emulator/run.sh"]
-

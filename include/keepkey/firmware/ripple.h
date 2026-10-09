@@ -38,8 +38,14 @@
    value collides with the bits that flag "XRP" and "positive", so the
    serializer would emit a different amount than the one supplied. It guarded
    this with assert(), which compiles out of release builds -- so the bound has
-   to be enforced by the message handler instead. */
-#define RIPPLE_MAX_DROPS 100000000000ULL
+   to be enforced by the message handler instead.
+
+   This is XRP's own maximum -- 100 billion XRP at 1e6 drops each -- not the
+   serializer's: the encoding has 62 usable bits (4.6e18 drops), so every
+   amount the protocol can express fits. An earlier bound of 1e11 drops was
+   1e6 too small and refused any payment over 100,000 XRP, which shipped
+   firmware signed correctly. */
+#define RIPPLE_MAX_DROPS 100000000000000000ULL
 
 #define RIPPLE_FLAG_FULLY_CANONICAL 0x80000000
 

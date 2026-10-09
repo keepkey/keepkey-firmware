@@ -124,6 +124,7 @@ void fsm_msgTendermintSignTx(const TendermintSignTx* msg) {
   }
 
   memzero(node, sizeof(*node));
+  note_workflow_progress();
   msg_write(MessageType_MessageType_TendermintMsgRequest, resp);
   layoutHome();
 }
@@ -252,6 +253,7 @@ void fsm_msgTendermintMsgAck(const TendermintMsgAck* msg) {
 
   if (!tendermint_signingIsFinished()) {
     RESP_INIT(TendermintMsgRequest);
+    note_workflow_progress();
     msg_write(MessageType_MessageType_TendermintMsgRequest, resp);
     return;
   }

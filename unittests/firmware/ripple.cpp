@@ -36,6 +36,15 @@ TEST(Ripple, AddressEncodeDecode) {
 
   EXPECT_EQ(std::string(address), "rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN");
 
+  /* A non-positive output size is refused before anything is written. */
+  for (int bad_size : {0, -1}) {
+    char sentinel[56];
+    memset(sentinel, 0x5a, sizeof(sentinel));
+    EXPECT_EQ(0, ripple_encode_check(buff, 21, HASHER_SHA2D, sentinel,
+                                     bad_size));
+    for (char c : sentinel) ASSERT_EQ(0x5a, c);
+  }
+
   uint8_t addr_raw[MAX_ADDR_RAW_SIZE];
   memset(addr_raw, 0, sizeof(addr_raw));
   uint32_t addr_raw_len =
@@ -65,6 +74,26 @@ TEST(Ripple, SerializeAddress) {
                      "\x81\x14\x8f\xb4\x0e\x1f\xfa\x5d\x55\x7c\xe9"
                      "\x85\x1a\x53\x5a\xf9\x49\x65\xe0\xdd\x09\x88",
                      22) == 0);
+}
+
+/* XRP's own ceiling is 100 billion XRP = 1e17 drops. The amount encoding has
+ * 62 usable bits (the top two flag XRP and positive), so it fits with room to
+ * spare -- a device bound of 1e11 drops would refuse 99.9999% of the supply. */
+TEST(Ripple, SerializeAmountCoversTheProtocolMaximum) {
+  uint8_t buf[16];
+  memset(buf, 0, sizeof(buf));
+  uint8_t *cursor = buf;
+  bool ok = true;
+
+  ripple_serializeAmount(&ok, &cursor, buf + sizeof(buf), &RFM_amount,
+                         (int64_t)RIPPLE_MAX_DROPS);
+
+  ASSERT_TRUE(ok);
+  ASSERT_EQ(9, cursor - buf);
+  EXPECT_EQ(0x61, buf[0]);  // field type 6 (amount), key 1
+  // 1e17 = 0x016345785D8A0000, with bit 62 set to mark it positive.
+  const uint8_t expected[8] = {0x41, 0x63, 0x45, 0x78, 0x5D, 0x8A, 0x00, 0x00};
+  EXPECT_EQ(0, memcmp(buf + 1, expected, sizeof(expected)));
 }
 
 TEST(Ripple, Serialize) {

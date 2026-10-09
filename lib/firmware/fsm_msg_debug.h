@@ -1,9 +1,21 @@
 #include "keepkey/board/keepkey_display.h"
 
 #if DEBUG_LINK
+/* Own storage, not msg_resp: this handler also runs nested inside the PIN,
+ * passphrase and confirm waits, while the suspended outer handler may already
+ * hold its pending response in msg_resp. */
+static DebugLinkState debug_link_state;
+
 void fsm_msgDebugLinkGetState(DebugLinkGetState* msg) {
   (void)msg;
-  RESP_INIT(DebugLinkState);
+  DebugLinkState* resp = &debug_link_state;
+  memset(resp, 0, sizeof(*resp));
+
+  /* Empty state during dice/BIP-85 ceremonies: the canvas shows secrets. */
+  if (reset_debug_is_private() || bip85_debug_is_private()) {
+    msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
+    return;
+  }
 
   if (storage_hasPin()) {
     resp->has_pin = true;
@@ -13,11 +25,20 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState* msg) {
   resp->has_matrix = true;
   strlcpy(resp->matrix, get_pin_matrix(), sizeof(resp->matrix));
 
-  resp->has_reset_entropy = true;
   resp->reset_entropy.size = reset_get_int_entropy(resp->reset_entropy.bytes);
+  resp->has_reset_entropy = resp->reset_entropy.size > 0;
 
   resp->has_reset_word = true;
   strlcpy(resp->reset_word, reset_get_word(), sizeof(resp->reset_word));
+
+  resp->dice_digest.size = reset_get_dice_digest(resp->dice_digest.bytes);
+  resp->has_dice_digest = resp->dice_digest.size > 0;
+
+  resp->has_confirm_title = true;
+  strlcpy(resp->confirm_title, confirm_debug_title(),
+          sizeof(resp->confirm_title));
+  resp->has_confirm_body = true;
+  strlcpy(resp->confirm_body, confirm_debug_body(), sizeof(resp->confirm_body));
 
   if (storage_hasMnemonic()) {
     resp->has_mnemonic = true;
@@ -82,11 +103,29 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState* msg) {
   }
 
   msg_debug_write(MessageType_MessageType_DebugLinkState, resp);
+  memzero(resp, sizeof(*resp));
 }
 
 void fsm_msgDebugLinkStop(DebugLinkStop* msg) { (void)msg; }
 
+/* FlashDump arrives on the debug endpoint, so its refusal is answered there:
+ * a normal-channel Failure would leave the debug caller waiting. The debug map
+ * carries no Failure, so the answer is a response holding no memory. The
+ * reason is still recorded for the native tests. */
+static void fsm_refuseFlashDump(FailureType code, const char* text) {
+  DebugLinkFlashDumpResponse empty;
+  memset(&empty, 0, sizeof(empty));
+  fsm_test_failure_code = code;
+  strlcpy(fsm_test_failure_message, text, sizeof(fsm_test_failure_message));
+  msg_debug_write(MessageType_MessageType_DebugLinkFlashDumpResponse, &empty);
+}
+
 void fsm_msgDebugLinkFlashDump(DebugLinkFlashDump* msg) {
+  if (reset_debug_is_private() || bip85_debug_is_private()) {
+    fsm_refuseFlashDump(FailureType_Failure_UnexpectedMessage,
+                        "Memory reads disabled during private seed display");
+    return;
+  }
 #ifndef EMULATOR
   if (!msg->has_length ||
       msg->length > sizeof(((DebugLinkFlashDumpResponse*)0)->data.bytes)) {

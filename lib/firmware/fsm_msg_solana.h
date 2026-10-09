@@ -514,6 +514,15 @@ void fsm_msgSolanaGetAddress(const SolanaGetAddress* msg) {
 void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
   RESP_INIT(SolanaSignedTx);
 
+  /* This release can decode the canonical certificate field but does not
+   * implement its KeepKey-root verification/binding contract. */
+  if (msg->has_clearsign_certificate && msg->clearsign_certificate.size > 0) {
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    _("Certified Solana signing is unsupported"));
+    layoutHome();
+    return;
+  }
+
   CHECK_INITIALIZED
   CHECK_PIN
 
@@ -698,8 +707,7 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg) {
 
   /* Ed25519 sign */
   uint8_t sig[SOL_SIG_SIZE];
-  ed25519_sign(msg->message.bytes, msg->message.size, node->private_key,
-               node->public_key + 1, sig);
+  ed25519_sign(msg->message.bytes, msg->message.size, node->private_key, sig);
 
   resp->has_signature = true;
   resp->signature.size = SOL_SIG_SIZE;

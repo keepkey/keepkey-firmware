@@ -10,12 +10,31 @@ extern "C" {
 #include "gtest/gtest.h"
 #include <cstring>
 
+/* Every MAYAChain screen scales by the denom's own exponent, and they all ask
+ * the same function, so a send screen and a deposit screen cannot disagree
+ * about the same coin. */
+TEST(Mayachain, DecimalsAreKeyedOnTheDenomNotTheChain) {
+  EXPECT_EQ(10, mayachain_decimalsForDenom("cacao"));
+  EXPECT_EQ(10, mayachain_decimalsForDenom("MAYA.CACAO"));
+  EXPECT_EQ(0, mayachain_decimalsForDenom("maya"));
+  EXPECT_EQ(0, mayachain_decimalsForDenom("btc/btc"));
+  EXPECT_EQ(0, mayachain_decimalsForDenom("ETH.ETH"));
+  EXPECT_EQ(0, mayachain_decimalsForDenom(""));
+  EXPECT_EQ(0, mayachain_decimalsForDenom(nullptr));
+}
+
 TEST(Mayachain, FormatsOnlyCacaoWithTenDecimals) {
   char rendered[96];
 
   ASSERT_TRUE(mayachain_formatAmount(10000000000ULL, "cacao", rendered,
                                      sizeof(rendered)));
   EXPECT_STREQ("1 cacao", rendered);
+
+  /* MsgDeposit names the same coin by its pool identifier. Rendering this at
+   * zero decimals showed 1 CACAO as "10000000000 MAYA.CACAO". */
+  ASSERT_TRUE(mayachain_formatAmount(10000000000ULL, "MAYA.CACAO", rendered,
+                                     sizeof(rendered)));
+  EXPECT_STREQ("1 MAYA.CACAO", rendered);
 
   ASSERT_TRUE(mayachain_formatAmount(10000000000ULL, "maya", rendered,
                                      sizeof(rendered)));

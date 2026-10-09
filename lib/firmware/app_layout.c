@@ -459,13 +459,15 @@ void layout_cosmos_address_notification(const char* desc, const char* address,
                 font_height(title_font) + BODY_FONT_LINE_PADDING);
   }
 
-  /* Body */
-  sp.y = TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN + TOP_MARGIN;
+  /* Body: three 140 px rows hold any 52-character bech32 address (a
+     cosmosvaloper1... needs three). Starting one pixel higher than before is
+     what lets the third row fit; at y=27 draw_string() silently dropped it. */
+  const uint16_t row = font_height(address_font) + BODY_FONT_LINE_PADDING;
+  sp.y = KEEPKEY_DISPLAY_HEIGHT - 3 * row + BODY_FONT_LINE_PADDING;
   sp.x = LEFT_MARGIN + 65;
   sp.color = BODY_COLOR;
 
-  draw_string(canvas, address_font, address, &sp, 140,
-              font_height(address_font) + BODY_FONT_LINE_PADDING);
+  draw_string(canvas, address_font, address, &sp, 140, row);
 
   layout_address(address, QR_LARGE);
   layout_notification_icon(type, &sp);
@@ -607,6 +609,38 @@ void layout_nano_address_notification(const char* desc, const char* address,
  * OUTPUT
  *      none
  */
+/* True when the address layout can draw the address on one line beside its
+ * QR; longer ones (62-char p2wsh and p2tr) crowd the QR and the screen edge. */
+bool layout_address_fits_one_line(const char* address) {
+  const Font* font = get_title_font();
+  if (calc_str_width(font, address) > TRANSACTION_WIDTH) font = get_body_font();
+  return calc_str_line(font, address, TRANSACTION_WIDTH) <= ONE_LINE;
+}
+
+/*
+ * layout_qr_notification() - Display a title and a QR code of data, with no
+ * text body: for values too long for an address layout's text area, whose
+ * full text the caller has already shown on paged screens.
+ */
+void layout_qr_notification(const char* desc, const char* data,
+                            NotificationType type) {
+  DrawableParams sp;
+  Canvas* canvas = layout_get_canvas();
+
+  call_leaving_handler();
+  layout_clear();
+
+  const Font* title_font = get_title_font();
+  sp.y = TOP_MARGIN_FOR_TWO_LINES;
+  sp.x = LEFT_MARGIN + 65;
+  sp.color = BODY_COLOR;
+  draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
+              font_height(title_font) + BODY_FONT_LINE_PADDING);
+
+  layout_address(data, QR_LARGE);
+  layout_notification_icon(type, &sp);
+}
+
 void layout_address_notification(const char* desc, const char* address,
                                  NotificationType type) {
   call_leaving_handler();
@@ -628,8 +662,35 @@ void layout_address_notification(const char* desc, const char* address,
   sp.y += font_height(address_font) + ADDRESS_TOP_MARGIN;
   sp.x = LEFT_MARGIN;
   sp.color = BODY_COLOR;
+
+  /* Bech32 addresses longer than one line (p2wsh and p2tr are both 62 chars)
+     did not fit: draw_string() stops at the bottom of the canvas and drops the
+     remainder SILENTLY, so the user verified a prefix while the QR beside it
+     encoded the whole address.
+     Close the padding between lines rather than moving the block up -- the QR
+     is drawn last and would overwrite the start of a raised first line. */
+  uint16_t address_line_height =
+      font_height(address_font) + BODY_FONT_LINE_PADDING;
+  {
+    const uint32_t lines =
+        calc_str_line(address_font, address, TRANSACTION_WIDTH);
+    if (lines > ONE_LINE) {
+      /* Close the inter-line padding first: raising the block is what collides
+         with the QR, which is drawn afterwards and would overwrite the start of
+         the first line. */
+      address_line_height = font_height(address_font);
+      const uint16_t bottom =
+          sp.y + (lines - 1) * address_line_height + font_height(address_font);
+      if (bottom > KEEPKEY_DISPLAY_HEIGHT) {
+        /* Still short: raise by the minimum that fits, no more. */
+        const uint16_t overflow = bottom - KEEPKEY_DISPLAY_HEIGHT;
+        sp.y = (sp.y > overflow) ? sp.y - overflow : 0;
+      }
+    }
+  }
+
   draw_string(canvas, address_font, address, &sp, TRANSACTION_WIDTH,
-              font_height(address_font) + BODY_FONT_LINE_PADDING);
+              address_line_height);
 
   /* Draw description */
   if (strcmp(desc, "") != 0) {
@@ -693,7 +754,8 @@ void layout_pin(const char* str, char pin[]) {
  * OUTPUT
  *     none
  */
-void layout_cipher(const char* current_word, const char* cipher) {
+void layout_cipher(const char* current_word, const char* cipher,
+                   const char* prev_word_info, bool animate_cipher) {
   DrawableParams sp;
   const Font* title_font = get_body_font();
   Canvas* canvas = layout_get_canvas();
@@ -701,8 +763,18 @@ void layout_cipher(const char* current_word, const char* cipher) {
   call_leaving_handler();
   layout_clear();
 
-  /* Draw prompt */
-  sp.y = 11;
+  /* Draw previous word info at top-left -- must be x < 76 to avoid
+   * being wiped by cipher animation which clears x >= CIPHER_START_X */
+  if (prev_word_info && prev_word_info[0]) {
+    sp.y = 2;
+    sp.x = 4;
+    sp.color = CIPHER_FONT_COLOR; /* gray -- less prominent than current word */
+    draw_string(canvas, title_font, prev_word_info, &sp, CIPHER_PREV_WORD_WIDTH,
+                font_height(title_font));
+  }
+
+  /* Draw prompt -- push down when prev word is shown */
+  sp.y = (prev_word_info && prev_word_info[0]) ? 14 : 11;
   sp.x = 4;
   sp.color = BODY_COLOR;
   draw_string(canvas, title_font, "Recovery Cipher:", &sp, 58,
@@ -714,11 +786,15 @@ void layout_cipher(const char* current_word, const char* cipher) {
   sp.color = BODY_COLOR;
   draw_string(canvas, title_font, current_word, &sp, 68,
               font_height(title_font));
+  const uint32_t duration = CIPHER_ANIMATION_FREQUENCY_MS * 30;
+  if (animate_cipher) {
+    layout_add_animation(&layout_animate_cipher, (void*)cipher, duration);
+  } else {
+    /* Restore an obscured mapping immediately. Replaying its introduction
+     * lets repeated host requests keep its last letters off the display. */
+    layout_animate_cipher((void*)cipher, duration, duration);
+  }
   display_refresh();
-
-  /* Animate cipher */
-  layout_add_animation(&layout_animate_cipher, (void*)cipher,
-                       CIPHER_ANIMATION_FREQUENCY_MS * 30);
 }
 
 /*

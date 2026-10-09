@@ -15,27 +15,29 @@
  * None of these call confirm(), so the suite runs in the fast filtered mode:
  *   ./firmware-unit --gtest_filter=SetupCeremony.*
  *
- * COVERAGE GAP, STATED DELIBERATELY. These cover the ceremony STATE MACHINE
- * only. The two invariants the fix actually rests on —
- *   I1  no staged setting is observable through storage before commit
- *   I2  a foreign storage_commit() disarms an armed ceremony
- * — cannot be asserted here: firmware-unit has no flash emulation, and no test
- * in this tree calls storage_init(), storage_commit() or storage_setLabel().
- * Attempting it segfaults. So the parts of #429 that touch storage are NOT
- * covered by automated tests and must be proven on hardware or in an emulator
- * run with real flash. Do not read a green run here as #429 being verified.
+ * These cases cover the ceremony state machine. The storage-backed fixture in
+ * storage_passphrase.cpp additionally checks that staging leaves active
+ * settings unchanged and a foreign storage_commit() aborts the ceremony.
+ * Neither suite proves every wire interleaving or physical power-loss behavior.
  */
 
 #include "gtest/gtest.h"
 
 #include <string>
+#include <cstring>
 
 extern "C" {
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/firmware/fsm.h"
+#include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/reset.h"
 #include "trezor/crypto/bip39.h"
 }
+
+void kk_test_board_init(void);  // test_board.cpp
+// Firmware's dispatch hook (fsm.c); the board header that declares it in some
+// releases is not part of this test's contract.
+extern "C" bool keepkey_before_message_dispatch(MessageType msg_id);
 
 namespace {
 
@@ -102,6 +104,19 @@ TEST_F(SetupCeremony, AbortScrubsGeneratedMnemonic) {
   }
 }
 
+TEST_F(SetupCeremony, AbortScrubsEveryByteOfSharedMnemonicDisplayScratch) {
+  memset(mnemonic_scratch_tokened, 's', sizeof(mnemonic_scratch_tokened));
+  memset(mnemonic_scratch_formatted, 's', sizeof(mnemonic_scratch_formatted));
+  memset(mnemonic_scratch_display, 's', sizeof(mnemonic_scratch_display));
+  memset(mnemonic_scratch_word, 's', sizeof(mnemonic_scratch_word));
+  setup_abort();
+  for (char c : mnemonic_scratch_tokened) EXPECT_EQ(0, c);
+  for (const auto& page : mnemonic_scratch_formatted)
+    for (char c : page) EXPECT_EQ(0, c);
+  for (char c : mnemonic_scratch_display) EXPECT_EQ(0, c);
+  for (char c : mnemonic_scratch_word) EXPECT_EQ(0, c);
+}
+
 // setup_require() is the gate every continuation message uses. A mismatch must
 // abort rather than fall through.
 TEST_F(SetupCeremony, RequireRejectsTheWrongKind) {
@@ -157,4 +172,80 @@ TEST_F(SetupCeremony, MessagePermutationsLeaveNothingArmed) {
   }
 }
 
+TEST_F(SetupCeremony, AbortWipesBip39MnemonicAndRecoveryFragments) {
+  const uint8_t entropy[16] = {0};
+  const char* mnemonic = mnemonic_from_data(entropy, sizeof(entropy));
+  ASSERT_NE(nullptr, mnemonic);
+  ASSERT_NE('\0', mnemonic[0]);
+  recovery_cipher_test_set_word_fragments();
+  ASSERT_FALSE(recovery_cipher_test_word_fragments_are_zero());
+
+  setup_abort();
+
+  EXPECT_EQ('\0', mnemonic[0]);
+  EXPECT_TRUE(recovery_cipher_test_word_fragments_are_zero());
+  EXPECT_FALSE(setup_isArmed());
+}
+
+// A continuation ACK for a workflow that is not running never reaches its
+// handler, whose kind check or home redraw would end or hide whichever
+// ceremony is armed.
+TEST_F(SetupCeremony, StrayAcksLeaveTheArmedCeremonyAlone) {
+  kk_test_board_init();  // recovery_cipher_redraw() draws on the canvas
+  const MessageType kStray[] = {
+      MessageType_MessageType_TxAck,
+      MessageType_MessageType_EntropyAck,
+      MessageType_MessageType_CharacterAck,
+#if !BITCOIN_ONLY
+      MessageType_MessageType_EthereumTxAck,
+      MessageType_MessageType_CosmosMsgAck,
+      MessageType_MessageType_OsmosisMsgAck,
+      MessageType_MessageType_BinanceTransferMsg,
+      MessageType_MessageType_EosTxActionAck,
+      MessageType_MessageType_ThorchainMsgAck,
+      MessageType_MessageType_MayachainMsgAck,
+#endif
+  };
+  const SetupKind kKinds[] = {SETUP_RECOVERY, SETUP_RESET};
+
+  for (SetupKind kind : kKinds) {
+    for (MessageType id : kStray) {
+      SCOPED_TRACE(::testing::Message() << "kind " << kind << ", id " << id);
+      if ((kind == SETUP_RESET && id == MessageType_MessageType_EntropyAck) ||
+          (kind == SETUP_RECOVERY &&
+           id == MessageType_MessageType_CharacterAck)) {
+        continue;  // the armed ceremony's own continuation
+      }
+      ASSERT_TRUE(setup_stage(false, "english", "armed", 0, 0, false));
+      setup_arm(kind);
+      EXPECT_FALSE(keepkey_before_message_dispatch(id))
+          << "an inactive ACK must not reach its handler";
+      EXPECT_TRUE(setup_isArmedAs(kind));
+      setup_abort();
+    }
+  }
+}
+
+TEST_F(SetupCeremony, InvalidRecoveryWordCountDisarmsCeremony) {
+  ASSERT_TRUE(setup_stage(false, "english", "recovery", 0, 0, false));
+  setup_arm(SETUP_RECOVERY);
+  ASSERT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
+
+  recovery_cipher_finalize();
+
+  EXPECT_FALSE(setup_isArmed());
+  EXPECT_TRUE(recovery_cipher_test_word_fragments_are_zero());
+}
+
 }  // namespace
+
+TEST_F(SetupCeremony, CommitRefusesAbortedOrDifferentCeremony) {
+  ASSERT_TRUE(setup_stage(false, "english", "aborted", 0, 0, false));
+  setup_arm(SETUP_RESET);
+  setup_abort();
+  EXPECT_FALSE(setup_commit(SETUP_RESET, "", false));
+  ASSERT_TRUE(setup_stage(false, "english", "different", 0, 0, false));
+  setup_arm(SETUP_RECOVERY);
+  EXPECT_FALSE(setup_commit(SETUP_RESET, "", false));
+  EXPECT_FALSE(setup_isArmed());
+}

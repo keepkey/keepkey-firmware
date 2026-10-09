@@ -52,6 +52,22 @@ extern bool reset_msg_stack;
 
 static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
 
+#if DEBUG_LINK
+/* The text of the most recent confirmation, for DebugLinkState. Tests assert
+ * the exact displayed text; OLED pixels alone cannot tell a raw glyph from an
+ * escape sequence of the same width. */
+static char debug_confirm_title[TITLE_CHAR_MAX];
+static char debug_confirm_body[BODY_CHAR_MAX];
+
+const char* confirm_debug_title(void) { return debug_confirm_title; }
+const char* confirm_debug_body(void) { return debug_confirm_body; }
+
+void confirm_debug_clear(void) {
+  memzero(debug_confirm_title, sizeof(debug_confirm_title));
+  memzero(debug_confirm_body, sizeof(debug_confirm_body));
+}
+#endif
+
 /* vsnprintf() returns the length it WOULD have written. Treat anything that
  * did not fit as a refusal: once characters are lost, no renderer or pager can
  * recover them and there is no complete body the user can approve. */
@@ -178,12 +194,23 @@ static void swap_layout(ActiveLayout active_layout, volatile StateInfo* si,
 /// \param requesta_body  The body of the confirmation message.
 /// \param layout_notification_func  layout callback for displaying confirm
 /// message. \returns true iff the device confirmed.
+#ifdef EMULATOR
+__attribute__((weak)) void emulator_confirm_screen(const char* title,
+                                                   const char* body) {
+  (void)title;
+  (void)body;
+}
+#endif
+
 static bool confirm_screen(const char* request_title_param,
                            const char* request_body,
                            layout_notification_t layout_notification_func,
                            bool constant_power, IconType iconNum,
                            bool immediate) {
   bool ret_stat = false;
+#ifdef EMULATOR
+  emulator_confirm_screen(request_title_param, request_body);
+#endif
 #if DEBUG_LINK
   last_exit_was_debug_decision = false;
 #endif
@@ -276,8 +303,12 @@ static bool confirm_screen(const char* request_title_param,
           break;
 #endif
 
+        case MSG_TINY_TYPE_ERROR:
+          break;
         default:
-          break; /* break from switch statement and stay in the while loop*/
+          msg_reject_unexpected_tiny();
+          ret_stat = false;
+          goto confirm_screen_exit;
       }
     }
 
@@ -311,6 +342,7 @@ static bool confirm_screen(const char* request_title_param,
   }
 
 confirm_screen_exit:
+  memzero(msg_tiny_buf, sizeof(msg_tiny_buf));
 
   keepkey_button_set_on_press_handler(NULL, NULL);
   keepkey_button_set_on_release_handler(NULL, NULL);
@@ -527,6 +559,12 @@ static bool confirm_helper(const char* request_title, const char* request_body,
                            bool immediate, bool notify_host) {
   const uint16_t body_width =
       (uint16_t)((iconNum == NO_ICON) ? BODY_WIDTH : BODY_WIDTH_WITH_ICON);
+#if DEBUG_LINK
+  snprintf(debug_confirm_title, sizeof(debug_confirm_title), "%s",
+           request_title ? request_title : "");
+  snprintf(debug_confirm_body, sizeof(debug_confirm_body), "%s",
+           request_body ? request_body : "");
+#endif
 
   /* Only layout_standard_notification is known to wrap the body at BODY_WIDTH
    * over BODY_ROWS rows. Custom layouts place and size their own body, and
@@ -581,11 +619,14 @@ size_t confirm_constant_power_subpage_take(const char* body) {
   const size_t len = strlen(body);
   if (len == 0) return 0;
 
+  /* The bodies measured here are the seed-backup word rows, so the probe holds
+   * mnemonic text and is scrubbed on every exit rather than left on the stack.
+   */
+  char probe[BODY_CHAR_MAX];
   size_t best = 0;
   for (size_t i = 0; i < len; i++) {
     if (body[i] != '\n' && i + 1 != len) continue;
     const size_t take = i + 1;
-    char probe[BODY_CHAR_MAX];
     if (take >= sizeof(probe)) break;
     memcpy(probe, body, take);
     probe[take] = '\0';
@@ -595,6 +636,7 @@ size_t confirm_constant_power_subpage_take(const char* body) {
       break;
     }
   }
+  memzero(probe, sizeof(probe));
   return best;
 }
 
@@ -629,6 +671,8 @@ bool confirm_constant_power_paged(ButtonRequestType type,
 
 #if DEBUG_LINK
     if (decided_via_debug) {
+      /* Each debug subpage must consume its own host acknowledgement. */
+      button_request_acked = false;
       /* Production keeps the legacy one-ButtonRequest-per-word-group
        * protocol. The debug build emits a request for each renderer subpage
        * so the evidence harness can capture every physical OLED page instead
@@ -636,6 +680,7 @@ bool confirm_constant_power_paged(ButtonRequestType type,
       memset(&resp, 0, sizeof(resp));
       resp.has_code = true;
       resp.code = type;
+      button_request_acked = false;
       msg_write(MessageType_MessageType_ButtonRequest, &resp);
       decided_via_debug = false;
     }
