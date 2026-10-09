@@ -600,24 +600,6 @@ void layout_nano_address_notification(const char* desc, const char* address,
 }
 
 /*
- * layout_address_notification() - Display address notification
- *
- * INPUT
- *     - desc: description of address being shown (normal or multisig)
- *     - address: address to display both as string and QR
- *     - type: notification type
- * OUTPUT
- *      none
- */
-/* True when the address layout can draw the address on one line beside its
- * QR; longer ones (62-char p2wsh and p2tr) crowd the QR and the screen edge. */
-bool layout_address_fits_one_line(const char* address) {
-  const Font* font = get_title_font();
-  if (calc_str_width(font, address) > TRANSACTION_WIDTH) font = get_body_font();
-  return calc_str_line(font, address, TRANSACTION_WIDTH) <= ONE_LINE;
-}
-
-/*
  * layout_qr_notification() - Display a title and a QR code of data, with no
  * text body: for values too long for an address layout's text area, whose
  * full text the caller has already shown on paged screens.
@@ -639,6 +621,24 @@ void layout_qr_notification(const char* desc, const char* data,
 
   layout_address(data, QR_LARGE);
   layout_notification_icon(type, &sp);
+}
+
+/*
+ * layout_address_notification() - Display address notification
+ *
+ * INPUT
+ *     - desc: description of address being shown (normal or multisig)
+ *     - address: address to display both as string and QR
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
+/* True when the address layout can draw the address on one line beside its
+ * QR; longer ones (62-char p2wsh and p2tr) crowd the QR and the screen edge. */
+bool layout_address_fits_one_line(const char* address) {
+  const Font* font = get_title_font();
+  if (calc_str_width(font, address) > TRANSACTION_WIDTH) font = get_body_font();
+  return calc_str_line(font, address, TRANSACTION_WIDTH) <= ONE_LINE;
 }
 
 void layout_address_notification(const char* desc, const char* address,

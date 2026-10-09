@@ -66,6 +66,32 @@ bool tendermint_getAddress(const HDNode* node, const char* prefix,
                        BECH32_ENCODING_BECH32) == 1;
 }
 
+bool tendermint_isValidDenom(const char* denom) {
+  if (!denom || !denom[0]) return false;
+  for (size_t i = 0; denom[i]; i++) {
+    const char c = denom[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' ||
+          c == '/' || c == '-')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* THORChain separators: '.' layer 1, '/' synth, '~' trade, '-' secured. */
+bool tendermint_isValidAsset(const char* asset) {
+  if (!asset || !asset[0]) return false;
+  for (size_t i = 0; asset[i]; i++) {
+    const char c = asset[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') || c == '.' || c == '/' || c == '-' ||
+          c == '~')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool tendermint_validateSafeText(const char* value) {
   if (!value || value[0] == '\0') return false;
 

@@ -97,13 +97,19 @@ bool ripple_formatAmount(char* buf, size_t len, uint64_t amount) {
   return true;
 }
 
+/* Compare remaining space by subtraction: forming *buf + n past end is
+ * undefined behaviour even when the comparison would then fail. */
+static bool has_room(uint8_t* const* buf, const uint8_t* end, size_t n) {
+  return *buf <= end && n <= (size_t)(end - *buf);
+}
+
 static void append_u8(bool* ok, uint8_t** buf, const uint8_t* end,
                       uint8_t val) {
   if (!*ok) {
     return;
   }
 
-  if (*buf + 1 > end) {
+  if (!has_room(buf, end, 1)) {
     *ok = false;
     return;
   }
@@ -171,7 +177,7 @@ void ripple_serializeVarint(bool* ok, uint8_t** buf, const uint8_t* end,
     return;
   }
 
-  if (val < 192) {
+  if (val <= 192) {
     append_u8(ok, buf, end, val);
     return;
   }
@@ -184,7 +190,7 @@ void ripple_serializeVarint(bool* ok, uint8_t** buf, const uint8_t* end,
   }
 
   if (val < 918744) {
-    assert(*buf + 3 < end && "buffer not long enough");
+    assert(has_room(buf, end, 3) && "buffer not long enough");
     val -= 12481;
     append_u8(ok, buf, end, 241 + ((unsigned)val >> 16));
     append_u8(ok, buf, end, ((unsigned)val >> 8) & 0xff);
@@ -200,7 +206,7 @@ void ripple_serializeBytes(bool* ok, uint8_t** buf, const uint8_t* end,
                            const uint8_t* bytes, size_t count) {
   ripple_serializeVarint(ok, buf, end, count);
 
-  if (!*ok || *buf + count > end) {
+  if (!*ok || !has_room(buf, end, count)) {
     *ok = false;
     assert(false && "buffer not long enough");
     return;
@@ -258,6 +264,22 @@ bool ripple_serialize(uint8_t** buf, const uint8_t* end, const RippleSignTx* tx,
   if (tx->payment.has_destination)
     ripple_serializeAddress(&ok, buf, end, &RFM_destination,
                             tx->payment.destination);
+  // Memos (STArray 9) sorts last in XRPL canonical field order.
+  if (tx->has_memo && tx->memo[0] != '\0') {
+    size_t memo_len = strlen(tx->memo);
+    append_u8(&ok, buf, end, 0xF9);  // STArray[9] = Memos
+    append_u8(&ok, buf, end, 0xEA);  // STObject[10] = Memo
+    append_u8(&ok, buf, end, 0x7D);  // VL[13] = MemoData
+    ripple_serializeVarint(&ok, buf, end, (int)memo_len);
+    if (ok && has_room(buf, end, memo_len)) {
+      memcpy(*buf, tx->memo, memo_len);
+      *buf += memo_len;
+    } else {
+      ok = false;
+    }
+    append_u8(&ok, buf, end, 0xE1);  // end STObject
+    append_u8(&ok, buf, end, 0xF1);  // end STArray
+  }
   return ok;
 }
 

@@ -44,6 +44,19 @@ static void osmosis_format_amount(char* out, size_t out_len,
   snprintf(out, out_len, "%s OSMO", decimal_buf);
 }
 
+/* uint64 bound for native uosmo only: other denoms have unknown exponents
+ * and keep the 32-digit wire limit (exact integer shown and signed). Must not
+ * be applied to pool/swap amounts. */
+static bool osmosis_validate_send_amount(bool has_value, const char* value,
+                                         const char* denom) {
+  static const char maximum[] = "18446744073709551615";
+  if (!osmosis_validate_amount(has_value, value)) return false;
+  if (denom == NULL || strcmp(denom, "uosmo") != 0) return true;
+  const size_t length = strlen(value);
+  return length < sizeof(maximum) - 1 ||
+         (length == sizeof(maximum) - 1 && strcmp(value, maximum) <= 0);
+}
+
 void fsm_msgOsmosisGetAddress(const OsmosisGetAddress* msg) {
   RESP_INIT(OsmosisAddress);
 
@@ -189,10 +202,18 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
 
   /** Confirm required transaction parameters exist */
   if (msg->has_send) {
-    if (!osmosis_validate_account_address(msg->send.has_to_address,
-                                          msg->send.to_address) ||
-        !osmosis_validate_amount(msg->send.has_amount, msg->send.amount) ||
+    if (!osmosis_validate_send_amount(
+            msg->send.has_amount, msg->send.amount,
+            msg->send.has_denom ? msg->send.denom : NULL) ||
         !osmosis_validate_required_text(msg->send.has_denom, msg->send.denom)) {
+      osmosis_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError,
+                      "Invalid Osmosis amount or denomination");
+      layoutHome();
+      return;
+    }
+    if (!osmosis_validate_account_address(msg->send.has_to_address,
+                                          msg->send.to_address)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_FirmwareError,
                       _("Message is missing required parameters"));

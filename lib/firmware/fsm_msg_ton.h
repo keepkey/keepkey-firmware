@@ -132,8 +132,11 @@ void fsm_msgTonSignTx(TonSignTx* msg) {
    * bytes, so a hostile host can show one recipient on the OLED and get a
    * completely different transaction signed. Name only what the device can
    * actually verify -- how many bytes it is about to sign. */
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TON Blind Sign",
-               "Sign %u-byte TON transaction?", (unsigned)msg->raw_tx.size)) {
+  char blind_msg[48];
+  snprintf(blind_msg, sizeof(blind_msg), "Sign %u-byte TON transaction?",
+           (unsigned)msg->raw_tx.size);
+  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TON Blind Sign", "%s",
+               blind_msg)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
     layoutHome();

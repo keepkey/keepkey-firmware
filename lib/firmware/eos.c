@@ -583,7 +583,7 @@ bool eos_compileActionUnknown(const EosActionCommon* common,
   return true;
 }
 
-static int eos_is_canonic(uint8_t v, uint8_t signature[64]) {
+int eos_is_canonic(uint8_t v, uint8_t signature[64]) {
   (void)v;
   return !(signature[0] & 0x80) &&
          !(signature[0] == 0 && !(signature[1] & 0x80)) &&

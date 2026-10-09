@@ -31,6 +31,8 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
 
   const CoinType* coin = fsm_getCoin(true, "Ripple");
 
+  /* RippleAddress.address holds 36 but the encoder is bounded by
+     MAX_ADDR_SIZE (130): encode into a local so the bound is the real one. */
   char ripple_addr[MAX_ADDR_SIZE];
   if (!ripple_getAddress(node->public_key, ripple_addr)) {
     memzero(node, sizeof(*node));
@@ -71,13 +73,6 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
   RESP_INIT(RippleSignedTx);
 
   CHECK_INITIALIZED
-
-  if (msg->has_memo && msg->memo[0] != '\0') {
-    fsm_sendFailure(FailureType_Failure_SyntaxError,
-                    _("Ripple memos are not supported by this firmware build"));
-    layoutHome();
-    return;
-  }
 
   CHECK_PIN
 
@@ -150,6 +145,17 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
                      : "Send %s to %s?",
                  amount_string, msg->payment.destination,
                  msg->payment.destination_tag)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+      layoutHome();
+      return;
+    }
+  }
+
+  if (msg->has_memo && msg->memo[0] != '\0') {
+    /* Page the COMPLETE memo: an unpaged confirm silently drops overflow,
+     * hiding signed deposit-routing bytes. */
+    if (!thorchain_confirm_full_memo("Memo", msg->memo, strlen(msg->memo))) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
       layoutHome();

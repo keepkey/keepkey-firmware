@@ -423,6 +423,19 @@ class CapabilitySkips(unittest.TestCase):
         self.assertLessEqual(named, report.KNOWN_CAPABILITIES)
 
 
+class NativeContractNames(unittest.TestCase):
+    def test_coin_progress_controls_name_existing_native_tests(self):
+        source = (report.ROOT / "unittests/firmware/block13_progress.cpp").read_text()
+        declared = set(re.findall(
+            r"TEST_P\(\s*Block13CoinProgress,\s*(\w+)\s*\)", source))
+        prefix = "Chains/Block13CoinProgress."
+        required = {name[len(prefix):].split("/", 1)[0]
+                    for name in report._BLOCK13_NATIVE_FULL_ONLY
+                    if name.startswith(prefix)}
+        self.assertTrue(required)
+        self.assertLessEqual(required, declared)
+
+
 class RequiredCaseMatching(unittest.TestCase):
     REQUIRED = "Ethereum.StructuredEip712IsDisabledForPointRelease"
 

@@ -16,10 +16,17 @@
 
 extern "C" {
 #include "messages-ethereum.pb.h" /* full EthereumSignTx definition */
+#include "messages-solana.pb.h"
+#include "keepkey/board/memory.h"
+#include "keepkey/firmware/fsm.h"
+#include "trezor/crypto/bip32.h"
+#include "trezor/crypto/bip39.h"
+#include "trezor/crypto/curves.h"
 #include "keepkey/board/draw.h"   /* draw_bitmap_mono_rle (icon decoder) */
 #include "keepkey/board/font.h"   /* calc_str_line, get_title_font */
 #include "keepkey/board/layout.h" /* LEFT_MARGIN_WITH_ICON */
 #include "keepkey/firmware/signed_metadata.h"
+#include "keepkey/firmware/solana.h" /* SolanaTokenInfo, solana_token_info_trusted */
 #include "keepkey/firmware/storage.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/secp256k1.h"
@@ -30,6 +37,7 @@ void setup(void);
 
 #include "gtest/gtest.h"
 #include "kkconfirm_driver.h"
+#include "test_board.h"
 
 #include <cstddef>
 #include <cstdio>
@@ -1710,6 +1718,252 @@ TEST(SignedMetadataAttestation, VerifiesValidRejectsTampered) {
 
   signed_metadata_clear_signers();
   set_advanced_mode_for_test(false);
+}
+
+// End-to-end test of the production Solana token-definition path: builds the
+// exact domain-separated preimage solana_token_info_trusted() reconstructs,
+// signs it, and checks acceptance + every rejection branch.
+TEST(SolanaTokenDef, TrustedOnlyWithValidAttestation) {
+  set_advanced_mode_for_test(true);
+  signed_metadata_clear_signers();
+  signed_metadata_store_signer(TEST_KEY_ID, EXPECTED_SLOT3_PUB, TEST_ALIAS,
+                               nullptr, 0, 0, 0, false);
+
+  SolanaTokenInfo ti;
+  memset(&ti, 0, sizeof(ti));
+  ti.has_mint = true;
+  ti.mint.size = 32;
+  memset(ti.mint.bytes, 0xAB, 32);
+  ti.has_symbol = true;
+  strcpy(ti.symbol, "USDC");
+  ti.has_decimals = true;
+  ti.decimals = 6;
+  ti.has_signer_key_id = true;
+  ti.signer_key_id = TEST_KEY_ID;
+
+  // Canonical preimage: tag || mint(32) || decimals(le32) || symbol.
+  std::vector<uint8_t> pre;
+  const char* tag = "KeepKeySolanaTokenDef/1";
+  pre.insert(pre.end(), tag, tag + strlen(tag));
+  pre.insert(pre.end(), ti.mint.bytes, ti.mint.bytes + 32);
+  pre.push_back(6);
+  pre.push_back(0);
+  pre.push_back(0);
+  pre.push_back(0);
+  pre.insert(pre.end(), ti.symbol, ti.symbol + strlen(ti.symbol));
+
+  uint8_t digest[32];
+  sha256_Raw(pre.data(), pre.size(), digest);
+  uint8_t sig[64];
+  uint8_t pby;
+  ASSERT_EQ(
+      0, ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest, sig, &pby, nullptr));
+  ti.has_signature = true;
+  ti.signature.size = 64;
+  memcpy(ti.signature.bytes, sig, 64);
+
+  EXPECT_TRUE(solana_token_info_trusted(&ti));
+
+  // Display: attested symbol only when the signed decimals match.
+  EXPECT_STREQ(solana_displaySymbol(&ti, nullptr, 6), "USDC");
+  EXPECT_EQ(solana_displaySymbol(&ti, nullptr, 9), nullptr);
+
+  // Attested-tuple disagreement: a different decimals no longer matches the
+  // sig.
+  ti.decimals = 9;
+  EXPECT_FALSE(solana_token_info_trusted(&ti));
+  ti.decimals = 6;
+  EXPECT_TRUE(solana_token_info_trusted(&ti));
+
+  // Corrupted signature.
+  ti.signature.bytes[10] ^= 0x40;
+  EXPECT_FALSE(solana_token_info_trusted(&ti));
+  ti.signature.bytes[10] ^= 0x40;
+
+  // Out-of-range signer slot (256 would narrow to slot 0 without the guard).
+  ti.signer_key_id = 256;
+  EXPECT_FALSE(solana_token_info_trusted(&ti));
+  ti.signer_key_id = TEST_KEY_ID;
+
+  // No attestation -> not trusted, and the host's symbol is never displayed,
+  // even when its claimed decimals match the signed ones.
+  ti.has_signature = false;
+  EXPECT_FALSE(solana_token_info_trusted(&ti));
+  EXPECT_EQ(solana_displaySymbol(&ti, nullptr, 6), nullptr);
+  EXPECT_EQ(solana_displaySymbol(nullptr, nullptr, 6), nullptr);
+
+  // A firmware-known mint shows the table symbol whatever the host sent.
+  static const uint8_t usdc_mint[32] = {
+      0xc6, 0xfa, 0x7a, 0xf3, 0xbe, 0xdb, 0xad, 0x3a, 0x3d, 0x65, 0xf3,
+      0x6a, 0xab, 0xc9, 0x74, 0x31, 0xb1, 0xbb, 0xe4, 0xc2, 0xd2, 0xf6,
+      0xe0, 0xe4, 0x7c, 0xa6, 0x02, 0x03, 0x45, 0x2f, 0x5d, 0x61};
+  const SolanaKnownToken* known = solana_findKnownToken(usdc_mint);
+  ASSERT_NE(known, nullptr);
+  strcpy(ti.symbol, "FAKE");
+  EXPECT_STREQ(solana_displaySymbol(&ti, known, 6), "USDC");
+  EXPECT_STREQ(solana_displaySymbol(nullptr, known, 6), "USDC");
+
+  signed_metadata_clear_signers();
+  set_advanced_mode_for_test(false);
+}
+
+/* ===================================================================== *
+ *  Externally issued schema: the verifier's digest contract
+ *
+ *  This build verifies schemas issued outside the device; it has no
+ *  ClearsignAttestorSign handler or wire mapping. The fixture signs the
+ *  single SHA256(payload) with a test key and exercises the production
+ *  verifier. It does not cover a device-side issuer. SignIdentity's Bitcoin
+ *  message framing and 65-byte signature are not this attestation format.
+ * ===================================================================== */
+
+TEST(SignedMetadataAttestation, ExternallySignedSchemaVerifies) {
+  set_advanced_mode_for_test(true);
+  /* Smallest valid KKSOLSC1 payload: no args, no accounts. What matters here
+   * is the digest construction, not the schema body. */
+  std::vector<uint8_t> payload;
+  auto push = [&](const void* p, size_t n) {
+    const uint8_t* b = static_cast<const uint8_t*>(p);
+    payload.insert(payload.end(), b, b + n);
+  };
+  push("KKSOLSC1", 8);
+  payload.push_back(1); /* version */
+  payload.insert(payload.end(), 32, 0x42);
+  payload.push_back(1);    /* disc_len */
+  payload.push_back(0x0d); /* discriminator */
+  payload.push_back(5);
+  push("Relay", 5);
+  payload.push_back(7);
+  push("deposit", 7);
+  payload.push_back(0); /* no args */
+  payload.push_back(0); /* no accounts */
+
+  SolanaInstrSchema schema;
+  ASSERT_TRUE(solana_parseInstrSchema(payload.data(), payload.size(), &schema))
+      << "the fixture must be a valid schema";
+
+  /* External issuer fixture: compact ECDSA over a single SHA256. */
+  uint8_t digest[32];
+  sha256_Raw(payload.data(), payload.size(), digest);
+  uint8_t sig[64];
+  ASSERT_EQ(ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest, sig, NULL, NULL),
+            0);
+
+  /* Verifier side. */
+  signed_metadata_clear_signers();
+  signed_metadata_store_signer(TEST_KEY_ID, EXPECTED_SLOT3_PUB, TEST_ALIAS,
+                               NULL, 0, 0, 0, false);
+  EXPECT_TRUE(signed_metadata_verify_attestation(
+      TEST_KEY_ID, payload.data(), payload.size(), sig, sizeof(sig)));
+
+  /* A schema the issuer never signed must not ride the same signature. */
+  payload[9] ^= 0x01; /* first byte of the program id */
+  EXPECT_FALSE(signed_metadata_verify_attestation(
+      TEST_KEY_ID, payload.data(), payload.size(), sig, sizeof(sig)));
+
+  signed_metadata_clear_signers();
+  set_advanced_mode_for_test(false);
+}
+
+/* ===================================================================== *
+ *  Solana schema path: every signed companion is shown
+ * ===================================================================== */
+
+class SolanaSchemaSignTest : public ::testing::Test {
+ protected:
+  std::vector<uint8_t> flash = std::vector<uint8_t>(FLASH_TOTAL_SIZE, 0xff);
+  uint8_t* previous_flash = nullptr;
+
+  void SetUp() override {
+    kk_test_board_init();
+    fsm_init();
+    previous_flash = emulator_flash_base;
+    emulator_flash_base = flash.data();
+    storage_init();
+    LoadDevice load = {};
+    load.has_mnemonic = true;
+    strcpy(load.mnemonic, "all all all all all all all all all all all all");
+    storage_loadDevice(&load);
+    storage_commit();
+    ASSERT_TRUE(storage_setPolicy("AdvancedMode", true));
+    signed_metadata_clear_signers();
+    ASSERT_TRUE(signed_metadata_store_signer(TEST_KEY_ID, EXPECTED_SLOT3_PUB,
+                                             TEST_ALIAS, NULL, 0, 0, 0, false));
+  }
+
+  void TearDown() override {
+    signed_metadata_clear_signers();
+    storage_reset();
+    emulator_flash_base = previous_flash;
+  }
+};
+
+/* A schema-matched instruction plus a Memo: the memo (swap intents and
+ * destinations ride in it) must be paged before the signature is made. */
+TEST_F(SolanaSchemaSignTest, MemoCompanionIsShown) {
+  const uint32_t path[4] = {0x80000000u | 44, 0x80000000u | 501, 0x80000000u,
+                            0x80000000u};
+  uint8_t seed[64];
+  mnemonic_to_seed("all all all all all all all all all all all all", "", seed,
+                   NULL);
+  HDNode node;
+  ASSERT_EQ(1, hdnode_from_seed(seed, sizeof(seed), ED25519_NAME, &node));
+  for (uint32_t i : path) ASSERT_EQ(1, hdnode_private_ckd(&node, i));
+  hdnode_fill_public_key(&node);
+
+  uint8_t program[32];
+  memset(program, 0x42, sizeof(program));
+  const std::string memo = "=:ETH.ETH:0x4E9B2CA2A1Bb8e5c1C5A0bdf0fA7F5F3dDeadBeE";
+
+  /* Legacy message: [payer, program, memo program]; ix0 = schema match
+   * (one-byte discriminator, no args), ix1 = Memo. */
+  std::vector<uint8_t> raw = {1, 0, 2, 3};
+  raw.insert(raw.end(), node.public_key + 1, node.public_key + 33);
+  raw.insert(raw.end(), program, program + 32);
+  raw.insert(raw.end(), SOL_MEMO_PROGRAM, SOL_MEMO_PROGRAM + 32);
+  raw.insert(raw.end(), 32, 0xBB); /* recent blockhash */
+  raw.push_back(2);
+  raw.insert(raw.end(), {1, 0, 1, 0x0d});
+  raw.insert(raw.end(), {2, 0, (uint8_t)memo.size()});
+  raw.insert(raw.end(), memo.begin(), memo.end());
+
+  std::vector<uint8_t> payload;
+  payload.insert(payload.end(), {'K', 'K', 'S', 'O', 'L', 'S', 'C', '1', 1});
+  payload.insert(payload.end(), program, program + 32);
+  payload.insert(payload.end(), {1, 0x0d, 5, 'R', 'e', 'l', 'a', 'y', 7, 'd',
+                                 'e', 'p', 'o', 's', 'i', 't', 0, 0});
+  uint8_t digest[32];
+  sha256_Raw(payload.data(), payload.size(), digest);
+  uint8_t sig[64];
+  ASSERT_EQ(0,
+            ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest, sig, NULL, NULL));
+
+  SolanaSignTx msg = {};
+  msg.address_n_count = 4;
+  memcpy(msg.address_n, path, sizeof(path));
+  msg.has_raw_tx = true;
+  msg.raw_tx.size = raw.size();
+  memcpy(msg.raw_tx.bytes, raw.data(), raw.size());
+  msg.has_schema_payload = true;
+  msg.schema_payload.size = payload.size();
+  memcpy(msg.schema_payload.bytes, payload.data(), payload.size());
+  msg.has_schema_signature = true;
+  msg.schema_signature.size = sizeof(sig);
+  memcpy(msg.schema_signature.bytes, sig, sizeof(sig));
+  msg.has_schema_signer_key_id = true;
+  msg.schema_signer_key_id = TEST_KEY_ID;
+
+  /* Schema signer, instruction, memo, blind-sign warning, final confirm. */
+  ASSERT_TRUE(kkconfirm_preload(5, 0));
+  kkconfirm_capture_start();
+  fsm_test_clearLastFailure();
+  fsm_msgSolanaSignTx(&msg);
+  const std::vector<std::string> bodies = kkconfirm_capture_finish();
+  EXPECT_EQ(0, fsm_test_lastFailureCode()) << fsm_test_lastFailureMessage();
+  EXPECT_EQ(0, kkconfirm_drain());
+  std::string shown;
+  for (const std::string& b : bodies) shown += b;
+  EXPECT_NE(std::string::npos, shown.find(memo)) << shown;
 }
 
 }  // namespace

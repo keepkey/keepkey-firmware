@@ -6,6 +6,42 @@ extern "C" {
 #include "gtest/gtest.h"
 #include <cstring>
 
+bool kkconfirm_preload(int nYes, int nNo);
+
+TEST(Nano, UnrenderableAmountCannotBeSigned) {
+  // kkconfirm_preload() performs the guarded board/FSM bootstrap.
+  // With approval queued, the old sentinel path would proceed to signing.
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  static CoinType coin = *coinByName("Nano");
+  coin.decimals = 255;
+  HDNode node = {};
+  NanoSignTx msg = {};
+  NanoSignedTx resp = {};
+  const char *rep =
+      "xrb_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3";
+  msg.has_parent_block = true;
+  msg.parent_block.has_representative = true;
+  strcpy(msg.parent_block.representative, rep);
+  msg.parent_block.has_balance = true;
+  msg.parent_block.balance.size = 16;
+  msg.parent_block.balance.bytes[15] = 2;
+  msg.has_link_hash = true;
+  msg.link_hash.size = 32;
+  msg.link_hash.bytes[0] = 1;
+  msg.has_representative = true;
+  strcpy(msg.representative, rep);
+  msg.has_balance = true;
+  msg.balance.size = 16;
+  msg.balance.bytes[15] = 1;
+  ASSERT_TRUE(nano_signingInit(&msg, &node, &coin));
+  ASSERT_TRUE(nano_parentHash(&msg));
+  ASSERT_TRUE(nano_currentHash(&msg, nullptr));
+  ASSERT_TRUE(nano_sanityCheck(&msg));
+  EXPECT_FALSE(nano_signTx(&msg, &node, &resp));
+  EXPECT_FALSE(resp.has_signature);
+  nano_signingAbort();
+}
+
 static void test_truncateAddress(const CoinType *coin, const std::string &addr,
                                  const std::string &expected) {
   char value[100];

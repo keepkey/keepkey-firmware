@@ -269,7 +269,7 @@ _BLOCK13_NATIVE_FULL_ONLY = {
     for case in (
         "AcceptedInitialRequestRenewsDeadline",
         "InvalidInitialRequestCannotRenewDeadline",
-        "AcceptedContinuationsRenewThenPollingExpires",
+        "AcceptedContinuationsDeferThenPollingExpires",
         "EmptyAndInvalidContinuationsAbortWithoutRenewal",
         "DeclinedContinuationCannotRenewAndFreshRetryWorks",
     )
