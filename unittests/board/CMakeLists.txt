@@ -1,4 +1,5 @@
 set(sources
+    font.cpp
     memcmp_s.cpp
     board.cpp)
 

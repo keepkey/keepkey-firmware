@@ -44,9 +44,11 @@ enum {
   CONCAT(CoinIndex, __COUNTER__),
 #include "keepkey/firmware/coins.def"
 
+#if !BITCOIN_ONLY
 #define X(INDEX, NAME, SYMBOL, DECIMALS, CONTRACT_ADDRESS) \
   CONCAT(CoinIndex, __COUNTER__),
 #include "keepkey/firmware/tokens.def"
+#endif
 
   CoinIndexLast,
   CoinIndexFirst = 0

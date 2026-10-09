@@ -23,6 +23,7 @@
 #include "u2f_knownapps.h"
 
 #include "keepkey/board/keepkey_button.h"
+#include "keepkey/board/messages.h"
 #include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/memcmp_s.h"
@@ -32,9 +33,12 @@
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/home_sm.h"
+#include "keepkey/firmware/recovery_cipher.h"
+#include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/u2f/u2f.h"
 #include "keepkey/firmware/u2f/u2f_keys.h"
+#include "keepkey/rand/rng_health.h"
 #include "trezor/crypto/bip39.h"
 #include "trezor/crypto/bip39_english.h"
 #include "trezor/crypto/ecdsa.h"
@@ -112,6 +116,19 @@ typedef struct {
 
 static uint32_t dialog_timeout = 0;
 
+/* User presence is a press and release that starts after the prompt is drawn
+ * (Trezor's button.YesUp): the button must be seen up, then down, then up.
+ * Steps: 0 waits for up, 1 for down, 2 for the release. */
+static uint8_t presence_step = 0;
+
+static bool presenceReleased(void) {
+  const bool want_up = presence_step != 1;
+  if (keepkey_button_up() == want_up) presence_step++;
+  if (presence_step < 3) return false;
+  presence_step = 0;
+  return true;
+}
+
 uint32_t next_cid(void) {
   // extremely unlikely but hey
   do {
@@ -145,6 +162,15 @@ void u2fhid_read(char tiny, const U2FHID_FRAME* f) {
       reader->len = 0;
       reader->seq = 255;
     }
+    return;
+  }
+
+  /* A setup ceremony waits in the main loop for its next message. A U2F
+   * session started now would draw over it and end on the home screen, while
+   * a recovery stays armed and keeps taking CharacterAcks with no cipher
+   * shown. Answer busy and leave the screen alone. */
+  if (!tiny && setup_isArmed()) {
+    send_u2fhid_error(f->cid, ERR_CHANNEL_BUSY);
     return;
   }
 
@@ -192,6 +218,37 @@ void u2fhid_init_cmd(const U2FHID_FRAME* f) {
   cid = f->cid;
 }
 
+/* Every exit from a U2F session. The request state and any presence progress
+ * belong to the prompt this session drew, and layoutHome() removes it, so
+ * neither may survive into a later session: a request resent then must be
+ * prompted again and needs a fresh press. */
+static void u2fhid_session_end(bool msg_tiny) {
+  last_req_state = INIT;
+  presence_step = 0;
+  dialog_timeout = 0;
+  cid = 0;
+  reader = 0;
+  usbTiny(0);
+  msg_set_tiny(msg_tiny);
+  /* As fsm_msgPing(): never leave an armed recovery behind the home screen. */
+  if (setup_isArmedAs(SETUP_RECOVERY)) {
+    recovery_cipher_redraw();
+  } else {
+    layoutHome();
+  }
+}
+
+/* A normal or debug frame rejected during the session is answered through the
+ * failure handler, which redraws the screen (home, the recovery cipher, a
+ * signer's abort). Forget the request, so presence is not polled for a prompt
+ * that is gone: the host's next retry draws it again, and needs a fresh
+ * press. */
+static void forgetPromptIfOverdrawn(void) {
+  if (!msg_take_tiny_rejection()) return;
+  last_req_state = INIT;
+  presence_step = 0;
+}
+
 void u2fhid_read_start(const U2FHID_FRAME* f) {
   U2F_ReadBuffer readbuffer;
   memzero(&readbuffer, sizeof(readbuffer));
@@ -215,6 +272,10 @@ void u2fhid_read_start(const U2FHID_FRAME* f) {
   u2fhid_init_cmd(f);
 
   usbTiny(1);
+  /* Main and debug frames must not be dispatched under the U2F prompt: a
+   * nested confirm would replace it, and its held button would then count as
+   * U2F presence. Trezor uses one tiny flag for every endpoint. */
+  const bool msg_tiny = msg_set_tiny(true);
   for (;;) {
     // Do we need to wait for more data
     while ((reader->buf_ptr - reader->buf) < (signed)reader->len) {
@@ -225,13 +286,12 @@ void u2fhid_read_start(const U2FHID_FRAME* f) {
         if (counter-- == 0) {
           // timeout
           send_u2fhid_error(cid, ERR_MSG_TIMEOUT);
-          cid = 0;
-          reader = 0;
-          usbTiny(0);
-          layoutHome();
+          u2fhid_session_end(msg_tiny);
           return;
         }
         usbPoll();
+        keepkey_idle_clock_sample();
+        forgetPromptIfOverdrawn();
       }
     }
 
@@ -257,15 +317,13 @@ void u2fhid_read_start(const U2FHID_FRAME* f) {
     // wait for next commmand/ button press
     reader->cmd = 0;
     reader->seq = 255;
-    bool saw_button_up_at_least_once = false;
     while (dialog_timeout > 0 && reader->cmd == 0) {
       dialog_timeout--;
-      saw_button_up_at_least_once =
-          saw_button_up_at_least_once || keepkey_button_up();
       usbPoll();  // may trigger new request
-      // buttonUpdate();
-      if (saw_button_up_at_least_once && keepkey_button_down() &&
-          (last_req_state == AUTH || last_req_state == REG)) {
+      keepkey_idle_clock_sample();
+      forgetPromptIfOverdrawn();
+      if ((last_req_state == AUTH || last_req_state == REG) &&
+          presenceReleased()) {
         last_req_state++;
         // standard requires to remember button press for 10 seconds.
         dialog_timeout = 10 * U2F_TIMEOUT;
@@ -273,11 +331,7 @@ void u2fhid_read_start(const U2FHID_FRAME* f) {
     }
 
     if (reader->cmd == 0) {
-      last_req_state = INIT;
-      cid = 0;
-      reader = 0;
-      usbTiny(0);
-      layoutHome();
+      u2fhid_session_end(msg_tiny);
       return;
     }
   }
@@ -524,10 +578,20 @@ static const HDNode* generateKeyHandle(const uint8_t app_id[],
   uint8_t keybase[U2F_APPID_SIZE + KEY_PATH_LEN];
 
   // Derivation path is m/U2F'/r'/r'/r'/r'/r'/r'/r'/r'
+  //
+  // The path is not secret: it is the first half of the key handle, which the
+  // relying party stores. The key's secrecy rests on the U2F root. The path
+  // still draws through the RNG gate rather than random32(): a stuck or weak
+  // generator would repeat paths and give unrelated sites the same public key,
+  // linking the user across them. Registration fails rather than minting a
+  // credential on an untrusted generator.
   uint32_t key_path[KEY_PATH_ENTRIES];
+  if (!random_buffer_checked((uint8_t*)key_path, sizeof(key_path))) {
+    debugLog(0, "", "ERR: RNG self-test failed");
+    return NULL;
+  }
   for (uint32_t i = 0; i < KEY_PATH_ENTRIES; i++) {
-    // high bit for hardened keys
-    key_path[i] = 0x80000000 | random32();
+    key_path[i] |= 0x80000000;  // high bit for hardened keys
   }
 
   // First half of keyhandle is key_path
@@ -627,8 +691,8 @@ void u2f_register(const APDU* a) {
   // First Time request, return not present and display request dialog
   if (last_req_state == INIT) {
     // error: testof-user-presence is required
-    // buttonUpdate();
     promptRegister(true, req);
+    presence_step = 0;
     last_req_state = REG;
   }
 
@@ -768,8 +832,8 @@ void u2f_authenticate(const APDU* a) {
 
   if (last_req_state == INIT) {
     // error: testof-user-presence is required
-    // buttonUpdate(); // Clear button state
     promptAuthenticate(true, req);
+    presence_step = 0;
     last_req_state = AUTH;
   }
 

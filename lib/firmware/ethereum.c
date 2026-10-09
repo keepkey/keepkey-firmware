@@ -1106,6 +1106,8 @@ void ethereum_signing_abort(void) {
   }
 }
 
+bool ethereum_signing_isInProgress(void) { return ethereum_signing; }
+
 static void ethereum_message_hash(const uint8_t* message, size_t message_len,
                                   uint8_t hash[32]) {
   struct SHA3_CTX ctx;
