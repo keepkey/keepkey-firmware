@@ -72,6 +72,7 @@
 #include "keepkey/firmware/transaction.h"
 #include "keepkey/firmware/txin_check.h"
 #include "keepkey/firmware/u2f.h"
+#include "keepkey/firmware/zcash.h"
 #include "keepkey/rand/rng.h"
 #include "keepkey/rand/rng_health.h"
 #include "trezor/crypto/address.h"
@@ -99,6 +100,7 @@
 #include "messages-tron.pb.h"
 #include "messages-ton.pb.h"
 #include "messages-solana.pb.h"
+#include "messages-zcash.pb.h"
 
 #include <stdio.h>
 /* strnlen: the THORChain memo paths measure fixed arrays rather than
@@ -444,6 +446,9 @@ bool fsm_workflowInProgress(void) {
     return true;
   }
 #endif
+#if ZCASH_PRIVACY
+  if (zcash_signing_is_active()) return true;
+#endif
   return false;
 }
 
@@ -557,6 +562,14 @@ static bool fsm_dispatchGate(MessageType msg_id) {
     case MessageType_MessageType_MayachainMsgAck:
       if (!mayachain_signingIsInited())
         return reject_stale_continuation("Signing not in progress");
+      return true;
+#endif
+#if ZCASH_PRIVACY
+    case MessageType_MessageType_ZcashPCZTAction:
+    case MessageType_MessageType_ZcashTransparentOutput:
+    case MessageType_MessageType_ZcashTransparentInput:
+      if (!zcash_signing_is_active())
+        return reject_stale_continuation("Zcash signing not in progress");
       return true;
 #endif
     default:
@@ -725,6 +738,9 @@ static void abort_signing_engines(void) {
   thorchain_signAbort();
   mayachain_signAbort();
   eos_signingAbort();
+#if ZCASH_PRIVACY
+  zcash_signing_abort();
+#endif
 #endif
   authenticator_clear_cache();
   memzero(&fsm_derived_node, sizeof(fsm_derived_node));
@@ -789,4 +805,7 @@ void tendermint_signAbort(void) {}
 void eos_signingAbort(void) {}
 void signed_metadata_clear_signers(void) {}
 #endif  // !BITCOIN_ONLY
+#if ZCASH_PRIVACY
+#include "fsm_msg_zcash.h"
+#endif
 #include "fsm_msg_bip85.h"

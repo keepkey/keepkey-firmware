@@ -99,6 +99,33 @@ TEST(Fsm, AuthenticatorCredentialSourceIsWipedOnEveryExit) {
   }
 }
 
+TEST(Fsm, ZcashPrivacyWireSurfaceMatchesBuildVariant) {
+  fsm_init();
+  const MessageType inbound[] = {MessageType_MessageType_ZcashSignPCZT,
+                                 MessageType_MessageType_ZcashPCZTAction,
+                                 MessageType_MessageType_ZcashGetOrchardFVK,
+                                 MessageType_MessageType_ZcashTransparentOutput,
+                                 MessageType_MessageType_ZcashTransparentInput,
+                                 MessageType_MessageType_ZcashDisplayAddress};
+  const MessageType outbound[] = {
+      MessageType_MessageType_ZcashPCZTActionAck,
+      MessageType_MessageType_ZcashSignedPCZT,
+      MessageType_MessageType_ZcashOrchardFVK,
+      MessageType_MessageType_ZcashTransparentSigned,
+      MessageType_MessageType_ZcashAddress,
+      MessageType_MessageType_ZcashTransparentAck};
+  for (MessageType type : inbound) {
+    EXPECT_EQ(ZCASH_PRIVACY != 0,
+              message_fields(NORMAL_MSG, type, IN_MSG) != nullptr)
+        << type;
+  }
+  for (MessageType type : outbound) {
+    EXPECT_EQ(ZCASH_PRIVACY != 0,
+              message_fields(NORMAL_MSG, type, OUT_MSG) != nullptr)
+        << type;
+  }
+}
+
 TEST(Fsm, Bip85WireSurfaceIsPresentInBothVariants) {
   fsm_init();
   EXPECT_NE(nullptr,

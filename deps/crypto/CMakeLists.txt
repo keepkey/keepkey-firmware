@@ -58,13 +58,31 @@ set(sources
     #trezor-firmware/crypto/aes/aestst.c
     trezor-firmware/crypto/aes/aestab.c)
 
-    # Clang 5.0 in the docker image (kktech/firmware:v7) is missing
-    # <xmmintrin.h>, which breaks these. Until they're needed, we'll just elide
-    # them.
-    #trezor-firmware/crypto/chacha20poly1305/chacha_merged.c
-    #trezor-firmware/crypto/chacha20poly1305/rfc7539.c
-    #trezor-firmware/crypto/chacha20poly1305/poly1305-donna.c
-    #trezor-firmware/crypto/chacha20poly1305/chacha20poly1305.c
+# Pallas/Orchard curve arithmetic (~2.4k LOC) -- only the Zcash shielded engine
+# uses it. Excluded from bitcoin-only images.
+if(${KK_ZCASH_PRIVACY})
+  list(APPEND sources
+      trezor-firmware/crypto/pallas.c
+      trezor-firmware/crypto/pallas_ct.c
+      trezor-firmware/crypto/pallas_sinsemilla.c
+      trezor-firmware/crypto/pallas_swu.c
+      trezor-firmware/crypto/redpallas.c
+      trezor-firmware/crypto/zcash_zip316.c
+      # Orchard note-ciphertext check (AEAD_CHACHA20_POLY1305).
+      trezor-firmware/crypto/chacha20poly1305/chacha_merged.c
+      trezor-firmware/crypto/chacha20poly1305/chacha20poly1305.c
+      trezor-firmware/crypto/chacha20poly1305/poly1305-donna.c
+      trezor-firmware/crypto/chacha20poly1305/rfc7539.c)
+  # ecrypt-config.h uses SSE/MMX types only to pick an alignment type, and the
+  # emulator image's clang lacks <xmmintrin.h>. Build portably (MAXT = long,
+  # as on ARM).
+  set_source_files_properties(
+      trezor-firmware/crypto/chacha20poly1305/chacha_merged.c
+      trezor-firmware/crypto/chacha20poly1305/chacha20poly1305.c
+      trezor-firmware/crypto/chacha20poly1305/poly1305-donna.c
+      trezor-firmware/crypto/chacha20poly1305/rfc7539.c
+      PROPERTIES COMPILE_OPTIONS "-U__SSE__;-U__MMX__")
+endif()
 
 
 include_directories(

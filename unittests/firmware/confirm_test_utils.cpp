@@ -202,6 +202,35 @@ bool kkconfirm_readResponse(uint16_t expected, const pb_field_t* fields,
   return false;
 }
 
+// Message ids of every response already sent, in order, consuming them. A
+// refusal test uses it to show a response type was never emitted.
+std::vector<uint16_t> kkconfirm_readResponseIds(void) {
+  std::vector<uint16_t> ids;
+  size_t announced = 0, consumed = 0;
+  for (int idle_us = 0; idle_us < KKCONFIRM_DRAIN_GRACE_US;) {
+    uint8_t frame[64] = {};
+    const ssize_t count =
+        recv(kkconfirm_fd, frame, sizeof(frame), MSG_DONTWAIT);
+    if (count <= 0) {
+      usleep(1000);
+      idle_us += 1000;
+      continue;
+    }
+    size_t offset = 1;
+    if (consumed == announced) {
+      ids.push_back((uint16_t(frame[3]) << 8) | frame[4]);
+      announced = (uint32_t(frame[5]) << 24) | (uint32_t(frame[6]) << 16) |
+                  (uint32_t(frame[7]) << 8) | frame[8];
+      consumed = 0;
+      offset = 9;
+    }
+    const size_t available = sizeof(frame) - offset;
+    consumed +=
+        announced - consumed < available ? announced - consumed : available;
+  }
+  return ids;
+}
+
 #include "gtest/gtest.h"
 extern "C" {
 #include "keepkey/board/confirm_sm.h"
