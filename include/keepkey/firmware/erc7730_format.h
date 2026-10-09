@@ -5,25 +5,39 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Render untrusted text so that, inside the same surrounding text, distinct
- * byte strings never draw the same screens. Raw bytes would: the font draws
- * every byte >= 0x80 as the same glyph and control bytes as nothing, the body
- * renderer drops a space where it wraps a line, and the pager drops spaces at
- * a page start, so whether a space is seen depends on where the layout puts
- * it. Each byte is rendered on its own:
- *   - printable ASCII 0x21-0x7e is copied, except a backslash, which is
- *     doubled;
- *   - any other byte, every space included, is written as backslash, 'x'
- *     and two lowercase hex digits (a space is \x20, and a NUL cannot end
- *     the body early).
- * The output is only printable ASCII 0x21-0x7e: no space, newline or control
- * byte, nothing the renderer or pager drops or turns into layout. The mapping
- * is prefix-free and per byte, so the rendering of a concatenation is the
- * concatenation of the renderings, and distinct inputs give distinct glyph
- * sequences however the output is wrapped, paged or the input is split into
- * parts. The output is NUL-terminated. Returns false, leaving "" when
- * output_size is nonzero, if the rendering does not fit. */
+#include "keepkey/firmware/erc7730_abi_stream.h"
+
+/* Widest rendering: every byte of a capture escaped to four characters. */
+#define ERC7730_FORMATTED_VALUE_MAX (4u * ERC7730_ABI_CAPTURE_MAX)
+
+/* Render untrusted text one-to-one on the OLED (the font merges bytes >= 0x80
+ * and hides controls; a line wrap or page start drops a space): '\' is
+ * doubled and every byte outside 0x21-0x7e, space included, becomes \xNN
+ * (lowercase hex). Per-byte and prefix-free, so distinct inputs draw distinct
+ * screens however they wrap, page or split. Returns false, leaving "", if it
+ * does not fit. */
 bool erc7730_format_text(const uint8_t* bytes, size_t length, char* output,
                          size_t output_size);
 
+/* Render signer-authored text: a field label, intent or intent text part,
+ * enum label, unit, token message or signed constant string, all taken from
+ * the definition the user-loaded signer signed. As erc7730_format_text(),
+ * except that a single interior space (neither the first nor the last byte,
+ * no space beside it) is copied as is; edge and doubled spaces are still
+ * \x20. Labels may keep readable spaces because the signer authored and
+ * signed them, they carry no transaction data, and every value they
+ * introduce is escaped on its own with erc7730_format_text() (an
+ * interpolated intent shows its values as separate parts). Never use this
+ * for bytes captured from the calldata or typed data being signed. */
+bool erc7730_format_label(const uint8_t* bytes, size_t length, char* output,
+                          size_t output_size);
+
+/* Exact decimal of a 256-bit big-endian value; two's complement when
+ * `negative` (the caller has seen the sign bit of a signed integer). */
+bool erc7730_format_integer(const uint8_t value[32], bool negative,
+                            char* output, size_t output_size);
+
+bool erc7730_format_raw(const Erc7730AbiProgram* program,
+                        const Erc7730AbiCapture* capture, char* output,
+                        size_t output_size);
 #endif

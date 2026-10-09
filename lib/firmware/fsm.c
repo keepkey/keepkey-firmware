@@ -44,6 +44,8 @@
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/eos-contracts.h"
 #include "keepkey/firmware/eip712_stream.h"
+#include "keepkey/firmware/erc7730_catalog.h"
+#include "keepkey/firmware/erc7730_workflow.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_tokens.h"
 #include "keepkey/firmware/fsm.h"
@@ -432,6 +434,7 @@ bool fsm_workflowInProgress(void) {
 #if !BITCOIN_ONLY
   if (ethereum_signing_isInProgress() ||
       eip712_stream_waiting() != EIP712_IDLE ||
+      erc7730_workflow_active(erc7730_workflow_state()) ||
       tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS) ||
       tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC) ||
       osmosis_signingIsInited() || binance_signingIsInited() ||
@@ -460,6 +463,8 @@ void fsm_init(void) {
 }
 
 /* Reject continuation packets unless their signing workflow is active. */
+static void abort_signing_engines(void);
+
 static bool reject_stale_continuation(const char* text) {
   /* A decoded request always gets a terminal response. Silently dropping an
    * inactive ACK leaves the host blocked forever, while dispatching it would
@@ -510,7 +515,8 @@ static bool fsm_dispatchGate(MessageType msg_id) {
       fsm_abort_signing_workflows();
       return true;
     case MessageType_MessageType_EthereumTxAck:
-      if (!ethereum_signing_isInProgress())
+      if (!ethereum_signing_isInProgress() &&
+          erc7730_workflow_state()->phase != ERC7730_WORKFLOW_CALLDATA)
         return reject_stale_continuation("Signing not in progress");
       return true;
     case MessageType_MessageType_EthereumTypedDataStructAck:
@@ -520,6 +526,12 @@ static bool fsm_dispatchGate(MessageType msg_id) {
     case MessageType_MessageType_EthereumTypedDataValueAck:
       if (eip712_stream_waiting() != EIP712_WANT_VALUE)
         return reject_stale_continuation("No EIP-712 value requested");
+      return true;
+    case MessageType_MessageType_EthereumClearSignDefinitionChunk:
+      if (erc7730_workflow_state()->phase != ERC7730_WORKFLOW_REPLAY &&
+          erc7730_workflow_state()->phase != ERC7730_WORKFLOW_SELECT &&
+          erc7730_workflow_state()->phase != ERC7730_WORKFLOW_FETCH)
+        return reject_stale_continuation("No ERC-7730 definition requested");
       return true;
     case MessageType_MessageType_CosmosMsgAck:
       if (!tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS))
@@ -611,7 +623,19 @@ static bool fsm_dispatchGate(MessageType msg_id) {
           }
           break;
       }
-      fsm_abort_signing_workflows();
+      switch (msg_id) {
+#if !BITCOIN_ONLY
+        case MessageType_MessageType_EthereumClearSignDefinition:
+        case MessageType_MessageType_EthereumSignTx:
+        case MessageType_MessageType_EthereumSignTypedData:
+          /* The preload's own chunks and its consumers keep it. */
+          abort_signing_engines();
+          break;
+#endif
+        default:
+          fsm_abort_signing_workflows();
+          break;
+      }
       return true;
   }
 }
@@ -688,7 +712,7 @@ void fsm_abort_workflows(void) {
  * signing state, but must not discard a setup ceremony: recovery stages its
  * ceremony before prompting for the PIN, and every routine PIN entry clears
  * the session while checking the entered digits against the wipe code. */
-void fsm_abort_signing_workflows(void) {
+static void abort_signing_engines(void) {
   signing_abort();
 #if !BITCOIN_ONLY
   ethereum_signing_abort();
@@ -704,6 +728,16 @@ void fsm_abort_signing_workflows(void) {
   authenticator_clear_cache();
   memzero(&fsm_derived_node, sizeof(fsm_derived_node));
   drop_workflow_progress_if_idle();
+}
+
+/* A preloaded ERC-7730 definition is consumed only by the signing request that
+ * follows it. Every other abort -- Initialize, Cancel, ClearSession, autolock,
+ * a rejected frame or any unrelated request -- discards it too. */
+void fsm_abort_signing_workflows(void) {
+  abort_signing_engines();
+#if !BITCOIN_ONLY
+  erc7730_catalog_clear_preload();
+#endif
 }
 
 void fsm_msgClearSession(ClearSession* msg) {

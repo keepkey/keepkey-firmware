@@ -250,6 +250,13 @@ if(${KK_EMULATOR} AND NOT WIN32)
             --gtest_output=xml:${CMAKE_BINARY_DIR}/unittests/crypto.xml)
   add_dependencies(xunit firmware-unit board-unit crypto-unit)
 
+  if(TARGET erc7730-validator-test)
+    add_test(NAME test-erc7730-validator
+        COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/erc7730-validate/test_cli.py
+                $<TARGET_FILE:erc7730-validate>)
+    add_dependencies(xunit erc7730-validator-test)
+  endif()
+
   if(KK_BUILD_DYLIB AND NOT WIN32)
     find_package(Threads REQUIRED)
     add_executable(emulator-unit unittests/emulator/lifecycle.cpp)

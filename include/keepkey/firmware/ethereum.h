@@ -80,6 +80,10 @@ bool ethereumFormatAmount(const bignum256* amnt, const TokenType* token,
                           uint32_t cid, char* buf, int buflen)
     __attribute__((warn_unused_result));
 
+/* The chain's native asset, independent of any Wanchain transaction type. */
+bool ethereumFormatNativeAmount(const bignum256* amnt, uint32_t cid, char* buf,
+                                int buflen) __attribute__((warn_unused_result));
+
 void bn_from_bytes(const uint8_t* value, size_t value_len, bignum256* val);
 
 void ethereum_typed_hash_sign(const EthereumSignTypedHash* msg,

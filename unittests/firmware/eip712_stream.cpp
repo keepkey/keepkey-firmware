@@ -414,8 +414,17 @@ TEST(Eip712Stream, CertifiedFieldReplayPreservesDomainAndSigningPath) {
             0);
   EXPECT_EQ(eip712_stream_next()->address_n[0], begin.address_n[0]);
   EXPECT_EQ(kkconfirm_drain(), 0);
+  // Between field walks the stream is inactive, yet an addressName field
+  // still needs the signer: the path cannot be gated on an active walk.
+  uint32_t path[6] = {0};
+  size_t count = 0;
+  ASSERT_TRUE(eip712_stream_signer_path(path, &count));
+  EXPECT_EQ(count, 1u);
+  EXPECT_EQ(path[0], begin.address_n[0]);
   eip712_stream_abort();
   EXPECT_FALSE(eip712_stream_resume_for_field());
+  // An abort forgets the signer; the stale DONE step names nothing usable.
+  EXPECT_FALSE(eip712_stream_signer_path(path, &count));
 }
 
 TEST(Eip712Stream, EncodeAddressIsLeftPadded) {
