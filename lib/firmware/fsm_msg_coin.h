@@ -198,6 +198,21 @@ static bool path_mismatched(const CoinType* coin, const GetAddress* msg) {
     return mismatch;
   }
 
+  // m/86' : BIP86 Taproot
+  // m / purpose' / bip44_account_path' / account' / change / address_index
+  if (msg->address_n[0] == (0x80000000 + 86)) {
+    mismatch |= (msg->script_type != InputScriptType_SPENDTAPROOT);
+    mismatch |= !coin->has_segwit || !coin->segwit;
+    mismatch |= !coin->has_bech32_prefix;
+    mismatch |= !coin->has_taproot || !coin->taproot;
+    mismatch |= (msg->address_n_count != 5);
+    mismatch |= (msg->address_n[1] != coin->bip44_account_path);
+    mismatch |= (msg->address_n[2] & 0x80000000) == 0;
+    mismatch |= (msg->address_n[3] & 0x80000000) == 0x80000000;
+    mismatch |= (msg->address_n[4] & 0x80000000) == 0x80000000;
+    return mismatch;
+  }
+
   return false;
 }
 
@@ -288,6 +303,16 @@ void fsm_msgSignMessage(SignMessage* msg) {
      case reaches this far.) */
   if (msg->message.size == 0) {
     fsm_sendFailure(FailureType_Failure_SyntaxError, _("Missing message"));
+    layoutHome();
+    return;
+  }
+
+  /* Message signatures are ECDSA with a p2pkh/segwit header; there is no
+     taproot form. compute_address() now yields a bc1p address, so signing
+     would return a signature that can never verify against it. */
+  if (msg->script_type == InputScriptType_SPENDTAPROOT) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Taproot message signing is not supported"));
     layoutHome();
     return;
   }

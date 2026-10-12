@@ -23,6 +23,17 @@
 #include "keepkey/transport/interface.h"
 #include "keepkey/board/messages.h"
 
+/* Scrub the function-static HDNode used by synchronous FSM derivations. */
+void fsm_clearDerivedNode(void);
+#if DEBUG_LINK
+void fsm_test_seedDerivedNode(void);
+bool fsm_test_derivedNodeIsZero(void);
+void fsm_test_clearLastFailure(void);
+FailureType fsm_test_lastFailureCode(void);
+/* The shared response arena that RESP_INIT() hands to handlers. */
+uint8_t* fsm_test_responseArena(size_t* size);
+#endif
+
 #define RESP_INIT(TYPE)                                                    \
   TYPE* resp = (TYPE*)msg_resp;                                            \
   _Static_assert(sizeof(msg_resp) >= sizeof(TYPE), #TYPE " is too large"); \
@@ -41,6 +52,9 @@ void fsm_init(void);
 /* End every in-flight workflow and scrub its volatile authorization/key
  * state. Call before any operation that clears or revokes a session. */
 void fsm_abort_workflows(void);
+void fsm_abort_signing_workflows(void);
+/* True while a setup ceremony is armed or any signer waits for the host. */
+bool fsm_workflowInProgress(void);
 
 void fsm_sendSuccess(const char* text);
 

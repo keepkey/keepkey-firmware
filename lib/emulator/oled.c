@@ -20,4 +20,5 @@
 
 void oledInit(void) {}
 void oledRefresh(void) {}
-void emulatorPoll(void) {}
+/* Weak so a unit test can feed frames from inside usbPoll(). */
+__attribute__((weak)) void emulatorPoll(void) {}

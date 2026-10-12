@@ -32,6 +32,7 @@ set(sources
     #trezor-firmware/crypto/tests/test_openssl.c
     #trezor-firmware/crypto/tests/test_speed.c
     trezor-firmware/crypto/secp256k1.c
+    trezor-firmware/crypto/bip340.c
     trezor-firmware/crypto/bignum.c
     trezor-firmware/crypto/segwit_addr.c
     trezor-firmware/crypto/ripemd160.c

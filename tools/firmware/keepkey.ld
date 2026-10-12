@@ -71,3 +71,10 @@ _buttonusr_isr = _comram_end - 4;
 _data_size = SIZEOF(.data);
 
 _codelen = SIZEOF(.text) + SIZEOF(.data) + SIZEOF(.ARM.exidx) + SIZEOF(.version);
+
+/* Runtime SRAM gate: the space between the end of .bss and the top-of-RAM
+ * stack is all the running firmware has for call frames. Require a 16 KiB
+ * reserve at link time for every variant, so a large frame cannot overwrite
+ * static memory. */
+ASSERT((_stack - _ebss) >= 0x4000,
+       "Insufficient runtime SRAM: require 16 KiB stack/heap reserve between _ebss and _stack");
