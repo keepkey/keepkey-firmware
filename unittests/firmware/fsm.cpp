@@ -269,6 +269,93 @@ struct ScopedFlash {
   }
 };
 
+// GetPublicKey accepts the same InputScriptType enum as GetAddress. BIP-86
+// uses an ordinary xpub/tpub containing the untweaked account public node.
+TEST(Fsm, TaprootPublicKeyExportsTheStandardAccountNode) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  LoadDevice load = {};
+  load.has_mnemonic = true;
+  std::strcpy(load.mnemonic,
+              "abandon abandon abandon abandon abandon abandon abandon "
+              "abandon abandon abandon abandon about");
+  storage_loadDevice(&load);
+  storage_commit();
+
+  for (const char* coin : {"Bitcoin", "Testnet"}) {
+    GetPublicKey get = {};
+    get.has_coin_name = true;
+    std::strcpy(get.coin_name, coin);
+    get.address_n_count = 3;
+    get.address_n[0] = 0x80000000u | 86;
+    get.address_n[1] = 0x80000000u | (std::strcmp(coin, "Testnet") == 0);
+    get.address_n[2] = 0x80000000u;
+    get.has_script_type = true;
+    get.script_type = InputScriptType_SPENDADDRESS;
+    fsm_test_clearLastFailure();
+    receiveMessage(MessageType_MessageType_GetPublicKey, GetPublicKey_fields,
+                   &get);
+    ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+    size_t arena_size = 0;
+    const PublicKey control = *reinterpret_cast<const PublicKey*>(
+        fsm_test_responseArena(&arena_size));
+    ASSERT_TRUE(control.has_xpub);
+    ASSERT_FALSE(control.node.has_private_key);
+    ASSERT_EQ(33u, control.node.public_key.size);
+    if (std::strcmp(coin, "Bitcoin") == 0) {
+      // Published BIP-86 account-0 xpub for the mnemonic above.
+      EXPECT_STREQ(
+          "xpub6BgBgsespWvERF3LHQu6CnqdvfEvtMcQjYrcRzx53QJjSxarj2afYWcLteoG"
+          "Vky7D3UKDP9QyrLprQ3VCECoY49yfdDEHGCtMMj92pReUsQ",
+          control.xpub);
+    } else {
+      ASSERT_EQ(0, std::strncmp(control.xpub, "tpub", 4));
+    }
+
+    get.script_type = InputScriptType_SPENDTAPROOT;
+    fsm_test_clearLastFailure();
+    receiveMessage(MessageType_MessageType_GetPublicKey, GetPublicKey_fields,
+                   &get);
+    ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+    const PublicKey* result =
+        reinterpret_cast<const PublicKey*>(fsm_test_responseArena(&arena_size));
+    ASSERT_TRUE(result->has_xpub);
+    EXPECT_STREQ(control.xpub, result->xpub);
+    EXPECT_FALSE(result->node.has_private_key);
+    EXPECT_EQ(0,
+              std::memcmp(&control.node, &result->node, sizeof(control.node)));
+    EXPECT_TRUE(fsm_test_derivedNodeIsZero());
+  }
+}
+
+#if !BITCOIN_ONLY
+TEST(Fsm, TaprootPublicKeyRefusesCoinsWithoutTaproot) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  LoadDevice load = {};
+  load.has_mnemonic = true;
+  std::strcpy(load.mnemonic, "all all all all all all all all all all all all");
+  storage_loadDevice(&load);
+  storage_commit();
+  GetPublicKey get = {};
+  get.has_coin_name = true;
+  std::strcpy(get.coin_name, "Litecoin");
+  get.address_n_count = 3;
+  get.address_n[0] = 0x80000000u | 86;
+  get.address_n[1] = 0x80000000u | 2;
+  get.address_n[2] = 0x80000000u;
+  get.has_script_type = true;
+  get.script_type = InputScriptType_SPENDTAPROOT;
+  fsm_test_clearLastFailure();
+  receiveMessage(MessageType_MessageType_GetPublicKey, GetPublicKey_fields,
+                 &get);
+  EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+  EXPECT_TRUE(fsm_test_derivedNodeIsZero());
+}
+#endif
+
 // DebugLinkGetState is also serviced inside the PIN, passphrase and confirm
 // waits. The suspended outer handler may already hold its pending response in
 // the shared RESP_INIT arena, so the debug reply must not be built there.
