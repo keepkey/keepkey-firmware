@@ -48,7 +48,38 @@ extern "C" void keepkey_user_activity(void);  // lib/firmware/home_sm.c
 // Auto-lock reads home_clock_ms(). The real 1 ms tick would make the deadline
 // checks below racy, so this binary's clock moves only when a test says so.
 static uint32_t fake_clock_ms = 0;
-extern "C" uint32_t home_clock_ms(void) { return fake_clock_ms; }
+static bool inject_button_during_clock_read = false;
+static bool pending_button_interrupt = false;
+static unsigned idle_clock_critical_depth = 0;
+static unsigned delivered_button_interrupts = 0;
+
+extern "C" uint32_t home_clock_ms(void) {
+  if (inject_button_during_clock_read) {
+    inject_button_during_clock_read = false;
+    if (idle_clock_critical_depth != 0) {
+      pending_button_interrupt = true;
+    } else {
+      ++delivered_button_interrupts;
+      keepkey_user_activity();
+    }
+  }
+  return fake_clock_ms;
+}
+
+// Model the device's interrupt mask: a physical edge remains pending until
+// the complete idle-clock update finishes, rather than reentering its RMWs.
+extern "C" void home_idle_clock_enter(void) { ++idle_clock_critical_depth; }
+extern "C" void home_idle_clock_leave(void) {
+  EXPECT_GT(idle_clock_critical_depth, 0u);
+  if (idle_clock_critical_depth == 0) return;
+  --idle_clock_critical_depth;
+  if (idle_clock_critical_depth == 0 && pending_button_interrupt) {
+    pending_button_interrupt = false;
+    ++delivered_button_interrupts;
+    keepkey_user_activity();
+  }
+}
+
 static void advance_clock(uint32_t ms) { fake_clock_ms += ms; }
 
 TEST(Fsm, AuthenticatorCredentialSourceIsWipedOnEveryExit) {
@@ -554,6 +585,87 @@ TEST(Fsm, UserActivityRenewsTheAutoLockDeadline) {
   toggle_screensaver();
   EXPECT_EQ(SCREENSAVER, home_get_state());
   layoutHomeForced();
+}
+
+namespace {
+struct ScopedIdleClockInterrupt {
+  ScopedIdleClockInterrupt() {
+    EXPECT_EQ(idle_clock_critical_depth, 0u);
+    EXPECT_FALSE(inject_button_during_clock_read);
+    EXPECT_FALSE(pending_button_interrupt);
+    delivered_button_interrupts = 0;
+  }
+
+  ~ScopedIdleClockInterrupt() {
+    inject_button_during_clock_read = false;
+    pending_button_interrupt = false;
+    EXPECT_EQ(idle_clock_critical_depth, 0u);
+    idle_clock_critical_depth = 0;
+    delivered_button_interrupts = 0;
+    fsm_abort_workflows();
+    layoutHomeForced();
+  }
+};
+
+void checkButtonInterruptDuringIdleSample(bool wrap_clock) {
+  kk_test_board_init();
+  ScopedFlash flash;
+  ScopedIdleClockInterrupt interrupt;
+  fsm_init();
+  storage_setPin("1234");
+  storage_setAutoLockDelayMs(STORAGE_MIN_SCREENSAVER_TIMEOUT);
+  layoutHomeForced();
+  if (wrap_clock) {
+    advance_clock(0u - fake_clock_ms - STORAGE_MIN_SCREENSAVER_TIMEOUT / 2);
+  }
+  keepkey_user_activity();
+
+  SignTx start = {};
+  start.inputs_count = 1;
+  start.outputs_count = 1;
+  HDNode root = {};
+  const CoinType* coin = coinByName("Bitcoin");
+  ASSERT_NE(nullptr, coin);
+  signing_init(&start, coin, &root);
+  ASSERT_TRUE(signing_is_active());
+  ASSERT_TRUE(session_isPinCached());
+
+  // The next sample is due to lock. Inject a physical edge during its clock
+  // read, after it has already loaded the previous sample. Without masking,
+  // the nested activity reset is overwritten by the old elapsed interval.
+  advance_clock(STORAGE_MIN_SCREENSAVER_TIMEOUT);
+  if (wrap_clock) ASSERT_LT(fake_clock_ms, STORAGE_MIN_SCREENSAVER_TIMEOUT);
+  inject_button_during_clock_read = true;
+  toggle_screensaver();
+  EXPECT_EQ(1u, delivered_button_interrupts);
+  EXPECT_FALSE(inject_button_during_clock_read);
+  EXPECT_FALSE(pending_button_interrupt);
+  EXPECT_EQ(0u, idle_clock_critical_depth);
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+  EXPECT_TRUE(session_isPinCached());
+  EXPECT_TRUE(signing_is_active());
+
+  // The edge renews only user activity; a stalled signing workflow cannot
+  // extend the new deadline or retain PIN authorization after it expires.
+  advance_clock(STORAGE_MIN_SCREENSAVER_TIMEOUT - 1);
+  toggle_screensaver();
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+  EXPECT_TRUE(session_isPinCached());
+  EXPECT_TRUE(signing_is_active());
+  advance_clock(1);
+  toggle_screensaver();
+  EXPECT_EQ(SCREENSAVER, home_get_state());
+  EXPECT_FALSE(session_isPinCached());
+  EXPECT_FALSE(signing_is_active());
+}
+}  // namespace
+
+TEST(Fsm, ButtonInterruptDuringIdleSampleRenewsDeadline) {
+  checkButtonInterruptDuringIdleSample(false);
+}
+
+TEST(Fsm, ButtonInterruptDuringIdleSampleSurvivesClockWrap) {
+  checkButtonInterruptDuringIdleSample(true);
 }
 
 // The ms counter wraps after ~49.7 days of uptime; a deadline that straddles
