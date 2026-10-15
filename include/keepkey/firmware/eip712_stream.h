@@ -28,8 +28,10 @@
 #define KEEPKEY_FIRMWARE_EIP712_STREAM_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
+#include "keepkey/firmware/signed_metadata.h"
 #include "messages-ethereum.pb.h"
 
 /* Longest type string we render: a struct name (< EIP712_MAX_STRUCT_NAME) or
@@ -176,6 +178,38 @@ typedef enum {
   EIP712_REQ_CANCELLED,  /* the user declined a screen */
 } Eip712ReqKind;
 
+/* A canonical Uniswap Permit2 PermitSingle (domain = the Permit2 contract,
+ * type hash = the published one), captured from the hashed bytes so the
+ * device can describe it in words before signing (SRS-7.16 §3.7). */
+typedef struct {
+  bool valid;
+  uint64_t chain_id;
+  uint8_t token[20];
+  uint8_t amount[20];  /* uint160, big-endian */
+  uint64_t expiration; /* uint48 */
+  uint64_t nonce;      /* uint48 */
+  uint8_t spender[20];
+  uint8_t sig_deadline[32]; /* uint256, big-endian */
+} Eip712Permit2;
+
+/* Summary, limits, details, who. identity is a KeepKey-certified token
+ * identity sent for this request on this chain (NULL if none; used only when
+ * it names p->token and the firmware table does not); spender_name is a
+ * ClearSign-vouched name for the spender (NULL if none); alias/fp name the
+ * vouching delegate. */
+bool eip712_permit2_review(const Eip712Permit2* p,
+                           const MetadataToken* identity,
+                           const char* spender_name, const char* alias,
+                           const char* fp, ReviewEmit emit, void* ctx);
+
+/* UNLIMITED: a uint256 at or above 2^255 (ERC-7730's threshold), or exactly
+ * the maximum of a narrower width (Permit2's uint160, whose maximum alone is
+ * the allowance Permit2 never decrements). value is big-endian, len bytes. */
+bool eip712_amount_unlimited(const uint8_t* value, uint16_t len);
+
+/* "2026-05-10 06:19 UTC"; Unix time past year 9999 is shown as a number. */
+void eip712_format_utc(uint64_t t, char* out, size_t len);
+
 typedef struct {
   Eip712ReqKind kind;
   char struct_name[EIP712_MAX_STRUCT_NAME];
@@ -194,6 +228,7 @@ typedef struct {
   bool message_empty;
   bool domain_empty; /* no domain member was shown: it has none */
   bool domain_only;  /* primaryType EIP712Domain: sign keccak(0x1901 || ds) */
+  Eip712Permit2 permit2; /* valid: review it in words before signing */
 } Eip712Next;
 
 const Eip712Next* eip712_stream_next(void);

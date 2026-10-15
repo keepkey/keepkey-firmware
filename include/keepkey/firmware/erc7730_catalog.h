@@ -34,6 +34,19 @@
  * provider_id and revocation_epoch are otherwise NOT enforced. */
 #define ERC7730_MIN_ISSUANCE_EPOCH 0u
 
+/* Delegate record = the 139-byte certificate of clearsign_root.h. Tiers, in
+ * order: KEEPKEY if root-verified with MAY_SUPPRESS_RAW, scope == chain id and
+ * the envelope verifies under its delegate; else RUNTIME, checked only as:
+ *   [0]        version, must be 1 (checked, not signed);
+ *   [2..5]     scope, must equal the header chain id (checked, not signed);
+ *   [10..41]   alias, format-checked only; the alias shown to the user is the
+ *              one the user approved when loading the runtime signer;
+ *   [42..74]   delegate pubkey. It must equal a runtime signer the user
+ *              loaded, and the envelope signature must verify under it.
+ * and bytes 1, 6..9 and 75..138 are ignored.
+ * D-007: KEEPKEY needs no AdvancedMode and its review replaces the raw-data
+ * review; RUNTIME requires AdvancedMode and keeps the raw-data review. */
+
 static inline uint16_t read_be16(const uint8_t* p) {
   return (uint16_t)(((uint16_t)p[0] << 8) | p[1]);
 }
@@ -71,6 +84,7 @@ typedef struct {
   char delegate_fingerprint[METADATA_FINGERPRINT_LEN];
   uint8_t kind;
   bool reads_value; /* a path reads @.value */
+  uint8_t tier;     /* METADATA_TIER_RUNTIME or METADATA_TIER_KEEPKEY */
 } Erc7730CatalogIdentity;
 
 /* Incremental verifier; size independent of descriptor size. */

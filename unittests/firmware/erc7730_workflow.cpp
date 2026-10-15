@@ -361,3 +361,34 @@ TEST(Erc7730Workflow, EmbeddedApproveIsClassifiedLikeATopLevelOne) {
   EXPECT_FALSE(workflow.field.unlimited_approve);
   EXPECT_EQ(workflow.field.inner_selector[0], 0xa9);
 }
+
+TEST(Erc7730Workflow, InnerDefinitionIsNeverShownAboveItsOuterTier) {
+  const struct {
+    uint8_t outer, inner, shown;
+  } cases[] = {
+      {METADATA_TIER_RUNTIME, METADATA_TIER_KEEPKEY, METADATA_TIER_RUNTIME},
+      {METADATA_TIER_KEEPKEY, METADATA_TIER_RUNTIME, METADATA_TIER_RUNTIME},
+      {METADATA_TIER_KEEPKEY, METADATA_TIER_KEEPKEY, METADATA_TIER_KEEPKEY},
+      {METADATA_TIER_RUNTIME, METADATA_TIER_RUNTIME, METADATA_TIER_RUNTIME},
+  };
+  for (const auto& c : cases) {
+    Erc7730Workflow workflow{};
+    workflow.phase = ERC7730_WORKFLOW_READY;
+    workflow.identity.tier = c.outer;
+    workflow.field.has_inner = true;
+    workflow.field.has_address = true;
+    workflow.field.inner_selector_length = 4;
+    EXPECT_EQ(erc7730_workflow_tier(&workflow), c.outer);
+    ASSERT_TRUE(erc7730_workflow_begin_fetch(&workflow, 1));
+    // What erc7730_workflow_fetch_complete installs for a bound inner
+    // definition: its own identity, at depth 1.
+    workflow.identity.tier = c.inner;
+    workflow.depth = 1;
+    EXPECT_EQ(erc7730_workflow_tier(&workflow), c.shown)
+        << (int)c.outer << " " << (int)c.inner;
+  }
+}
+
+/* #821: every host-streamed calldata pass must carry the bytes the first pass
+ * reviewed, and the signing pass must match them. A hostile host that shows
+ * benign arguments and signs different ones of the same length is refused. */

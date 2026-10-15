@@ -49,8 +49,8 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
 
 #if !BITCOIN_ONLY
   /* SolanaSignTx accepts transaction-bound lookup-table account proofs
-     (KKSOLSW1). Older firmware skips the lut_* fields, so a host must see
-     this bit before sending them. */
+     (certified, or KKSOLSW1 runtime annotation). Older firmware skips the
+     lut_* fields, so a host must see this bit before sending them. */
   resp->has_supports_solana_lut_attestation = true;
   resp->supports_solana_lut_attestation = true;
 #endif
@@ -174,6 +174,10 @@ void fsm_msgGetFeatures(GetFeatures* msg) {
       Features_Capability_CAPABILITY_TRON_TRC20_REVIEW,
       Features_Capability_CAPABILITY_SOLANA_LUT_ATTESTATION,
       Features_Capability_CAPABILITY_CERTIFIED_CONTACTS,
+      /* 7.16 */
+      Features_Capability_CAPABILITY_EVM_CERTIFIED_INTENT,
+      Features_Capability_CAPABILITY_PERMIT2_REVIEW,
+      Features_Capability_CAPABILITY_SOLANA_CERTIFIED_REVIEW,
 #endif
   };
   _Static_assert(sizeof(capabilities) <= sizeof(resp->capabilities),
@@ -752,8 +756,8 @@ void fsm_msgEntropyAck(EntropyAck* msg) {
 void fsm_msgCancel(Cancel* msg) {
   (void)msg;
   fsm_abort_workflows();
-  /* See fsm_msgClearSession(): the abort routines for Binance, Tendermint,
-     Osmosis, THORChain, MAYAChain, EOS and Nano have no layout side effect, so
+  /* See fsm_msgClearSession(): the abort routines for Tendermint, Osmosis,
+     THORChain, MAYAChain, EOS and Nano have no layout side effect, so
      the cancelled transaction's approval screen would otherwise stay up. */
   layoutHome();
   fsm_sendFailure(FailureType_Failure_ActionCancelled, "Aborted");

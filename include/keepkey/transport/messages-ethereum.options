@@ -55,8 +55,7 @@ LoadClearsignSigner.icon                          max_size:384
 
 
 # Structured EIP-712, device-driven field streaming.
-# Nested messages take the fully-qualified Outer.Inner.field form, as
-# BinanceTransferMsg.BinanceInputOutput.* does.
+# Nested messages take the fully-qualified Outer.Inner.field form.
 EthereumSignTypedData.address_n                             max_count:8
 EthereumSignTypedData.primary_type                          max_size:80
 EthereumTypedDataStructRequest.name                         max_size:80

@@ -178,7 +178,7 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
          * Size for the protocol maximum instead of hoping: a uint64 rendered
          * at 10 decimals is at most 20 digits plus a point (21), the suffix is
          * ' ' + 68 visible chars of denom (69), plus NUL. Then CHECK the
-         * result and fail closed, as fsm_msg_binance.h does. See GH #437. */
+         * result and fail closed. See GH #437. */
         char amount_str[21 + MAYACHAIN_DENOM_SUFFIX_LEN + 1];
         /* MayachainMsgSend.denom max_size:69 (messages-mayachain.options) ->
          * 68 visible chars + NUL. ' ' + 68 + NUL = 70 bytes; 71 keeps a 1-byte

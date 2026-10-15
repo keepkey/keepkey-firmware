@@ -143,10 +143,12 @@ typedef struct {
   uint16_t outer_resume; /* the outer instruction that held the inner call */
   uint8_t depth;
   uint8_t fetch_depth; /* 1 fetching the inner definition, 0 the outer */
+  uint8_t outer_tier;  /* the outer definition's tier while depth is 1 */
+  uint8_t review_tier; /* the lowest tier of every definition loaded */
   bool outer_identity_confirmed;
   bool outer_intent_confirmed;
   bool resuming; /* the outer program restarts after its inner call */
-  /* Inner definition refused: the embedded field takes the blind path. */
+  /* Inner definition refused: the embedded field is refused. */
   bool inner_refused;
   uint8_t selection_kind : 4;
   uint8_t display_stage : 4;
@@ -233,6 +235,11 @@ bool erc7730_workflow_calldata_waiting(const Erc7730Workflow* workflow,
                                        size_t* remaining);
 const Erc7730CatalogIdentity* erc7730_workflow_identity(
     const Erc7730Workflow* workflow);
+/* The tier the provenance screen shows. An inner definition is never shown
+ * as more trusted than the outer definition that led to it. */
+uint8_t erc7730_workflow_tier(const Erc7730Workflow* workflow);
+/* Every definition this review loaded is KeepKey-certified (D-007). */
+bool erc7730_workflow_certified(const Erc7730Workflow* workflow);
 bool erc7730_workflow_preserve_selected_string(Erc7730Workflow* workflow,
                                                bool intent);
 bool erc7730_workflow_format_captured_raw(const Erc7730Workflow* workflow,

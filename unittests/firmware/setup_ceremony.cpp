@@ -201,7 +201,6 @@ TEST_F(SetupCeremony, StrayAcksLeaveTheArmedCeremonyAlone) {
       MessageType_MessageType_EthereumTxAck,
       MessageType_MessageType_CosmosMsgAck,
       MessageType_MessageType_OsmosisMsgAck,
-      MessageType_MessageType_BinanceTransferMsg,
       MessageType_MessageType_EosTxActionAck,
       MessageType_MessageType_ThorchainMsgAck,
       MessageType_MessageType_MayachainMsgAck,

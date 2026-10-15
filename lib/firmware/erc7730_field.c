@@ -122,6 +122,20 @@ static bool word_u64(const uint8_t value[32], uint64_t* out) {
   return true;
 }
 
+/* Hinnant civil_from_days, exact through 9999-12-31. */
+void erc7730_civil_from_days(uint64_t days, unsigned* year, unsigned* month,
+                             unsigned* day) {
+  const uint64_t z = days + 719468u, era = z / 146097u;
+  const uint64_t doe = z - era * 146097u;
+  const uint64_t yoe =
+      (doe - doe / 1460u + doe / 36524u - doe / 146096u) / 365u;
+  const uint64_t doy = doe - (365u * yoe + yoe / 4u - yoe / 100u);
+  const uint64_t mp = (5u * doy + 2u) / 153u;
+  *day = (unsigned)(doy - (153u * mp + 2u) / 5u + 1u);
+  *month = (unsigned)(mp < 10u ? mp + 3u : mp - 9u);
+  *year = (unsigned)(yoe + era * 400u + (*month <= 2u ? 1u : 0u));
+}
+
 bool erc7730_format_date(const uint8_t value[32], bool block_height,
                          char* output, size_t output_size) {
   char raw[80];
@@ -136,18 +150,9 @@ bool erc7730_format_date(const uint8_t value[32], bool block_height,
   } else if (!word_u64(value, &seconds) || seconds > UINT64_C(253402300799)) {
     length = snprintf(output, output_size, "%s\n(not a date)", raw);
   } else {
-    /* Hinnant civil_from_days, exact over this range. */
-    const uint64_t days = seconds / 86400u, rest = seconds % 86400u;
-    const uint64_t z = days + 719468u, era = z / 146097u;
-    const uint64_t doe = z - era * 146097u;
-    const uint64_t yoe =
-        (doe - doe / 1460u + doe / 36524u - doe / 146096u) / 365u;
-    const uint64_t doy = doe - (365u * yoe + yoe / 4u - yoe / 100u);
-    const uint64_t mp = (5u * doy + 2u) / 153u;
-    const unsigned day = (unsigned)(doy - (153u * mp + 2u) / 5u + 1u);
-    const unsigned month = (unsigned)(mp < 10u ? mp + 3u : mp - 9u);
-    const unsigned year =
-        (unsigned)(yoe + era * 400u + (month <= 2u ? 1u : 0u));
+    const uint64_t rest = seconds % 86400u;
+    unsigned year, month, day;
+    erc7730_civil_from_days(seconds / 86400u, &year, &month, &day);
     length =
         snprintf(output, output_size, "%04u-%02u-%02u %02u:%02u:%02u UTC\n(%s)",
                  year, month, day, (unsigned)(rest / 3600u),

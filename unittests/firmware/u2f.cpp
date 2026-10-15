@@ -9,6 +9,7 @@ extern "C" {
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/u2f.h"
 #include "keepkey/firmware/u2f/u2f.h"
+#include "trezor/crypto/hmac.h"
 #include "u2f.h"
 #include "u2f_knownapps.h"
 }
@@ -586,4 +587,36 @@ TEST_F(U2FWait, SessionEndRestoresArmedCipher) {
   EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
   EXPECT_EQ(cipher, screen()) << "the session went home over the cipher";
   setup_abort();
+}
+
+TEST(U2F, AuthenticatorResetGenerationInvalidatesNewAndLegacyHandles) {
+  uint8_t private_key[32], app_id[32], handle[64];
+  uint8_t generation_before[PASSKEY_CREDENTIAL_GENERATION_SIZE];
+  uint8_t generation_after[PASSKEY_CREDENTIAL_GENERATION_SIZE];
+  memset(private_key, 0x11, sizeof(private_key));
+  memset(app_id, 0x22, sizeof(app_id));
+  memset(handle, 0x80, 32);  // public hardened derivation path
+  memset(generation_before, 0x33, sizeof(generation_before));
+  memset(generation_after, 0x44, sizeof(generation_after));
+
+  uint8_t generation_keybase[32 + 32 + PASSKEY_CREDENTIAL_GENERATION_SIZE];
+  memcpy(generation_keybase, app_id, 32);
+  memcpy(generation_keybase + 32, handle, 32);
+  memcpy(generation_keybase + 64, generation_before, sizeof(generation_before));
+  hmac_sha256(private_key, sizeof(private_key), generation_keybase,
+              sizeof(generation_keybase), handle + 32);
+  EXPECT_TRUE(u2f_key_handle_authenticator_is_valid(private_key, app_id, handle,
+                                                    generation_before, false));
+  EXPECT_FALSE(u2f_key_handle_authenticator_is_valid(
+      private_key, app_id, handle, generation_after, false));
+
+  uint8_t legacy_keybase[64];
+  memcpy(legacy_keybase, app_id, 32);
+  memcpy(legacy_keybase + 32, handle, 32);
+  hmac_sha256(private_key, sizeof(private_key), legacy_keybase,
+              sizeof(legacy_keybase), handle + 32);
+  EXPECT_TRUE(u2f_key_handle_authenticator_is_valid(private_key, app_id, handle,
+                                                    generation_before, true));
+  EXPECT_FALSE(u2f_key_handle_authenticator_is_valid(
+      private_key, app_id, handle, generation_after, false));
 }

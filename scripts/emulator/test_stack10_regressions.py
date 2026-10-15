@@ -42,7 +42,9 @@ class TestStack10Disclosure(Erc7730Harness, common.KeepKeyTest):
 
     def test_exact_raw_values_contract_and_counterparty(self):
         for approve in (False, True):
-            for amount in (0, 1, (1 << 256) - (2 if approve else 1)):
+            # 2^255 and up is an UNLIMITED approval (ledger D1): the largest
+            # exact approve is one below it.
+            for amount in (0, 1, (1 << 255) - 1 if approve else (1 << 256) - 1):
                 self._signed(self._tx(approve, amount))
                 title, body = self._first_pages()[0]
                 self.assertEqual(title, "Approve" if approve else "Send")

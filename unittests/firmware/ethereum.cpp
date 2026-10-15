@@ -165,24 +165,59 @@ TEST(Ethereum, UnknownErc20CannotBePresentedAsAReviewedTransfer) {
   EXPECT_NE(std::string::npos,
             std::string(approval_review).find("withdraw up to 1 base units"));
 
-  /* The largest finite approval is a 78-digit amount; its review must
-   * still fit the signing body. */
+  /* The largest finite approval, 2^255 - 1, is a 77-digit amount; its
+   * review must still fit the signing body. */
   memset(msg.data_initial_chunk.bytes + 36, 0xff, 32);
-  msg.data_initial_chunk.bytes[67] = 0xfe;
+  msg.data_initial_chunk.bytes[36] = 0x7f;
   char largest_review[ETHEREUM_CONFIRM_BODY_SIZE] = {};
   EXPECT_TRUE(ethereumFormatUnknownTokenReview(&msg, largest_review,
                                                sizeof(largest_review)));
   EXPECT_NE(std::string::npos,
-            std::string(largest_review).find("115792089237316195"));
+            std::string(largest_review).find("578960446186580977"));
 
   /* Unlimited reads UNLIMITED, after its own warning screen. */
-  msg.data_initial_chunk.bytes[67] = 0xff;
+  msg.data_initial_chunk.bytes[36] = 0xff;
   char unlimited_review[ETHEREUM_CONFIRM_BODY_SIZE] = {};
   ASSERT_TRUE(ethereumFormatUnknownTokenReview(&msg, unlimited_review,
                                                sizeof(unlimited_review)));
   EXPECT_NE(std::string::npos,
             std::string(unlimited_review).find("withdraw up to UNLIMITED?"))
       << unlimited_review;
+}
+
+/* ERC-7730's threshold: 2^255 and above is UNLIMITED; 2^255 - 1 is exact. */
+TEST(Ethereum, UnknownTokenApproveIsUnlimitedFromTwoToThe255) {
+  EthereumSignTx msg{};
+  msg.has_chain_id = true;
+  msg.chain_id = 1;
+  msg.has_to = true;
+  msg.to.size = 20;
+  memset(msg.to.bytes, 0x42, 20);
+  msg.has_data_initial_chunk = true;
+  msg.data_initial_chunk.size = 68;
+  memcpy(msg.data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4);
+  memset(msg.data_initial_chunk.bytes + 16, 0x24, 20);
+  char rendered[ETHEREUM_CONFIRM_BODY_SIZE] = {};
+
+  memset(msg.data_initial_chunk.bytes + 36, 0, 32);
+  msg.data_initial_chunk.bytes[36] = 0x80;  // 2^255
+  ASSERT_TRUE(ethereumFormatUnknownTokenReview(&msg, rendered, sizeof(rendered)));
+  EXPECT_NE(std::string::npos,
+            std::string(rendered).find("withdraw up to UNLIMITED?"));
+
+  memset(msg.data_initial_chunk.bytes + 36, 0xff, 32);
+  msg.data_initial_chunk.bytes[36] = 0x7f;  // 2^255 - 1
+  ASSERT_TRUE(ethereumFormatUnknownTokenReview(&msg, rendered, sizeof(rendered)));
+  EXPECT_NE(std::string::npos,
+            std::string(rendered).find(
+                "withdraw up to 578960446186580977117854925043439539266349923328"
+                "20282019728792003956564819967 base units?"));
+
+  // A transfer is never "unlimited", whatever its amount.
+  memcpy(msg.data_initial_chunk.bytes, "\xa9\x05\x9c\xbb", 4);
+  memset(msg.data_initial_chunk.bytes + 36, 0xff, 32);
+  ASSERT_TRUE(ethereumFormatUnknownTokenReview(&msg, rendered, sizeof(rendered)));
+  EXPECT_EQ(std::string::npos, std::string(rendered).find("UNLIMITED"));
 }
 
 TEST(Ethereum, UnknownTokenReviewIsExactAndFailsClosedAtCapacity) {
@@ -198,11 +233,11 @@ TEST(Ethereum, UnknownTokenReviewIsExactAndFailsClosedAtCapacity) {
   memcpy(msg.data_initial_chunk.bytes, selector, 4);
   memset(msg.data_initial_chunk.bytes + 16, 0x24, 20);
   memset(msg.data_initial_chunk.bytes + 36, 0xff, 32);
-  msg.data_initial_chunk.bytes[67] = 0xfe;
+  msg.data_initial_chunk.bytes[36] = 0x7f;  // 2^255 - 1, the largest exact
   const std::string expected =
       "Unknown token contract 0x4242424242424242424242424242424242424242\n"
       "Allow 0x2424242424242424242424242424242424242424 to withdraw up to "
-      "115792089237316195423570985008687907853269984665640564039457584007913129639934"
+      "57896044618658097711785492504343953926634992332820282019728792003956564819967"
       " base units?";
   char rendered[ETHEREUM_CONFIRM_BODY_SIZE] = {};
   ASSERT_TRUE(ethereumFormatUnknownTokenReview(&msg, rendered, sizeof(rendered)));

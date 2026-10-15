@@ -17,6 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/draw.h"
 #include "keepkey/board/font.h"
@@ -890,13 +891,26 @@ void layout_address(const char* address, QRSize qr_size) {
   }
 }
 
-void layoutU2FDialog(bool request, const char* title, const char* body, ...) {
+bool layoutU2FDialog(bool request, const char* title, const char* body, ...) {
   char strbuf[BODY_CHAR_MAX];
+
+  /* Measure and draw at the same width: no icon column. */
+  layout_has_icon(false);
 
   va_list vl;
   va_start(vl, body);
-  vsnprintf(strbuf, BODY_CHAR_MAX, body, vl);
+  int written = vsnprintf(strbuf, BODY_CHAR_MAX, body, vl);
   va_end(vl);
+
+  // Detect both SOURCE truncation (the formatted body did not fit strbuf)
+  // and RENDER truncation (the body fit strbuf but not the OLED canvas), the
+  // same two checks confirm_helper() runs for every other confirmation
+  // screen. This dialog draws unconditionally either way -- callers that
+  // display attacker-controlled, unbounded-length text (e.g. a CTAP2 rp_id)
+  // must check the return value and refuse rather than proceed on an
+  // approval the user could not fully read.
+  bool fits = written >= 0 && (size_t)written < BODY_CHAR_MAX &&
+              confirm_body_fits(strbuf, BODY_WIDTH);
 
   layout_standard_notification(title, strbuf,
                                request ? NOTIFICATION_REQUEST_NO_ANIMATION
@@ -907,4 +921,6 @@ void layoutU2FDialog(bool request, const char* title, const char* body, ...) {
     animate();
     display_refresh();
   }
+
+  return fits;
 }

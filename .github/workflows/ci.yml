@@ -789,6 +789,10 @@ jobs:
           KK_CI_REHEARSAL: ${{ vars.KK_CI_REHEARSAL }}
           # docker-compose.yml passes this to every image it builds.
           BASE_IMAGE: ${{ env.RESOLVED_BASE }}
+          # The certified fixtures are signed by the alpha root; the emulator
+          # reads it from the environment at startup (DEBUG_LINK builds only),
+          # so no image or release binary carries it.
+          KK_CLEARSIGN_TEST_ROOT: 02de9231b2094433235532fb1932e324a2c7304195e12e610c675cccbbd606dae7
         run: |
           COMPOSE_ARGS=(-f docker-compose.yml)
           if [ "${{ matrix.variant }}" = "bitcoin-only" ]; then
@@ -1154,6 +1158,8 @@ jobs:
         env:
           KK_TRANSPORT: dylib
           KK_DYLIB: ${{ env.DYLIB_PATH }}
+          # Alpha test root for the certified fixtures; read by kkemu_init.
+          KK_CLEARSIGN_TEST_ROOT: 02de9231b2094433235532fb1932e324a2c7304195e12e610c675cccbbd606dae7
         run: |
           # `keepkeylib/` on PYTHONPATH so the package's relative-style
           # imports inside generated *_pb2.py files resolve.

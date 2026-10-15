@@ -122,9 +122,13 @@ TEST_F(PassphraseTransition, MarkerWriteFailureCannotReportCommitSuccess) {
   EXPECT_EXIT(
       {
         std::atexit(+[]() {
-          Allocation active;
-          if (!find_active_storage(&active)) std::_Exit(2);
+          // Retried before giving up; the staged record survives a reboot.
           if (marker_writes != 3) std::_Exit(3);
+          marker_fault = 0;
+          storage_init();
+          if (!storage_hasMnemonic() ||
+              std::strcmp(kMnemonic, storage_getMnemonic()) != 0)
+            std::_Exit(2);
         });
         marker_writes = 0;
         marker_fault = 1;
@@ -138,9 +142,13 @@ TEST_F(PassphraseTransition, MarkerReadbackFailureCannotReportCommitSuccess) {
   EXPECT_EXIT(
       {
         std::atexit(+[]() {
-          Allocation active;
-          if (!find_active_storage(&active)) std::_Exit(2);
+          // Retried before giving up; the staged record survives a reboot.
           if (marker_writes != 3) std::_Exit(3);
+          marker_fault = 0;
+          storage_init();
+          if (!storage_hasMnemonic() ||
+              std::strcmp(kMnemonic, storage_getMnemonic()) != 0)
+            std::_Exit(2);
         });
         marker_writes = 0;
         marker_fault = 2;

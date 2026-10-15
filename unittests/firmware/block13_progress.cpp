@@ -11,7 +11,6 @@ extern "C" {
 #include "keepkey/rand/rng_health.h"
 #include "pb_encode.h"
 #if !BITCOIN_ONLY
-#include "keepkey/firmware/binance.h"
 #include "keepkey/firmware/mayachain.h"
 #include "keepkey/firmware/osmosis.h"
 #include "keepkey/firmware/signtx_tendermint.h"
@@ -204,7 +203,7 @@ TEST_F(Block13ResetProgress, InvalidInitialRequestDoesNotRenew) {
 
 #if !BITCOIN_ONLY
 
-enum class ProgressChain { Binance, Cosmos, Osmosis, Thorchain, Mayachain,
+enum class ProgressChain { Cosmos, Osmosis, Thorchain, Mayachain,
                            TendermintDirectHandler };
 
 template <typename T>
@@ -242,16 +241,6 @@ class Block13CoinProgress : public Block13ResetProgress,
                            NAME##SignTx_fields, &msg); \
   } while (0)
     switch (GetParam()) {
-      case ProgressChain::Binance: {
-        BinanceSignTx msg = {};
-        msg.has_account_number = msg.has_chain_id = msg.has_sequence = true;
-        msg.has_source = msg.has_msg_count = true;
-        msg.msg_count = valid ? 4 : 0;
-        std::strcpy(msg.chain_id, "Binance-Chain-Tigris");
-        receiveProgressMessage(MessageType_MessageType_BinanceSignTx,
-                               BinanceSignTx_fields, &msg);
-        break;
-      }
       case ProgressChain::Cosmos: START_WIRE(Cosmos, "cosmoshub-4"); break;
       case ProgressChain::Osmosis: START_WIRE(Osmosis, "osmosis-1"); break;
       case ProgressChain::Thorchain: START_WIRE(Thorchain, "thorchain-1"); break;
@@ -270,7 +259,6 @@ class Block13CoinProgress : public Block13ResetProgress,
   }
   bool Active() {
     switch (GetParam()) {
-      case ProgressChain::Binance: return binance_signingIsInited();
       case ProgressChain::Cosmos: return tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS);
       case ProgressChain::Osmosis: return osmosis_signingIsInited();
       case ProgressChain::Thorchain: return thorchain_signingIsInited();
@@ -302,24 +290,6 @@ class Block13CoinProgress : public Block13ResetProgress,
                            NAME##MsgAck_fields, &msg); \
   } while (0)
     switch (GetParam()) {
-      case ProgressChain::Binance: {
-        BinanceTransferMsg msg = {};
-        if (mode != 1) {
-          msg.inputs_count = msg.outputs_count = 1;
-          for (auto* io : {&msg.inputs[0], &msg.outputs[0]}) {
-            io->has_address = true;
-            std::strcpy(io->address, Address("bnb").c_str());
-            io->coins_count = 1;
-            io->coins[0].has_amount = io->coins[0].has_denom = true;
-            io->coins[0].amount = 1;
-            std::strcpy(io->coins[0].denom, "BNB");
-          }
-          if (mode == 2) std::strcpy(msg.outputs[0].address, bad);
-        }
-        receiveProgressMessage(MessageType_MessageType_BinanceTransferMsg,
-                               BinanceTransferMsg_fields, &msg);
-        break;
-      }
       case ProgressChain::Cosmos: SEND_WIRE(Cosmos, "cosmos"); break;
       case ProgressChain::Thorchain: SEND_WIRE(Thorchain, "thor"); break;
       case ProgressChain::Mayachain: {
@@ -464,13 +434,13 @@ TEST_P(Block13CoinProgress, DeclinedContinuationCannotRenewAndFreshRetryWorks) {
 
 INSTANTIATE_TEST_CASE_P(
     Chains, Block13CoinProgress,
-    ::testing::Values(ProgressChain::Binance, ProgressChain::Cosmos,
-                      ProgressChain::Osmosis, ProgressChain::Thorchain,
+    ::testing::Values(ProgressChain::Cosmos, ProgressChain::Osmosis,
+                      ProgressChain::Thorchain,
                       ProgressChain::Mayachain,
                       ProgressChain::TendermintDirectHandler),
     [](const ::testing::TestParamInfo<ProgressChain>& p) {
-      const char* names[] = {"Binance", "Cosmos", "Osmosis", "Thorchain",
-                             "Mayachain", "TendermintDirectHandler"};
+      const char* names[] = {"Cosmos", "Osmosis", "Thorchain", "Mayachain",
+                             "TendermintDirectHandler"};
       return names[static_cast<int>(p.param)];
     });
 

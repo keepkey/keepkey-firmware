@@ -22,6 +22,7 @@
 
 #include "trezor/crypto/bip32.h"
 #include "messages-solana.pb.h"
+#include "keepkey/firmware/signed_metadata.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -34,7 +35,8 @@
 /* KKSOLSW1: max attested lookup-table accounts per tx; more than this is not
    meaningfully reviewable. */
 #define SOL_MAX_LUT_ACCOUNTS 8
-#define SOL_MAX_INSTRUCTIONS 8
+/* 12: a DEX trade that wraps and unwraps SOL runs to 9 (PumpSwap buy). */
+#define SOL_MAX_INSTRUCTIONS 12
 #define SOL_LAMPORTS_DIVISOR 1000000000ULL
 #define SOL_MAX_TOKEN_DECIMALS 18
 #define SOL_MAX_DISPLAY_DECIMALS 9
@@ -166,7 +168,8 @@ typedef struct {
   /* Same lifetime as `data`. */
   const uint8_t* acct_indices;
   uint8_t num_acct_indices;
-  /* Uses a lookup table: accounts are unknowable on-device; no schema. */
+  /* Reaches into an UNRESOLVED address-lookup table (a certified parse
+   * appends attested LUT keys first). */
   bool external;
 } SolanaParsedInstruction;
 
@@ -176,8 +179,13 @@ typedef struct {
   uint8_t num_readonly_signed;
   uint8_t num_readonly_unsigned;
   uint8_t num_accounts;
+  /* Static keys in `accounts`; any rest are appended LUT keys. */
+  uint8_t num_static_accounts;
   uint8_t accounts[SOL_MAX_ACCOUNTS][SOL_PUBKEY_SIZE];
   uint8_t recent_blockhash[SOL_PUBKEY_SIZE];
+  /* v0 message has any LUT entry; stays true after resolution, so policy
+   * still demands a transaction-bound LUT proof. */
+  bool has_address_lookups;
   uint8_t num_instructions;
   SolanaParsedInstruction instructions[SOL_MAX_INSTRUCTIONS];
   /* v0 message carries an address-table section (KKSOLSC1 refuses it). */
@@ -204,15 +212,17 @@ typedef struct {
 /* ── KKSOLSC1: reusable instruction schemas, attested once per (program,
  * discriminator); values are decoded from the signed bytes. Safety is
  * structural completeness: disc + arg widths == data length EXACTLY; every
- * displayed account index exists; no address-table section; every OTHER
- * instruction is a compute-budget or Memo companion.
+ * displayed account index exists; lookup-table accounts only once bound to
+ * this transaction by a Solana ClearSign certificate; every OTHER instruction
+ * is a compute-budget or Memo companion (certified: also the static Transfer
+ * and signer-account companions, solana_schemaCompanionIsInert and below).
  *
  * Canonical payload (every numeric field is one byte; text printable ASCII,
  * no '%'). The 8-byte instruction arguments it describes (U64, LAMPORTS,
  * TOKEN_AMOUNT, DURATION) are read little-endian, as Solana programs encode
  * them:
  *   magic          8   "KKSOLSC1"
- *   version        1   1 or 2
+ *   version        1   1, 2 or 3
  *   program_id    32
  *   disc_len       1   1..8
  *   discriminator  disc_len
@@ -221,8 +231,12 @@ typedef struct {
  *   n_args         1   0..4 (v1), 0..SOL_SCHEMA_MAX_ARGS (v2)
  *     per arg:     type(1) label_len(1) label
  *     TOKEN_AMOUNT (v2) appends mint_account(1)
+ *     v3 appends role(1): amount types 1..5, all others 0
  *   n_accounts     1   0..SOL_SCHEMA_MAX_ACCOUNTS
  *     per account: index(1) label_len(1) label
+ *   v3: template   1 + 0..SOL_SCHEMA_TEMPLATE_MAX (0 = none); "{n}" is arg n,
+ *                  "{aN}" schema account N; every amount arg must appear
+ *                  (docs/security/clearsign-intent-template.md)
  * No bytes may follow. Args are laid out sequentially from the end of the
  * discriminator, in declaration order.
  */
@@ -232,21 +246,27 @@ typedef struct {
 #define SOL_SCHEMA_MAX_ARGS 8
 #define SOL_SCHEMA_MAX_ACCOUNTS 4
 #define SOL_SCHEMA_DISC_MAX 8
+#define SOL_SCHEMA_TEMPLATE_MAX 96
+/* Widest filled summary; templates that could exceed it are rejected. */
+#define SOL_INTENT_TEXT_MAX 280
 
 typedef enum {
-  SOL_SCHEMA_ARG_U64 = 1,          /* 8 bytes, shown as a decimal integer */
-  SOL_SCHEMA_ARG_U8 = 2,           /* 1 byte */
-  SOL_SCHEMA_ARG_PUBKEY = 3,       /* 32 bytes, shown base58 */
-  SOL_SCHEMA_ARG_OPAQUE32 = 4,     /* 32 bytes, paged; non-printable as \xNN */
-  SOL_SCHEMA_ARG_LAMPORTS = 5,     /* 8 bytes, shown as SOL */
-  SOL_SCHEMA_ARG_TOKEN_AMOUNT = 6, /* 8 bytes; mint is an ix account */
-  SOL_SCHEMA_ARG_DURATION = 7,     /* 8-byte seconds */
+  SOL_SCHEMA_ARG_U64 = 1,      /* 8 bytes, shown as a decimal integer */
+  SOL_SCHEMA_ARG_U8 = 2,       /* 1 byte */
+  SOL_SCHEMA_ARG_PUBKEY = 3,   /* 32 bytes, shown base58 */
+  SOL_SCHEMA_ARG_OPAQUE32 = 4, /* 32 bytes, shown in full over pages */
+  SOL_SCHEMA_ARG_LAMPORTS = 5, /* 8 bytes, shown as decimal SOL */
+  /* v2: 8 bytes; mint is ix account mint_account. Scaled only by a trusted
+   * token definition, else raw beside the full mint. */
+  SOL_SCHEMA_ARG_TOKEN_AMOUNT = 6,
+  SOL_SCHEMA_ARG_DURATION = 7, /* v2: 8-byte seconds, shown in exact units */
 } SolanaSchemaArgType;
 
 typedef struct {
   SolanaSchemaArgType type;
   char label[SOL_SCHEMA_LABEL_MAX + 1];
-  uint8_t mint_account;
+  uint8_t mint_account; /* TOKEN_AMOUNT only */
+  uint8_t role;         /* METADATA_ROLE_*; v3 only, else NONE */
 } SolanaSchemaArg;
 
 typedef struct {
@@ -264,10 +284,25 @@ typedef struct {
   uint8_t num_args;
   SolanaSchemaAccount accounts[SOL_SCHEMA_MAX_ACCOUNTS];
   uint8_t num_accounts;
+  uint8_t version;
+  char intent[SOL_SCHEMA_TEMPLATE_MAX + 1]; /* v3; "" = none */
 } SolanaInstrSchema;
 
 /* Bytes one arg consumes; 0 = unknown type (rejected). */
 uint16_t solana_schemaArgWidth(SolanaSchemaArgType t);
+/* Placeholders well-formed and in range, and every amount covered. */
+bool solana_intentTemplateValid(const SolanaInstrSchema* s);
+
+/* The human review (SRS-7.16 §3.7). Each screen goes to emit: body text, or
+ * (memo / opaque bytes) a byte range to page; emit returns false to cancel.
+ * certified: summary, limits, side effects, details, provenance. Runtime: an
+ * "NOT verified by KeepKey" heading plus limits only; the caller's raw review
+ * must follow. Screen text: docs/security/clearsign-intent-template.md. */
+bool solana_buildIntentReview(const SolanaSignTx* msg, const SolanaParsedTx* tx,
+                              const SolanaInstrSchema* s, uint8_t ix_index,
+                              const uint8_t signer[SOL_PUBKEY_SIZE],
+                              const char* alias, const char* fp, bool certified,
+                              ReviewEmit emit, void* ctx);
 
 bool solana_parseInstrSchema(const uint8_t* payload, size_t payload_len,
                              SolanaInstrSchema* out);
@@ -277,9 +312,59 @@ bool solana_parseInstrSchema(const uint8_t* payload, size_t payload_len,
 bool solana_schemaApplies(const SolanaInstrSchema* schema,
                           const SolanaParsedTx* tx, uint8_t* out_index);
 
+/* Same, for a root-certified schema; also admits SystemProgram Transfers whose
+ * accounts are all static keys (shown in full, never a LUT-resolved dest), and
+ * the wSOL wrap/unwrap of `signer`'s (the device key's) own accounts. */
+bool solana_schemaAppliesCertified(const SolanaInstrSchema* schema,
+                                   const SolanaParsedTx* tx,
+                                   const uint8_t signer[SOL_PUBKEY_SIZE],
+                                   uint8_t* out_index);
+
+/* Exact units: "N d", "N h", "N min" or "N s". */
+void solana_formatDuration(char* buf, size_t len, uint64_t seconds);
+
+/* Token definition trusted to scale a TOKEN_AMOUNT for `mint`, or NULL. Each
+ * tier keeps its own trust root: certified = signed by the cert's delegate;
+ * runtime = the signer that signed the schema. Decimals must be displayable,
+ * and the symbol must not be a known-token symbol of another mint (case-
+ * insensitive), so a fake "USDC" is shown raw. */
+const SolanaTokenInfo* solana_schemaTrustedToken(
+    const SolanaSignTx* msg, const uint8_t mint[SOL_PUBKEY_SIZE],
+    bool certified);
+
+/* Always ends with the full mint (a symbol does not identify a token). No
+ * trusted definition: raw integer, never a guessed scale. False => refuse. */
+bool solana_formatSchemaTokenAmount(char* buf, size_t len, uint64_t amount,
+                                    const uint8_t mint[SOL_PUBKEY_SIZE],
+                                    const SolanaTokenInfo* trusted);
+
+/* Per-review cache of the last mint's definition. Zero before first use. */
+typedef struct {
+  const uint8_t* mint;
+  const SolanaTokenInfo* token;
+} SolanaSchemaTokenCache;
+
+/* Display text of `arg` (value at `data`). Only a definition trusted in this
+ * review's tier may scale a TOKEN_AMOUNT. False for OPAQUE32 (caller pages
+ * it) or any unshowable value; the caller must then refuse. */
+bool solana_schemaArgValue(const SolanaSignTx* msg, bool certified,
+                           const SolanaParsedTx* parsed,
+                           const SolanaParsedInstruction* ix,
+                           const SolanaSchemaArg* arg, const uint8_t* data,
+                           SolanaSchemaTokenCache* cache, char* buf,
+                           size_t len);
+
 /* Inspect a raw Solana transaction and classify it for signing UX */
 SolanaTxReview solana_inspectTx(const uint8_t* raw, size_t raw_len,
                                 SolanaParsedTx* tx);
+
+/* Inspect with the attested LUT keys appended in runtime order (all writable,
+ * then all readonly). Count must match exactly. Does NOT verify trust: that
+ * MUST happen before the result suppresses Advanced Mode. */
+SolanaTxReview solana_inspectTxWithTrustedLut(
+    const uint8_t* raw, size_t raw_len,
+    const uint8_t (*lut_accounts)[SOL_PUBKEY_SIZE], size_t num_lut_accounts,
+    SolanaParsedTx* tx);
 
 /* Plain text (printable ASCII or '\n') not containing `pubkey`, so it cannot
  * authorize a transaction. */
@@ -288,6 +373,12 @@ bool solana_rawMessageIsPlainText(const uint8_t* msg, size_t len,
 
 /* Parse a raw Solana transaction */
 bool solana_parseTx(const uint8_t* raw, size_t raw_len, SolanaParsedTx* tx);
+/* pubkey is one of the tx's required signers. */
+bool solana_signerInTx(const uint8_t* pubkey, const SolanaParsedTx* tx);
+
+/* True when the 32-byte key appears anywhere in msg. */
+bool solana_messageCarriesKey(const uint8_t* msg, size_t len,
+                              const uint8_t pubkey[SOL_PUBKEY_SIZE]);
 
 /* Format SOL amount */
 void solana_formatAmount(char* buf, size_t len, uint64_t lamports);
@@ -350,6 +441,14 @@ bool solana_lut_accounts_trusted(const uint8_t* raw_tx, size_t raw_len,
                                  const uint8_t (*accounts)[32],
                                  size_t num_accounts, uint32_t signer_key_id,
                                  const uint8_t* sig, size_t sig_len);
+
+/* Certified KKSOLSW1: delegate from a root cert scoped to Solana (501). */
+bool solana_lut_accounts_certified(const uint8_t* raw_tx, size_t raw_len,
+                                   const uint8_t (*accounts)[32],
+                                   size_t num_accounts,
+                                   const uint8_t* certificate,
+                                   size_t certificate_len, const uint8_t* sig,
+                                   size_t sig_len);
 
 /* ceil(price * min(limit, SOL_MAX_COMPUTE_UNITS) / 1e6) lamports; false on
  * > UINT64_MAX (refuse). */

@@ -19,6 +19,7 @@
 
 #include "storage.h"
 
+#include "keepkey/firmware/ctap2.h"
 #include "keepkey/firmware/storage.h"
 
 #include "variant.h"
@@ -701,6 +702,70 @@ void storage_wipeAuthData() {
   return;
 }
 
+void storage_getPasskeyData(PasskeyStorage* data) {
+  if (data == NULL) return;
+  memcpy(data, &shadow_config.storage.pub.passkeys, sizeof(*data));
+}
+
+void storage_setPasskeyData(const PasskeyStorage* data) {
+  if (data == NULL || btc_only_locked || firmware_too_old) return;
+  memcpy(&shadow_config.storage.pub.passkeys, data, sizeof(*data));
+  storage_commit();
+}
+
+bool storage_getPasskeyCredentialGeneration(
+    uint8_t generation[PASSKEY_CREDENTIAL_GENERATION_SIZE],
+    bool* legacy_credentials_enabled) {
+  if (generation == NULL || legacy_credentials_enabled == NULL ||
+      btc_only_locked || firmware_too_old)
+    return false;
+
+  PasskeyStorage* passkeys = &shadow_config.storage.pub.passkeys;
+  bool generation_is_zero = true;
+  for (size_t i = 0; i < sizeof(passkeys->credential_generation); ++i) {
+    if (passkeys->credential_generation[i] != 0) {
+      generation_is_zero = false;
+      break;
+    }
+  }
+  if (passkeys->version != PASSKEY_STORAGE_VERSION || generation_is_zero) {
+    const bool migrate_legacy = passkeys->version != PASSKEY_STORAGE_VERSION ||
+                                passkeys->legacy_credentials_enabled != 0;
+    uint8_t new_generation[PASSKEY_CREDENTIAL_GENERATION_SIZE];
+    if (!random_buffer_checked(new_generation, sizeof(new_generation))) {
+      memzero(generation, PASSKEY_CREDENTIAL_GENERATION_SIZE);
+      *legacy_credentials_enabled = false;
+      return false;
+    }
+    memcpy(passkeys->credential_generation, new_generation,
+           sizeof(new_generation));
+    passkeys->legacy_credentials_enabled = migrate_legacy ? 1 : 0;
+    passkeys->version = PASSKEY_STORAGE_VERSION;
+    storage_commit();
+    memzero(new_generation, sizeof(new_generation));
+  }
+
+  memcpy(generation, passkeys->credential_generation,
+         PASSKEY_CREDENTIAL_GENERATION_SIZE);
+  *legacy_credentials_enabled = passkeys->legacy_credentials_enabled != 0;
+  return true;
+}
+
+bool storage_resetPasskeyData(void) {
+  PasskeyStorage reset;
+  memzero(&reset, sizeof(reset));
+  if (!random_buffer_checked(reset.credential_generation,
+                             sizeof(reset.credential_generation))) {
+    memzero(&reset, sizeof(reset));
+    return false;
+  }
+  reset.version = PASSKEY_STORAGE_VERSION;
+  reset.pin_retries = PASSKEY_PIN_RETRIES;
+  storage_setPasskeyData(&reset);
+  memzero(&reset, sizeof(reset));
+  return true;
+}
+
 bool storage_getAuthData(authType* returnData) {
   uint8_t authdataKey[64] = {0};
   uint8_t testFp[32] = {0};
@@ -1175,6 +1240,77 @@ void storage_readStorageV17(Storage* storage, const char* ptr, size_t len) {
   memcpy(storage->encrypted_sec, ptr + 1501, sizeof(storage->encrypted_sec));
 }
 
+// V20 stores passkey state inside V17's 996-byte reserved plaintext area. An
+// unshipped 7.15 RC appended clear-sign identities after encrypted_sec; those
+// unauthenticated records are retired and deliberately outside this record.
+// Readers ignore trailing bytes, and storage_commit erases the destination
+// sector before writing this bounded record, so legacy identities never carry
+// forward into the next active sector.
+#define V20_STORAGE_LEN (1501 + V17_ENCSEC_SIZE)  // 2525
+#define PASSKEY_STORAGE_OFF 501
+
+static void storage_defaultPasskeyData(PasskeyStorage* passkeys) {
+  memzero(passkeys, sizeof(*passkeys));
+  passkeys->version = 1;
+  passkeys->pin_retries = PASSKEY_PIN_RETRIES;
+}
+
+/* Corrupt V20 metadata fails closed: current version with no generation, so
+ * the next credential operation mints a fresh generation with legacy handles
+ * disabled. Version 1 is only for a real V17 upgrade, where it re-enables
+ * them. */
+static void storage_failClosedPasskeyData(PasskeyStorage* passkeys) {
+  storage_defaultPasskeyData(passkeys);
+  passkeys->version = PASSKEY_STORAGE_VERSION;
+}
+
+static void storage_validatePasskeyData(PasskeyStorage* passkeys) {
+  if ((passkeys->version != 1 &&
+       passkeys->version != PASSKEY_STORAGE_VERSION) ||
+      passkeys->pin_set > 1 || passkeys->pin_retries > PASSKEY_PIN_RETRIES) {
+    storage_failClosedPasskeyData(passkeys);
+    return;
+  }
+  if (passkeys->version == 1) {
+    /* Version 1 ended immediately after credentials[]. Bytes that now hold the
+     * generation belonged to V17's randomized reserved area, so never trust
+     * them as serialized state. The first credential operation migrates this
+     * record and temporarily enables legacy-handle validation. */
+    memzero(passkeys->credential_generation,
+            sizeof(passkeys->credential_generation));
+    passkeys->legacy_credentials_enabled = 0;
+  } else if (passkeys->legacy_credentials_enabled > 1) {
+    storage_failClosedPasskeyData(passkeys);
+    return;
+  }
+  for (size_t i = 0; i < PASSKEY_MAX_DISCOVERABLE_CREDENTIALS; ++i) {
+    PasskeyCredential* credential = &passkeys->credentials[i];
+    if (credential->occupied > 1 ||
+        credential->user_id_length > PASSKEY_USER_ID_MAX) {
+      memzero(credential, sizeof(*credential));
+      continue;
+    }
+    credential->user_name[PASSKEY_USER_NAME_MAX - 1] = 0;
+  }
+}
+
+void storage_writeStorageV20(char* ptr, size_t len, const Storage* storage) {
+  if (len < V20_STORAGE_LEN) return;
+  storage_writeStorageV17(ptr, len, storage);
+  _Static_assert(sizeof(PasskeyStorage) <= 996,
+                 "passkey metadata exceeds the V17 reserved area");
+  memcpy(ptr + PASSKEY_STORAGE_OFF, &storage->pub.passkeys,
+         sizeof(storage->pub.passkeys));
+}
+
+void storage_readStorageV20(Storage* storage, const char* ptr, size_t len) {
+  if (len < V20_STORAGE_LEN) return;
+  storage_readStorageV17(storage, ptr, len);
+  memcpy(&storage->pub.passkeys, ptr + PASSKEY_STORAGE_OFF,
+         sizeof(storage->pub.passkeys));
+  storage_validatePasskeyData(&storage->pub.passkeys);
+}
+
 void storage_readCacheV1(Cache* cache, const char* ptr, size_t len) {
   if (len < 65 + 10) return;
   cache->root_seed_cache_status = read_u8(ptr);
@@ -1251,9 +1387,22 @@ void storage_writeV17(char* flash, size_t len, const ConfigFlash* src) {
   storage_writeStorageV17(flash + 44, len - 44, &src->storage);
 }
 
+void storage_readV20(ConfigFlash* dst, const char* flash, size_t len) {
+  if (len < STORAGE_V17_SERIALIZED_LEN) return;
+  storage_readMeta(&dst->meta, flash, 44);
+  storage_readStorageV20(&dst->storage, flash + 44, len - 44);
+}
+
+void storage_writeV20(char* flash, size_t len, const ConfigFlash* src) {
+  if (len < STORAGE_V17_SERIALIZED_LEN) return;
+  storage_writeMeta(flash, 44, &src->meta);
+  storage_writeStorageV20(flash + 44, len - 44, &src->storage);
+}
+
 StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
                                       const char* flash) {
   memzero(dst, sizeof(*dst));
+  storage_defaultPasskeyData(&dst->storage.pub.passkeys);
 
   // Load config values from active config node. The raw value is kept because
   // the bitcoin-only arm needs the exact stored number, not its classification.
@@ -1310,11 +1459,22 @@ StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
       dst->storage.version = STORAGE_VERSION;
       return dst->storage.version == version ? SUS_Valid : SUS_Updated;
     case StorageVersion_17:
+      /* Migrate: the rewrite scrubs the retired clear-sign identity tail and
+       * any legacy AdvancedMode bit 12. */
       storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
+      dst->storage.version = STORAGE_VERSION;
+      return SUS_Updated;
+    /* BURNED (storage_versions.inc): alpha-only layouts, never parsed. No
+     * default arm on purpose, so the compiler names a forgotten version. */
+    case StorageVersion_18:
+    case StorageVersion_19:
+      return SUS_Invalid;
+    case StorageVersion_20:
+      storage_readV20(dst, flash, STORAGE_SECTOR_LEN);
       dst->storage.version = STORAGE_VERSION;
       // Erase legacy unauthenticated AdvancedMode bit 12 (even with no PIN).
       if (read_u32_le(flash + 44 + 4) & (1u << 12)) return SUS_Updated;
-      return dst->storage.version == version ? SUS_Valid : SUS_Updated;
+      return SUS_Valid;
 
     case StorageVersion_BTC_ONLY:
 #if BITCOIN_ONLY
@@ -1337,8 +1497,12 @@ StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
         storage_readV11(dst, flash, STORAGE_SECTOR_LEN);
       } else if (underlying == 16) {
         storage_readV16(dst, flash, STORAGE_SECTOR_LEN);
-      } else {
+      } else if (underlying == 17) {
         storage_readV17(dst, flash, STORAGE_SECTOR_LEN);
+      } else if (underlying == 18 || underlying == 19) {
+        return SUS_Invalid; /* burned, as in the multi-chain arms */
+      } else {
+        storage_readV20(dst, flash, STORAGE_SECTOR_LEN);
       }
       dst->storage.version = STORAGE_VERSION_BTC_ONLY;
       if (read_u32_le(flash + 44 + 4) & (1u << 12)) return SUS_Updated;
@@ -1370,31 +1534,6 @@ StorageUpdateStatus storage_fromFlash(SessionState* ss, ConfigFlash* dst,
 }
 
 /// \brief Shifts sector for config storage
-static void wear_leveling_shift(void) {
-  switch (storage_location) {
-    case FLASH_STORAGE1: {
-      storage_location = FLASH_STORAGE2;
-      break;
-    }
-
-    case FLASH_STORAGE2: {
-      storage_location = FLASH_STORAGE3;
-      break;
-    }
-
-    /* wraps around */
-    case FLASH_STORAGE3: {
-      storage_location = FLASH_STORAGE1;
-      break;
-    }
-
-    default: {
-      storage_location = STORAGE_SECT_DEFAULT;
-      break;
-    }
-  }
-}
-
 /// \brief Set root session seed in storage.
 ///
 /// \param cfg[in]    The active storage sector.
@@ -1450,6 +1589,95 @@ static bool storage_getRootSeedCache(const SessionState* ss,
   return true;
 }
 
+/* Interrupted-commit safety (SRS-7.16 R-4.2), firmware only. A commit stages
+ * the whole record in the spare sector with its magic NOT written and a CRC
+ * trailer after it, then finalizes: erase the old record (it is the new
+ * record's marker sector), write the boot marker, write the magic LAST. A
+ * power cut leaves either the old active record, or no active record and one
+ * CRC-valid pending record, which storage_init() finalizes. The bootloader
+ * never sees an active record without its marker. */
+#define STORAGE_RECORD_LEN STORAGE_V17_FLASH_BUFFER_LEN
+#define STORAGE_PENDING_TAG "crc1"
+
+static uint32_t storage_recordCrc(const char* record) {
+  return calc_crc32(
+      record + STORAGE_MAGIC_LEN,
+      (STORAGE_RECORD_LEN - STORAGE_MAGIC_LEN) / sizeof(uint32_t));
+}
+
+static bool storage_finalizePending(Allocation pending) {
+  const Allocation marker = next_storage(pending);
+  flash_erase_word(marker);
+  Allocation active;
+  return flash_write(marker, 0, sizeof(STORAGE_PROTECT_OFF_MAGIC),
+                     (const uint8_t*)STORAGE_PROTECT_OFF_MAGIC) &&
+         memcmp((const void*)flash_write_helper(marker),
+                STORAGE_PROTECT_OFF_MAGIC,
+                sizeof(STORAGE_PROTECT_OFF_MAGIC)) == 0 &&
+         flash_write_word(pending, 0, STORAGE_MAGIC_LEN,
+                          (const uint8_t*)STORAGE_MAGIC_STR) &&
+         find_active_storage(&active) && active == pending;
+}
+
+/* Erase reports no status: confirm the whole record area reads erased, so a
+ * partial erase cannot leave an old marker or magic word under the stage. */
+static bool storage_sectorErased(Allocation s) {
+  const uint8_t* p = (const uint8_t*)flash_write_helper(s);
+  for (size_t i = 0; i < STORAGE_RECORD_LEN + 8; i++)
+    if (p[i] != 0xff) return false;
+  return true;
+}
+
+static bool storage_finalizeWithRetries(Allocation pending) {
+  for (int attempt = 0; attempt < STORAGE_RETRIES; attempt++)
+    if (storage_finalizePending(pending)) return true;
+  return false;
+}
+
+/* A record this firmware wrote: crc1 trailer and a CRC over bytes [4, 2572).
+ * The magic is not covered, so a record is judged with or without it. */
+static bool storage_recordValid(Allocation s) {
+  const char* record = (const char*)flash_write_helper(s);
+  uint32_t crc;
+  memcpy(&crc, record + STORAGE_RECORD_LEN + 4, sizeof(crc));
+  return memcmp(record + STORAGE_RECORD_LEN, STORAGE_PENDING_TAG, 4) == 0 &&
+         storage_recordCrc(record) == crc;
+}
+
+/* Boot selection for records with trailers. Commits go to next(next(old)),
+ * so of two valid records X and Y, X is newer iff next(X) == Y: the newest is
+ * the valid record whose predecessor next(next(X)) is not valid. Magic is not
+ * trusted for ordering: an interrupted erase can clear only the old magic
+ * (leaving a stale record that looks staged) or leave it over damaged data.
+ * The newest is finalized unless it is already marked active, and is never
+ * discarded: if it cannot be finalized, halt. False when no record has a
+ * trailer (legacy V17 storage, or none). */
+static bool storage_selectNewestRecord(Allocation* out) {
+  int valid = 0;
+  Allocation newest = FLASH_STORAGE1;
+  for (Allocation s = FLASH_STORAGE1; s <= FLASH_STORAGE3; s++) {
+    if (!storage_recordValid(s)) continue;
+    valid++;
+    if (!storage_recordValid(next_storage(next_storage(s)))) newest = s;
+  }
+  if (valid == 0) return false;
+  if (valid == 3) { /* no commit sequence leaves three: refuse to guess */
+    layout_warning_static("Storage Unsafe. Keep Powered!");
+    shutdown();
+  }
+  const char* record = (const char*)flash_write_helper(newest);
+  const bool active =
+      memcmp(record, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0 &&
+      memcmp((const void*)flash_write_helper(next_storage(newest)),
+             STORAGE_PROTECT_OFF_MAGIC, sizeof(STORAGE_PROTECT_OFF_MAGIC)) == 0;
+  if (!active && !storage_finalizeWithRetries(newest)) {
+    layout_warning_static("Storage Unsafe. Keep Powered!");
+    shutdown();
+  }
+  *out = newest;
+  return true;
+}
+
 void storage_init(void) {
 #if !BITCOIN_ONLY
   /* A reopened flash buffer is a new session (emulator stays loaded). */
@@ -1461,7 +1689,8 @@ void storage_init(void) {
   firmware_too_old = false;
 
   // Find storage sector with valid data and set storage_location variable.
-  if (!find_active_storage(&storage_location)) {
+  if (!storage_selectNewestRecord(&storage_location) &&
+      !find_active_storage(&storage_location)) {
     // Otherwise initialize it to the default sector.
     storage_location = STORAGE_SECT_DEFAULT;
   }
@@ -1550,7 +1779,10 @@ void storage_resetUuid_impl(ConfigFlash* cfg) {
   data2hex(cfg->meta.uuid, sizeof(cfg->meta.uuid), cfg->meta.uuid_str);
 }
 
-void storage_reset(void) { storage_reset_impl(&session, &shadow_config); }
+void storage_reset(void) {
+  ctap2_clear_session();
+  storage_reset_impl(&session, &shadow_config);
+}
 
 void storage_reset_impl(SessionState* ss, ConfigFlash* cfg) {
   memset(&cfg->storage, 0, sizeof(cfg->storage));
@@ -1567,6 +1799,7 @@ void storage_reset_impl(SessionState* ss, ConfigFlash* cfg) {
   storage_setPin_impl(ss, &cfg->storage, "");
 
   cfg->storage.version = STORAGE_VERSION;
+  storage_defaultPasskeyData(&cfg->storage.pub.passkeys);
 
   memzero(ss, sizeof(*ss));
 
@@ -1575,6 +1808,7 @@ void storage_reset_impl(SessionState* ss, ConfigFlash* cfg) {
 }
 
 void storage_wipe(void) {
+  ctap2_clear_session();
   fsm_abort_workflows();
   flash_erase_word(FLASH_STORAGE1);
   flash_erase_word(FLASH_STORAGE2);
@@ -1735,14 +1969,16 @@ void storage_commit(void) {
 
   /* Set before serializing, or find_active_storage() misses the commit. */
   memcpy(shadow_config.meta.magic, STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
-  storage_writeV17(flash_temp, sizeof(flash_temp), &shadow_config);
+  storage_writeV20(flash_temp, sizeof(flash_temp), &shadow_config);
+
+  const Allocation pending = next_storage(next_storage(storage_location));
+  const uint32_t crc = storage_recordCrc(flash_temp);
+  uint8_t trailer[8];
+  memcpy(trailer, STORAGE_PENDING_TAG, 4);
+  memcpy(trailer + 4, &crc, sizeof(crc));
 
   uint32_t retries = 0;
   for (retries = 0; retries < STORAGE_RETRIES; retries++) {
-    /* Capture CRC for verification at restore */
-    uint32_t shadow_ram_crc32 =
-        calc_crc32(flash_temp, sizeof(flash_temp) / sizeof(uint32_t));
-
     /* Make sure storage sector is valid before proceeding */
     if (storage_location < FLASH_STORAGE1 ||
         storage_location > FLASH_STORAGE3) {
@@ -1750,54 +1986,37 @@ void storage_commit(void) {
       continue;
     }
 
-    flash_erase_word(storage_location);
-    wear_leveling_shift();
-    flash_erase_word(storage_location);
-
-    /* Write storage data first before writing storage magic  */
-    if (!flash_write_word(storage_location, STORAGE_MAGIC_LEN,
+    /* Stage everything but the magic; the active record is untouched. */
+    flash_erase_word(pending);
+    if (!storage_sectorErased(pending) ||
+        !flash_write_word(pending, STORAGE_MAGIC_LEN,
                           sizeof(flash_temp) - STORAGE_MAGIC_LEN,
-                          (uint8_t*)flash_temp + STORAGE_MAGIC_LEN)) {
-      flash_erase_word(storage_location);
+                          (uint8_t*)flash_temp + STORAGE_MAGIC_LEN) ||
+        !flash_write_word(pending, sizeof(flash_temp), sizeof(trailer),
+                          trailer) ||
+        memcmp((const char*)flash_write_helper(pending) + sizeof(flash_temp),
+               trailer, sizeof(trailer)) != 0 ||
+        storage_recordCrc((const char*)flash_write_helper(pending)) != crc) {
+      flash_erase_word(pending);
       continue;  // Retry
     }
 
-    if (!flash_write_word(storage_location, 0, STORAGE_MAGIC_LEN,
-                          (uint8_t*)flash_temp)) {
-      flash_erase_word(storage_location);
-      continue;  // Retry
+    /* A verified pending record is recovered at boot if this is cut short,
+     * so never erase it here. Finalizing rewrites the same marker word, so a
+     * transient flash error is retried; a persistent one halts. */
+    if (!storage_finalizeWithRetries(pending)) {
+      memzero(flash_temp, sizeof(flash_temp));
+      layout_warning_static("Storage Unsafe. Keep Powered!");
+      shutdown();
     }
-
-    /* Flash write completed successfully.  Verify CRC */
-    uint32_t shadow_flash_crc32 =
-        calc_crc32((const void*)flash_write_helper(storage_location),
-                   sizeof(flash_temp) / sizeof(uint32_t));
-
-    if (shadow_flash_crc32 == shadow_ram_crc32) {
-      /* A verified record is not bootable until its marker is durable.
-       * Do not return success, retry by erasing the wallet, or wipe on failure.
-       */
-      bool marker_verified = false;
-      for (unsigned marker_attempt = 0; marker_attempt < 3; ++marker_attempt) {
-        if (storage_protect_off()) {
-          marker_verified = true;
-          break;
-        }
-      }
-      if (!marker_verified) {
-        memzero(flash_temp, sizeof(flash_temp));
-        layout_warning_static("Storage Unsafe. Keep Powered!");
-        shutdown();
-      }
-      /* Commit successful, break to exit */
-      break;
-    }
+    storage_location = pending;
+    break;
   }
 
   memzero(flash_temp, sizeof(flash_temp));
 
   if (retries >= STORAGE_RETRIES) {
-    storage_wipe();
+    /* Staging never touches the active record: keep it, never wipe it. */
     layout_warning_static("Error Detected.  Reboot Device!");
     shutdown();
   }

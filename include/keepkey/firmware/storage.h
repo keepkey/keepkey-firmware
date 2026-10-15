@@ -24,11 +24,12 @@
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/authenticator.h"
+#include "keepkey/firmware/passkey.h"
 
-/* 7.15 refuses (never erases) newer storage but must NOT bump the format:
- * every shipped release only understands V17. */
+/* 20, not 18: alpha builds wrote 18 (clear-sign identity) and 19 (PIN-KDF),
+ * so those numbers stay burned and are refused, never parsed as passkeys. */
 #define STORAGE_VERSION \
-  17 /* Must add case fallthrough in storage_fromFlash after increment*/
+  20 /* Must add case fallthrough in storage_fromFlash after increment*/
 
 /* The highest storage version that has actually SHIPPED to users. A signed
  * upgrade must never wipe, and the way that breaks is a release whose
@@ -209,6 +210,21 @@ uint32_t storage_getAutoLockDelayMs(void);
 void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);
 
 bool storage_getAuthData(authType* returnData);
+/// Read or atomically replace CTAP2 PIN and discoverable-credential metadata.
+void storage_getPasskeyData(PasskeyStorage* data);
+void storage_setPasskeyData(const PasskeyStorage* data);
+
+/// Return the active stateless-credential generation, creating and persisting
+/// one through the checked RNG path on first use. Version-1 U2F handles remain
+/// accepted until the first explicit authenticator reset.
+bool storage_getPasskeyCredentialGeneration(
+    uint8_t generation[PASSKEY_CREDENTIAL_GENERATION_SIZE],
+    bool* legacy_credentials_enabled);
+
+/// Atomically clear CTAP state and rotate the stateless-credential generation.
+/// Returns false without changing storage if checked entropy is unavailable.
+bool storage_resetPasskeyData(void);
+
 void storage_setAuthData(const authType* setData);
 void storage_wipeAuthData(void);
 

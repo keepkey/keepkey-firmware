@@ -39,7 +39,6 @@
 #include "keepkey/firmware/bip85.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/cosmos.h"
-#include "keepkey/firmware/binance.h"
 #include "keepkey/firmware/crypto.h"
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/eos-contracts.h"
@@ -62,6 +61,7 @@
 #include "keepkey/firmware/ripple.h"
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/signtx_tendermint.h"
+#include "keepkey/firmware/clearsign_root.h"
 #include "keepkey/firmware/signed_metadata.h"
 #include "keepkey/firmware/contact_book.h"
 #include "keepkey/firmware/solana.h"
@@ -90,7 +90,6 @@
 
 #include "messages.pb.h"
 #include "messages-ethereum.pb.h"
-#include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
 #include "messages-osmosis.pb.h"
 #include "messages-eos.pb.h"
@@ -441,9 +440,8 @@ bool fsm_workflowInProgress(void) {
       erc7730_workflow_active(erc7730_workflow_state()) ||
       tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS) ||
       tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC) ||
-      osmosis_signingIsInited() || binance_signingIsInited() ||
-      eos_signingIsInited() || thorchain_signingIsInited() ||
-      mayachain_signingIsInited()) {
+      osmosis_signingIsInited() || eos_signingIsInited() ||
+      thorchain_signingIsInited() || mayachain_signingIsInited()) {
     return true;
   }
 #endif
@@ -559,10 +557,6 @@ static bool fsm_dispatchGate(MessageType msg_id) {
       if (!osmosis_signingIsInited())
         return reject_stale_continuation("Osmosis signing not in progress");
       return true;
-    case MessageType_MessageType_BinanceTransferMsg:
-      if (!binance_signingIsInited())
-        return reject_stale_continuation("Signing not in progress?");
-      return true;
     case MessageType_MessageType_EosTxActionAck:
       if (!eos_signingIsInited())
         return reject_stale_continuation("EOS signing not in progress");
@@ -609,7 +603,6 @@ static bool fsm_dispatchGate(MessageType msg_id) {
         case MessageType_MessageType_NanoSignTx:
         case MessageType_MessageType_CosmosSignTx:
         case MessageType_MessageType_OsmosisSignTx:
-        case MessageType_MessageType_BinanceSignTx:
         case MessageType_MessageType_EosSignTx:
         case MessageType_MessageType_RippleSignTx:
         case MessageType_MessageType_ThorchainSignTx:
@@ -755,7 +748,6 @@ static void abort_signing_engines(void) {
   ethereum_signing_abort();
   eip712_stream_abort();
   nano_signingAbort();
-  binance_signAbort();
   tendermint_signAbort();
   osmosis_signAbort();
   thorchain_signAbort();
@@ -793,8 +785,8 @@ void fsm_msgClearSession(ClearSession* msg) {
   (void)msg;
   fsm_abort_workflows();
   session_clear(/*clear_pin=*/true);
-  /* Several abort routines -- Binance, Tendermint, Osmosis, THORChain,
-     MAYAChain, EOS, Nano -- only clear state and touch no layout, so without
+  /* Several abort routines -- Tendermint, Osmosis, THORChain, MAYAChain,
+     EOS, Nano -- only clear state and touch no layout, so without
      this the approval screen of the transaction just cancelled stays on the
      OLED, describing an operation that no longer exists.
 
@@ -814,12 +806,10 @@ void fsm_msgClearSession(ClearSession* msg) {
 #include "fsm_msg_debug.h"
 #if !BITCOIN_ONLY
 #include "fsm_msg_ethereum.h"
-#include "fsm_msg_clearsign_attestor.h"
 #include "fsm_msg_nano.h"
 #include "fsm_msg_eos.h"
 #include "fsm_msg_cosmos.h"
 #include "fsm_msg_osmosis.h"
-#include "fsm_msg_binance.h"
 #include "fsm_msg_ripple.h"
 #include "fsm_msg_tendermint.h"
 #include "fsm_msg_thorchain.h"
@@ -827,6 +817,8 @@ void fsm_msgClearSession(ClearSession* msg) {
 #include "fsm_msg_tron.h"
 #include "fsm_msg_ton.h"
 #include "fsm_msg_solana.h"
+/* After fsm_msg_solana.h: reuses its base58 helper and the KKSOLSC1 parser. */
+#include "fsm_msg_clearsign_attestor.h"
 #include "fsm_msg_hive.h"
 #else
 // The coin engines above are compiled out, and every call to these hooks is

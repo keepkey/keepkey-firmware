@@ -1,17 +1,23 @@
 extern "C" {
+#include "keepkey/firmware/clearsign_root.h"
 #include "keepkey/firmware/erc7730_capabilities.h"
 #include "keepkey/firmware/erc7730_catalog.h"
 #include "keepkey/firmware/erc7730_program.h"
+#include "keepkey/board/memory.h"
+#include "keepkey/firmware/erc7730_workflow.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/erc7730_workflow.h"
 #include "keepkey/board/memory.h"
+#include "messages-ethereum.pb.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/secp256k1.h"
 #include "trezor/crypto/sha2.h"
 void setup(void);
 }
 
+#include "clearsign_test_cert.h"
 #include "gtest/gtest.h"
 
 #include <algorithm>
@@ -629,6 +635,192 @@ TEST(Erc7730Catalog, RejectsWrongPurposeRecoveryCertLengthAndClearedSigner) {
   // Replaying an accepted envelope after the signers are cleared fails.
   signed_metadata_clear_signers();
   EXPECT_EQ(feedAll(e, 64), ERC7730_CATALOG_UNTRUSTED);
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+}
+
+TEST(Erc7730Catalog, RuntimeSignedDefinitionIsRuntimeTier) {
+  SignedFixture fixture;
+  loadRuntimeSigner(&fixture, "Approved signer");
+  Erc7730CatalogIdentity identity{};
+  ASSERT_EQ(feedIdentity(signedEnvelope(fixture, minimalProgram()), &identity),
+            ERC7730_CATALOG_COMPLETE);
+  EXPECT_EQ(identity.tier, (uint8_t)METADATA_TIER_RUNTIME);
+  signed_metadata_clear_signers();
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+}
+
+namespace {
+
+// The compiled-in root's private key exists only on the root KeepKey, so the
+// certified fixtures are signed here under a test root that the emulator-only
+// hook substitutes for it (clearsign_root_set_test_root).
+struct CertifiedFixture {
+  uint8_t root_key[32];
+  uint8_t root_pubkey[33];
+  SignedFixture delegate;
+};
+
+// Restores the compiled-in root however the test ends.
+struct TestRoot {
+  explicit TestRoot(const uint8_t* pubkey) {
+    clearsign_root_set_test_root(pubkey);
+  }
+  ~TestRoot() { clearsign_root_set_test_root(nullptr); }
+};
+
+void makeCertifiedFixture(CertifiedFixture* fixture) {
+  if (storage_getLocation() == FLASH_INVALID) {
+    setup();
+    storage_init();
+  }
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", true));
+  signed_metadata_clear_signers();  // no runtime signer is loaded
+  memset(fixture, 0, sizeof(*fixture));
+  fixture->root_key[31] = 0x52;
+  fixture->delegate.key[31] = 0x44;
+  ecdsa_get_public_key33(&secp256k1, fixture->root_key, fixture->root_pubkey);
+  ecdsa_get_public_key33(&secp256k1, fixture->delegate.key,
+                         fixture->delegate.pubkey);
+}
+
+// The delegate signs the catalog root exactly as on the runtime tier; the
+// record carries its root certificate.
+std::vector<uint8_t> certifiedEnvelope(
+    const CertifiedFixture& fixture, const std::vector<uint8_t>& program,
+    const std::vector<uint8_t>& cert,
+    const std::vector<uint8_t>& purpose =
+        std::vector<uint8_t>(kPurpose, kPurpose + sizeof(kPurpose) - 1)) {
+  auto e = signedEnvelope(fixture.delegate, program, {}, purpose);
+  std::copy(cert.begin(), cert.end(), e.begin() + certOffset(program, 0));
+  return e;
+}
+
+}  // namespace
+
+TEST(Erc7730Catalog, RootCertifiedDefinitionVerifiesWithoutRuntimeSigner) {
+  CertifiedFixture fixture;
+  makeCertifiedFixture(&fixture);
+  TestRoot root(fixture.root_pubkey);
+  auto program = minimalProgram();
+  auto e = certifiedEnvelope(
+      fixture, program, rootCert(fixture.root_key, fixture.delegate.pubkey));
+  Erc7730CatalogIdentity identity{};
+  ASSERT_EQ(feedIdentity(e, &identity), ERC7730_CATALOG_COMPLETE);
+  EXPECT_EQ(identity.tier, (uint8_t)METADATA_TIER_KEEPKEY);
+  // The alias shown is the one the root signed.
+  EXPECT_STREQ(identity.delegate_alias, "KeepKey Test");
+  char fingerprint[METADATA_FINGERPRINT_LEN];
+  signed_metadata_pubkey_fingerprint(fixture.delegate.pubkey, fingerprint);
+  EXPECT_STREQ(identity.delegate_fingerprint, fingerprint);
+  EXPECT_EQ(feedAll(e, 1), ERC7730_CATALOG_COMPLETE);
+
+  // D-007: a certified definition verifies without AdvancedMode.
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+  Erc7730CatalogIdentity off{};
+  ASSERT_EQ(feedIdentity(e, &off), ERC7730_CATALOG_COMPLETE);
+  EXPECT_EQ(off.tier, (uint8_t)METADATA_TIER_KEEPKEY);
+  EXPECT_STREQ(off.delegate_alias, "KeepKey Test");
+}
+
+TEST(Erc7730Catalog, RootCertificateDefectsAreRefused) {
+  CertifiedFixture fixture;
+  makeCertifiedFixture(&fixture);
+  TestRoot root(fixture.root_pubkey);
+  const uint8_t* delegate = fixture.delegate.pubkey;
+  auto program = minimalProgram();
+  const char other[] = "KEEPKEY:ERC7730:CATALOH\0";
+  const std::vector<std::vector<uint8_t>> refused = {
+      // Signed by a key that is not the root.
+      certifiedEnvelope(fixture, program,
+                        rootCert(fixture.delegate.key, delegate)),
+      // Delegate signature under another purpose.
+      certifiedEnvelope(fixture, program, rootCert(fixture.root_key, delegate),
+                        std::vector<uint8_t>(other, other + sizeof(other) - 1)),
+      // Scope is not the definition's chain id.
+      certifiedEnvelope(fixture, program,
+                        rootCert(fixture.root_key, delegate,
+                                 CLEARSIGN_USAGE_MAY_SUPPRESS_RAW, 2)),
+      // No MAY_SUPPRESS_RAW.
+      certifiedEnvelope(fixture, program,
+                        rootCert(fixture.root_key, delegate, 0)),
+      // Expired: not_after at the firmware's floor.
+      certifiedEnvelope(
+          fixture, program,
+          rootCert(fixture.root_key, delegate, CLEARSIGN_USAGE_MAY_SUPPRESS_RAW,
+                   1, KK_CLEARSIGN_MIN_EXPIRY)),
+      // Alias with a control byte.
+      certifiedEnvelope(
+          fixture, program,
+          rootCert(fixture.root_key, delegate, CLEARSIGN_USAGE_MAY_SUPPRESS_RAW,
+                   1, KK_CLEARSIGN_MIN_EXPIRY + 1, "KeepKey\nTest")),
+  };
+  // With no runtime signer loaded there is nothing to fall back to, with
+  // AdvancedMode on or off.
+  for (bool advanced : {true, false}) {
+    ASSERT_TRUE(storage_setPolicy("AdvancedMode", advanced));
+    for (size_t i = 0; i < refused.size(); i++)
+      EXPECT_EQ(feedAll(refused[i], 64), ERC7730_CATALOG_UNTRUSTED)
+          << i << " advanced=" << advanced;
+  }
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", true));
+
+  // The same defect with the delegate loaded as a runtime signer falls back
+  // to the runtime tier, under the alias the user approved.
+  ASSERT_TRUE(signed_metadata_store_signer(3, delegate, "Approved signer",
+                                           nullptr, 0, 0, 0, false));
+  Erc7730CatalogIdentity identity{};
+  ASSERT_EQ(feedIdentity(refused[0], &identity), ERC7730_CATALOG_COMPLETE);
+  EXPECT_EQ(identity.tier, (uint8_t)METADATA_TIER_RUNTIME);
+  EXPECT_STREQ(identity.delegate_alias, "Approved signer");
+  // The runtime fallback is never reached without AdvancedMode.
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+  EXPECT_EQ(feedAll(refused[0], 64), ERC7730_CATALOG_UNTRUSTED);
+  signed_metadata_clear_signers();
+}
+
+TEST(Erc7730Catalog, ChainIdAboveUint32IsRefusedNotTruncated) {
+  CertifiedFixture fixture;
+  makeCertifiedFixture(&fixture);
+  TestRoot root(fixture.root_pubkey);
+  // Chain id 2^32 + 1 truncates to the certificate's scope 1. It is refused
+  // with the header, before any signature is checked, on either tier.
+  auto program = minimalProgram();
+  program[13] = 1;
+  program[sectionOffset(program, 8) + 5 + 5 + 3] = 1;  // deployment chain id
+  auto e = certifiedEnvelope(
+      fixture, program, rootCert(fixture.root_key, fixture.delegate.pubkey));
+  EXPECT_EQ(feedAll(e, 64), ERC7730_CATALOG_BAD_PROGRAM);
+  ASSERT_TRUE(signed_metadata_store_signer(
+      3, fixture.delegate.pubkey, "Approved signer", nullptr, 0, 0, 0, false));
+  EXPECT_EQ(feedAll(signedEnvelope(fixture.delegate, program), 64),
+            ERC7730_CATALOG_BAD_PROGRAM);
+  signed_metadata_clear_signers();
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+}
+
+TEST(Erc7730Catalog, SolanaScopeCertificateNeverCertifiesEvmChain501) {
+  CertifiedFixture fixture;
+  makeCertifiedFixture(&fixture);
+  TestRoot root(fixture.root_pubkey);
+  // EVM chain id 501 (header and deployment) under a root-signed scope-501
+  // certificate, which the root issued for Solana.
+  auto program = minimalProgram();
+  const size_t deployment = sectionOffset(program, 8) + 5 + 5;
+  program[16] = program[deployment + 6] = 0x01;
+  program[17] = program[deployment + 7] = 0xf5;
+  auto e = certifiedEnvelope(
+      fixture, program,
+      rootCert(fixture.root_key, fixture.delegate.pubkey,
+               CLEARSIGN_USAGE_MAY_SUPPRESS_RAW, CLEARSIGN_SCOPE_SOLANA));
+  EXPECT_EQ(feedAll(e, 64), ERC7730_CATALOG_UNTRUSTED);
+  // The same envelope is well formed: a runtime signer the user loaded
+  // verifies it, on the AdvancedMode-gated runtime tier only.
+  ASSERT_TRUE(signed_metadata_store_signer(
+      3, fixture.delegate.pubkey, "Approved signer", nullptr, 0, 0, 0, false));
+  Erc7730CatalogIdentity identity{};
+  ASSERT_EQ(feedIdentity(e, &identity), ERC7730_CATALOG_COMPLETE);
+  EXPECT_EQ(identity.tier, (uint8_t)METADATA_TIER_RUNTIME);
+  signed_metadata_clear_signers();
   ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
 }
 
@@ -2041,4 +2233,283 @@ TEST(Erc7730Catalog, GroupFramesPreservePathClasses) {
       rawFieldProgram({1, 1, 0xff, 0xff, 1, 0, 0, 0, 0}), 7, group, 5);
   program[sectionOffset(program, 9) + 5 + 18] = 1;
   expectFrameKeepsPathClasses(program);
+}
+
+// D-007 through the FSM: what a host sees for a definition on each tier, with
+// AdvancedMode on and off. The device signs only after every screen is
+// accepted; the run reads the signature frame the host would receive.
+bool kkconfirm_preload(int nYes, int nNo);
+int kkconfirm_drain(void);
+void kkconfirm_capture_start(void);
+std::vector<std::string> kkconfirm_capture_finish(void);
+bool kkconfirm_readResponse(uint16_t expected, const pb_field_t* fields,
+                            void* result);
+
+namespace {
+
+constexpr int kScreenBudget = 12;
+
+struct ScopedWallet {
+  std::vector<uint8_t> bytes = std::vector<uint8_t>(FLASH_TOTAL_SIZE, 0xff);
+  uint8_t* previous = emulator_flash_base;
+  ScopedWallet() {
+    emulator_flash_base = bytes.data();
+    storage_init();
+    storage_setMnemonic("all all all all all all all all all all all all");
+  }
+  ~ScopedWallet() {
+    fsm_abort_workflows();
+    erc7730_catalog_clear_preload();
+    signed_metadata_clear_signers();
+    storage_reset();
+    emulator_flash_base = previous;
+  }
+};
+
+struct SignRun {
+  FailureType code = (FailureType)0;
+  std::string message;
+  int screens = 0;
+  bool signature = false;
+  std::vector<std::string> bodies;
+};
+
+std::vector<uint8_t> word(uint8_t low) {
+  std::vector<uint8_t> w(32, 0);
+  w[31] = low;
+  return w;
+}
+
+// Preloads `e`, then signs a call of minimalProgram()'s selector with
+// `args` on `chain`. `tamper_signing_pass` changes one byte the host sends on
+// the final, signing pass.
+SignRun signWithDefinition(const std::vector<uint8_t>& e,
+                           const std::vector<uint8_t>& args, uint64_t chain = 1,
+                           bool tamper_signing_pass = false) {
+  SignRun run;
+  fsm_test_clearLastFailure();
+  EXPECT_TRUE(kkconfirm_preload(kScreenBudget, 0));
+  kkconfirm_capture_start();
+  const auto id = digest(e);
+
+  for (size_t offset = 0; offset < e.size();) {
+    EthereumClearSignDefinition chunk{};
+    chunk.definition_id.size = 32;
+    memcpy(chunk.definition_id.bytes, id.data(), 32);
+    chunk.offset = (uint32_t)offset;
+    chunk.total_length = (uint32_t)e.size();
+    chunk.data.size = (pb_size_t)std::min<size_t>(ERC7730_TRANSPORT_CHUNK_MAX,
+                                                  e.size() - offset);
+    memcpy(chunk.data.bytes, e.data() + offset, chunk.data.size);
+    fsm_msgEthereumClearSignDefinition(&chunk);
+    if (fsm_test_lastFailureCode() != 0) break;
+    offset += chunk.data.size;
+  }
+
+  if (fsm_test_lastFailureCode() == 0) {
+    EthereumSignTx tx{};
+    const uint32_t path[5] = {0x8000002c, 0x8000003c, 0x80000000, 0, 0};
+    memcpy(tx.address_n, path, sizeof(path));
+    tx.address_n_count = 5;
+    tx.has_chain_id = true;
+    tx.chain_id = chain;
+    tx.has_nonce = tx.has_gas_price = tx.has_gas_limit = true;
+    tx.nonce.size = tx.gas_price.size = tx.gas_limit.size = 1;
+    tx.nonce.bytes[0] = 0;
+    tx.gas_price.bytes[0] = 1;
+    tx.gas_limit.bytes[0] = 0x80;
+    tx.has_to = true;
+    tx.to.size = 20;
+    tx.to.bytes[0] = 0x11;
+    tx.has_data_length = tx.has_data_initial_chunk = true;
+    tx.data_length = 4 + (uint32_t)args.size();
+    tx.data_initial_chunk.size = 4;
+    memcpy(tx.data_initial_chunk.bytes, "\xaa\xbb\xcc\xdd", 4);
+    fsm_msgEthereumSignTx(&tx);
+  }
+
+  Erc7730Workflow* workflow = erc7730_workflow_state();
+  for (int guard = 0; guard < 256 && fsm_test_lastFailureCode() == 0; guard++) {
+    uint8_t id_wanted[32];
+    uint32_t offset = 0, total = 0;
+    size_t remaining = 0;
+    if (erc7730_workflow_waiting(workflow, id_wanted, &offset, &total)) {
+      EthereumClearSignDefinitionChunk chunk{};
+      chunk.definition_id.size = 32;
+      memcpy(chunk.definition_id.bytes, id_wanted, 32);
+      chunk.offset = offset;
+      chunk.total_length = total;
+      chunk.data.size = (pb_size_t)std::min<size_t>(ERC7730_TRANSPORT_CHUNK_MAX,
+                                                    total - offset);
+      memcpy(chunk.data.bytes, e.data() + offset, chunk.data.size);
+      fsm_msgEthereumClearSignDefinitionChunk(&chunk);
+    } else if (erc7730_workflow_calldata_waiting(workflow, &remaining)) {
+      const size_t at = workflow->outer_received;
+      EthereumTxAck ack{};
+      ack.has_data_chunk = true;
+      ack.data_chunk.size = (pb_size_t)std::min<size_t>(remaining, 1024);
+      memcpy(ack.data_chunk.bytes, args.data() + at, ack.data_chunk.size);
+      if (tamper_signing_pass && workflow->signing_pass)
+        ack.data_chunk.bytes[ack.data_chunk.size - 1] ^= 1;
+      fsm_msgEthereumTxAck(&ack);
+    } else {
+      break;
+    }
+  }
+
+  run.code = fsm_test_lastFailureCode();
+  run.message = fsm_test_lastFailureMessage();
+  run.bodies = kkconfirm_capture_finish();
+  run.screens = kScreenBudget - kkconfirm_drain() / 2;
+  if (run.code == 0) {
+    for (int i = 0; i < 64 && !run.signature; i++) {
+      EthereumTxRequest response{};
+      if (!kkconfirm_readResponse(MessageType_MessageType_EthereumTxRequest,
+                                  EthereumTxRequest_fields, &response))
+        break;
+      run.signature = response.has_signature_r && response.has_signature_s;
+    }
+  }
+  fsm_abort_workflows();
+  erc7730_catalog_clear_preload();
+  return run;
+}
+
+bool shows(const SignRun& run, const char* text) {
+  for (const auto& body : run.bodies)
+    if (body.find(text) != std::string::npos) return true;
+  return false;
+}
+
+}  // namespace
+
+TEST(Erc7730Certified, SignsWithoutAdvancedModeAndShowsItsScreens) {
+  CertifiedFixture fixture;
+  makeCertifiedFixture(&fixture);
+  TestRoot root(fixture.root_pubkey);
+  ScopedWallet wallet;
+  auto e =
+      certifiedEnvelope(fixture, minimalProgram(),
+                        rootCert(fixture.root_key, fixture.delegate.pubkey));
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+  const SignRun run = signWithDefinition(e, word(42));
+  EXPECT_EQ(run.code, (FailureType)0) << run.message;
+  EXPECT_TRUE(run.signature);
+  // Provenance, the program's intent, then the device's own amount and fee
+  // screens. No raw-data review.
+  EXPECT_TRUE(shows(run, "KeepKey Test (")) << run.screens;
+  EXPECT_TRUE(shows(run, "describes this transaction."));
+  EXPECT_TRUE(shows(run, "Test"));
+  EXPECT_FALSE(shows(run, "NOT verified by KeepKey"));
+  EXPECT_TRUE(shows(run, "Send message to 0x1100"));
+  EXPECT_EQ(run.screens, 4);
+  EXPECT_EQ(run.bodies.size(), 4u);
+
+  // AdvancedMode on changes nothing for a certified definition.
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", true));
+  const SignRun advanced = signWithDefinition(e, word(42));
+  EXPECT_EQ(advanced.code, (FailureType)0) << advanced.message;
+  EXPECT_TRUE(advanced.signature);
+  EXPECT_EQ(advanced.bodies, run.bodies);
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+}
+
+TEST(Erc7730Certified, RuntimeSignerStaysOnTheAdvancedModePath) {
+  CertifiedFixture fixture;
+  makeCertifiedFixture(&fixture);
+  ScopedWallet wallet;
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", true));
+  ASSERT_TRUE(signed_metadata_store_signer(
+      3, fixture.delegate.pubkey, "Approved signer", nullptr, 0, 0, 0, false));
+  auto e = signedEnvelope(fixture.delegate, minimalProgram());
+
+  // AdvancedMode on: the 7.15 review, raw-data review included.
+  const SignRun on = signWithDefinition(e, word(42));
+  EXPECT_EQ(on.code, (FailureType)0) << on.message;
+  EXPECT_TRUE(on.signature);
+  EXPECT_TRUE(shows(on, "NOT verified by KeepKey"));
+  // Signer, warning, intent, amount, fee and the calldata's Keccak-256.
+  EXPECT_EQ(on.screens, 6);
+  ASSERT_EQ(on.bodies.size(), 6u);
+  EXPECT_EQ(on.bodies.back().size(), 64u);
+
+  // AdvancedMode off: refused, naming AdvancedMode, before any screen.
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+  const SignRun off = signWithDefinition(e, word(42));
+  EXPECT_EQ(off.code, FailureType_Failure_Other);
+  EXPECT_EQ(off.message, "AdvancedMode required for ERC-7730");
+  EXPECT_EQ(off.screens, 0);
+  EXPECT_FALSE(off.signature);
+}
+
+TEST(Erc7730Certified, UnverifiedCertificatesStayOnTheAdvancedModePath) {
+  CertifiedFixture fixture;
+  makeCertifiedFixture(&fixture);
+  TestRoot root(fixture.root_pubkey);
+  ScopedWallet wallet;
+  const uint8_t* delegate = fixture.delegate.pubkey;
+  auto program = minimalProgram();
+  const std::vector<std::vector<uint8_t>> refused = {
+      // Not signed by the root.
+      certifiedEnvelope(fixture, program,
+                        rootCert(fixture.delegate.key, delegate)),
+      // Expired.
+      certifiedEnvelope(
+          fixture, program,
+          rootCert(fixture.root_key, delegate, CLEARSIGN_USAGE_MAY_SUPPRESS_RAW,
+                   1, KK_CLEARSIGN_MIN_EXPIRY)),
+      // Scoped to another chain.
+      certifiedEnvelope(fixture, program,
+                        rootCert(fixture.root_key, delegate,
+                                 CLEARSIGN_USAGE_MAY_SUPPRESS_RAW, 2)),
+      // No MAY_SUPPRESS_RAW.
+      certifiedEnvelope(fixture, program,
+                        rootCert(fixture.root_key, delegate, 0)),
+  };
+  for (size_t i = 0; i < refused.size(); i++) {
+    // Without AdvancedMode: the 7.15 refusal, which names AdvancedMode.
+    ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+    const SignRun off = signWithDefinition(refused[i], word(42));
+    EXPECT_EQ(off.code, FailureType_Failure_Other) << i;
+    EXPECT_EQ(off.message, "AdvancedMode required for ERC-7730") << i;
+    EXPECT_EQ(off.screens, 0) << i;
+    EXPECT_FALSE(off.signature) << i;
+    // With AdvancedMode: the definition is refused as before.
+    ASSERT_TRUE(storage_setPolicy("AdvancedMode", true));
+    const SignRun on = signWithDefinition(refused[i], word(42));
+    EXPECT_EQ(on.message, "Invalid certified ERC-7730 definition") << i;
+    EXPECT_FALSE(on.signature) << i;
+  }
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+}
+
+TEST(Erc7730Certified, CertifiedDefinitionStillBindsChainAndCalldata) {
+  CertifiedFixture fixture;
+  makeCertifiedFixture(&fixture);
+  TestRoot root(fixture.root_pubkey);
+  ScopedWallet wallet;
+  auto e =
+      certifiedEnvelope(fixture, minimalProgram(),
+                        rootCert(fixture.root_key, fixture.delegate.pubkey));
+  ASSERT_TRUE(storage_setPolicy("AdvancedMode", false));
+
+  // Another chain than the definition's.
+  const SignRun chain = signWithDefinition(e, word(42), 2);
+  EXPECT_EQ(chain.message, "ERC-7730 definition does not match transaction");
+  EXPECT_EQ(chain.screens, 0);
+  EXPECT_FALSE(chain.signature);
+
+  // Calldata the program's ABI does not describe (a trailing word).
+  auto extra = word(42);
+  const auto more = word(7);
+  extra.insert(extra.end(), more.begin(), more.end());
+  const SignRun calldata = signWithDefinition(e, extra);
+  EXPECT_EQ(calldata.message, "ERC-7730 calldata does not match definition");
+  EXPECT_EQ(calldata.screens, 0);
+  EXPECT_FALSE(calldata.signature);
+
+  // Bytes changed on the signing pass after the review.
+  const SignRun swapped = signWithDefinition(e, word(42), 1, true);
+  EXPECT_EQ(swapped.message, "ERC-7730 calldata does not match definition");
+  EXPECT_FALSE(swapped.signature);
 }

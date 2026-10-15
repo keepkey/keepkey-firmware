@@ -9,6 +9,9 @@ services:
       # unset, the Dockerfile's digest-pinned default applies.
       args:
         - BASE_IMAGE
+    environment:
+      # Certified test fixtures are signed by the alpha root (set by CI).
+      KK_CLEARSIGN_TEST_ROOT: ${KK_CLEARSIGN_TEST_ROOT:-}
     networks:
       - local-net
     ports:
@@ -53,6 +56,8 @@ services:
       # to run without it rather than inferring it from the device.
       KK_FIRMWARE_VARIANT: ${KK_FIRMWARE_VARIANT:-}
       KK_EMULATOR_BIN: /kkemu-emulator-bin/kkemu
+      # Inherited by the emulators the storage tests restart.
+      KK_CLEARSIGN_TEST_ROOT: ${KK_CLEARSIGN_TEST_ROOT:-}
     networks:
       - local-net
     depends_on:

@@ -273,6 +273,30 @@ jobs:
                           str(release / 'presign-evidence-manifest.json'))
           PY
 
+      # The ALPHA ClearSign root (02de9231...dae7) must never ship. 7.16
+      # compiles in the production root (027c1fde...e321); tests use the alpha
+      # key only as the emulator-only test root (KK_CLEARSIGN_TEST_ROOT), so
+      # this step catches it leaking into a release artifact. Both variants:
+      # bitcoin-only must not carry it either.
+      - name: Refuse the alpha ClearSign root (${{ matrix.variant }})
+        run: |
+          python3 - <<'EOF'
+          import sys
+          ALPHA_ROOT = bytes.fromhex(
+              "02de9231b2094433235532fb1932e324a2c7304195e12e610c675cccbbd606dae7")
+          from pathlib import Path
+          files = sorted(p for p in Path("release").iterdir() if p.is_file())
+          if not files:
+              sys.exit("::error::no release artifacts to check")
+          for path in files:  # every uploaded file: bin, elf, reports
+              if ALPHA_ROOT in path.read_bytes():
+                  sys.exit("::error::alpha ClearSign root in release artifact "
+                           "%s: production needs its own root (new ceremony "
+                           "after the 7.15 re-release). Variant: "
+                           "${{ matrix.variant }}" % path.name)
+              print("Alpha ClearSign root absent: %s" % path.name)
+          EOF
+
       - name: Rename artifacts
         working-directory: release
         run: |

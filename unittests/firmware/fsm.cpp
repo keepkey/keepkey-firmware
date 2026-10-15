@@ -10,8 +10,13 @@ extern "C" {
 #include "trezor/crypto/bip32.h"
 #include "trezor/crypto/bip39.h"
 #include "keepkey/firmware/authenticator.h"
+#include "keepkey/firmware/ctap2.h"
+#include "keepkey/firmware/ctap2/cbor.h"
+#include "trezor/crypto/aes/aes.h"
+#include "trezor/crypto/ecdsa.h"
+#include "trezor/crypto/hmac.h"
+#include "trezor/crypto/nist256p1.h"
 #include "keepkey/firmware/bip85.h"
-#include "keepkey/firmware/binance.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/eos.h"
 #include "keepkey/firmware/ethereum.h"
@@ -28,10 +33,13 @@ extern "C" {
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/signing.h"
+#include "keepkey/firmware/solana.h"
+#include "keepkey/firmware/signed_metadata.h"
 #include "keepkey/firmware/contact_book.h"
 #include "keepkey/firmware/signtx_tendermint.h"
 #include "keepkey/firmware/tendermint.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/rand/rng_health.h"
 #include "storage.h"
 #include "keepkey/firmware/thorchain.h"
 #include "trezor/crypto/secp256k1.h"
@@ -231,16 +239,6 @@ static void expectSigningSessionsCleared(bool initialize) {
   HDNode node = {};
   node.curve = &secp256k1_info;
 
-  BinanceSignTx binance = {};
-  binance.has_msg_count = true;
-  binance.msg_count = 1;
-  binance.has_account_number = true;
-  binance.has_chain_id = true;
-  std::strcpy(binance.chain_id, "Binance-Chain-Nile");
-  binance.has_sequence = true;
-  binance.has_source = true;
-  ASSERT_TRUE(binance_signTxInit(&node, &binance));
-
   TendermintSignTx tendermint = {};
   tendermint.has_msg_count = true;
   tendermint.msg_count = 1;
@@ -281,7 +279,6 @@ static void expectSigningSessionsCleared(bool initialize) {
   uint32_t eos_path[8] = {};
   eos_signingInit(eos_chain_id, 1, &eos_header, &node, eos_path, 0);
 
-  ASSERT_TRUE(binance_signingIsInited());
   ASSERT_TRUE(tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC));
   ASSERT_TRUE(osmosis_signingIsInited());
   ASSERT_TRUE(thorchain_signingIsInited());
@@ -296,7 +293,6 @@ static void expectSigningSessionsCleared(bool initialize) {
     fsm_abort_workflows();
   }
 
-  EXPECT_FALSE(binance_signingIsInited());
   EXPECT_FALSE(tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC));
   EXPECT_FALSE(osmosis_signingIsInited());
   EXPECT_FALSE(thorchain_signingIsInited());
@@ -1535,23 +1531,6 @@ TEST_F(AutoLockProgress, HostDrivenLayoutChangesDoNotRenewTheDeadline) {
 }
 
 #if !BITCOIN_ONLY
-TEST(Fsm, SolanaCertificateIsRejectedAtTheProductionHandler) {
-  kk_test_board_init();
-  fsm_init();
-  fsm_test_clearLastFailure();
-
-  SolanaSignTx request = {};
-  request.has_clearsign_certificate = true;
-  request.clearsign_certificate.size = 1;
-  request.clearsign_certificate.bytes[0] = 0x01;
-  receiveMessage(MessageType_MessageType_SolanaSignTx, SolanaSignTx_fields,
-                 &request);
-
-  EXPECT_EQ(FailureType_Failure_UnexpectedMessage, fsm_test_lastFailureCode())
-      << "a decoded certificate must not fall through to ordinary signing";
-  layoutHomeForced();
-}
-
 // Solana's handlers sign with the key at the path the host names. Outside
 // m/44'/501' that is another coin's key: a raw Ed25519 signature over 32
 // printable bytes on the TON path authorizes a TON transfer, and the screen
@@ -2441,6 +2420,110 @@ TEST_F(AutoLockProgress, ResetEntropyRequestDefersButPollingDoesNot) {
 }
 
 #if !BITCOIN_ONLY
+/* A token definition only names a token in its own tier: a delegate-signed
+ * definition in a runtime request, or a runtime one in a certified request,
+ * is refused before any screen. */
+/* An initialised "all x12" device and a parseable one-transfer Solana message
+ * whose payer is not that seed's key: past every request check, signing stops
+ * at the signer check (Failure_Other) before any screen. */
+static SolanaSignTx solana_fsm_request(void) {
+  kk_test_board_init();
+  fsm_init();
+  LoadDevice load = {};
+  load.has_mnemonic = true;
+  std::strcpy(load.mnemonic, "all all all all all all all all all all all all");
+  storage_loadDevice(&load);
+  storage_commit();
+
+  SolanaSignTx msg = {};
+  msg.address_n_count = 4;
+  const uint32_t path[4] = {0x8000002C, 0x800001F5, 0x80000000, 0x80000000};
+  memcpy(msg.address_n, path, sizeof(path));
+  msg.has_raw_tx = true;
+  uint8_t* raw = msg.raw_tx.bytes;
+  size_t pos = 0;
+  raw[pos++] = 1; /* legacy header */
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 3; /* payer, recipient, system program (zero key) */
+  memset(raw + pos, 0x11, 64);
+  pos += 64 + 32;
+  memset(raw + pos, 0xBB, 32); /* blockhash */
+  pos += 32;
+  raw[pos++] = 1; /* one system transfer */
+  raw[pos++] = 2;
+  raw[pos++] = 2;
+  raw[pos++] = 0;
+  raw[pos++] = 1;
+  raw[pos++] = 12;
+  raw[pos++] = 2;
+  pos += 11;
+  msg.raw_tx.size = pos;
+  return msg;
+}
+
+/* A request carrying certificate material is certified: incomplete material is
+ * refused, never signed through the ordinary review. */
+TEST(Fsm, SolanaIncompleteCertificateIsRefusedNotDowngraded) {
+  ScopedFlash flash;
+  const SolanaSignTx msg = solana_fsm_request();
+  for (bool certificate : {true, false}) {
+    SCOPED_TRACE(certificate ? "certificate only" : "no certificate (control)");
+    fsm_test_clearLastFailure();
+    kkconfirm_drain();
+    ASSERT_TRUE(kkconfirm_preload(0, 1));
+    SolanaSignTx tx = msg;
+    tx.has_clearsign_certificate = certificate;
+    tx.clearsign_certificate.size = certificate ? 1 : 0;
+    fsm_msgSolanaSignTx(&tx);
+    EXPECT_EQ(certificate ? FailureType_Failure_SyntaxError
+                          : FailureType_Failure_Other,
+              fsm_test_lastFailureCode());
+    EXPECT_EQ(2, kkconfirm_drain()) << "a screen ran before the refusal";
+  }
+}
+
+TEST(Fsm, SolanaTokenDefinitionFromAnotherTierIsRefused) {
+  ScopedFlash flash;
+  SolanaSignTx msg = solana_fsm_request();
+  msg.token_info_count = 1;
+  msg.token_info[0].has_signer_key_id = true;
+
+  struct {
+    const char* name;
+    bool certificate;
+    uint32_t token_signer;
+    bool refused;
+  } const legs[] = {
+      {"runtime request, delegate token", false, METADATA_KEYID_DELEGATE, true},
+      {"certified request, runtime token", true, 0, true},
+      {"runtime request, runtime token (control)", false, 0, false},
+  };
+  for (const auto& leg : legs) {
+    SCOPED_TRACE(leg.name);
+    fsm_test_clearLastFailure();
+    kkconfirm_drain();
+    ASSERT_TRUE(kkconfirm_preload(0, 1));
+    SolanaSignTx tx = msg;
+    tx.has_clearsign_certificate = leg.certificate;
+    tx.clearsign_certificate.size = leg.certificate ? 139 : 0;
+    tx.token_info[0].signer_key_id = leg.token_signer;
+    fsm_msgSolanaSignTx(&tx);
+    if (leg.refused) {
+      EXPECT_EQ(FailureType_Failure_SyntaxError, fsm_test_lastFailureCode());
+      EXPECT_EQ(2, kkconfirm_drain()) << "a screen ran before the refusal";
+    } else {
+      /* Same bytes, past the tier check: the transaction parses and stops at
+       * the signer check (the payer is not this seed's key), so the refusals
+       * above are the tier rule's, not a malformed message. */
+      EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+      EXPECT_EQ(2, kkconfirm_drain());
+    }
+  }
+}
+#endif
+
+#if !BITCOIN_ONLY
 // A signer's start defers the idle lock; a GetFeatures poll does not.
 static void expectStartDefersButPollingDoesNot(MessageType type,
                                                const pb_field_t* fields,
@@ -2465,18 +2548,6 @@ static void expectStartDefersButPollingDoesNot(MessageType type,
   toggle_screensaver();
   EXPECT_FALSE(inited());
   EXPECT_EQ(SCREENSAVER, home_get_state());
-}
-
-TEST_F(AutoLockProgress, BinanceStartDefersButPollingDoesNot) {
-  BinanceSignTx start = {};
-  start.has_msg_count = true;
-  start.msg_count = 2;
-  start.has_account_number = start.has_chain_id = start.has_sequence = true;
-  start.has_source = true;
-  std::strcpy(start.chain_id, "Binance-Chain-Nile");
-  expectStartDefersButPollingDoesNot(MessageType_MessageType_BinanceSignTx,
-                                     BinanceSignTx_fields, &start,
-                                     binance_signingIsInited);
 }
 
 TEST_F(AutoLockProgress, CosmosStartDefersButPollingDoesNot) {
@@ -2548,57 +2619,6 @@ TEST_F(AutoLockProgress, MayachainStartDefersButPollingDoesNot) {
   expectStartDefersButPollingDoesNot(MessageType_MessageType_MayachainSignTx,
                                      MayachainSignTx_fields, &start,
                                      mayachain_signingIsInited);
-}
-
-TEST_F(AutoLockProgress, BinanceContinuationDefersAndMalformedAckTerminates) {
-  ScopedFlash flash;
-  loadAllWallet();
-  BinanceSignTx start = {};
-  start.has_msg_count = true;
-  start.msg_count = 3;
-  start.has_account_number = start.has_chain_id = start.has_sequence = true;
-  start.has_source = true;
-  std::strcpy(start.chain_id, "Binance-Chain-Nile");
-  receiveMessage(MessageType_MessageType_BinanceSignTx, BinanceSignTx_fields,
-                 &start);
-  ASSERT_TRUE(binance_signingIsInited());
-  HDNode signer = {};
-  ASSERT_TRUE(storage_getRootNode("secp256k1", false, &signer));
-  hdnode_fill_public_key(&signer);
-  BinanceTransferMsg ack = {};
-  ack.inputs_count = ack.outputs_count = 1;
-  ack.inputs[0].has_address = ack.outputs[0].has_address = true;
-  ASSERT_TRUE(tendermint_getAddress(&signer, "tbnb", ack.inputs[0].address));
-  std::strcpy(ack.outputs[0].address,
-              "tbnb1ss57e8sa7xnwq030k2ctr775uac9gjzglqhvpy");
-  ack.inputs[0].coins_count = ack.outputs[0].coins_count = 1;
-  ack.inputs[0].coins[0].has_amount = ack.outputs[0].coins[0].has_amount = true;
-  ack.inputs[0].coins[0].amount = ack.outputs[0].coins[0].amount = 1;
-  ack.inputs[0].coins[0].has_denom = ack.outputs[0].coins[0].has_denom = true;
-  std::strcpy(ack.inputs[0].coins[0].denom, "BNB");
-  std::strcpy(ack.outputs[0].coins[0].denom, "BNB");
-  for (int i = 0; i < 2; ++i) {
-    ASSERT_TRUE(kkconfirm_preload(1, 0));
-    // No press renews the deadline, so each continuation must land inside the
-    // window its predecessor's progress opened (one delay after it, the
-    // stalled stream is locked at dispatch).
-    increment_idle_time(STORAGE_MIN_SCREENSAVER_TIMEOUT - 1 - i);
-    receiveMessage(MessageType_MessageType_BinanceTransferMsg,
-                   BinanceTransferMsg_fields, &ack);
-    ASSERT_EQ(0, kkconfirm_drain());
-    ASSERT_TRUE(binance_signingIsInited());
-    increment_idle_time(1);
-    toggle_screensaver();
-    ASSERT_TRUE(binance_signingIsInited());
-  }
-  increment_idle_time(STORAGE_MIN_SCREENSAVER_TIMEOUT - 2);
-  ack = {};
-  receiveMessage(MessageType_MessageType_BinanceTransferMsg,
-                 BinanceTransferMsg_fields, &ack);
-  EXPECT_FALSE(binance_signingIsInited());
-  increment_idle_time(1);
-  toggle_screensaver();
-  EXPECT_EQ(SCREENSAVER, home_get_state());
 }
 
 TEST_F(AutoLockProgress, CosmosContinuationDefersAndMalformedAckTerminates) {
@@ -2798,21 +2818,25 @@ TEST(Fsm, CrossWorkflowAcknowledgementsTerminateTheActiveSigner) {
   HDNode node = {};
   node.curve = &secp256k1_info;
 
-  BinanceSignTx binance = {};
-  binance.has_msg_count = true;
-  binance.msg_count = 1;
-  binance.has_account_number = true;
-  binance.has_chain_id = true;
-  std::strcpy(binance.chain_id, "Binance-Chain-Nile");
-  binance.has_sequence = true;
-  binance.has_source = true;
-  ASSERT_TRUE(binance_signTxInit(&node, &binance));
-  ASSERT_TRUE(binance_signingIsInited());
+  TendermintSignTx generic = {};
+  generic.has_msg_count = true;
+  generic.msg_count = 1;
+  generic.has_chain_id = true;
+  std::strcpy(generic.chain_id, "cosmoshub-4");
+  generic.has_chain_name = true;
+  std::strcpy(generic.chain_name, "Cosmos");
+  generic.has_denom = true;
+  std::strcpy(generic.denom, "uatom");
+  generic.has_message_type_prefix = true;
+  std::strcpy(generic.message_type_prefix, "cosmos-sdk");
+  ASSERT_TRUE(tendermint_signTxInit(&node, &generic, sizeof(generic), "uatom",
+                                    TENDERMINT_SIGNING_GENERIC));
+  ASSERT_TRUE(tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC));
 
   CosmosMsgAck cosmos_ack = {};
   receiveMessage(MessageType_MessageType_CosmosMsgAck, CosmosMsgAck_fields,
                  &cosmos_ack);
-  EXPECT_FALSE(binance_signingIsInited());
+  EXPECT_FALSE(tendermint_signingIsInited(TENDERMINT_SIGNING_GENERIC));
 
   TendermintSignTx cosmos = {};
   cosmos.has_msg_count = true;
@@ -2823,13 +2847,13 @@ TEST(Fsm, CrossWorkflowAcknowledgementsTerminateTheActiveSigner) {
                                     TENDERMINT_SIGNING_COSMOS));
   ASSERT_TRUE(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS));
 
-  BinanceTransferMsg binance_ack = {};
-  receiveMessage(MessageType_MessageType_BinanceTransferMsg,
-                 BinanceTransferMsg_fields, &binance_ack);
+  OsmosisMsgAck osmosis_ack = {};
+  receiveMessage(MessageType_MessageType_OsmosisMsgAck, OsmosisMsgAck_fields,
+                 &osmosis_ack);
   EXPECT_FALSE(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS));
 }
 
-// The Binance abort only clears state, so the gate itself has to take the
+// The Cosmos abort only clears state, so the gate itself has to take the
 // aborted transaction's approval screen down. An armed ceremony keeps its own.
 TEST(Fsm, StaleAckTakesTheAbortedSignersScreenDown) {
   kk_test_board_init();
@@ -2840,22 +2864,22 @@ TEST(Fsm, StaleAckTakesTheAbortedSignersScreenDown) {
   HDNode node = {};
   node.curve = &secp256k1_info;
 
-  BinanceSignTx binance = {};
-  binance.has_msg_count = true;
-  binance.msg_count = 1;
-  binance.has_account_number = true;
-  binance.has_chain_id = true;
-  std::strcpy(binance.chain_id, "Binance-Chain-Nile");
-  binance.has_sequence = true;
-  binance.has_source = true;
-  ASSERT_TRUE(binance_signTxInit(&node, &binance));
+  CosmosSignTx cosmos = {};
+  cosmos.has_msg_count = true;
+  cosmos.msg_count = 1;
+  cosmos.has_account_number = true;
+  cosmos.has_chain_id = true;
+  std::strcpy(cosmos.chain_id, "cosmoshub-4");
+  cosmos.has_sequence = true;
+  ASSERT_TRUE(tendermint_signTxInit(&node, &cosmos, sizeof(cosmos), "uatom",
+                                    TENDERMINT_SIGNING_COSMOS));
   leave_home();  // its last approval screen is still up
   ASSERT_EQ(AWAY_FROM_HOME, home_get_state());
 
   TxAck stale = {};
   stale.has_tx = true;
   receiveMessage(MessageType_MessageType_TxAck, TxAck_fields, &stale);
-  EXPECT_FALSE(binance_signingIsInited());
+  EXPECT_FALSE(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS));
   EXPECT_EQ(AT_HOME, home_get_state())
       << "the aborted transaction is still on screen";
 
@@ -2948,7 +2972,10 @@ TEST(Fsm, Erc7730PreloadEndsAtEverySessionBoundary) {
 }
 
 // A definition refused for AdvancedMode discards the partial preload too, so
-// a later chunk cannot continue it.
+// a later chunk cannot continue it. D-007 (ledger D8): a definition's tier is
+// known only once it is complete, so a well-formed partial chunk is accepted
+// without AdvancedMode; an uncertified definition is refused at completion
+// (Erc7730Certified tests).
 TEST(Fsm, Erc7730DefinitionRefusedWithoutAdvancedModeClearsPreload) {
   kk_test_board_init();
   fsm_init();
@@ -2972,14 +2999,24 @@ TEST(Fsm, Erc7730DefinitionRefusedWithoutAdvancedModeClearsPreload) {
   std::memcpy(definition.definition_id.bytes, id, sizeof(id));
   definition.offset = sizeof(head);
   definition.total_length = 300;
-  definition.data.size = sizeof(length);
-  std::memcpy(definition.data.bytes, length, sizeof(length));
+  // Empty: refused by the handler before the catalog sees it, so the clear
+  // checked below is the handler's own.
+  definition.data.size = 0;
   fsm_test_clearLastFailure();
   fsm_msgEthereumClearSignDefinition(&definition);
   EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
   EXPECT_EQ(erc7730_catalog_preload_chunk(id, sizeof(head), 300, length,
                                           sizeof(length), &next, &complete),
             ERC7730_CATALOG_BAD_SEQUENCE);
+
+  ASSERT_EQ(erc7730_catalog_preload_chunk(id, 0, 300, head, sizeof(head), &next,
+                                          &complete),
+            ERC7730_CATALOG_MORE);
+  definition.data.size = sizeof(length);
+  std::memcpy(definition.data.bytes, length, sizeof(length));
+  fsm_test_clearLastFailure();
+  fsm_msgEthereumClearSignDefinition(&definition);
+  EXPECT_EQ((FailureType)0, fsm_test_lastFailureCode());
   erc7730_catalog_clear_preload();
 }
 
@@ -3184,6 +3221,58 @@ TEST(Fsm, ThorchainDepositOfAnUnknownTokenSignsTheLargestAmount) {
             pages.find("amount 115792089237316195423570985008687907853269984665"
                        "640564039457584007913129639935 unformatted"))
       << pages;
+}
+/* SRS R-1.4 at the signing path: a certified claim that cannot be honoured
+ * (here, an envelope whose certificate is garbage) is refused before any
+ * screen -- not downgraded to the raw review. The no-claim control signs the
+ * same calldata through the ordinary review, so the refusal is the claim's. */
+TEST(Fsm, FailedCertifiedClaimIsRefusedBeforeAnyScreen) {
+  kk_test_board_init();
+  fsm_init();
+
+  EthereumSignTx msg = {};
+  msg.has_chain_id = true;
+  msg.chain_id = 1;
+  msg.has_gas_price = msg.has_gas_limit = true;
+  msg.gas_price.size = msg.gas_limit.size = 1;
+  msg.gas_price.bytes[0] = msg.gas_limit.bytes[0] = 1;
+  msg.has_to = true;
+  msg.to.size = 20;
+  msg.to.bytes[0] = 1;
+  msg.has_data_length = msg.has_data_initial_chunk = true;
+  msg.data_length = msg.data_initial_chunk.size = 36;
+  memcpy(msg.data_initial_chunk.bytes, "\xde\xad\xbe\xef",
+         4);  // no native decoder
+  HDNode node = {};
+  const uint8_t seed[32] = {1};
+  ASSERT_TRUE(hdnode_from_seed(seed, sizeof(seed), "secp256k1", &node));
+
+  for (bool claimed : {true, false}) {
+    SCOPED_TRACE(claimed ? "certified claim" : "no claim (control)");
+    fsm_test_clearLastFailure();
+    kkconfirm_drain();
+    ASSERT_TRUE(kkconfirm_preload(0, 1));
+    if (claimed) {
+      uint8_t envelope[1 + 139 + 80] = {METADATA_VERSION_CERTIFIED};
+      EXPECT_EQ(METADATA_MALFORMED,
+                signed_metadata_process(envelope, sizeof(envelope),
+                                        METADATA_KEYID_DELEGATE));
+      ASSERT_TRUE(signed_metadata_certified_claimed());
+    }
+    EthereumSignTx tx = msg;
+    ethereum_signing_init(&tx, &node, false);
+
+    EXPECT_FALSE(ethereum_signing_isInProgress());
+    if (claimed) {
+      EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+      EXPECT_EQ(2, kkconfirm_drain()) << "a screen ran before the refusal";
+      EXPECT_FALSE(signed_metadata_certified_claimed());
+    } else {
+      EXPECT_EQ(FailureType_Failure_ActionCancelled,
+                fsm_test_lastFailureCode());
+      EXPECT_NE(2, kkconfirm_drain()) << "the review never ran";
+    }
+  }
 }
 
 // An unknown token is named by its full contract address. The body is
@@ -3498,6 +3587,28 @@ TEST_F(ContactBookSigning, ContactAndContractMetadataReplaceEachOther) {
    * and a verified blob; it is not exercised here. */
   sendContactProof(PROOF3_0);
   EXPECT_STREQ("Alice", contact_book_label());
+}
+
+/* 7.16: a certified envelope drops the label, and a later proof drops the
+ * certified claim, so the two never describe one transaction together. */
+TEST_F(ContactBookSigning, ContactAndCertifiedMetadataReplaceEachOther) {
+  sendContactProof(PROOF3_0);
+  ASSERT_STREQ("Alice", contact_book_label());
+
+  EthereumTxMetadata envelope = {};
+  envelope.has_signed_payload = envelope.has_key_id = true;
+  envelope.key_id = METADATA_KEYID_DELEGATE;
+  envelope.signed_payload.size = 1 + 139 + 80;
+  envelope.signed_payload.bytes[0] = METADATA_VERSION_CERTIFIED;
+  receiveMessage(MessageType_MessageType_EthereumTxMetadata,
+                 EthereumTxMetadata_fields, &envelope);
+  EXPECT_EQ(nullptr, contact_book_label());
+  ASSERT_TRUE(signed_metadata_certified_claimed());
+
+  sendContactProof(PROOF3_0);
+  EXPECT_STREQ("Alice", contact_book_label());
+  EXPECT_FALSE(signed_metadata_certified_claimed());
+  EXPECT_FALSE(signed_metadata_available());
 }
 
 TEST_F(ContactBookSigning, AnotherWalletsCertificationIsRefused) {
@@ -3995,6 +4106,10 @@ TEST(Fsm, FeaturesReportExactlyTheStagedCapabilities) {
       Features_Capability_CAPABILITY_TRON_TRC20_REVIEW,
       Features_Capability_CAPABILITY_SOLANA_LUT_ATTESTATION,
       Features_Capability_CAPABILITY_CERTIFIED_CONTACTS,
+      /* 7.16 */
+      Features_Capability_CAPABILITY_EVM_CERTIFIED_INTENT,
+      Features_Capability_CAPABILITY_PERMIT2_REVIEW,
+      Features_Capability_CAPABILITY_SOLANA_CERTIFIED_REVIEW,
 #endif
   };
   EXPECT_EQ(expected, std::vector<Features_Capability>(
@@ -4183,7 +4298,8 @@ TEST(Fsm, LockedStorageRefusesResetAndSetupCommitWithoutChangingFlash) {
     fsm_test_clearLastFailure();
     receiveMessage(MessageType_MessageType_ResetDevice, ResetDevice_fields,
                    &reset);
-    // Same split as IncompatibleStorage.CreationRefusesBeforeStagingOrConfirmation:
+    // Same split as
+    // IncompatibleStorage.CreationRefusesBeforeStagingOrConfirmation:
     // bitcoin-only locks keep Failure_Other (CHECK_NOT_BTC_ONLY_LOCKED); a
     // normal-band wallet newer than this build is UnexpectedMessage
     // (CHECK_STORAGE_WRITABLE).
@@ -4330,3 +4446,374 @@ TEST(Fsm, EthereumTransferRecipientMismatchWipesDerivedNode) {
   layoutHomeForced();
 }
 #endif
+
+TEST(Fsm, PasskeyResetRotatesGenerationAndClearsAllMetadata) {
+  ScopedFlash flash;
+  rng_health_force_verdict(true);
+  PasskeyStorage original;
+  storage_getPasskeyData(&original);
+
+  PasskeyStorage populated;
+  memset(&populated, 0, sizeof(populated));
+  populated.version = 1;
+  populated.pin_set = 1;
+  populated.pin_retries = 3;
+  populated.credentials[0].occupied = 1;
+  populated.credentials[0].user_id_length = 1;
+  populated.credentials[0].user_id[0] = 0x42;
+  storage_setPasskeyData(&populated);
+
+  uint8_t before[PASSKEY_CREDENTIAL_GENERATION_SIZE];
+  bool legacy_enabled = false;
+  ASSERT_TRUE(storage_getPasskeyCredentialGeneration(before, &legacy_enabled));
+  EXPECT_TRUE(legacy_enabled);
+
+  ASSERT_TRUE(storage_resetPasskeyData());
+  PasskeyStorage reset;
+  storage_getPasskeyData(&reset);
+  EXPECT_EQ(reset.version, PASSKEY_STORAGE_VERSION);
+  EXPECT_EQ(reset.pin_set, 0);
+  EXPECT_EQ(reset.pin_retries, PASSKEY_PIN_RETRIES);
+  EXPECT_EQ(reset.credentials[0].occupied, 0);
+  EXPECT_EQ(reset.legacy_credentials_enabled, 0);
+  EXPECT_NE(memcmp(before, reset.credential_generation, sizeof(before)), 0);
+
+  storage_setPasskeyData(&original);
+}
+
+/* SRS-7.16 R-4.2: a commit cut short at any point boots into the newest
+ * complete record, never a pending or corrupt one. */
+namespace {
+int ActiveSectors() {
+  int n = 0;
+  for (int s = FLASH_STORAGE1; s <= FLASH_STORAGE3; s++)
+    n += memcmp((const void*)flash_write_helper((Allocation)s),
+                STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN) == 0;
+  return n;
+}
+char* Sector(Allocation s) { return (char*)flash_write_helper(s); }
+// The state a power cut leaves after staging: the record copied to the spare
+// sector without its magic, with its trailer, and the old record erased.
+Allocation CutAfterStaging(bool corrupt) {
+  Allocation active;
+  EXPECT_TRUE(find_active_storage(&active));
+  const Allocation pending = next_storage(next_storage(active));
+  char* dst = Sector(pending);
+  memset(dst, 0xff, STORAGE_SECTOR_LEN);
+  memcpy(dst + 4, Sector(active) + 4, 2572 - 4);
+  const uint32_t crc = calc_crc32(dst + 4, (2572 - 4) / 4);
+  memcpy(dst + 2572, "crc1", 4);
+  memcpy(dst + 2576, &crc, 4);
+  if (corrupt) dst[100] ^= 1;
+  memset(Sector(active), 0xff, STORAGE_SECTOR_LEN);
+  return pending;
+}
+}  // namespace
+
+TEST(Fsm, StorageCommitLeavesOneMarkedRecord) {
+  ScopedFlash flash;
+  storage_setLabel("one");
+  storage_commit();
+  storage_setLabel("two");
+  storage_commit();
+  EXPECT_EQ(1, ActiveSectors());
+  Allocation active;
+  ASSERT_TRUE(find_active_storage(&active));
+  EXPECT_EQ(0, memcmp(Sector(next_storage(active)), STORAGE_PROTECT_OFF_MAGIC,
+                      sizeof(STORAGE_PROTECT_OFF_MAGIC)));
+  storage_init();
+  EXPECT_STREQ("two", storage_getLabel());
+}
+
+TEST(Fsm, StorageRecoversACommitCutAfterStaging) {
+  ScopedFlash flash;
+  storage_setLabel("kept");
+  storage_commit();
+  const Allocation pending = CutAfterStaging(false);
+  EXPECT_EQ(0, ActiveSectors());
+  storage_init();
+  Allocation active;
+  ASSERT_TRUE(find_active_storage(&active));
+  EXPECT_EQ(pending, active);
+  EXPECT_EQ(0, memcmp(Sector(next_storage(active)), STORAGE_PROTECT_OFF_MAGIC,
+                      sizeof(STORAGE_PROTECT_OFF_MAGIC)));
+  EXPECT_STREQ("kept", storage_getLabel());
+}
+
+TEST(Fsm, StorageKeepsTheOldRecordWhenStagingIsCut) {
+  ScopedFlash flash;
+  storage_setLabel("old");
+  storage_commit();
+  Allocation active;
+  ASSERT_TRUE(find_active_storage(&active));
+  char* spare = Sector(next_storage(next_storage(active)));
+  memset(spare, 0x5a, 1000);  // a half-written stage, no trailer
+  storage_init();
+  EXPECT_STREQ("old", storage_getLabel());
+}
+
+// An erase of the old sector cut short can leave its magic readable over
+// damaged data; the complete staged record must still win.
+TEST(Fsm, StorageStagedRecordWinsOverAHalfErasedOldSector) {
+  ScopedFlash flash;
+  storage_setLabel("staged");
+  storage_commit();
+  Allocation old;
+  ASSERT_TRUE(find_active_storage(&old));
+  const Allocation pending = CutAfterStaging(false);
+  memset(Sector(old), 0x5a, 2000);
+  memcpy(Sector(old), STORAGE_MAGIC_STR, STORAGE_MAGIC_LEN);
+  storage_init();
+  Allocation active;
+  ASSERT_TRUE(find_active_storage(&active));
+  EXPECT_EQ(pending, active);
+  EXPECT_EQ(1, ActiveSectors());
+  EXPECT_STREQ("staged", storage_getLabel());
+}
+
+// An erase of the old record cut after clearing only its magic leaves a
+// stale record that looks staged; the newer commit must win, never roll back.
+TEST(Fsm, StorageNeverRollsBackToAStaleRecordMissingItsMagic) {
+  ScopedFlash flash;
+  // Each commit moves two sectors on, so three rounds cover every placement
+  // of the stale record relative to the new one.
+  for (int round = 0; round < 3; round++) {
+    storage_setLabel("old");
+    storage_commit();
+    Allocation old_sector;
+    ASSERT_TRUE(find_active_storage(&old_sector));
+    std::vector<char> old_bytes(Sector(old_sector), Sector(old_sector) + 2580);
+    storage_setLabel("new");
+    storage_commit();
+    Allocation new_sector;
+    ASSERT_TRUE(find_active_storage(&new_sector));
+    for (int pass = 0; pass < 2; pass++) {  // new already active, then staged
+      // The old record without its magic, as an interrupted erase leaves it.
+      memcpy(Sector(old_sector), old_bytes.data(), old_bytes.size());
+      memset(Sector(old_sector), 0xff, STORAGE_MAGIC_LEN);
+      if (pass == 1) memset(Sector(new_sector), 0xff, STORAGE_MAGIC_LEN);
+      storage_init();
+      Allocation active;
+      ASSERT_TRUE(find_active_storage(&active));
+      EXPECT_EQ(new_sector, active) << "round " << round << " pass " << pass;
+      EXPECT_EQ(1, ActiveSectors());
+      EXPECT_STREQ("new", storage_getLabel());
+    }
+  }
+}
+
+TEST(Fsm, StorageNeverRecoversACorruptPendingRecord) {
+  ScopedFlash flash;
+  storage_setLabel("lost");
+  storage_commit();
+  CutAfterStaging(true);
+  storage_init();
+  EXPECT_STRNE("lost", storage_getLabel());
+}
+
+namespace {
+// A CTAP 2.0 ClientPIN host: real ECDH, AES-256-CBC (zero IV) and HMAC.
+struct PinHost {
+  uint8_t priv[32] = {0};
+  uint8_t pub[65] = {0};
+  uint8_t shared[32] = {0};
+  std::vector<uint8_t> out = std::vector<uint8_t>(1024);
+  size_t out_length = 0;
+
+  uint8_t call(const std::vector<uint8_t>& request) {
+    ctap2_handle(request.data(), request.size(), out.data(), out.size(),
+                 &out_length);
+    return out[0];
+  }
+  static void aes(const uint8_t key[32], const uint8_t* in, uint8_t* o,
+                  size_t n, bool encrypt) {
+    uint8_t iv[16] = {0};
+    if (encrypt) {
+      aes_encrypt_ctx c;
+      aes_encrypt_key256(key, &c);
+      aes_cbc_encrypt(in, o, n, iv, &c);
+    } else {
+      aes_decrypt_ctx c;
+      aes_decrypt_key256(key, &c);
+      aes_cbc_decrypt(in, o, n, iv, &c);
+    }
+  }
+  // getKeyAgreement, then derive the shared secret the device will use.
+  void agree() {
+    priv[31] = 7;
+    ecdsa_get_public_key65(&nist256p1, priv, pub);
+    ASSERT_EQ(call({CTAP2_CMD_CLIENT_PIN, 0xa2, 0x01, 0x01, 0x02, 0x02}),
+              CTAP2_OK);
+    const uint8_t* key;
+    size_t key_length;
+    CborValue v, k;
+    ASSERT_TRUE(cbor_map_find(out.data() + 1, out_length - 1, NULL, 1, &v, &key,
+                              &key_length));
+    uint8_t device[65] = {0x04};
+    CborDecoder d;
+    cbor_decoder_init(&d, key, key_length);
+    ASSERT_TRUE(cbor_decode_value(&d, &v));
+    const uint64_t pairs = v.value;
+    for (uint64_t i = 0; i < pairs; ++i) {
+      ASSERT_TRUE(cbor_decode_value(&d, &k));
+      ASSERT_TRUE(cbor_decode_value(&d, &v));
+      if (k.type == CBOR_TYPE_NEGINT && (k.value == 1 || k.value == 2))
+        memcpy(device + 1 + 32 * (k.value - 1), v.data, 32);
+    }
+    uint8_t point[65];
+    ASSERT_EQ(ecdh_multiply(&nist256p1, priv, device, point), 0);
+    sha256_Raw(point + 1, 32, shared);
+  }
+  void cose(CborEncoder* e) {
+    cbor_encode_map(e, 5);
+    cbor_encode_int(e, 1), cbor_encode_int(e, 2);
+    cbor_encode_int(e, 3), cbor_encode_int(e, -25);
+    cbor_encode_int(e, -1), cbor_encode_int(e, 1);
+    cbor_encode_int(e, -2), cbor_encode_bytes(e, pub + 1, 32);
+    cbor_encode_int(e, -3), cbor_encode_bytes(e, pub + 33, 32);
+  }
+  void pin_hash_enc(const char* pin, uint8_t o[16]) {
+    uint8_t h[32];
+    sha256_Raw((const uint8_t*)pin, strlen(pin), h);
+    aes(shared, h, o, 16, true);
+  }
+  // subcommand 3 (setPIN) or 4 (changePIN, with current_pin).
+  uint8_t set_pin(const char* pin, const char* current_pin = nullptr) {
+    agree();
+    uint8_t padded[64] = {0}, enc[64], hash_enc[16], mac[32];
+    memcpy(padded, pin, strlen(pin));
+    aes(shared, padded, enc, 64, true);
+    std::vector<uint8_t> authed(enc, enc + 64);
+    if (current_pin) {
+      pin_hash_enc(current_pin, hash_enc);
+      authed.insert(authed.end(), hash_enc, hash_enc + 16);
+    }
+    hmac_sha256(shared, 32, authed.data(), authed.size(), mac);
+    std::vector<uint8_t> r(1 + 512);
+    r[0] = CTAP2_CMD_CLIENT_PIN;
+    CborEncoder e;
+    cbor_encoder_init(&e, r.data() + 1, r.size() - 1);
+    cbor_encode_map(&e, current_pin ? 6 : 5);
+    cbor_encode_uint(&e, 1), cbor_encode_uint(&e, 1);
+    cbor_encode_uint(&e, 2), cbor_encode_uint(&e, current_pin ? 4 : 3);
+    cbor_encode_uint(&e, 3), cose(&e);
+    cbor_encode_uint(&e, 4), cbor_encode_bytes(&e, mac, 16);
+    cbor_encode_uint(&e, 5), cbor_encode_bytes(&e, enc, 64);
+    if (current_pin)
+      cbor_encode_uint(&e, 6), cbor_encode_bytes(&e, hash_enc, 16);
+    r.resize(1 + cbor_encoder_size(&e));
+    return call(r);
+  }
+  uint8_t get_token(const char* pin, uint8_t token[32]) {
+    agree();
+    uint8_t hash_enc[16];
+    pin_hash_enc(pin, hash_enc);
+    std::vector<uint8_t> r(1 + 256);
+    r[0] = CTAP2_CMD_CLIENT_PIN;
+    CborEncoder e;
+    cbor_encoder_init(&e, r.data() + 1, r.size() - 1);
+    cbor_encode_map(&e, 4);
+    cbor_encode_uint(&e, 1), cbor_encode_uint(&e, 1);
+    cbor_encode_uint(&e, 2), cbor_encode_uint(&e, 5);
+    cbor_encode_uint(&e, 3), cose(&e);
+    cbor_encode_uint(&e, 6), cbor_encode_bytes(&e, hash_enc, 16);
+    r.resize(1 + cbor_encoder_size(&e));
+    const uint8_t status = call(r);
+    CborValue v;
+    if (status == CTAP2_OK &&
+        cbor_map_find(out.data() + 1, out_length - 1, NULL, 2, &v, NULL,
+                      NULL) &&
+        v.length == 32)
+      aes(shared, v.data, token, 32, false);
+    return status;
+  }
+  // getAssertion {rp, cdh, up:false, pinAuth, pinProtocol 1}.
+  uint8_t assert_with(const uint8_t token[32]) {
+    uint8_t cdh[32], mac[32];
+    memset(cdh, 0x22, sizeof(cdh));
+    hmac_sha256(token, 32, cdh, 32, mac);
+    std::vector<uint8_t> r = {CTAP2_CMD_GET_ASSERTION,
+                              0xa5,
+                              0x01,
+                              0x64,
+                              'a',
+                              '.',
+                              'c',
+                              'o',
+                              0x02,
+                              0x58,
+                              0x20};
+    r.insert(r.end(), cdh, cdh + 32);
+    r.insert(r.end(), {0x05, 0xa1, 0x62, 'u', 'p', 0xf4, 0x06, 0x50});
+    r.insert(r.end(), mac, mac + 16);
+    r.insert(r.end(), {0x07, 0x01});
+    return call(r);
+  }
+};
+}  // namespace
+
+TEST(Fsm, Ctap2ClientPinExchangesEndToEnd) {
+  ScopedFlash flash;
+  rng_health_force_verdict(true);
+  ctap2_init();
+  ctap2_set_transport_channel(1);
+  PinHost host;
+  uint8_t token[32] = {0}, wrong[32] = {0};
+
+  // Control: before any PIN, a token is refused and getPINToken has no PIN.
+  EXPECT_EQ(host.assert_with(wrong), CTAP2_ERR_PIN_AUTH_INVALID);
+  EXPECT_EQ(host.set_pin("12\xc3"), CTAP2_ERR_PIN_POLICY_VIOLATION);
+  EXPECT_EQ(host.set_pin("\xc3\xa9\xc3\xa9"), CTAP2_ERR_PIN_POLICY_VIOLATION);
+
+  ASSERT_EQ(host.set_pin("1234"), CTAP2_OK);
+  PasskeyStorage stored;
+  EXPECT_EQ(host.get_token("9999", token), CTAP2_ERR_PIN_INVALID);
+  storage_getPasskeyData(&stored);
+  EXPECT_EQ(stored.pin_retries, PASSKEY_PIN_RETRIES - 1);  // spent, persisted
+  ASSERT_EQ(host.get_token("1234", token), CTAP2_OK);
+  storage_getPasskeyData(&stored);
+  EXPECT_EQ(stored.pin_retries, PASSKEY_PIN_RETRIES);            // restored
+  EXPECT_EQ(host.assert_with(token), CTAP2_ERR_NO_CREDENTIALS);  // auth ok
+  EXPECT_EQ(host.assert_with(wrong), CTAP2_ERR_PIN_AUTH_INVALID);
+
+  EXPECT_EQ(host.set_pin("5678", "0000"), CTAP2_ERR_PIN_INVALID);
+  ASSERT_EQ(host.set_pin("5678", "1234"), CTAP2_OK);
+  EXPECT_EQ(host.assert_with(token), CTAP2_ERR_PIN_AUTH_INVALID);  // revoked
+  ASSERT_EQ(host.get_token("5678", token), CTAP2_OK);
+  EXPECT_EQ(host.assert_with(token), CTAP2_ERR_NO_CREDENTIALS);
+
+  // A resident account is never revealed to a silent, unverified probe.
+  storage_getPasskeyData(&stored);
+  stored.credentials[0].occupied = 1;
+  sha256_Raw((const uint8_t*)"a.co", 4, stored.credentials[0].rp_id_hash);
+  stored.credentials[0].credential_id[0] = 0x42;
+  stored.credentials[0].user_id_length = 1;
+  stored.credentials[1] = stored.credentials[0];  // a second account
+  stored.credentials[1].credential_id[0] = 0x43;
+  storage_setPasskeyData(&stored);
+  const std::vector<uint8_t> next = {CTAP2_CMD_GET_NEXT_ASSERTION};
+  EXPECT_EQ(host.assert_with(wrong), CTAP2_ERR_PIN_AUTH_INVALID);
+  std::vector<uint8_t> silent = {CTAP2_CMD_GET_ASSERTION,
+                                 0xa3,
+                                 0x01,
+                                 0x64,
+                                 'a',
+                                 '.',
+                                 'c',
+                                 'o',
+                                 0x02,
+                                 0x58,
+                                 0x20};
+  silent.insert(silent.end(), 32, 0x22);
+  silent.insert(silent.end(), {0x05, 0xa1, 0x62, 'u', 'p', 0xf4});
+  EXPECT_EQ(host.call(silent), CTAP2_ERR_NO_CREDENTIALS);
+  EXPECT_EQ(host.call(next), CTAP2_ERR_NOT_ALLOWED);  // nothing was looked up
+  // Control: the verified lookup finds both accounts and arms the sequence.
+  host.assert_with(token);
+  EXPECT_NE(host.call(next), CTAP2_ERR_NOT_ALLOWED);
+
+  // A wallet wipe must not leave a usable token behind.
+  storage_wipe();
+  storage_init();
+  EXPECT_EQ(host.assert_with(token), CTAP2_ERR_PIN_AUTH_INVALID);
+}

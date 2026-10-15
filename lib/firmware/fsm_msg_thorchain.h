@@ -238,7 +238,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
      * did not fit the old 32-byte amount_str. bn_format() zeroes its output
      * and returns 0 on overflow, and the ignored return let an EMPTY amount
      * reach the confirmation screen and be signed. Size for the maximum and
-     * fail closed, as fsm_msg_binance.h does. */
+     * fail closed. */
     char amount_str[21 + THORCHAIN_ASSET_SUFFIX_LEN + 1];
     if (!thorchain_formatAmount(msg->deposit.amount, msg->deposit.asset,
                                 amount_str, sizeof(amount_str))) {

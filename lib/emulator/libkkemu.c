@@ -15,6 +15,9 @@
 #include "keepkey/board/usb.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/board/timer.h"
+#if DEBUG_LINK && !BITCOIN_ONLY
+#include "keepkey/firmware/clearsign_root.h"
+#endif
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
@@ -241,6 +244,10 @@ int kkemu_init(uint8_t* flash_buf, size_t flash_len) {
 
   /* Initialize /dev/urandom for RNG */
   setup_urandom_only();
+
+#if DEBUG_LINK && !BITCOIN_ONLY
+  clearsign_root_load_test_root_from_env();
+#endif
 
   /* Board init (timers, etc.) */
   kk_board_init();

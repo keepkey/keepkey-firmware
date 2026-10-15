@@ -1012,6 +1012,26 @@ TEST(Eip712Stream, LongValuesAreDisclosedInPartsAndSign) {
   eip712_stream_abort();
 }
 
+// ERC-7730's threshold for a uint256; a narrower width (Permit2's uint160)
+// is unlimited only at its exact maximum.
+TEST(Eip712Stream, UnlimitedIsTwoToThe255OrANarrowWidthsMaximum) {
+  Bytes v(32, 0xff);
+  v[0] = 0x7f;  // 2^255 - 1
+  EXPECT_FALSE(eip712_amount_unlimited(v.data(), 32));
+  Bytes half(32, 0);
+  half[0] = 0x80;  // 2^255
+  EXPECT_TRUE(eip712_amount_unlimited(half.data(), 32));
+  EXPECT_TRUE(eip712_amount_unlimited(Bytes(32, 0xff).data(), 32));
+  EXPECT_FALSE(eip712_amount_unlimited(word(1).data(), 32));
+  Bytes u160(20, 0xff);
+  EXPECT_TRUE(eip712_amount_unlimited(u160.data(), 20));
+  u160[19] = 0xfe;
+  EXPECT_FALSE(eip712_amount_unlimited(u160.data(), 20));
+  u160.assign(20, 0);
+  u160[0] = 0x80;  // 2^159: large, but Permit2 still decrements it
+  EXPECT_FALSE(eip712_amount_unlimited(u160.data(), 20));
+}
+
 // Owner decision 2026-10-07: unlimited permits sign, never refused. The value
 // leaf's own screen reads UNLIMITED under a warning title; a finite value and
 // a revoking DAI permit keep the ordinary screen.
@@ -1031,6 +1051,14 @@ TEST(Eip712Stream, UnlimitedPermitsSignWithAWarningOnTheirValue) {
        mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32),
        Bytes(32, 0xff), word(1), "value\nuint256: UNLIMITED",
        "value\nuint256: 1"},
+      {"Permit", "Permit", "value",
+       mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32),
+       []() {
+         Bytes b(32, 0);
+         b[0] = 0x80;  // 2^255: ERC-7730's threshold
+         return b;
+       }(),
+       word(2), "value\nuint256: UNLIMITED", "value\nuint256: 2"},
       {"Permit", "Permit", "allowed",
        mk(EthereumTypedDataStructAck_EthereumDataType_BOOL), Bytes{1}, Bytes{0},
        "allowed\nbool: UNLIMITED (allowed)", "allowed\nbool: false"},
@@ -1780,18 +1808,23 @@ Bytes corpusValue(const std::vector<uint32_t>& path) {
 
 TEST(Eip712Stream, RealWorldCorpusSignsWithIndependentDigests) {
   EXPECT_GE(kCorpus.size(), 61u);
-  // Max approvals sign, with the warning on the value's own screen.
-  const std::map<std::string, std::string> unlimited = {
-      {"permit2-PermitSingle-unlimited", "details.amount\nuint160: UNLIMITED"},
-      {"eip2612-Permit-unlimited", "value\nuint256: UNLIMITED"},
-      {"dai-Permit-allowed", "allowed\nbool: UNLIMITED (allowed)"},
+  // Max approvals sign, with the warning on the value's own screen. A
+  // canonical Permit2 states it in its review in words (SRS-7.16 §3.7),
+  // naming the spender and the token.
+  const std::map<std::string, std::vector<std::string>> unlimited = {
+      {"permit2-PermitSingle-unlimited",
+       {"Allow 0x66a9...A8Af to spend UNLIMITED USDC from this wallet until "
+        "2026-05-10 06:19 UTC",
+        "Spender may take\nUNLIMITED USDC"}},
+      {"eip2612-Permit-unlimited", {"value\nuint256: UNLIMITED"}},
+      {"dai-Permit-allowed", {"allowed\nbool: UNLIMITED (allowed)"}},
       {"safe-SafeTx-approve-unlimited",
-       "Allow 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45 to spend ALL your "
-       "USDC"},
+       {"Allow 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45 to spend ALL your "
+        "USDC"}},
       // A real MultiSend: approve(max) inside, then a CoW swap order.
       {"safe-SafeTx-multisend-approve-unlimited",
-       "Allow 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110 to spend ALL your "
-       "WETH"},
+       {"Allow 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110 to spend ALL your "
+        "WETH"}},
   };
   const std::set<std::string> unbindable = {"evmos-MsgSend",
                                             "injective-MsgSend-v2"};
@@ -1819,6 +1852,25 @@ TEST(Eip712Stream, RealWorldCorpusSignsWithIndependentDigests) {
     std::vector<std::string> warned;
     for (size_t i = 0; i < titles.size(); i++)
       if (titles[i] == "UNLIMITED approval") warned.push_back(bodies[i]);
+    // A canonical Permit2 PermitSingle has no screen in the walk; the FSM
+    // shows this review, every value in words, before the signing screen.
+    const Eip712Next* next = eip712_stream_next();
+    EXPECT_EQ(next->permit2.valid, strcmp(doc.primary, "PermitSingle") == 0);
+    std::vector<std::pair<std::string, std::string>> review;
+    if (next->kind == EIP712_REQ_DONE && next->permit2.valid) {
+      EXPECT_TRUE(eip712_permit2_review(
+          &next->permit2, NULL, NULL, NULL, NULL,
+          [](void* ctx, const char* title, const char* body, const uint8_t*,
+             uint16_t) {
+            static_cast<std::vector<std::pair<std::string, std::string>>*>(ctx)
+                ->emplace_back(title, body);
+            return true;
+          },
+          &review));
+      for (const auto& screen : review)
+        if (screen.second.find("UNLIMITED") != std::string::npos)
+          warned.push_back(screen.second);
+    }
     // Real Safe batches (operation 1 to MultiSend, inner calls 0) read clean.
     EXPECT_EQ(std::count(titles.begin(), titles.end(), "Delegatecall"), 0);
     EXPECT_EQ(std::count(titles.begin(), titles.end(), "Delegatecall in batch"),
@@ -1829,9 +1881,8 @@ TEST(Eip712Stream, RealWorldCorpusSignsWithIndependentDigests) {
       EXPECT_TRUE(warned.empty());
     } else {
       warned_docs++;
-      EXPECT_EQ(warned, std::vector<std::string>{expect->second});
+      EXPECT_EQ(warned, expect->second);
     }
-    const Eip712Next* next = eip712_stream_next();
     EXPECT_FALSE(g_missing_value);
     // Ethermint domains (string verifyingContract and salt) sign, unbound.
     EXPECT_EQ(g_bindable, unbindable.count(doc.id) ? 0 : 1);
@@ -1843,7 +1894,13 @@ TEST(Eip712Stream, RealWorldCorpusSignsWithIndependentDigests) {
       eip712_stream_abort();
       continue;
     }
-    EXPECT_GE(used, doc.leaves);
+    if (next->permit2.valid) {
+      // Its eight review screens state all nine leaves.
+      EXPECT_EQ(used, 0);
+      EXPECT_EQ(review.size(), 8u);
+    } else {
+      EXPECT_GE(used, doc.leaves);
+    }
     // Values over one ValueAck (Safe MultiSend data, a Snapshot body) were
     // sent in chunks.
     size_t widest = 0;
@@ -3372,4 +3429,425 @@ TEST(Eip712Stream, RejectingContainerTypesCancelsBeforeLeafValues) {
     EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
     eip712_stream_abort();
   }
+}
+
+/* ---- Permit2 in words (SRS-7.16 §3.7) ---- */
+
+TEST(Eip712Stream, Permit2DatesAreUtcFromTheSignedTimestamp) {
+  char out[40];
+  eip712_format_utc(0, out, sizeof(out));
+  EXPECT_STREQ(out, "1970-01-01 00:00 UTC");
+  eip712_format_utc(1778393946, out, sizeof(out));
+  EXPECT_STREQ(out, "2026-05-10 06:19 UTC");
+  eip712_format_utc(951782400, out, sizeof(out));  // leap day 2000
+  EXPECT_STREQ(out, "2000-02-29 00:00 UTC");
+  eip712_format_utc(253402300799ULL, out, sizeof(out));
+  EXPECT_STREQ(out, "9999-12-31 23:59 UTC");
+  eip712_format_utc(253402300800ULL, out, sizeof(out));
+  EXPECT_STREQ(out, "Unix time 253402300800");
+}
+
+namespace {
+std::vector<std::pair<std::string, std::string>> g_review;
+bool collect_review(void*, const char* title, const char* body, const uint8_t*,
+                    uint16_t) {
+  g_review.emplace_back(title, body);
+  return true;
+}
+Eip712Permit2 uniswap_usdc(bool unlimited) {
+  Eip712Permit2 p{};
+  p.valid = true;
+  p.chain_id = 1;
+  static const uint8_t usdc[20] = {0xa0, 0xb8, 0x69, 0x91, 0xc6, 0x21, 0x8b,
+                                   0x36, 0xc1, 0xd1, 0x9d, 0x4a, 0x2e, 0x9e,
+                                   0xb0, 0xce, 0x36, 0x06, 0xeb, 0x48};
+  static const uint8_t router[20] = {0x66, 0xa9, 0x89, 0x3c, 0xc0, 0x7d, 0x91,
+                                     0xd9, 0x56, 0x44, 0xae, 0xdd, 0x05, 0xd0,
+                                     0x3f, 0x95, 0xe1, 0xdb, 0xa8, 0xaf};
+  memcpy(p.token, usdc, 20);
+  memcpy(p.spender, router, 20);
+  if (unlimited) {
+    memset(p.amount, 0xff, 20);
+  } else {
+    p.amount[16] = 0x0e;  // 250,000,000 = 0x0ee6b280
+    p.amount[17] = 0xe6;
+    p.amount[18] = 0xb2;
+    p.amount[19] = 0x80;
+  }
+  p.expiration = 1778393946;
+  p.sig_deadline[28] = 0x69;  // 1775803746 = 0x69d89d62
+  p.sig_deadline[29] = 0xd8;
+  p.sig_deadline[30] = 0x9d;
+  p.sig_deadline[31] = 0x62;
+  return p;
+}
+}  // namespace
+
+TEST(Eip712Stream, Permit2ReviewStatesWhoWhatUntilWhen) {
+  Eip712Permit2 p = uniswap_usdc(true);
+  g_review.clear();
+  ASSERT_TRUE(
+      eip712_permit2_review(&p, NULL, NULL, NULL, NULL, collect_review, NULL));
+  const std::vector<std::pair<std::string, std::string>> want = {
+      {"Permit2",
+       "Allow 0x66a9...A8Af to spend UNLIMITED USDC from this wallet until "
+       "2026-05-10 06:19 UTC"},
+      {"Limits", "Spender may take\nUNLIMITED USDC"},
+      {"Limits", "Allowance expires\n2026-05-10 06:19 UTC"},
+      {"Limits", "Signature valid until\n2026-04-10 06:49 UTC"},
+      {"Token", "USDC\n0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"},
+      {"Spender", "Not identified\n0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af"},
+      {"Details", "Nonce 0"},
+      {"Details", "Permit2 contract on chain 1"},
+  };
+  EXPECT_EQ(g_review, want);
+
+  // An exact amount is exact; a vouched spender is named, with its voucher.
+  p = uniswap_usdc(false);
+  g_review.clear();
+  ASSERT_TRUE(eip712_permit2_review(&p, NULL, "Uniswap Universal Router",
+                                    "KeepKey Alpha 716", "A9531B9D",
+                                    collect_review, NULL));
+  ASSERT_EQ(g_review.size(), 9u);
+  EXPECT_EQ(g_review[0].second,
+            "Allow Uniswap Universal Router to spend 250 USDC from this wallet "
+            "until 2026-05-10 06:19 UTC");
+  EXPECT_EQ(g_review[5].second,
+            "Uniswap Universal Router\n"
+            "0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af");
+  EXPECT_EQ(
+      g_review[8].second,
+      "Spender named by KeepKey Alpha 716 A9531B9D\ncertified by KeepKey");
+
+  // A far-future deadline is shown as its full number, never "never": two
+  // distinct signed values must read differently.
+  Eip712Permit2 far = uniswap_usdc(false);
+  memset(far.sig_deadline, 0, 32);
+  far.sig_deadline[0] = 0x01;  // 2^248
+  g_review.clear();
+  ASSERT_TRUE(
+      eip712_permit2_review(&far, NULL, NULL, NULL, NULL, collect_review, NULL));
+  EXPECT_EQ(g_review[3].second,
+            "Signature valid until\nUnix time 452312848583266388373324160190"
+            "187140051835877600158453279131187530910662656");
+
+  // A token outside the table is never given a symbol or decimals.
+  p.token[0] ^= 1;
+  g_review.clear();
+  ASSERT_TRUE(
+      eip712_permit2_review(&p, NULL, NULL, NULL, NULL, collect_review, NULL));
+  EXPECT_EQ(g_review[1].second, "Spender may take\n250000000 base units");
+  EXPECT_EQ(g_review[4].first, "Token");
+  EXPECT_EQ(g_review[4].second.rfind("Unknown token\n0x", 0), 0u);
+}
+
+// Permit2 stores expiration 0 as block.timestamp: the allowance is live in
+// the block that uses the permit. It must never read as a 1970 expiry.
+TEST(Eip712Stream, Permit2ReviewZeroExpirationIsLiveNotExpired) {
+  Eip712Permit2 p = uniswap_usdc(true);
+  p.expiration = 0;
+  g_review.clear();
+  ASSERT_TRUE(
+      eip712_permit2_review(&p, NULL, NULL, NULL, NULL, collect_review, NULL));
+  ASSERT_GE(g_review.size(), 3u);
+  EXPECT_EQ(g_review[0].second,
+            "Allow 0x66a9...A8Af to spend UNLIMITED USDC from this wallet "
+            "until the end of the block that uses this permit");
+  EXPECT_EQ(g_review[2].second,
+            "Allowance expires\nthe end of the block that uses this permit");
+  for (const auto& s : g_review)
+    EXPECT_EQ(s.second.find("1970"), std::string::npos) << s.second;
+}
+
+void kkconfirm_capture_start(void);
+std::vector<std::string> kkconfirm_capture_finish(void);
+
+// A PermitSingle walk queues its domain screens until the domain and the type
+// hash prove it canonical Permit2. When either proof fails, every queued
+// screen is shown, in order, before anything else: nothing is hidden.
+TEST(Eip712Stream, NonCanonicalPermit2ShowsQueuedDomainScreensInOrder) {
+  static const char* name;
+  for (bool canonical_domain : {true, false}) {
+    name = canonical_domain ? "Permit2" : "App";
+    std::map<std::string, Struct> types;
+    addMember(types["EIP712Domain"], "name",
+              mk(EthereumTypedDataStructAck_EthereumDataType_STRING));
+    addMember(types["EIP712Domain"], "chainId",
+              mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
+    addMember(types["EIP712Domain"], "verifyingContract",
+              mk(EthereumTypedDataStructAck_EthereumDataType_ADDRESS));
+    addMember(types["PermitSingle"], "spender",
+              mk(EthereumTypedDataStructAck_EthereumDataType_ADDRESS));
+    // Neither PermitSingle has Permit2's type hash (no details); with the
+    // Permit2 domain that check fails, with "App" the domain check does.
+    if (!canonical_domain)
+      addMember(types["PermitSingle"], "sigDeadline",
+                mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
+    kkconfirm_capture_start();
+    const int used = walk(
+        "PermitSingle", types,
+        [](const std::vector<uint32_t>& path) -> Bytes {
+          if (path[0] == 1) return path.back() == 0 ? Bytes(20, 0x33) : word(9);
+          if (path.back() == 0) return Bytes(name, name + strlen(name));
+          if (path.back() == 1) return word(1);
+          return Bytes{0x00, 0x00, 0x00, 0x00, 0x00, 0x22, 0xd4,
+                       0x73, 0x03, 0x0f, 0x11, 0x6d, 0xde, 0xe9,
+                       0xf6, 0xb4, 0x3a, 0xc7, 0x8b, 0xa3};
+        },
+        8);
+    const std::vector<std::string> screens = kkconfirm_capture_finish();
+    EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE) << name;
+    EXPECT_FALSE(eip712_stream_next()->permit2.valid) << name;
+    // Each address takes two pages; then the message: spender, sigDeadline.
+    ASSERT_EQ(used, canonical_domain ? 6 : 7) << name;
+    ASSERT_EQ(screens.size(), (size_t)used) << name;
+    EXPECT_EQ(screens[0], std::string("name\nstring: ") + name);
+    EXPECT_EQ(screens[1], "chainId\nuint256: 1");
+    EXPECT_EQ(screens[2] + screens[3],
+              "verifyingContract\naddress: "
+              "0x000000000022D473030F116dDEE9F6B43aC78BA3");
+    EXPECT_EQ(screens[4].rfind("spender\naddress: 0x3333", 0), 0u) << name;
+    eip712_stream_abort();
+  }
+}
+
+namespace {
+const uint8_t kUsdcToken[20] = {0xa0, 0xb8, 0x69, 0x91, 0xc6, 0x21, 0x8b,
+                           0x36, 0xc1, 0xd1, 0x9d, 0x4a, 0x2e, 0x9e,
+                           0xb0, 0xce, 0x36, 0x06, 0xeb, 0x48};
+
+// A canonical EIP-2612 (USDC) or DAI Permit document; `amount` is the value
+// (EIP-2612) or `allowed` (DAI); `token_domain` drops verifyingContract.
+struct PermitDoc {
+  bool dai;
+  bool token_domain;
+  Bytes amount;
+  Bytes deadline;
+};
+const PermitDoc* g_permit_doc;
+
+std::map<std::string, Struct> permit_types(const PermitDoc& d) {
+  std::map<std::string, Struct> t;
+  Field u256 = mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32);
+  Field addr = mk(EthereumTypedDataStructAck_EthereumDataType_ADDRESS);
+  addMember(t["EIP712Domain"], "name",
+            mk(EthereumTypedDataStructAck_EthereumDataType_STRING));
+  addMember(t["EIP712Domain"], "chainId", u256);
+  if (d.token_domain) addMember(t["EIP712Domain"], "verifyingContract", addr);
+  if (d.dai) {
+    addMember(t["Permit"], "holder", addr);
+    addMember(t["Permit"], "spender", addr);
+    addMember(t["Permit"], "nonce", u256);
+    addMember(t["Permit"], "expiry", u256);
+    addMember(t["Permit"], "allowed",
+              mk(EthereumTypedDataStructAck_EthereumDataType_BOOL));
+  } else {
+    addMember(t["Permit"], "owner", addr);
+    addMember(t["Permit"], "spender", addr);
+    addMember(t["Permit"], "value", u256);
+    addMember(t["Permit"], "nonce", u256);
+    addMember(t["Permit"], "deadline", u256);
+  }
+  return t;
+}
+
+Bytes permit_value(const std::vector<uint32_t>& path) {
+  const uint32_t i = path.back();
+  if (path[0] == 0) {
+    if (i == 0) return Bytes{'T', 'o', 'k'};
+    if (i == 1) return word(1);
+    return Bytes(kUsdcToken, kUsdcToken + 20);
+  }
+  if (i == 0) return Bytes(20, 0x11);  // owner / holder
+  if (i == 1) return Bytes(20, 0x22);  // spender
+  if (g_permit_doc->dai) {
+    if (i == 2) return word(0);  // nonce
+    if (i == 3) return g_permit_doc->deadline;
+    return g_permit_doc->amount;
+  }
+  if (i == 2) return g_permit_doc->amount;
+  if (i == 3) return word(0);
+  return g_permit_doc->deadline;
+}
+
+Bytes deadline_2026() {
+  Bytes b(32, 0);
+  b[28] = 0x6a;  // 1778393946 = 0x6a00235a
+  b[29] = 0x00;
+  b[30] = 0x23;
+  b[31] = 0x5a;
+  return b;
+}
+
+// Pages concatenated: a body split across pages reads whole.
+std::string join(const std::vector<std::string>& v) {
+  std::string out;
+  for (const std::string& s : v) out += s;
+  return out;
+}
+
+// Walks `d`; returns the joined screens, or "" if more were shown than the
+// `screens` accepted.
+std::string walk_permit(const PermitDoc& d, int screens, int* used) {
+  g_permit_doc = &d;
+  kkconfirm_capture_start();
+  *used = walk("Permit", permit_types(d), permit_value, screens);
+  return join(kkconfirm_capture_finish());
+}
+}  // namespace
+
+// D-010 for permits: a canonical EIP-2612 permit of 2^255 or more is signed
+// after a warning naming spender, token and deadline, on top of its UNLIMITED
+// value screen; 2^255 - 1 is not unlimited and gets neither.
+TEST(Eip712Stream, CanonicalEip2612UnlimitedPermitIsSignedAfterAWarning) {
+  Bytes half(32, 0);
+  half[0] = 0x80;
+  PermitDoc d{false, true, half, deadline_2026()};
+  int used = 0;
+  std::string shown = walk_permit(d, 40, &used);
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE) << shown;
+  EXPECT_NE(shown.find("Allow 0x2222222222222222222222222222222222222222 to "
+                       "spend an UNLIMITED amount of USDC. It does not "
+                       "expire."),
+            std::string::npos)
+      << shown;
+  EXPECT_NE(shown.find("USDC\n0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\n"
+                       "Signature valid until\n2026-05-10 06:19 UTC"),
+            std::string::npos)
+      << shown;
+  const int with_warning = used;
+  eip712_stream_abort();
+
+  // 2^255 - 1: the exact number, no warning.
+  d.amount.assign(32, 0xff);
+  d.amount[0] = 0x7f;
+  shown = walk_permit(d, 40, &used);
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
+  EXPECT_EQ(shown.find("UNLIMITED"), std::string::npos) << shown;
+  eip712_stream_abort();
+
+  // Declining the warning cancels; nothing is signed.
+  d.amount = half;
+  walk_permit(d, with_warning - 1, &used);
+  EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_CANCELLED);
+  eip712_stream_abort();
+
+  // No verifyingContract: no token to name, so no warning; it still signs
+  // behind its UNLIMITED value screen (owner rule 2026-10-07: never refused).
+  d.token_domain = false;
+  shown = walk_permit(d, 40, &used);
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE) << shown;
+  EXPECT_NE(shown.find("value\nuint256: UNLIMITED"), std::string::npos)
+      << shown;
+  EXPECT_EQ(shown.find("an UNLIMITED amount"), std::string::npos) << shown;
+  eip712_stream_abort();
+}
+
+// DAI's permit is all-or-nothing (`allowed`); expiry 0 means no deadline.
+TEST(Eip712Stream, CanonicalDaiAllowedPermitIsSignedAfterAWarning) {
+  PermitDoc d{true, true, Bytes{1}, word(0)};
+  int used = 0;
+  std::string shown = walk_permit(d, 40, &used);
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE) << shown;
+  EXPECT_NE(shown.find("an UNLIMITED amount of USDC"), std::string::npos)
+      << shown;
+  EXPECT_NE(shown.find("Signature valid until\nno deadline"),
+            std::string::npos)
+      << shown;
+  const int with_warning = used;
+  eip712_stream_abort();
+
+  d.deadline = deadline_2026();
+  shown = walk_permit(d, 40, &used);
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
+  EXPECT_NE(shown.find("Signature valid until\n2026-05-10 06:19 UTC"),
+            std::string::npos)
+      << shown;
+  eip712_stream_abort();
+
+  // allowed=false revokes: no warning.
+  d.amount = Bytes{0};
+  shown = walk_permit(d, 40, &used);
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
+  EXPECT_EQ(shown.find("UNLIMITED"), std::string::npos);
+  EXPECT_LT(used, with_warning);
+  eip712_stream_abort();
+
+  d.amount = Bytes{1};
+  d.token_domain = false;
+  shown = walk_permit(d, 40, &used);
+  EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
+  EXPECT_EQ(shown.find("an UNLIMITED amount"), std::string::npos) << shown;
+  eip712_stream_abort();
+}
+
+// PermitSingle on Base: cbBTC is not in the firmware table (D-014), so it is
+// named only by a KeepKey-certified identity sent for this request.
+TEST(Eip712Stream, Permit2ReviewNamesTokensFromCertifiedIdentities) {
+  static const uint8_t cbbtc[20] = {0xcb, 0xb7, 0xc0, 0x00, 0x0a, 0xb8, 0x8b,
+                                    0x47, 0x3b, 0x1f, 0x5a, 0xfd, 0x9e, 0xf8,
+                                    0x08, 0x44, 0x0e, 0xed, 0x33, 0xbf};
+  Eip712Permit2 p = uniswap_usdc(false);  // 250,000,000 base units
+  p.chain_id = 8453;
+  memcpy(p.token, cbbtc, 20);
+  MetadataToken id{};
+  memcpy(id.address, cbbtc, 20);
+  id.decimals = 8;
+  strcpy(id.symbol, "cbBTC");
+
+  g_review.clear();
+  ASSERT_TRUE(eip712_permit2_review(&p, &id, NULL, "KeepKey Alpha 716",
+                                    "A9531B9D", collect_review, NULL));
+  ASSERT_EQ(g_review.size(), 9u);
+  EXPECT_EQ(g_review[1].second, "Spender may take\n2.5 cbBTC");
+  EXPECT_EQ(g_review[4].second,
+            "cbBTC\n0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf");
+  EXPECT_EQ(g_review[8].second,
+            "Token named by KeepKey Alpha 716 A9531B9D\ncertified by KeepKey");
+
+  g_review.clear();
+  ASSERT_TRUE(eip712_permit2_review(&p, &id, "Uniswap", "KeepKey Alpha 716",
+                                    "A9531B9D", collect_review, NULL));
+  EXPECT_EQ(g_review[0].second,
+            "Allow Uniswap to spend 2.5 cbBTC from this wallet until "
+            "2026-05-10 06:19 UTC");
+  EXPECT_EQ(g_review[8].second,
+            "Spender and token named by KeepKey Alpha 716 A9531B9D\n"
+            "certified by KeepKey");
+
+  // Unlimited: max uint160 with the identity's symbol.
+  memset(p.amount, 0xff, 20);
+  g_review.clear();
+  ASSERT_TRUE(eip712_permit2_review(&p, &id, NULL, NULL, NULL, collect_review,
+                                    NULL));
+  EXPECT_EQ(g_review[1].second, "Spender may take\nUNLIMITED cbBTC");
+
+  // No identity, or one for another token: raw units, full address, nothing
+  // guessed, and no provenance claimed.
+  Eip712Permit2 q = uniswap_usdc(false);
+  q.chain_id = 8453;
+  memcpy(q.token, cbbtc, 20);
+  for (int other = 0; other < 2; other++) {
+    MetadataToken wrong = id;
+    wrong.address[19] ^= 1;
+    g_review.clear();
+    ASSERT_TRUE(eip712_permit2_review(&q, other ? &wrong : NULL, NULL, NULL,
+                                      NULL, collect_review, NULL));
+    ASSERT_EQ(g_review.size(), 8u);
+    EXPECT_EQ(g_review[1].second, "Spender may take\n250000000 base units");
+    EXPECT_EQ(g_review[4].second,
+              "Unknown token\n0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf");
+  }
+
+  // The firmware table outranks an identity that disagrees with it.
+  Eip712Permit2 u = uniswap_usdc(false);
+  MetadataToken liar{};
+  memcpy(liar.address, u.token, 20);
+  liar.decimals = 18;
+  strcpy(liar.symbol, "FAKE");
+  g_review.clear();
+  ASSERT_TRUE(eip712_permit2_review(&u, &liar, NULL, NULL, NULL,
+                                    collect_review, NULL));
+  ASSERT_EQ(g_review.size(), 8u);
+  EXPECT_EQ(g_review[1].second, "Spender may take\n250 USDC");
 }

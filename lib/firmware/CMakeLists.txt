@@ -1,4 +1,6 @@
 set(sources
+    ctap2.c
+    ctap2_cbor.c
     app_confirm.c
     app_layout.c
     authenticator.c
@@ -23,7 +25,6 @@ set(sources
 # Non-Bitcoin coin families -- excluded from the bitcoin-only image.
 if(NOT ${KK_BITCOIN_ONLY})
   list(APPEND sources
-      binance.c
       eip712.c
       eip712_stream.c
       eos.c
@@ -48,8 +49,10 @@ if(NOT ${KK_BITCOIN_ONLY})
       ethereum_contracts/zxtransERC20.c
       ethereum_contracts/zxswap.c
       ethereum_tokens.c
+      clearsign_root.c
       signed_metadata.c
       contact_book.c
+      uniswap_ur.c
       mayachain.c
       nano.c
       osmosis.c
@@ -93,7 +96,9 @@ set(TRON_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/tron_tokens)
 add_custom_target(ethereum_tokens.def
   BYPRODUCTS ${ETHEREUM_TOKENS}.def ${UNISWAP_TOKENS}.def ${TRON_TOKENS}.def
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
-  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def
+  # 7.16 (D-014): stablecoins plus what coins[] and the fixtures need; the long
+  # tail is named by signed ClearSign metadata instead of flash.
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def --profile priority-only
   COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/uniswap_tokens.py ${UNISWAP_TOKENS}.def
   COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/tron_tokens.py
           ${CMAKE_SOURCE_DIR}/scripts/tron_tokens.json ${TRON_TOKENS}.def

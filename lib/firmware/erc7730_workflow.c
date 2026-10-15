@@ -57,6 +57,7 @@ bool erc7730_workflow_begin(Erc7730Workflow* workflow,
     fail(workflow);
     return false;
   }
+  workflow->review_tier = identity->tier;
   return begin_replay(workflow, identity);
 }
 
@@ -69,6 +70,7 @@ bool erc7730_workflow_begin_eip712(Erc7730Workflow* workflow,
     return false;
   }
   workflow->typed_data = true;
+  workflow->review_tier = identity->tier;
   if (!begin_replay(workflow, identity)) return false;
   /* The definition applies only at a signed deployment on the typed data's
    * own chain; the loader refuses the replay unless one lists it. */
@@ -757,6 +759,19 @@ const Erc7730CatalogIdentity* erc7730_workflow_identity(
   return &workflow->identity;
 }
 
+uint8_t erc7730_workflow_tier(const Erc7730Workflow* workflow) {
+  if (!workflow) return METADATA_TIER_NONE;
+  const uint8_t own = workflow->identity.tier;
+  if (workflow->depth == 0 || own < workflow->outer_tier) return own;
+  return workflow->outer_tier;
+}
+
+bool erc7730_workflow_certified(const Erc7730Workflow* workflow) {
+  return workflow && workflow->review_tier == METADATA_TIER_KEEPKEY &&
+         (erc7730_workflow_active(workflow) ||
+          erc7730_workflow_complete(workflow));
+}
+
 bool erc7730_workflow_preserve_selected_string(Erc7730Workflow* workflow,
                                                bool intent) {
   const char* value = NULL;
@@ -844,6 +859,7 @@ bool erc7730_workflow_begin_fetch(Erc7730Workflow* workflow, uint8_t depth) {
     workflow->outer_resume = workflow->display_index;
     workflow->outer_identity_confirmed = workflow->identity_confirmed;
     workflow->outer_intent_confirmed = workflow->intent_confirmed;
+    workflow->outer_tier = workflow->identity.tier;
   }
   workflow->fetch_depth = depth;
   workflow->fetch_offset = 0;
@@ -895,7 +911,7 @@ Erc7730CatalogResult erc7730_workflow_fetch_feed(
       (result == ERC7730_CATALOG_BAD_PROGRAM ||
        result == ERC7730_CATALOG_UNTRUSTED || unsourced_value)) {
     /* The device cannot clear-sign this inner call: restore the outer
-     * definition (the slot now holds nothing) and show the call blind. */
+     * definition (the slot now holds nothing) and refuse the call. */
     erc7730_catalog_clear_preload();
     if (complete) *complete = false;
     workflow->inner_refused = true;
@@ -940,6 +956,8 @@ bool erc7730_workflow_fetch_complete(Erc7730Workflow* workflow) {
                                          : workflow->identity.contract_address,
              20);
       workflow->depth = 1;
+      if (identity.tier < workflow->review_tier)
+        workflow->review_tier = identity.tier;
       workflow->identity_confirmed = false;
       workflow->intent_confirmed = false;
       workflow->calldata_validated = false;
@@ -949,8 +967,8 @@ bool erc7730_workflow_fetch_complete(Erc7730Workflow* workflow) {
     bound =
         memcmp(identity.definition_id, workflow->outer_definition_id, 32) == 0;
     if (bound) {
-      /* Resume after the embedded field, or re-run it blind when its inner
-       * definition was refused (outer_resume >= 1: never the intent). */
+      /* Resume after the embedded field, or re-run it to refuse it when its
+       * inner definition was refused (outer_resume >= 1: never the intent). */
       workflow->display_index = workflow->inner_refused
                                     ? (uint16_t)(workflow->outer_resume - 1u)
                                     : workflow->outer_resume;

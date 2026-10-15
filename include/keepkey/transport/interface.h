@@ -27,7 +27,6 @@
 #undef delete
 
 #include "messages-ethereum.pb.h"
-#include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
 #include "messages-osmosis.pb.h"
 #include "messages-eos.pb.h"
