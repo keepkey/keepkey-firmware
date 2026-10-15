@@ -453,6 +453,15 @@ bool msg_take_tiny_rejection(void) {
   return rejected;
 }
 
+MessageType msg_take_tiny_id(void) {
+  const MessageType id = msg_tiny_id;
+  if (id != MSG_TINY_TYPE_ERROR) {
+    msg_tiny_id = MSG_TINY_TYPE_ERROR;
+    memzero(msg_tiny, sizeof(msg_tiny));
+  }
+  return id;
+}
+
 #if DEBUG_LINK
 void handle_debug_usb_rx(const void* msg, size_t len) {
   if (msg_tiny_flag) {

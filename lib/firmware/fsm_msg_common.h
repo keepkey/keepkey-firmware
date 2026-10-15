@@ -276,8 +276,8 @@ void fsm_msgPing(Ping* msg) {
   /* A protected Ping can block inside its confirmation or PIN/passphrase
    * prompt while the main-loop auto-lock check is suspended. End any older
    * signing stream before it can wait, so a Cancel cannot resume it. This is
-   * not a lock: PIN, passphrase, AdvancedMode and ClearSign signers stay with
-   * the session (hosts unlock via Ping(pin_protection) and then sign). */
+   * not a lock: the PIN and passphrase stay with the session (hosts unlock
+   * via Ping(pin_protection) and then sign). */
   if (authMsg < NUM_AUTHMESSAGES ||
       (msg->has_button_protection && msg->button_protection) ||
       (msg->has_pin_protection && msg->pin_protection) ||
@@ -566,21 +566,42 @@ void fsm_msgFirmwareUpload(FirmwareUpload* msg) {
 }
 
 void fsm_msgGetEntropy(GetEntropy* msg) {
-  if (!confirm(ButtonRequestType_ButtonRequest_GetEntropy, "Generate Entropy",
-               "Do you want to generate and return entropy using the hardware "
-               "RNG?")) {
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
-    layoutHome();
+  /* Never interrupt a reset/recovery holding private entropy in RAM. */
+  if (setup_isArmed()) {
+    entropy_audit_approved_remaining = 0;
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    "Entropy unavailable during setup");
     return;
   }
 
-  RESP_INIT(Entropy);
   uint32_t len = msg->size;
+  if (len > ENTROPY_BUF) len = ENTROPY_BUF;
+  const bool audit_eligible =
+      !storage_isInitialized() && !storage_isBitcoinOnlyLocked();
+  if (!audit_eligible) entropy_audit_approved_remaining = 0;
 
-  if (len > ENTROPY_BUF) {
-    len = ENTROPY_BUF;
+  if (!audit_eligible || len > entropy_audit_approved_remaining ||
+      entropy_audit_approved_remaining == 0) {
+    entropy_audit_approved_remaining = 0;
+    if (!confirm(
+            ButtonRequestType_ButtonRequest_GetEntropy, "Generate Entropy",
+            audit_eligible
+                ? "Allow up to 8 MiB of hardware RNG samples for this audit?"
+                : "Do you want to generate and return entropy using the "
+                  "hardware RNG?")) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
+      layoutHome();
+      return;
+    }
+    if (audit_eligible && len != 0) {
+      entropy_audit_approved_remaining = ENTROPY_AUDIT_APPROVED_BYTES;
+    }
   }
 
+  if (audit_eligible && len <= entropy_audit_approved_remaining) {
+    entropy_audit_approved_remaining -= len;
+  }
+  RESP_INIT(Entropy);
   resp->entropy.size = len;
   random_buffer(resp->entropy.bytes, len);
   msg_write(MessageType_MessageType_Entropy, resp);

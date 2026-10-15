@@ -6,6 +6,7 @@ set(sources
     dice.cpp
     recovery.cpp
     rng_health.cpp
+    setup_ux.cpp
     setup_ceremony.cpp
     signing.cpp
     storage.cpp

@@ -293,3 +293,29 @@ TEST_F(PassphraseTransition, StagingIsInertAndForeignCommitAborts) {
 }
 
 }  // namespace
+
+extern "C" {
+#include "keepkey/firmware/app_confirm.h"
+#include "keepkey/firmware/passphrase_sm.h"
+}
+
+// The confirmation shows a typed passphrase escaped, and PASSPHRASE_NONE_TEXT
+// when there is none. A host must not be able to send a passphrase that draws
+// the "none" screen: it would open a different wallet under that label. The
+// old wording, "(empty)", could simply be typed.
+TEST(StoragePassphrase, NoPassphraseTextCannotBeTyped) {
+  // The escape never emits a raw space, whatever the byte.
+  for (int value = 0; value < 256; value++) {
+    const uint8_t byte = static_cast<uint8_t>(value);
+    char escaped[8];
+    ASSERT_TRUE(confirm_bytes_escape(&byte, 1, escaped, sizeof(escaped)));
+    EXPECT_EQ(nullptr, strchr(escaped, ' ')) << value;
+  }
+  // The "none" text has one, so nothing typed can equal it, itself included.
+  ASSERT_NE(nullptr, strchr(PASSPHRASE_NONE_TEXT, ' '));
+  char escaped[4 * sizeof(PASSPHRASE_NONE_TEXT)];
+  ASSERT_TRUE(confirm_bytes_escape(
+      reinterpret_cast<const uint8_t*>(PASSPHRASE_NONE_TEXT),
+      strlen(PASSPHRASE_NONE_TEXT), escaped, sizeof(escaped)));
+  EXPECT_STRNE(PASSPHRASE_NONE_TEXT, escaped);
+}

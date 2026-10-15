@@ -236,7 +236,9 @@ def main():
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     junit_paths = [ROOT / "test-reports" / "python-keepkey" / "junit.xml"]
     junit_paths += require_native_junit(ROOT)
-    junit_paths.append(ROOT / "test-reports" / "dylib-junit.xml")
+    # The dylib suite is built and run from the full image only.
+    if VARIANT == "full":
+        junit_paths.append(ROOT / "test-reports" / "dylib-junit.xml")
     missing_junit = [str(path) for path in junit_paths if not path.is_file()]
     if missing_junit:
         fail("required JUnit inputs missing: %s" % ", ".join(missing_junit))

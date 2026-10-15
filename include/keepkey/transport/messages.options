@@ -147,3 +147,8 @@ ClearsignAttestorPublicKey.public_key   max_size:33
 ClearsignAttestorSign.payload           max_size:256
 ClearsignAttestorSignature.signature    max_size:64
 ClearsignAttestorSignature.public_key   max_size:33
+
+# Bound fields present in the shared canonical release protocol.
+Features.capabilities max_count:32
+DebugLinkState.confirm_title max_size:128
+DebugLinkState.confirm_body max_size:352

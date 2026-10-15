@@ -888,7 +888,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # One report per product, each from that variant's own test results.
-    # The full report keeps the `test-report` name release.yml reads.
+    # The dylib suite is built from the full image only, so only the full
+    # report includes it. The full report keeps the `test-report` name
+    # release.yml reads.
     strategy:
       fail-fast: false
       matrix:
@@ -926,6 +928,7 @@ jobs:
           path: test-reports/screenshots/
 
       - name: Download dylib test results
+        if: matrix.variant == 'full'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: python-dylib-test-results

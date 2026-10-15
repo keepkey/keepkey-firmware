@@ -1582,6 +1582,10 @@ pintest_t session_clear_impl(SessionState* ss, Storage* storage,
    * themselves. */
   if (clear_pin) {
     fsm_abort_signing_workflows();
+    /* trezor-crypto caches the mnemonic, passphrase, seed and derived nodes
+     * of recent derivations. A lock must not leave them in RAM. */
+    bip39_cache_clear();
+    bip32_cache_clear();
   }
 
   ss->seedCached = false;

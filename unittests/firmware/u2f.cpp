@@ -250,10 +250,10 @@ TEST_F(U2FWait, NormalMessageIsNotDispatched) {
   const uint8_t ping[] = {0x10, 0x01};  // Ping.button_protection = true
   poll_script.push_back(
       [&] { send_main(MessageType_MessageType_Ping, ping, sizeof(ping)); });
+  poll_script.push_back([] { send_register(1); });
   // If the Ping was dispatched, this Cancel unwinds its confirm.
   poll_script.push_back(
       [] { send_main(MessageType_MessageType_Cancel, nullptr, 0); });
-  poll_script.push_back([] { send_register(1); });
   kkconfirm_capture_start();
   run(1);
   const auto screens = kkconfirm_capture_finish();
@@ -264,6 +264,47 @@ TEST_F(U2FWait, NormalMessageIsNotDispatched) {
   EXPECT_EQ((std::vector<uint16_t>{U2F_SW_CONDITIONS_NOT_SATISFIED,
                                    U2F_SW_CONDITIONS_NOT_SATISFIED}),
             statuses());
+}
+
+// Initialize and Cancel from a wallet host end the session and get their
+// usual answer. The tiny reader used to store them, and nothing read them.
+TEST_F(U2FWait, InitializeAndCancelEndTheSessionAndAreAnswered) {
+  size_t size = 0;
+  auto* features = reinterpret_cast<Features*>(fsm_test_responseArena(&size));
+  for (uint16_t id :
+       {MessageType_MessageType_Initialize, MessageType_MessageType_Cancel}) {
+    SCOPED_TRACE(id);
+    memset(features, 0, sizeof(*features));
+    fsm_test_clearLastFailure();
+    u2f_replies.clear();
+    u2f_reply_cmds.clear();
+    poll_script.clear();
+    int polls_after = 0;
+    poll_script.push_back([=] { send_main(id, nullptr, 0); });
+    poll_script.push_back([&] { polls_after++; });
+    run(1);
+    EXPECT_EQ(0, polls_after) << "the session went on waiting";
+    EXPECT_EQ(std::vector<uint16_t>{U2F_SW_CONDITIONS_NOT_SATISFIED},
+              statuses());
+    if (id == MessageType_MessageType_Initialize) {
+      EXPECT_STREQ("keepkey.com", features->vendor);
+    } else {
+      EXPECT_EQ(FailureType_Failure_ActionCancelled,
+                fsm_test_lastFailureCode());
+    }
+  }
+}
+
+// The same while a request is still being received drops that request, so
+// its sender is told rather than left to time out.
+TEST_F(U2FWait, InitializeDuringReceiveAnswersU2FBusy) {
+  U2FHID_FRAME init, cont;
+  register_frames(1, &init, &cont);
+  poll_script.push_back(
+      [] { send_main(MessageType_MessageType_Initialize, nullptr, 0); });
+  u2fhid_read(0, &init);
+  EXPECT_EQ(1u, count(U2FHID_ERROR, ERR_CHANNEL_BUSY));
+  EXPECT_EQ(1u, u2f_replies.size());
 }
 
 // Presence is a press and release that starts after the prompt is drawn.

@@ -143,6 +143,9 @@ bool msg_set_tiny(bool set);
  * rejected, and so a Failure was sent, since the last call. Clears it, so the
  * next rejected frame is answered too. */
 bool msg_take_tiny_rejection(void);
+/* For the same wait: the tiny message received since the last call, without
+ * its payload, or MSG_TINY_TYPE_ERROR. Nothing else reads it there. */
+MessageType msg_take_tiny_id(void);
 
 uint32_t parse_pb_varint(RawMessage* msg, uint8_t varint_count);
 int encode_pb(const void* source_ptr, const pb_field_t* fields, uint8_t* buffer,

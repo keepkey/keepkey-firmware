@@ -357,7 +357,14 @@ static bool fsm_continuation(bool active, const char* text) {
   return false;
 }
 
+/* One physical approval permits a bounded consecutive audit on an empty
+ * device. Read-only feature polls may interleave; other operations revoke it.
+ */
+#define ENTROPY_AUDIT_APPROVED_BYTES (8u * 1024u * 1024u)
+static uint32_t entropy_audit_approved_remaining;
+
 void fsm_init(void) {
+  entropy_audit_approved_remaining = 0;
   msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
   set_msg_failure_handler(&sendFailureWrapper);
 
@@ -381,11 +388,9 @@ void fsm_init(void) {
  * not authority to preserve some other signer.
  *
  * Deliberately NOT session_clear(true): that is a LOCK. It would drop the PIN,
- * passphrase and seed cache, disarm AdvancedMode and revoke ClearSign signers
- * on every request, so ApplyPolicies/LoadClearsignSigner could never reach the
- * EthereumSignTx that needs them. Idle locking stays with auto_lock_if_due().
- * Metadata loaded before a sign survives: ethereum_signing_abort() only clears
- * it while a stream is active. */
+ * passphrase and seed cache on every request, so a host that unlocks with
+ * Ping(pin_protection) could never reach the request it unlocked for. Idle
+ * locking stays with auto_lock_if_due(). */
 static bool fsm_dispatchGate(MessageType msg_id) {
   switch (msg_id) {
     case MessageType_MessageType_GetFeatures:
@@ -457,8 +462,14 @@ static bool fsm_dispatchGate(MessageType msg_id) {
         case MessageType_MessageType_SolanaSignMessage:
         case MessageType_MessageType_SolanaSignOffchainMessage:
 #endif
+        {
+          const bool was_armed = setup_isArmed();
           setup_abort();
+          /* The handler may fail before it draws anything, which would leave
+           * the ended ceremony's screen up. */
+          if (was_armed) layoutHome();
           break;
+        }
         case MessageType_MessageType_Initialize:
         case MessageType_MessageType_Cancel:
         case MessageType_MessageType_ClearSession:
@@ -487,6 +498,10 @@ static bool fsm_dispatchGate(MessageType msg_id) {
  * "not in progress"; after, so the request that just ended a workflow runs
  * on a locked session. */
 bool keepkey_before_message_dispatch(MessageType msg_id) {
+  if (msg_id != MessageType_MessageType_GetEntropy &&
+      msg_id != MessageType_MessageType_GetFeatures) {
+    entropy_audit_approved_remaining = 0;
+  }
   auto_lock_if_due();
   if (!fsm_dispatchGate(msg_id)) return false;
   auto_lock_if_due();
@@ -532,6 +547,7 @@ void fsm_sendFailure(FailureType code, const char* text) {
 }
 
 void fsm_abort_workflows(void) {
+  entropy_audit_approved_remaining = 0;
   setup_abort();
   fsm_abort_signing_workflows();
 }
@@ -595,10 +611,9 @@ void fsm_msgClearSession(ClearSession* msg) {
 #include "fsm_msg_ton.h"
 #include "fsm_msg_solana.h"
 #else
-// The coin engines above are compiled out, but the always-on
-// Initialize/Cancel handlers still call each engine's abort hook. With no
-// engine state to roll back, no-ops are the correct definitions -- and
-// defining them here keeps those handlers free of build-variant branches.
+// The coin engines above are compiled out, and every call to these abort
+// hooks is compiled out with them. The no-ops keep the symbols defined in
+// this variant, so a caller shared by both variants links in either.
 void ethereum_signing_abort(void) {}
 void tendermint_signAbort(void) {}
 void eos_signingAbort(void) {}

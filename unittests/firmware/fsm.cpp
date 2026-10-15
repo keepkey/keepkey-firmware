@@ -48,7 +48,38 @@ extern "C" void keepkey_user_activity(void);  // lib/firmware/home_sm.c
 // Auto-lock reads home_clock_ms(). The real 1 ms tick would make the deadline
 // checks below racy, so this binary's clock moves only when a test says so.
 static uint32_t fake_clock_ms = 0;
-extern "C" uint32_t home_clock_ms(void) { return fake_clock_ms; }
+static bool inject_button_during_clock_read = false;
+static bool pending_button_interrupt = false;
+static unsigned idle_clock_critical_depth = 0;
+static unsigned delivered_button_interrupts = 0;
+
+extern "C" uint32_t home_clock_ms(void) {
+  if (inject_button_during_clock_read) {
+    inject_button_during_clock_read = false;
+    if (idle_clock_critical_depth != 0) {
+      pending_button_interrupt = true;
+    } else {
+      ++delivered_button_interrupts;
+      keepkey_user_activity();
+    }
+  }
+  return fake_clock_ms;
+}
+
+// Model the device's interrupt mask: a physical edge remains pending until
+// the complete idle-clock update finishes, rather than reentering its RMWs.
+extern "C" void home_idle_clock_enter(void) { ++idle_clock_critical_depth; }
+extern "C" void home_idle_clock_leave(void) {
+  EXPECT_GT(idle_clock_critical_depth, 0u);
+  if (idle_clock_critical_depth == 0) return;
+  --idle_clock_critical_depth;
+  if (idle_clock_critical_depth == 0 && pending_button_interrupt) {
+    pending_button_interrupt = false;
+    ++delivered_button_interrupts;
+    keepkey_user_activity();
+  }
+}
+
 static void advance_clock(uint32_t ms) { fake_clock_ms += ms; }
 
 TEST(Fsm, AuthenticatorCredentialSourceIsWipedOnEveryExit) {
@@ -269,6 +300,93 @@ struct ScopedFlash {
   }
 };
 
+// GetPublicKey accepts the same InputScriptType enum as GetAddress. BIP-86
+// uses an ordinary xpub/tpub containing the untweaked account public node.
+TEST(Fsm, TaprootPublicKeyExportsTheStandardAccountNode) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  LoadDevice load = {};
+  load.has_mnemonic = true;
+  std::strcpy(load.mnemonic,
+              "abandon abandon abandon abandon abandon abandon abandon "
+              "abandon abandon abandon abandon about");
+  storage_loadDevice(&load);
+  storage_commit();
+
+  for (const char* coin : {"Bitcoin", "Testnet"}) {
+    GetPublicKey get = {};
+    get.has_coin_name = true;
+    std::strcpy(get.coin_name, coin);
+    get.address_n_count = 3;
+    get.address_n[0] = 0x80000000u | 86;
+    get.address_n[1] = 0x80000000u | (std::strcmp(coin, "Testnet") == 0);
+    get.address_n[2] = 0x80000000u;
+    get.has_script_type = true;
+    get.script_type = InputScriptType_SPENDADDRESS;
+    fsm_test_clearLastFailure();
+    receiveMessage(MessageType_MessageType_GetPublicKey, GetPublicKey_fields,
+                   &get);
+    ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+    size_t arena_size = 0;
+    const PublicKey control = *reinterpret_cast<const PublicKey*>(
+        fsm_test_responseArena(&arena_size));
+    ASSERT_TRUE(control.has_xpub);
+    ASSERT_FALSE(control.node.has_private_key);
+    ASSERT_EQ(33u, control.node.public_key.size);
+    if (std::strcmp(coin, "Bitcoin") == 0) {
+      // Published BIP-86 account-0 xpub for the mnemonic above.
+      EXPECT_STREQ(
+          "xpub6BgBgsespWvERF3LHQu6CnqdvfEvtMcQjYrcRzx53QJjSxarj2afYWcLteoG"
+          "Vky7D3UKDP9QyrLprQ3VCECoY49yfdDEHGCtMMj92pReUsQ",
+          control.xpub);
+    } else {
+      ASSERT_EQ(0, std::strncmp(control.xpub, "tpub", 4));
+    }
+
+    get.script_type = InputScriptType_SPENDTAPROOT;
+    fsm_test_clearLastFailure();
+    receiveMessage(MessageType_MessageType_GetPublicKey, GetPublicKey_fields,
+                   &get);
+    ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+    const PublicKey* result =
+        reinterpret_cast<const PublicKey*>(fsm_test_responseArena(&arena_size));
+    ASSERT_TRUE(result->has_xpub);
+    EXPECT_STREQ(control.xpub, result->xpub);
+    EXPECT_FALSE(result->node.has_private_key);
+    EXPECT_EQ(0,
+              std::memcmp(&control.node, &result->node, sizeof(control.node)));
+    EXPECT_TRUE(fsm_test_derivedNodeIsZero());
+  }
+}
+
+#if !BITCOIN_ONLY
+TEST(Fsm, TaprootPublicKeyRefusesCoinsWithoutTaproot) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  LoadDevice load = {};
+  load.has_mnemonic = true;
+  std::strcpy(load.mnemonic, "all all all all all all all all all all all all");
+  storage_loadDevice(&load);
+  storage_commit();
+  GetPublicKey get = {};
+  get.has_coin_name = true;
+  std::strcpy(get.coin_name, "Litecoin");
+  get.address_n_count = 3;
+  get.address_n[0] = 0x80000000u | 86;
+  get.address_n[1] = 0x80000000u | 2;
+  get.address_n[2] = 0x80000000u;
+  get.has_script_type = true;
+  get.script_type = InputScriptType_SPENDTAPROOT;
+  fsm_test_clearLastFailure();
+  receiveMessage(MessageType_MessageType_GetPublicKey, GetPublicKey_fields,
+                 &get);
+  EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+  EXPECT_TRUE(fsm_test_derivedNodeIsZero());
+}
+#endif
+
 // DebugLinkGetState is also serviced inside the PIN, passphrase and confirm
 // waits. The suspended outer handler may already hold its pending response in
 // the shared RESP_INIT arena, so the debug reply must not be built there.
@@ -366,6 +484,65 @@ TEST(Fsm, CorrectPinAfterAutoLockRenewsTheDeadline) {
   layoutHomeForced();
 }
 
+// A new PIN is typed on the host and presses no button either. A device that
+// sat idle past the lock delay must still finish the reset it has just armed:
+// without a deferral the EntropyAck that continues it locked the device and
+// was answered "Not in Reset mode", every time, until a button was pressed.
+TEST(Fsm, ResetWithANewPinSurvivesAnIdleDevice) {
+  ScopedFlash flash;
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  ASSERT_EQ(0, kkconfirm_drain());
+  storage_reset();
+  ASSERT_FALSE(storage_isInitialized());
+  layoutHomeForced();
+  advance_clock(storage_getAutoLockDelayMs());
+  toggle_screensaver();
+  ASSERT_EQ(SCREENSAVER, home_get_state());
+
+  // The host relays the new PIN twice, each time on a fresh matrix.
+  std::thread host([] {
+    std::string seen = "XXXXXXXXX";
+    for (int prompt = 0; prompt < 2; prompt++) {
+      for (int tries = 0; tries < 5000; tries++, usleep(1000)) {
+        const std::string first = get_pin_matrix();
+        if (first == "XXXXXXXXX" || first == seen) continue;
+        usleep(50000);  // let the prompt finish shuffling
+        const std::string matrix = get_pin_matrix();
+        std::string positions;
+        for (const char* d = "1234"; *d; d++)
+          positions += (char)('1' + matrix.find(*d));
+        uint8_t ack[2 + 9] = {0x0a, (uint8_t)positions.size()};
+        std::memcpy(&ack[2], positions.data(), positions.size());
+        kkconfirm_sendTiny(MessageType_MessageType_PinMatrixAck, ack,
+                           (uint8_t)(2 + positions.size()));
+        seen = matrix;
+        break;
+      }
+    }
+  });
+  ResetDevice reset = {};
+  reset.has_pin_protection = reset.pin_protection = true;
+  fsm_test_clearLastFailure();
+  receiveMessage(MessageType_MessageType_ResetDevice, ResetDevice_fields,
+                 &reset);
+  host.join();
+  ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+  ASSERT_TRUE(setup_isArmedAs(SETUP_RESET));
+
+  // The first backup screen is declined, so the ceremony ends there: what
+  // matters is that it ran, and was not locked out before it started.
+  ASSERT_TRUE(kkconfirm_preload(0, 1));
+  EntropyAck ack = {};
+  ack.has_entropy = true;
+  ack.entropy.size = 32;
+  receiveMessage(MessageType_MessageType_EntropyAck, EntropyAck_fields, &ack);
+  kkconfirm_drain();
+  EXPECT_NE(FailureType_Failure_UnexpectedMessage, fsm_test_lastFailureCode());
+  EXPECT_NE(SCREENSAVER, home_get_state());
+  fsm_abort_workflows();
+  layoutHomeForced();
+}
+
 // Time spent nested in a long wait never reaches the main loop: a U2F frame
 // stretched to its timeout, a prompt the host leaves open. Each main-loop pass
 // must charge the real time since the last one, not a single tick, or a host
@@ -408,6 +585,87 @@ TEST(Fsm, UserActivityRenewsTheAutoLockDeadline) {
   toggle_screensaver();
   EXPECT_EQ(SCREENSAVER, home_get_state());
   layoutHomeForced();
+}
+
+namespace {
+struct ScopedIdleClockInterrupt {
+  ScopedIdleClockInterrupt() {
+    EXPECT_EQ(idle_clock_critical_depth, 0u);
+    EXPECT_FALSE(inject_button_during_clock_read);
+    EXPECT_FALSE(pending_button_interrupt);
+    delivered_button_interrupts = 0;
+  }
+
+  ~ScopedIdleClockInterrupt() {
+    inject_button_during_clock_read = false;
+    pending_button_interrupt = false;
+    EXPECT_EQ(idle_clock_critical_depth, 0u);
+    idle_clock_critical_depth = 0;
+    delivered_button_interrupts = 0;
+    fsm_abort_workflows();
+    layoutHomeForced();
+  }
+};
+
+void checkButtonInterruptDuringIdleSample(bool wrap_clock) {
+  kk_test_board_init();
+  ScopedFlash flash;
+  ScopedIdleClockInterrupt interrupt;
+  fsm_init();
+  storage_setPin("1234");
+  storage_setAutoLockDelayMs(STORAGE_MIN_SCREENSAVER_TIMEOUT);
+  layoutHomeForced();
+  if (wrap_clock) {
+    advance_clock(0u - fake_clock_ms - STORAGE_MIN_SCREENSAVER_TIMEOUT / 2);
+  }
+  keepkey_user_activity();
+
+  SignTx start = {};
+  start.inputs_count = 1;
+  start.outputs_count = 1;
+  HDNode root = {};
+  const CoinType* coin = coinByName("Bitcoin");
+  ASSERT_NE(nullptr, coin);
+  signing_init(&start, coin, &root);
+  ASSERT_TRUE(signing_is_active());
+  ASSERT_TRUE(session_isPinCached());
+
+  // The next sample is due to lock. Inject a physical edge during its clock
+  // read, after it has already loaded the previous sample. Without masking,
+  // the nested activity reset is overwritten by the old elapsed interval.
+  advance_clock(STORAGE_MIN_SCREENSAVER_TIMEOUT);
+  if (wrap_clock) ASSERT_LT(fake_clock_ms, STORAGE_MIN_SCREENSAVER_TIMEOUT);
+  inject_button_during_clock_read = true;
+  toggle_screensaver();
+  EXPECT_EQ(1u, delivered_button_interrupts);
+  EXPECT_FALSE(inject_button_during_clock_read);
+  EXPECT_FALSE(pending_button_interrupt);
+  EXPECT_EQ(0u, idle_clock_critical_depth);
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+  EXPECT_TRUE(session_isPinCached());
+  EXPECT_TRUE(signing_is_active());
+
+  // The edge renews only user activity; a stalled signing workflow cannot
+  // extend the new deadline or retain PIN authorization after it expires.
+  advance_clock(STORAGE_MIN_SCREENSAVER_TIMEOUT - 1);
+  toggle_screensaver();
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+  EXPECT_TRUE(session_isPinCached());
+  EXPECT_TRUE(signing_is_active());
+  advance_clock(1);
+  toggle_screensaver();
+  EXPECT_EQ(SCREENSAVER, home_get_state());
+  EXPECT_FALSE(session_isPinCached());
+  EXPECT_FALSE(signing_is_active());
+}
+}  // namespace
+
+TEST(Fsm, ButtonInterruptDuringIdleSampleRenewsDeadline) {
+  checkButtonInterruptDuringIdleSample(false);
+}
+
+TEST(Fsm, ButtonInterruptDuringIdleSampleSurvivesClockWrap) {
+  checkButtonInterruptDuringIdleSample(true);
 }
 
 // The ms counter wraps after ~49.7 days of uptime; a deadline that straddles
