@@ -216,8 +216,9 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
           layoutHome();
           return;
         }
-        /* The amount/recipient layout can clip a long denomination. Show the
-         * complete asset separately before signing its serialized value. */
+        /* Show the asset on its own screen too, apart from the amount it
+         * trails, before signing its serialized value. The amount/recipient
+         * screen is paged, so it does not clip a long denomination. */
         if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput,
                            "Asset", (const uint8_t*)coin_denom,
                            strlen(coin_denom))) {
@@ -373,8 +374,8 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     memset(node_str, 0, sizeof(node_str));
   }
 
-  /* fee_amount is in base units; show it in whole coins, as the amount
-     screens do. The raw count overstated it 10^8-fold for RUNE. */
+  /* fee_amount is in base units; show it in whole CACAO (10 decimals), as
+     the amount screens do. */
   char fee_str[32];
   if (!mayachain_formatAmount(sign_tx->fee_amount, "cacao", fee_str,
                               sizeof(fee_str))) {

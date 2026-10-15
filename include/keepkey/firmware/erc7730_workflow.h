@@ -60,8 +60,12 @@ typedef struct {
   uint8_t argument_count;
   uint8_t next_argument;
   uint8_t pending_role;
-  uint8_t value[32];   /* the role-1 word, for every kind but raw/addressName */
-  uint8_t address[20]; /* tokenAmount token, nftName collection */
+  /* The role-1 word, for every kind but raw/addressName. For an embedded
+   * call (kind 13) the role-17 native value: its role-1 argument is the
+   * located inner calldata, kept in inner_*. */
+  uint8_t value[32];
+  /* tokenAmount token, nftName collection, embedded-call callee (role 15). */
+  uint8_t address[20];
   union {
     uint16_t aliases[ERC7730_CAP_ALIAS_SET_MAX];    /* tokenAmount */
     uint16_t enum_entries[ERC7730_CAP_ENUM_MAX][2]; /* enum: key, label */
@@ -203,10 +207,14 @@ bool erc7730_workflow_restore_and_start_length(Erc7730Workflow* workflow,
                                                const Erc7730Path* path);
 bool erc7730_workflow_start_eip712_capture(Erc7730Workflow* workflow,
                                            const Erc7730Path* path);
+/* One typed-data value ack. A value too long for one ack arrives in chunks
+ * under the same member path: whole_len is the whole value's length, and
+ * continuation marks every ack after the first. */
 bool erc7730_workflow_eip712_observe(Erc7730Workflow* workflow,
                                      const uint32_t* member_path,
                                      size_t member_path_count,
-                                     const uint8_t* value, size_t value_len);
+                                     const uint8_t* value, size_t value_len,
+                                     size_t whole_len, bool continuation);
 bool erc7730_workflow_eip712_finish(Erc7730Workflow* workflow);
 bool erc7730_workflow_eip712_commit(Erc7730Workflow* workflow,
                                     const uint8_t domain[32],

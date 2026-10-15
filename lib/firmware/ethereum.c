@@ -127,6 +127,31 @@ bool ethereum_isStandardERC20Transfer(const EthereumSignTx* msg) {
   return false;
 }
 
+/* The chain id is signed, and the amount screens cannot tell chains apart:
+ * Ethereum, Optimism, Base and Arbitrum all read "ETH", and every chain
+ * without an entry reads "Wei". So the last screen's title names the chain.
+ * Mainnet, and a legacy transaction with no chain id, keep "Transaction". */
+void ethereum_transactionTitle(const EthereumSignTx* msg, char* title,
+                               size_t title_len) {
+  static const struct {
+    uint32_t chain_id;
+    const char* name;
+  } chains[] = {{10, "Optimism"},    {56, "BNB Chain"}, {100, "Gnosis"},
+                {137, "Polygon"},    {8453, "Base"},    {42161, "Arbitrum"},
+                {43114, "Avalanche"}};
+  if (!msg->has_chain_id || msg->chain_id == 0 || msg->chain_id == 1) {
+    strlcpy(title, "Transaction", title_len);
+    return;
+  }
+  for (size_t i = 0; i < sizeof(chains) / sizeof(chains[0]); i++) {
+    if (chains[i].chain_id == msg->chain_id) {
+      snprintf(title, title_len, "Tx on %s", chains[i].name);
+      return;
+    }
+  }
+  snprintf(title, title_len, "Tx on chain %" PRIu32, msg->chain_id);
+}
+
 static bool ethereum_isERC20ApproveCall(const EthereumSignTx* msg) {
   if (msg->has_to && msg->to.size == 20 && msg->data_initial_chunk.size >= 68 &&
       memcmp(msg->data_initial_chunk.bytes,
@@ -137,11 +162,30 @@ static bool ethereum_isERC20ApproveCall(const EthereumSignTx* msg) {
   return false;
 }
 
-static bool ethereum_isUnlimitedApproval(const EthereumSignTx* msg) {
-  if (!ethereum_isERC20ApproveCall(msg)) return false;
+/* approve(spender, amount) and increaseAllowance(spender, amount) share a
+ * layout and either can grant everything, so the allowance policy covers
+ * both. len < 4 matches a selector prefix. */
+static bool ethereum_isAllowanceSelector(const uint8_t* data, size_t len) {
+  return memcmp(data, "\x09\x5e\xa7\xb3", len) == 0 ||
+         memcmp(data, "\x39\x50\x93\x51", len) == 0;
+}
+
+/* Both ABI words present, and nothing in the spender word's high bytes. */
+static bool ethereum_allowanceIsWellFormed(const EthereumSignTx* msg) {
+  if (msg->data_initial_chunk.size < 68) return false;
+  for (size_t i = 4; i < 16; ++i)
+    if (msg->data_initial_chunk.bytes[i] != 0) return false;
+  return true;
+}
+
+static bool ethereum_allowanceIsUnlimited(const EthereumSignTx* msg) {
   for (size_t i = 36; i < 68; ++i)
     if (msg->data_initial_chunk.bytes[i] != 0xff) return false;
   return true;
+}
+
+static bool ethereum_isUnlimitedApproval(const EthereumSignTx* msg) {
+  return ethereum_isERC20ApproveCall(msg) && ethereum_allowanceIsUnlimited(msg);
 }
 
 /* An unlimited approve signs only after this warning, with the full spender
@@ -776,8 +820,10 @@ static void formatEthereumFeeEIP1559(bignum256* fee,
 static bool layoutEthereumFee(const EthereumSignTx* msg, bool is_token,
                               char* out_str, size_t out_str_len) {
   bignum256 val, gas;
-  char gas_value[32];
-  char tx_value[32];
+  /* Sized like the Send screen's amount: a value that screen showed and the
+   * user approved must not be refused here for being long. */
+  char gas_value[96];
+  char tx_value[96];
   uint8_t pad_val[32];
 
   memzero(gas_value, sizeof(gas_value));
@@ -1025,8 +1071,8 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
       msg->data_initial_chunk.size < 4 ? msg->data_initial_chunk.size : 4;
   if (msg->has_to && msg->to.size == 20 && data_total >= 68 &&
       msg->data_initial_chunk.size < 68 &&
-      memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3",
-             selector_bytes) == 0) {
+      ethereum_isAllowanceSelector(msg->data_initial_chunk.bytes,
+                                   selector_bytes)) {
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("Approval requires at least 68 initial bytes"));
     ethereum_signing_abort();
@@ -1036,8 +1082,8 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
   // Match the selector alone. Pre-0.8 Solidity masks the spender word's high
   // bytes, so a dirty spender word still grants the allowance on chain.
   if (msg->has_to && msg->to.size == 20 && data_total >= 68 &&
-      memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4) == 0) {
-    if (!ethereum_isERC20ApproveCall(msg)) {
+      ethereum_isAllowanceSelector(msg->data_initial_chunk.bytes, 4)) {
+    if (!ethereum_allowanceIsWellFormed(msg)) {
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       _("Malformed ERC20 approval"));
       ethereum_signing_abort();
@@ -1045,7 +1091,7 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
     }
     // Native value cannot exempt a payable token from this warning. It comes
     // before any contract, metadata or generic screen, so none can mask it.
-    if (ethereum_isUnlimitedApproval(msg) &&
+    if (ethereum_allowanceIsUnlimited(msg) &&
         !ethereum_confirmUnlimitedApproval(
             msg->has_chain_id ? msg->chain_id : 0,
             msg->data_initial_chunk.bytes + 16, msg->to.bytes)) {
@@ -1212,7 +1258,9 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
     ethereum_signing_abort();
     return;
   }
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction", "%s",
+  char transaction_title[24];
+  ethereum_transactionTitle(msg, transaction_title, sizeof(transaction_title));
+  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, transaction_title, "%s",
                confirm_body_message)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Signing cancelled by user");

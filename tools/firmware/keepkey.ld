@@ -4,8 +4,10 @@
 
 MEMORY
 {
-    /* Firmware ROM */
-    rom (rx)   : ORIGIN = 0x08060000, LENGTH = 0x00100000 - 0x00060000
+    /* Firmware ROM. The bootloader refuses an upload frame of 0xA0000 bytes or
+       more, and the frame adds a 38-byte prefix, so the image must stay at or
+       below 655,321 bytes: an oversized image fails here, not on the device. */
+    rom (rx)   : ORIGIN = 0x08060000, LENGTH = 0x00100000 - 0x00060000 - 39
 
     /* ram shared by bootloader and firmware, contains psp */
     ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x1F800

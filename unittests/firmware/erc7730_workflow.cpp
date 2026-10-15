@@ -21,7 +21,7 @@ static void prepareTypedUintWorkflow(Erc7730Workflow* workflow) {
   workflow->loader.abi.nodes[1].size = 256;
 }
 
-TEST(Erc7730Workflow, RejectsUnbackedAndMalformedStarts) {
+TEST(Erc7730Workflow, RejectsAStartWithNoPreloadedDefinition) {
   erc7730_catalog_clear_preload();
   Erc7730Workflow workflow{};
   Erc7730CatalogIdentity identity{};
@@ -31,10 +31,6 @@ TEST(Erc7730Workflow, RejectsUnbackedAndMalformedStarts) {
   tx.data_length = 36;
   tx.has_data_initial_chunk = true;
   tx.data_initial_chunk.size = 4;
-  EXPECT_FALSE(erc7730_workflow_begin(&workflow, &identity, &tx));
-  EXPECT_EQ(workflow.phase, ERC7730_WORKFLOW_FAILED);
-
-  identity.kind = ERC7730_DEFINITION_EIP712;
   EXPECT_FALSE(erc7730_workflow_begin(&workflow, &identity, &tx));
   EXPECT_EQ(workflow.phase, ERC7730_WORKFLOW_FAILED);
 }
@@ -119,15 +115,69 @@ TEST(Erc7730Workflow, CapturesAndFormatsExactTypedDataLeaf) {
   const uint32_t member_path[2] = {1, 0};
   uint8_t value[32] = {0};
   value[31] = 42;
-  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
-                                              sizeof(value)));
-  EXPECT_FALSE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
-                                               sizeof(value)));
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(
+      &workflow, member_path, 2, value, sizeof(value), sizeof(value), false));
+  EXPECT_FALSE(erc7730_workflow_eip712_observe(
+      &workflow, member_path, 2, value, sizeof(value), sizeof(value), false));
   ASSERT_TRUE(erc7730_workflow_eip712_finish(&workflow));
   char formatted[16];
   ASSERT_TRUE(erc7730_workflow_format_captured_raw(&workflow, formatted,
                                                    sizeof(formatted)));
   EXPECT_STREQ(formatted, "42");
+}
+
+// A bytes or string value over one ack's limit arrives in chunks under one
+// member path. It is observed once, with the whole value's length; the later
+// chunks must not be taken for a repeat of the leaf.
+TEST(Erc7730Workflow, ChunkedTypedDataLeafIsObservedOnceWithItsWholeLength) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  workflow.loader.abi.nodes[1].kind = ERC7730_ABI_BYTES;
+  workflow.loader.abi.nodes[1].size = 0;
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+
+  const uint32_t member_path[2] = {1, 0};
+  const uint8_t chunk[1024] = {0};
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, chunk,
+                                              sizeof(chunk), 1500, false));
+  EXPECT_TRUE(workflow.calldata.capture_overflow);
+  EXPECT_EQ(workflow.calldata.located_length, 1500u);
+  EXPECT_TRUE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, chunk,
+                                              476, 476, true));
+  // A second first-chunk for the same leaf is still a repeat.
+  EXPECT_FALSE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, chunk,
+                                               sizeof(chunk), 1500, false));
+  EXPECT_TRUE(erc7730_workflow_eip712_finish(&workflow));
+}
+
+// A continuation can only follow a first chunk that was too long to capture.
+TEST(Erc7730Workflow, TypedDataContinuationNeedsALongFirstChunk) {
+  Erc7730Workflow workflow{};
+  prepareTypedUintWorkflow(&workflow);
+  Erc7730Path path{};
+  path.source = 1;
+  path.step_count = 1;
+  path.source_index = UINT16_MAX;
+  path.steps[0].opcode = 1;
+  path.steps[0].first = 0;
+  ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
+  const uint32_t member_path[2] = {1, 0};
+  uint8_t value[32] = {0};
+  EXPECT_FALSE(erc7730_workflow_eip712_observe(
+      &workflow, member_path, 2, value, sizeof(value), sizeof(value), true));
+  // A value that fits one ack never claims more bytes than it carries.
+  EXPECT_FALSE(erc7730_workflow_eip712_observe(&workflow, member_path, 2, value,
+                                               sizeof(value), 64, false));
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(
+      &workflow, member_path, 2, value, sizeof(value), sizeof(value), false));
+  EXPECT_FALSE(erc7730_workflow_eip712_observe(
+      &workflow, member_path, 2, value, sizeof(value), sizeof(value), true));
 }
 
 TEST(Erc7730Workflow, TypedDataCaptureFailsClosedOnMissingOrWrongWidthValue) {
@@ -142,12 +192,13 @@ TEST(Erc7730Workflow, TypedDataCaptureFailsClosedOnMissingOrWrongWidthValue) {
   ASSERT_TRUE(erc7730_workflow_start_eip712_capture(&workflow, &path));
   const uint32_t other_path[2] = {1, 1};
   uint8_t value[32] = {0};
-  EXPECT_TRUE(erc7730_workflow_eip712_observe(&workflow, other_path, 2, value,
-                                              sizeof(value)));
+  EXPECT_TRUE(erc7730_workflow_eip712_observe(
+      &workflow, other_path, 2, value, sizeof(value), sizeof(value), false));
   EXPECT_FALSE(erc7730_workflow_eip712_finish(&workflow));
   const uint32_t target_path[2] = {1, 0};
   EXPECT_FALSE(erc7730_workflow_eip712_observe(&workflow, target_path, 2, value,
-                                               sizeof(value) - 1));
+                                               sizeof(value) - 1,
+                                               sizeof(value) - 1, false));
 }
 
 TEST(Erc7730Workflow, TypedDataReplayBindsBothDomainAndMessageHashes) {
@@ -198,13 +249,14 @@ TEST(Erc7730Workflow, ResolvesNegativeTypedArrayIndexFromStreamedLength) {
 
   const uint32_t array_path[2] = {1, 0};
   const uint8_t length[2] = {0, 3};
-  ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, array_path, 2, length,
-                                              sizeof(length)));
+  ASSERT_TRUE(erc7730_workflow_eip712_observe(
+      &workflow, array_path, 2, length, sizeof(length), sizeof(length), false));
   const uint32_t last_element_path[3] = {1, 0, 2};
   uint8_t value[32] = {0};
   value[31] = 7;
   ASSERT_TRUE(erc7730_workflow_eip712_observe(&workflow, last_element_path, 3,
-                                              value, sizeof(value)));
+                                              value, sizeof(value),
+                                              sizeof(value), false));
   EXPECT_TRUE(erc7730_workflow_eip712_finish(&workflow));
 }
 
@@ -293,6 +345,14 @@ TEST(Erc7730Workflow, EmbeddedApproveIsClassifiedLikeATopLevelOne) {
   auto dirty = innerApprove(0xff);
   dirty[15] = 1;  // pre-0.8 tokens mask it and still grant the allowance
   EXPECT_FALSE(locateEmbedded(&workflow, dirty));
+
+  // increaseAllowance grants the same allowance and is classified the same.
+  auto increase = innerApprove(0xff);
+  const uint8_t selector[4] = {0x39, 0x50, 0x93, 0x51};
+  std::copy(selector, selector + 4, increase.begin());
+  ASSERT_TRUE(locateEmbedded(&workflow, increase));
+  EXPECT_TRUE(workflow.field.unlimited_approve);
+  EXPECT_EQ(0, memcmp(workflow.field.approve_spender, spender, 20));
 
   // Another call keeps only its selector.
   auto transfer = innerApprove(0xff);

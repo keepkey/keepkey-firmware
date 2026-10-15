@@ -582,6 +582,18 @@ TEST_F(SignedMetadataTest, ArgValueTooLong) {
   ExpectMalformed(sign_body(build_body(s)), TEST_KEY_ID);
 }
 
+/* An ADDRESS arg is drawn as a full 20-byte address, so any other length is
+ * refused at parse, not later in the middle of the review. */
+TEST_F(SignedMetadataTest, AddressArgMustBeTwentyBytes) {
+  const uint8_t word[32] = {0};
+  for (size_t len : {0u, 19u, 21u, 32u}) {
+    SCOPED_TRACE(len);
+    Spec s = base_spec();
+    s.args[0] = mk_arg("to", ARG_FORMAT_ADDRESS, word, len);
+    ExpectMalformed(sign_body(build_body(s)), TEST_KEY_ID);
+  }
+}
+
 TEST_F(SignedMetadataTest, ArgValueLengthOverrun) {
   /* value_len prefix claims 32 but only 4 value bytes follow; the read eats
    * into the fixed tail and parsing misaligns -> MALFORMED. As with the method
@@ -1504,6 +1516,34 @@ TEST_F(SignedMetadataTest, V2RejectsSelectorMismatch) {
   EXPECT_FALSE(signed_metadata_matches_tx(&msg));
 }
 
+/* Metadata describes an Ethereum call. A Wanchain transaction (tx_type) on
+ * the same chain id, contract and selector is not one, for either version. */
+TEST_F(SignedMetadataTest, MatchesTxRefusesWanchainTypedTx) {
+  for (uint32_t tx_type : {1u, 6u}) {
+    SCOPED_TRACE(tx_type);
+    std::vector<uint8_t> blob = base_blob();
+    ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+              METADATA_VERIFIED);
+    EthereumSignTx msg;
+    make_matching_msg(&msg);
+    ASSERT_TRUE(signed_metadata_matches_tx(&msg));
+    msg.has_tx_type = true;
+    msg.tx_type = tx_type;
+    EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+
+    blob = v2_base_blob();
+    ASSERT_EQ(signed_metadata_process(blob.data(), blob.size(), TEST_KEY_ID),
+              METADATA_VERIFIED);
+    std::vector<uint8_t> data = v2_transfer_calldata();
+    make_v2_msg(&msg, CONTRACT_A, data, /*has_len=*/true,
+                (uint32_t)data.size());
+    ASSERT_TRUE(signed_metadata_matches_tx(&msg));
+    msg.has_tx_type = true;
+    msg.tx_type = tx_type;
+    EXPECT_FALSE(signed_metadata_matches_tx(&msg));
+  }
+}
+
 /* An unsupported display format -> MALFORMED.
  *
  * v2 renders fixed single ABI words only: ADDRESS, AMOUNT, BYTES and
@@ -1579,6 +1619,10 @@ TEST_F(SignedMetadataTest, LongMethodNameNeverWrapsTheTitle) {
   EXPECT_EQ(0, kkconfirm_drain());
   const std::vector<std::string> titles = kkconfirm_captured_titles();
   ASSERT_EQ(8u, titles.size());
+  // The identity screen quotes the signer's own alias and disclaims it.
+  EXPECT_EQ('\'', bodies[0][0]) << bodies[0];
+  EXPECT_NE(std::string::npos, bodies[0].find("NOT verified by KeepKey"))
+      << bodies[0];
   // The Call screen still discloses the whole name.
   EXPECT_NE(std::string::npos, (bodies[1] + bodies[2]).find(s.method));
   for (std::string title : titles) {
@@ -1735,7 +1779,7 @@ TEST(SolanaTokenDef, TrustedOnlyWithValidAttestation) {
   ti.mint.size = 32;
   memset(ti.mint.bytes, 0xAB, 32);
   ti.has_symbol = true;
-  strcpy(ti.symbol, "USDC");
+  strcpy(ti.symbol, "BONK");
   ti.has_decimals = true;
   ti.decimals = 6;
   ti.has_signer_key_id = true;
@@ -1765,8 +1809,29 @@ TEST(SolanaTokenDef, TrustedOnlyWithValidAttestation) {
   EXPECT_TRUE(solana_token_info_trusted(&ti));
 
   // Display: attested symbol only when the signed decimals match.
-  EXPECT_STREQ(solana_displaySymbol(&ti, nullptr, 6), "USDC");
+  EXPECT_STREQ(solana_displaySymbol(&ti, nullptr, 6), "BONK");
   EXPECT_EQ(solana_displaySymbol(&ti, nullptr, 9), nullptr);
+
+  // A validly signed label is still not shown when it reuses a symbol the
+  // firmware owns for another mint, in any case, or holds a space: each
+  // would draw the amount screen the real token gets.
+  const size_t head = strlen(tag) + 32 + 4;
+  auto sign_symbol = [&](const char* symbol) {
+    strcpy(ti.symbol, symbol);
+    pre.resize(head);
+    pre.insert(pre.end(), symbol, symbol + strlen(symbol));
+    sha256_Raw(pre.data(), pre.size(), digest);
+    ASSERT_EQ(0, ecdsa_sign_digest(&secp256k1, TEST_PRIV, digest, sig, &pby,
+                                   nullptr));
+    memcpy(ti.signature.bytes, sig, 64);
+  };
+  for (const char* spoof : {"USDC", "usdc", "5 USDC", "USD C", "-USDC"}) {
+    sign_symbol(spoof);
+    ASSERT_TRUE(solana_token_info_trusted(&ti)) << spoof;
+    EXPECT_EQ(solana_displaySymbol(&ti, nullptr, 6), nullptr) << spoof;
+  }
+  sign_symbol("BONK");
+  ASSERT_STREQ(solana_displaySymbol(&ti, nullptr, 6), "BONK");
 
   // Attested-tuple disagreement: a different decimals no longer matches the
   // sig.

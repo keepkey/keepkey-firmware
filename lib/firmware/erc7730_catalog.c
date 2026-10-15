@@ -689,6 +689,9 @@ static bool validate_display_instruction(Erc7730CatalogVerifier* v) {
   if (opcode < 1 || opcode > 10 || flags != 0 ||
       !erc7730_cap_display(&executable, pc))
     return false;
+  /* The runtime leaves the review only at an end instruction, so the last
+   * instruction must be one. */
+  if (pc + 1u == v->entry_count && opcode != 10) return false;
   /* Iteration: one array at a time, calldata only, and every field inside
    * reads that array; an argument that iterates only inside it. */
   if (opcode == 7) {

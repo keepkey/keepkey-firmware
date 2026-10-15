@@ -8,9 +8,16 @@ extern "C" {
 #include "keepkey/firmware/ripple.h"
 #include "keepkey/firmware/tron.h"
 #include "keepkey/firmware/mayachain.h"
+#include "keepkey/firmware/tendermint.h"
 #include "keepkey/firmware/thorchain.h"
 #include "keepkey/firmware/bip85.h"
 #include "keepkey/firmware/signed_metadata.h"
+#include "keepkey/firmware/eip712_stream.h"
+#include "trezor/crypto/ecdsa.h"
+#include "trezor/crypto/secp256k1.h"
+#include "trezor/crypto/sha2.h"
+#include "trezor/crypto/sha3.h"
+#include "keepkey/board/canvas.h"
 #include "storage.h"
 }
 #include "gtest/gtest.h"
@@ -24,7 +31,10 @@ extern "C" {
 #include "keepkey/board/confirm_sm.h"
 }
 
+extern "C" bool keepkey_before_message_dispatch(MessageType msg_id);
 bool kkconfirm_preload(int, int);
+bool kkconfirm_readResponse(uint16_t expected, const pb_field_t* fields,
+                            void* result);
 void kkconfirm_capture_start(void);
 std::vector<std::string> kkconfirm_capture_finish(void);
 int kkconfirm_drain(void);
@@ -159,9 +169,153 @@ TEST_F(ReviewHandlers, RippleMemoReachesReviewBeforeSigning) {
   strcpy(msg.memo, "Memo review must be reached");
   ASSERT_TRUE(kkconfirm_preload(1, 1));
   fsm_test_clearLastFailure();
+  kkconfirm_capture_start();
   fsm_msgRippleSignTx(&msg);
+  const auto screens = kkconfirm_capture_finish();
   EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
   EXPECT_EQ(0, kkconfirm_drain());
+  // The declined screen is the memo's own, not the final "Transaction" one.
+  ASSERT_EQ(2u, screens.size());
+  // (The memo page shows each space as \x20.)
+  EXPECT_EQ("Memo\\x20review\\x20must\\x20be\\x20reached", screens[1]);
+}
+
+static const uint32_t ping_signing_path[] = {0x8000002c, 0x8000003c, 0x80000000,
+                                             0, 0};
+
+static void answer_eip712_ping_structs() {
+  for (int i = 0; i < 32 && eip712_stream_next()->kind == EIP712_REQ_STRUCT;
+       ++i) {
+    EthereumTypedDataStructAck definition = {};
+    if (strcmp(eip712_stream_next()->struct_name, "Note") == 0) {
+      definition.members_count = 2;
+      for (int member = 0; member < 2; ++member) {
+        strcpy(definition.members[member].name, member ? "second" : "first");
+        definition.members[member].type.data_type =
+            EthereumTypedDataStructAck_EthereumDataType_STRING;
+      }
+    } else {
+      ASSERT_STREQ("EIP712Domain", eip712_stream_next()->struct_name);
+    }
+    fsm_msgEthereumTypedDataStructAck(&definition);
+  }
+  ASSERT_EQ(EIP712_WANT_VALUE, eip712_stream_waiting());
+}
+
+static void start_eip712_ping_stream() {
+  EthereumSignTypedData start = {};
+  start.address_n_count = 5;
+  memcpy(start.address_n, ping_signing_path, sizeof(ping_signing_path));
+  strcpy(start.primary_type, "Note");
+  fsm_msgEthereumSignTypedData(&start);
+  answer_eip712_ping_structs();
+  ASSERT_FALSE(::testing::Test::HasFatalFailure());
+  EthereumTypedDataValueAck first = {};
+  first.value.size = 5;
+  memcpy(first.value.bytes, "first", 5);
+  fsm_msgEthereumTypedDataValueAck(&first);
+  answer_eip712_ping_structs();
+}
+
+TEST_F(ReviewHandlers,
+       Eip712UnprotectedPingPreservesReviewAndSignsExpectedDigest) {
+  // Two value screens, followed by the paged action/account confirmation.
+  ASSERT_TRUE(kkconfirm_preload(4, 0));
+  start_eip712_ping_stream();
+  ASSERT_EQ(0, fsm_test_lastFailureCode());
+  ASSERT_EQ(EIP712_WANT_VALUE, eip712_stream_waiting());
+  EXPECT_TRUE(fsm_workflowInProgress());
+  const Eip712Next waiting = *eip712_stream_next();
+  const Canvas* canvas = layout_get_canvas();
+  ASSERT_NE(nullptr, canvas);
+  const size_t bytes = canvas->width * canvas->height;
+  const std::vector<uint8_t> signing(canvas->buffer, canvas->buffer + bytes);
+
+  ASSERT_TRUE(keepkey_before_message_dispatch(MessageType_MessageType_Ping));
+  Ping ping = {};
+  ping.has_message = true;
+  strcpy(ping.message, "between values");
+  fsm_msgPing(&ping);
+  EXPECT_EQ(EIP712_WANT_VALUE, eip712_stream_waiting());
+  EXPECT_TRUE(fsm_workflowInProgress());
+  EXPECT_EQ(signing,
+            std::vector<uint8_t>(canvas->buffer, canvas->buffer + bytes));
+  EXPECT_EQ(waiting.kind, eip712_stream_next()->kind);
+  EXPECT_EQ(waiting.member_path_len, eip712_stream_next()->member_path_len);
+  EXPECT_EQ(0, memcmp(waiting.member_path, eip712_stream_next()->member_path,
+                      waiting.member_path_len * sizeof(uint32_t)));
+  Success pong = {};
+  ASSERT_TRUE(kkconfirm_readResponse(MessageType_MessageType_Success,
+                                     Success_fields, &pong));
+  EXPECT_STREQ("between values", pong.message);
+
+  EthereumTypedDataValueAck second = {};
+  second.value.size = 6;
+  memcpy(second.value.bytes, "second", 6);
+  fsm_msgEthereumTypedDataValueAck(&second);
+  ASSERT_EQ(0, fsm_test_lastFailureCode()) << fsm_test_lastFailureMessage();
+  EXPECT_EQ(EIP712_IDLE, eip712_stream_waiting());
+  EthereumTypedDataSignature response = {};
+  ASSERT_TRUE(
+      kkconfirm_readResponse(MessageType_MessageType_EthereumTypedDataSignature,
+                             EthereumTypedDataSignature_fields, &response));
+  ASSERT_EQ(65u, response.signature.size);
+
+  // Independent EIP-712 encoding for Note(string first,string second).
+  uint8_t type_hash[32], domain[32], message[32], encoded[96], preimage[66],
+      digest[32];
+  const char* domain_type = "EIP712Domain()";
+  keccak_256(reinterpret_cast<const uint8_t*>(domain_type), strlen(domain_type),
+             type_hash);
+  keccak_256(type_hash, sizeof(type_hash), domain);
+  const char* note_type = "Note(string first,string second)";
+  keccak_256(reinterpret_cast<const uint8_t*>(note_type), strlen(note_type),
+             encoded);
+  keccak_256(reinterpret_cast<const uint8_t*>("first"), 5, encoded + 32);
+  keccak_256(reinterpret_cast<const uint8_t*>("second"), 6, encoded + 64);
+  keccak_256(encoded, sizeof(encoded), message);
+  preimage[0] = 0x19;
+  preimage[1] = 0x01;
+  memcpy(preimage + 2, domain, 32);
+  memcpy(preimage + 34, message, 32);
+  keccak_256(preimage, sizeof(preimage), digest);
+  EXPECT_EQ(0, memcmp(domain, response.domain_separator_hash.bytes, 32));
+  EXPECT_EQ(0, memcmp(message, response.message_hash.bytes, 32));
+  HDNode expected = {};
+  ASSERT_TRUE(storage_getRootNode("secp256k1", true, &expected));
+  for (uint32_t index : ping_signing_path)
+    ASSERT_TRUE(hdnode_private_ckd(&expected, index));
+  hdnode_fill_public_key(&expected);
+  EXPECT_EQ(0, ecdsa_verify_digest(&secp256k1, expected.public_key,
+                                   response.signature.bytes, digest));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+TEST_F(ReviewHandlers, Eip712ProtectedPingAbortsTheOlderStream) {
+  for (int protection = 0; protection < 4; ++protection) {
+    // Button protection is exercised with both approval and cancellation.
+    ASSERT_TRUE(
+        kkconfirm_preload(protection == 0 ? 2 : 1, protection == 1 ? 1 : 0));
+    fsm_test_clearLastFailure();
+    start_eip712_ping_stream();
+    ASSERT_EQ(EIP712_WANT_VALUE, eip712_stream_waiting());
+    ASSERT_TRUE(keepkey_before_message_dispatch(MessageType_MessageType_Ping));
+    Ping ping = {};
+    ping.has_button_protection = protection < 2;
+    ping.button_protection = protection < 2;
+    ping.has_pin_protection = ping.pin_protection = protection == 2;
+    ping.has_passphrase_protection = ping.passphrase_protection =
+        protection == 3;
+    fsm_msgPing(&ping);
+    EXPECT_EQ(EIP712_IDLE, eip712_stream_waiting());
+    EXPECT_EQ(protection == 1 ? FailureType_Failure_ActionCancelled : 0,
+              fsm_test_lastFailureCode());
+    EthereumTypedDataSignature response = {};
+    EXPECT_FALSE(kkconfirm_readResponse(
+        MessageType_MessageType_EthereumTypedDataSignature,
+        EthereumTypedDataSignature_fields, &response));
+    EXPECT_EQ(0, kkconfirm_drain());
+  }
 }
 
 static const uint8_t review_pubkey[33] = {
@@ -458,6 +612,7 @@ TEST_F(ReviewHandlers, ThorchainSignScreenNamesTheSentDenom) {
 TEST_F(ReviewHandlers, MayaDepositGrammarRejectedBeforeConsent) {
   HDNode node = {};
   ASSERT_TRUE(storage_getRootNode("secp256k1", true, &node));
+  hdnode_fill_public_key(&node);
   MayachainSignTx tx = {};
   tx.has_chain_id = tx.has_msg_count = true;
   strcpy(tx.chain_id, "mayachain");
@@ -468,12 +623,129 @@ TEST_F(ReviewHandlers, MayaDepositGrammarRejectedBeforeConsent) {
   ack.deposit.has_asset = ack.deposit.has_amount = ack.deposit.has_memo =
       ack.deposit.has_signer = true;
   strcpy(ack.deposit.asset, "MAYA:CACAO");
-  strcpy(ack.deposit.signer, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
+  // The signer is the session's own account, so only the asset can refuse.
+  ASSERT_TRUE(tendermint_getAddress(&node, "maya", ack.deposit.signer));
+  ASSERT_TRUE(mayachain_addressIsSigner(ack.deposit.signer));
   ASSERT_TRUE(kkconfirm_preload(0, 1));
   fsm_test_clearLastFailure();
   fsm_msgMayachainMsgAck(&ack);
   EXPECT_EQ(FailureType_Failure_SyntaxError, fsm_test_lastFailureCode());
   EXPECT_FALSE(mayachain_signingIsInited());
   EXPECT_EQ(2, kkconfirm_drain());
+}
+
+// Construct the expected amino document independently of Maya's serializer.
+// A deposit memo and an outer MsgSend memo are separate signed paths.
+static bool maya_memo_session(bool deposit, const char* memo,
+                              MayachainMsgAck* ack, uint8_t digest[32]) {
+  HDNode node = {};
+  if (!storage_getRootNode("secp256k1", true, &node)) return false;
+  hdnode_fill_public_key(&node);
+  char signer[46];
+  if (!tendermint_getAddress(&node, "maya", signer)) return false;
+  MayachainSignTx tx = {};
+  tx.has_chain_id = tx.has_msg_count = true;
+  strcpy(tx.chain_id, "mayachain");
+  tx.msg_count = 1;
+  tx.fee_amount = 3000;
+  tx.gas = 200000;
+  tx.account_number = 92;
+  tx.sequence = 3;
+  tx.has_memo = !deposit;
+  if (!deposit) strcpy(tx.memo, memo);
+  *ack = {};
+  char message[768];
+  if (deposit) {
+    ack->has_deposit = true;
+    auto& d = ack->deposit;
+    d.has_asset = d.has_amount = d.has_memo = d.has_signer = true;
+    strcpy(d.asset, "MAYA.CACAO");
+    d.amount = 10000;
+    strcpy(d.memo, memo);
+    strcpy(d.signer, signer);
+    snprintf(message, sizeof(message),
+             "{\"type\":\"mayachain/MsgDeposit\",\"value\":{\"coins\":[{"
+             "\"amount\":\"10000\",\"asset\":\"MAYA.CACAO\"}],\"memo\":\"%s\","
+             "\"signer\":\"%s\"}}", memo, signer);
+  } else {
+    ack->has_send = true;
+    auto& s = ack->send;
+    s.has_to_address = s.has_amount = true;
+    s.amount = 10000;
+    strcpy(s.to_address, signer);
+    snprintf(message, sizeof(message),
+             "{\"type\":\"mayachain/MsgSend\",\"value\":{\"amount\":[{"
+             "\"amount\":\"10000\",\"denom\":\"cacao\"}],\"from_address\":\"%s\","
+             "\"to_address\":\"%s\"}}", signer, signer);
+  }
+  char doc[1280];
+  const int n = snprintf(doc, sizeof(doc),
+      "{\"account_number\":\"92\",\"chain_id\":\"mayachain\",\"fee\":{"
+      "\"amount\":[{\"amount\":\"3000\",\"denom\":\"cacao\"}],\"gas\":\"200000\"},"
+      "\"memo\":\"%s\",\"msgs\":[%s],\"sequence\":\"3\"}",
+      deposit ? "" : memo, message);
+  if (n <= 0 || static_cast<size_t>(n) >= sizeof(doc)) return false;
+  sha256_Raw(reinterpret_cast<const uint8_t*>(doc), n, digest);
+  return mayachain_signTxInit(&node, &tx);
+}
+
+TEST_F(ReviewHandlers, MayaSwapOmissionsAndLiteralsHaveDistinctSignedReviews) {
+  for (bool deposit : {false, true}) {
+    std::vector<std::vector<std::string>> reviews;
+    std::vector<std::vector<uint8_t>> digests;
+    // Literal "none" is rejected by the chain, but the firmware can sign it:
+    // it still must not impersonate an omitted field on the device.
+    for (const char* memo : {"=:ETH.ETH", "=:ETH.ETH:self",
+                             "=:ETH.ETH:self:none",
+                             "=:ETH.ETH:0xe6a30f4f3bad978910e2cbb4d97581f5b5a0ade0:10000000"}) {
+      MayachainMsgAck ack;
+      uint8_t digest[32];
+      ASSERT_TRUE(maya_memo_session(deposit, memo, &ack, digest));
+      ASSERT_TRUE(kkconfirm_preload(deposit ? 5 : 6, 0));
+      fsm_test_clearLastFailure();
+      kkconfirm_capture_start();
+      fsm_msgMayachainMsgAck(&ack);
+      reviews.push_back(kkconfirm_capture_finish());
+      EXPECT_EQ(0, fsm_test_lastFailureCode());
+      EXPECT_FALSE(mayachain_signingIsInited());
+      MayachainSignedTx response = {};
+      ASSERT_TRUE(kkconfirm_readResponse(MessageType_MessageType_MayachainSignedTx,
+                                        MayachainSignedTx_fields, &response));
+      ASSERT_TRUE(response.has_signature && response.has_public_key);
+      ASSERT_EQ(64u, response.signature.size);
+      EXPECT_EQ(0, ecdsa_verify_digest(&secp256k1, response.public_key.bytes,
+                                      response.signature.bytes, digest));
+      digests.emplace_back(digest, digest + sizeof(digest));
+      EXPECT_EQ(0, kkconfirm_drain());
+    }
+    EXPECT_NE(reviews[0], reviews[1]);
+    EXPECT_NE(reviews[1], reviews[2]);
+    EXPECT_NE(digests[0], digests[1]);
+    EXPECT_NE(digests[1], digests[2]);
+  }
+}
+
+TEST_F(ReviewHandlers, MayaSwapCancellationAtEveryMemoPageSignsNothing) {
+  for (bool deposit : {false, true}) {
+    for (const char* memo : {"=:ETH.ETH", "=:ETH.ETH:self:none"}) {
+      for (int page = 0; page < 3; ++page) {
+        MayachainMsgAck ack;
+        uint8_t digest[32];
+        ASSERT_TRUE(maya_memo_session(deposit, memo, &ack, digest));
+        ASSERT_TRUE(kkconfirm_preload((deposit ? 1 : 2) + page, 1));
+        fsm_test_clearLastFailure();
+        kkconfirm_capture_start();
+        fsm_msgMayachainMsgAck(&ack);
+        const auto screens = kkconfirm_capture_finish();
+        EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+        EXPECT_FALSE(mayachain_signingIsInited());
+        EXPECT_EQ(static_cast<size_t>((deposit ? 1 : 2) + page + 1), screens.size());
+        MayachainSignedTx response = {};
+        EXPECT_FALSE(kkconfirm_readResponse(MessageType_MessageType_MayachainSignedTx,
+                                           MayachainSignedTx_fields, &response));
+        EXPECT_EQ(0, kkconfirm_drain());
+      }
+    }
+  }
 }
 #endif

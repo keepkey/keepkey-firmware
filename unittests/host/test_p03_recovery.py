@@ -87,7 +87,7 @@ class TestP03Recovery(common.KeepKeyTest):
                     [], self.client.debug._call(
                         proto.DebugLinkGetState()).ListFields())
 
-        self.assertGreater(pages, 0)
+        self.assertGreater(pages, 1)
         self.assertIsInstance(response, proto.Success)
         state = self.client.debug._call(proto.DebugLinkGetState())
         self.assertTrue(state.HasField('layout'))
