@@ -59,7 +59,8 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
     }
   }
 
-  /* Debug state requests during confirmation reuse the response arena. */
+  /* Filled only after the confirm: a prompt that is refused writes its
+   * Failure into this same response arena. */
   strlcpy(resp->address, ripple_addr, sizeof(resp->address));
   resp->has_address = true;
   memzero(node, sizeof(*node));

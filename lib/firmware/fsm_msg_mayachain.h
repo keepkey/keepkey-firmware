@@ -345,8 +345,8 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
     memset(node_str, 0, sizeof(node_str));
   }
 
-  /* fee_amount is in base units; show it in whole coins, as the amount
-     screens do. The raw count overstated it 10^8-fold for RUNE. */
+  /* fee_amount is in base units; show it in whole CACAO (10 decimals), as
+     the amount screens do. */
   char fee_str[32];
   if (!mayachain_formatAmount(sign_tx->fee_amount, "cacao", fee_str,
                               sizeof(fee_str))) {

@@ -32,6 +32,7 @@
 #include "keepkey/board/usb.h"
 #include "keepkey/board/util.h"
 #include "keepkey/firmware/app_layout.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/reset.h"
@@ -153,6 +154,10 @@ typedef struct {
 U2F_ReadBuffer* reader;
 
 void u2fhid_read(char tiny, const U2FHID_FRAME* f) {
+  /* U2F bypasses the protobuf dispatch gate. A new top-level operation,
+   * including INIT, must end a previously approved RNG audit too. */
+  if (!tiny) fsm_revoke_entropy_audit();
+
   // Always handle init packets directly
   if (f->init.cmd == U2FHID_INIT) {
     u2fhid_init(f);
@@ -249,6 +254,38 @@ static void forgetPromptIfOverdrawn(void) {
   presence_step = 0;
 }
 
+/* Initialize and Cancel end a U2F session as they end any other prompt, and
+ * are then answered as at top level. A request still being received is
+ * dropped, so its sender is told. */
+static bool hostEndedSession(bool msg_tiny) {
+  const MessageType id = msg_take_tiny_id();
+#if DEBUG_LINK
+  /* Inspect the active prompt without dispatching a nested workflow. The
+   * request has no fields and msg_take_tiny_id() already cleared its buffer. */
+  if (id == MessageType_MessageType_DebugLinkGetState) {
+    DebugLinkGetState request = {0};
+    call_msg_debug_link_get_state_handler(&request);
+    return false;
+  }
+#endif
+  if (id != MessageType_MessageType_Initialize &&
+      id != MessageType_MessageType_Cancel) {
+    return false;
+  }
+  if ((reader->buf_ptr - reader->buf) < (signed)reader->len) {
+    send_u2fhid_error(cid, ERR_CHANNEL_BUSY);
+  }
+  u2fhid_session_end(msg_tiny);
+  if (keepkey_before_message_dispatch(id)) {
+    if (id == MessageType_MessageType_Initialize) {
+      fsm_msgInitialize(0);
+    } else {
+      fsm_msgCancel(0);
+    }
+  }
+  return true;
+}
+
 void u2fhid_read_start(const U2FHID_FRAME* f) {
   U2F_ReadBuffer readbuffer;
   memzero(&readbuffer, sizeof(readbuffer));
@@ -276,6 +313,8 @@ void u2fhid_read_start(const U2FHID_FRAME* f) {
    * nested confirm would replace it, and its held button would then count as
    * U2F presence. Trezor uses one tiny flag for every endpoint. */
   const bool msg_tiny = msg_set_tiny(true);
+  /* One left over from an earlier prompt was not sent to this session. */
+  msg_take_tiny_id();
   for (;;) {
     // Do we need to wait for more data
     while ((reader->buf_ptr - reader->buf) < (signed)reader->len) {
@@ -292,6 +331,7 @@ void u2fhid_read_start(const U2FHID_FRAME* f) {
         usbPoll();
         keepkey_idle_clock_sample();
         forgetPromptIfOverdrawn();
+        if (hostEndedSession(msg_tiny)) return;
       }
     }
 
@@ -322,6 +362,7 @@ void u2fhid_read_start(const U2FHID_FRAME* f) {
       usbPoll();  // may trigger new request
       keepkey_idle_clock_sample();
       forgetPromptIfOverdrawn();
+      if (hostEndedSession(msg_tiny)) return;
       if ((last_req_state == AUTH || last_req_state == REG) &&
           presenceReleased()) {
         last_req_state++;

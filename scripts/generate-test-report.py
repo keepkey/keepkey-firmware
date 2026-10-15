@@ -403,7 +403,7 @@ def firmware_version_tuple():
 # Every Features.Capability the firmware can report (device-protocol), as the
 # names capability-gated python-keepkey tests skip with.
 KNOWN_CAPABILITIES = frozenset((
-    "eip712-chunked-values", "entropy-audit-budget", "erc20-unlimited-approve-review",
+    "certified-contacts", "eip712-chunked-values", "entropy-audit-budget", "erc20-unlimited-approve-review",
     "erc20-unlimited-permit-review", "erc7730-runtime-review",
     "evm-certified-intent", "evm-max-amount-review", "evm-tx-metadata",
     "evm-unknown-token-review", "hive-release-review",
@@ -454,6 +454,7 @@ RELEASE_CAPABILITIES = {
             "session-trust-lifetime", "legacy-evm-router-signing",
             "thor-deposit-review", "evm-max-amount-review",
             "evm-unknown-token-review", "evm-tx-metadata",
+            "erc20-unlimited-approve-review", "erc20-unlimited-permit-review",
             "erc7730-runtime-review", "osmosis-wire-guards",
             "ripple-memo-policy", "hive-release-review",
             "solana-runtime-review", "maya-single-message",
@@ -891,8 +892,8 @@ def main():
             "merged_sha256": sha256_file(MERGED_JUNIT),
             "skips": [case for case in cases if case["status"] == "skip"],
         },
-        # A staged block may lack capabilities; a release may not.
-        # release.yml refuses evidence where this list is non-empty.
+        # Every capability whose controls skipped, required or not. Recorded
+        # only: release.yml reads release_capability_gaps below instead.
         "missing_capabilities": sorted(missing_capabilities),
         "missing_capabilities_bitcoin_only": sorted(btc_missing_capabilities),
         # Required capabilities skipped (by prefix or by a device flag) or

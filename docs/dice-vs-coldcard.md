@@ -1,7 +1,18 @@
-# KeepKey dice vs ColdCard: what each one lets a user prove
+# Historical 7.14.3 dice comparison and 7.15 design motivation
+
+> Historical design note: the comparison below describes the 7.14.3
+> derivation, not the current 7.15 implementation. In 7.15, dice-only and mixed
+> modes exclude host entropy, display the full secret digest, and support
+> independent recomputation from private inputs. Mixed mode displays the device
+> draw before the rolls. See [DiceEntropy.md](DiceEntropy.md) for exact formulas,
+> PIN order and secrecy requirements. The proposed dice-only derivation, full
+> digest and bias rejection below are implemented in 7.15; this repository does
+> not ship a standalone end-user verifier. The historical vendor comparison
+> below has not been refreshed as part of this firmware audit.
+
 
 Comparison as of 2026-09-09, against ColdCard Mk4/Mk5 5.6.2 and Q 1.5.2Q
-(status page verified 2026-09-04) and KeepKey 7.14.3 / 7.15.
+(status page verified 2026-09-04) and KeepKey 7.14.3.
 
 The question this answers is narrow and it is the only one that matters for an
 advanced user: **can you prove to yourself that the device used your dice?**
@@ -12,7 +23,7 @@ gap is not the dice-entry UI, which is comparable. It is the derivation.
 
 ## Side by side
 
-| | KeepKey 7.14.3 / 7.15 | ColdCard Mk4/Q |
+| | KeepKey 7.14.3 | ColdCard Mk4/Q |
 | --- | --- | --- |
 | Dice entered on-device | yes, single button, 7-cell 1-6+UNDO selector | yes, numeric keypad |
 | Rolls ever cross a wire | no | no |

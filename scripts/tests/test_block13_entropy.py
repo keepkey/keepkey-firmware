@@ -57,6 +57,15 @@ class TestBlock13Entropy(common.KeepKeyTest):
                 proto.Entropy(),
             ])
             self.assertEqual(len(self.client.get_entropy(1024)), 1024)
+        # One approval now grants bounded bulk sampling. Feature polling
+        # must not turn it back into a confirmation for every chunk.
+        for _ in range(64):
+            self.free_sample(1024)
+        self.assertIsInstance(self.client.call_raw(proto.GetFeatures()), proto.Features)
+        self.free_sample(1024)
+        # A new session revokes the approved grant, but must not replenish
+        # the already exhausted initial press-free allowance.
+        self.client.init_device()
         self.refused_sample()
         self.client.wipe_device()
         self.free_sample(1024)

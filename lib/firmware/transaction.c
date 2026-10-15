@@ -291,7 +291,7 @@ bool compute_address(const CoinType* coin, InputScriptType script_type,
       return 0;
     }
     uint8_t output_key[32];
-    // node->public_key is compressed; bytes 1..33 are the x-only internal key.
+    // node->public_key is compressed; bytes 1..32 are the x-only internal key.
     // BIP-341 defines the internal key as x-only, so the odd-y case resolves
     // to its even-y counterpart here and in the signer alike.
     if (bip340_tweak_pubkey(curve->params, node->public_key + 1,

@@ -41,6 +41,8 @@ void keepkey_button_set_on_press_handler(Handler handler, void* context);
 void keepkey_button_set_on_release_handler(Handler handler, void* context);
 bool keepkey_button_down(void);
 bool keepkey_button_up(void);
+/* The user acted on the device: renews the auto-lock deadline. */
+void keepkey_user_activity(void);
 
 /**
  * buttonisr_usr() - user interrupt service routine for push button external
