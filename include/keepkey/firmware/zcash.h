@@ -165,7 +165,7 @@ bool zcash_compute_transparent_digest(
     uint8_t digest_out[32]);
 
 /* ZIP-244 §4.9 transparent_sig_digest as consensus verifies Orchard sigs:
- * S.2 with EMPTY txin_sig_digest if n_inputs > 0, else T.1. */
+ * S.2 with EMPTY txin_sig_digest if n_inputs > 0, else T.2. */
 bool zcash_compute_orchard_transparent_sig_digest(
     const ZcashTransparentInputDigestInfo* inputs, size_t n_inputs,
     const ZcashTransparentOutputDigestInfo* outputs, size_t n_outputs,
@@ -216,15 +216,26 @@ bool zcash_orchard_compute_cmx_with_progress(
     const uint8_t rho[32], const uint8_t rseed[32], uint8_t cmx_out[32],
     ZcashOrchardProgressCallback progress, void* progress_context);
 
+#define ZCASH_MEMO_SIZE 512
+
 /* True only if epk = [esk] g_d and enc_ciphertext (compact || memo || tag)
  * authenticates under the recipient's KDF key and decrypts to exactly this
  * note (lead byte 0x02, or 0x03 for Ironwood). esk derives from rseed and rho,
- * so a host cannot pair a valid cmx with a note the recipient cannot read. */
+ * so a host cannot pair a valid cmx with a note the recipient cannot read.
+ * The host knows that key too, so authenticating the memo says nothing about
+ * its content: memo_out (may be NULL) receives the plaintext to show. It is
+ * zeroed on failure. */
 bool zcash_orchard_note_ciphertext_valid(
     const uint8_t receiver[ZCASH_ORCHARD_RAW_RECEIVER_SIZE], uint64_t value,
     const uint8_t rho[32], const uint8_t rseed[32], bool ironwood,
     const uint8_t epk[32], const uint8_t enc_compact[52],
-    const uint8_t enc_memo[512], const uint8_t enc_tag[16]);
+    const uint8_t enc_memo[ZCASH_MEMO_SIZE], const uint8_t enc_tag[16],
+    uint8_t memo_out[ZCASH_MEMO_SIZE]);
+
+/* How many leading bytes of a decrypted memo carry content (ZIP 302): 0 for
+ * "no memo" (0xF6 then zeros) and for an all-zero memo, otherwise everything
+ * up to the last non-zero byte. */
+size_t zcash_memo_shown_length(const uint8_t memo[ZCASH_MEMO_SIZE]);
 
 /* d_j = FF1-AES256.Encrypt(dk, "", I2LEBSP_88(j)); index and output are
  * 11-byte LEBS2OSP encodings. */
@@ -302,6 +313,9 @@ bool zcash_signing_is_active(void);
  * so a test can show that nothing is signed before the final gate. */
 uint32_t zcash_test_signOperations(void);
 void zcash_test_clearSignOperations(void);
+/* The empty-bundle digest the handlers use for a component: 0 transparent,
+ * 1 Sapling, 2 Orchard in v5, 3 Orchard in v6, 4 Ironwood. */
+void zcash_test_emptyDigest(int component, uint8_t out[32]);
 #endif
 
 #endif

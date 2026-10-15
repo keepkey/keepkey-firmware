@@ -13,11 +13,13 @@ extern "C" {
 #include "gtest/gtest.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
+#include <tuple>
 #include "kkconfirm_driver.h"
 
 extern "C" {
@@ -922,19 +924,25 @@ int walk(const char* primary, const std::map<std::string, Struct>& types,
     return screens - kkconfirm_drain() / 2;
   for (;;) {
     const Eip712Next* next = eip712_stream_next();
+    bool alive = false;
     if (next->kind == EIP712_REQ_STRUCT) {
       auto it = types.find(next->struct_name);
       Struct empty{};
-      eip712_stream_on_struct(it == types.end() ? &empty : &it->second);
+      alive = eip712_stream_on_struct(it == types.end() ? &empty : &it->second);
     } else if (next->kind == EIP712_REQ_VALUE) {
       std::vector<uint32_t> path(next->member_path,
                                  next->member_path + next->member_path_len);
       EthereumTypedDataValueAck ack = valueAck(value(path), next);
       if (topup && !kkconfirm_preload_no_sentinel(topup, 0)) return -2;
-      eip712_stream_on_value(&ack);
+      alive = eip712_stream_on_value(&ack);
     } else {
       break;
     }
+    // A handler returns false exactly when it ended the walk without a
+    // result.
+    const Eip712ReqKind kind = eip712_stream_next()->kind;
+    EXPECT_EQ(alive, kind != EIP712_REQ_FAIL && kind != EIP712_REQ_CANCELLED)
+        << "after " << kind;
   }
   // Two messages per screen; negative means the rejection sentinel was used.
   const int unused = kkconfirm_drain();
@@ -1063,13 +1071,15 @@ TEST(Eip712Stream, UnlimitedPermitsSignWithAWarningOnTheirValue) {
           5);
       const std::vector<std::string> bodies = kkconfirm_capture_finish();
       const std::vector<std::string> titles = kkconfirm_captured_titles();
-      EXPECT_EQ(used, 2);  // the token screen, then the value screen
+      const size_t containers = strcmp(c.primary, c.container) != 0 ? 1 : 0;
+      EXPECT_EQ(used, 2 + containers);  // optional type, token, then value
       EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
-      ASSERT_EQ(bodies.size(), 2u);
-      EXPECT_EQ(titles[0], "EIP-712 Message");
-      EXPECT_EQ(titles[1], u ? "UNLIMITED approval" : "EIP-712 Message");
-      EXPECT_EQ(bodies[1], u ? c.unlimited_body : c.finite_body);
-      std::string title = titles[1];
+      ASSERT_EQ(bodies.size(), 2u + containers);
+      if (containers) EXPECT_EQ(bodies[0], std::string("details\n") + c.container + ": struct");
+      EXPECT_EQ(titles[containers], "EIP-712 Message");
+      EXPECT_EQ(titles[containers + 1], u ? "UNLIMITED approval" : "EIP-712 Message");
+      EXPECT_EQ(bodies[containers + 1], u ? c.unlimited_body : c.finite_body);
+      std::string title = titles[containers + 1];
       for (char& ch : title) ch = (char)toupper((unsigned char)ch);
       EXPECT_EQ(1u,
                 calc_str_line(get_title_font(), title.c_str(), TITLE_WIDTH));
@@ -1146,6 +1156,75 @@ TEST(Eip712Stream, EmptyMessageIsFlaggedForTheFinalScreen) {
   eip712_stream_abort();
 }
 
+// A member-less domain shows no screen either: flagged the same way.
+TEST(Eip712Stream, EmptyDomainIsFlaggedForTheFinalScreen) {
+  for (bool with_member : {false, true}) {
+    SCOPED_TRACE(with_member);
+    std::map<std::string, Struct> types;
+    addMember(types["Mail"], "v",
+              mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
+    if (with_member)
+      addMember(types["EIP712Domain"], "name",
+                mk(EthereumTypedDataStructAck_EthereumDataType_STRING));
+    const int used = walk(
+        "Mail", types,
+        [](const std::vector<uint32_t>& path) -> Bytes {
+          return path[0] == 0 ? Bytes{'A', 'p', 'p'} : word(1);
+        },
+        3);
+    EXPECT_EQ(used, with_member ? 2 : 1);
+    ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
+    EXPECT_EQ(eip712_stream_next()->domain_empty, !with_member);
+    EXPECT_FALSE(eip712_stream_next()->message_empty);
+    eip712_stream_abort();
+  }
+  std::map<std::string, Struct> types;
+  const int used = walk(
+      "EIP712Domain", types,
+      [](const std::vector<uint32_t>&) -> Bytes { return {}; }, 1);
+  EXPECT_EQ(used, 0);
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
+  EXPECT_TRUE(eip712_stream_next()->domain_only);
+  EXPECT_TRUE(eip712_stream_next()->domain_empty);
+  eip712_stream_abort();
+}
+
+// A reserved domain member declared as an array or a struct is walked like
+// any other, but the facts hold one leaf per member: the domain binds
+// nothing, and the member is never reported absent.
+TEST(Eip712Stream, ArrayAndStructDomainMembersMakeTheDomainUnbindable) {
+  Field u256 = mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32);
+  Field u256_array = u256;
+  u256_array.array_levels_count = 1;
+  static bool array;
+  for (bool as_array : {true, false}) {
+    SCOPED_TRACE(as_array);
+    array = as_array;
+    std::map<std::string, Struct> types;
+    if (as_array) {
+      addMember(types["EIP712Domain"], "chainId", u256_array);
+    } else {
+      addMember(types["EIP712Domain"], "chainId", structField("Chain"));
+      addMember(types["Chain"], "id", u256);
+    }
+    const int used = walk(
+        "Mail", types,
+        [](const std::vector<uint32_t>& path) -> Bytes {
+          // The array's length, then the one value either shape holds.
+          if (array && path.size() == 2) return Bytes{0, 1};
+          return word(1);
+        },
+        2, true);
+    EXPECT_EQ(used, 2);  // declared container type and its leaf
+    ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DEFINITION);
+    Eip712DomainFacts facts;
+    EXPECT_FALSE(eip712_stream_domain_facts(&facts));
+    EXPECT_FALSE(eip712_stream_domain_matches(3, 0, nullptr, 0, true));
+    EXPECT_FALSE(eip712_stream_definition_accepted());
+    eip712_stream_abort();
+  }
+}
+
 // Seaport's OrderComponents has 11 members and holds arrays of 5- and
 // 6-member structs, which the former 12-slot pool could never fit.
 // The outermost array hashes its elements as they arrive, so an order's item
@@ -1180,7 +1259,7 @@ TEST(Eip712Stream, SeaportShapedDocumentFitsThePool) {
         },
         10 + items * 6 + 2);
     EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
-    EXPECT_EQ(used, 10 + items * 6);
+    EXPECT_EQ(used, 11 + items * 6);  // includes the array type
     eip712_stream_abort();
   }
 }
@@ -1199,18 +1278,41 @@ TEST(Eip712Stream, NestsSixFramesDeepButNotSeven) {
               mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
     const int used = walk(
         "L1", types,
-        [](const std::vector<uint32_t>&) -> Bytes { return word(9); }, 2);
+        [](const std::vector<uint32_t>&) -> Bytes { return word(9); }, 8);
     if (frames == 6) {
-      EXPECT_EQ(used, 1);
+      EXPECT_EQ(used, 6);  // five container types, then the leaf
       EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
     } else {
-      EXPECT_EQ(used, 0);
+      EXPECT_EQ(used, 5);  // sixth child is refused before its screen
       ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_FAIL);
       EXPECT_STREQ(eip712_stream_next()->error,
                    "EIP-712 document nests too deeply for this device");
     }
     eip712_stream_abort();
   }
+}
+
+// An array's elements are frames too. Five structs deep, an array of structs
+// has no frame left for an element: its length answer ends the walk, and the
+// handler says so.
+TEST(Eip712Stream, ArrayOfStructsPastTheDepthLimitEndsTheWalk) {
+  const char* chain[] = {"L1", "L2", "L3", "L4", "L5"};
+  std::map<std::string, Struct> types;
+  for (size_t i = 0; i + 1 < 5; i++)
+    addMember(types[chain[i]], "next", structField(chain[i + 1]));
+  Field items = structField("Item");
+  items.array_levels_count = 1;
+  addMember(types["L5"], "items", items);
+  addMember(types["Item"], "v",
+            mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
+  const int used = walk(
+      "L1", types,
+      [](const std::vector<uint32_t>&) -> Bytes { return Bytes{0, 1}; }, 8);
+  EXPECT_EQ(used, 5);  // four enclosing structs and the array type
+  ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_FAIL);
+  EXPECT_STREQ(eip712_stream_next()->error,
+               "EIP-712 document nests too deeply for this device");
+  EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
 }
 
 // The open frames' member names share one EIP712_MAX_PATH buffer. Whatever
@@ -1240,10 +1342,13 @@ TEST(Eip712Stream, MemberNamesFitEveryPathTheReviewCanShow) {
     ASSERT_EQ(path.size(), (size_t)EIP712_MAX_PATH - 1);
     kkconfirm_capture_start();
     walk("P0", types,
-         [](const std::vector<uint32_t>&) -> Bytes { return Bytes{0, 0}; }, 4);
-    // One screen, which the pager may show as several pages.
+         [](const std::vector<uint32_t>&) -> Bytes { return Bytes{0, 0}; }, 20);
+    // Container types have their own title; collect every leaf page.
     std::string shown;
-    for (const std::string& page : kkconfirm_capture_finish()) shown += page;
+    const auto bodies = kkconfirm_capture_finish();
+    const auto titles = kkconfirm_captured_titles();
+    for (size_t i = 0; i < bodies.size(); ++i)
+      if (titles[i].find("EIP-712 type") != 0) shown += bodies[i];
     EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
     EXPECT_EQ(shown, path + "\nuint256[]: 0 items");
     eip712_stream_abort();
@@ -1268,14 +1373,18 @@ TEST(Eip712Stream, MemberNamesFitEveryPathTheReviewCanShow) {
     kkconfirm_capture_start();
     const int used = walk(
         "L1", types,
-        [](const std::vector<uint32_t>&) -> Bytes { return word(9); }, 4);
+        [](const std::vector<uint32_t>&) -> Bytes { return word(9); }, 20);
     std::string shown;
-    for (const std::string& page : kkconfirm_capture_finish()) shown += page;
+    const auto bodies = kkconfirm_capture_finish();
+    const auto titles = kkconfirm_captured_titles();
+    for (size_t i = 0; i < bodies.size(); ++i)
+      if (titles[i].find("EIP-712 type") != 0) shown += bodies[i];
     if (path.size() < EIP712_MAX_PATH) {
       EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
       EXPECT_EQ(shown, path + "\nuint256: 9");
     } else {
-      EXPECT_EQ(used, 0);
+      EXPECT_GT(used, 0);  // enclosing types were reviewed
+      EXPECT_TRUE(shown.empty());
       ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_FAIL);
       EXPECT_STREQ(eip712_stream_next()->error,
                    "EIP-712 value cannot be displayed");
@@ -1415,7 +1524,8 @@ TEST(Eip712Stream, EmptyArraysAreReviewedWithPathAndType) {
       {"inner",
        grid,
        {2, 0, 0},
-       {"recipients[0]\nuint256[]: 0 items",
+       {"recipients\nuint256[][]: 2 items",
+        "recipients[0]\nuint256[]: 0 items",
         "recipients[1]\nuint256[]: 0 items"}},
       {"structs", items, {0}, {"recipients\nItem[]: 0 items"}},
   };
@@ -1556,7 +1666,7 @@ TEST(Eip712Stream, BulkOrderTreesAreRefusedByShape) {
       EXPECT_STREQ(eip712_stream_next()->error,
                    "Bulk order: sign listings individually");
     } else {
-      EXPECT_EQ(used, 2);
+      EXPECT_EQ(used, 3);  // array type plus the two leaf values
       EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
     }
     eip712_stream_abort();
@@ -1901,14 +2011,18 @@ enum ToPlace { TO_FIRST, TO_LAST, TO_ABSENT };
 // The domain's chainId, then SafeTx {to, value, data} (or data first), and
 // `operation` last (or first) when it is not negative. `to` (USDC unless
 // given) moves to the end, or is left out, by `to_place`.
+Bytes g_safe_chain_id;
+
 Eip712ReqKind walkSafeTx(const Bytes& data, bool data_first, int screens,
                          std::vector<std::string>* titles,
                          std::vector<std::string>* bodies, int operation = -1,
                          bool operation_first = false, const char* to = nullptr,
-                         ToPlace to_place = TO_FIRST) {
+                         ToPlace to_place = TO_FIRST, uint32_t chain_id = 1,
+                         bool has_chain = true) {
   std::map<std::string, Struct> types;
-  addMember(types["EIP712Domain"], "chainId",
-            mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
+  if (has_chain)
+    addMember(types["EIP712Domain"], "chainId",
+              mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
   g_safe_members = {"to", "value"};
   g_safe_members.insert(
       data_first ? g_safe_members.begin() : g_safe_members.end(), "data");
@@ -1937,11 +2051,14 @@ Eip712ReqKind walkSafeTx(const Bytes& data, bool data_first, int screens,
   g_approve = data;
   g_data_first = data_first;
   g_operation = operation;
+  g_safe_chain_id.assign(32, 0);
+  for (unsigned i = 0; i < 4; i++)
+    g_safe_chain_id[31 - i] = static_cast<uint8_t>(chain_id >> (8 * i));
   kkconfirm_capture_start();
   walk(
       "SafeTx", types,
       [](const std::vector<uint32_t>& path) -> Bytes {
-        if (path[0] == 0) return word(1);
+        if (path[0] == 0) return g_safe_chain_id;
         const std::string& name = g_safe_members[path[1]];
         if (name == "data") return g_approve;
         if (name == "to") return fromHex(g_to);
@@ -1990,10 +2107,19 @@ TEST(Eip712Stream, EmbeddedUnlimitedApproveSignsAfterTheWarning) {
             EIP712_REQ_DONE);
   EXPECT_EQ(std::count(titles.begin(), titles.end(), "UNLIMITED approval"), 0);
 
-  // Declining the warning signs nothing: only the domain and `to`, `value`
-  // screens are accepted.
-  EXPECT_EQ(walkSafeTx(approveCall(0, 0xff), false, 3, &titles, &bodies),
+  // Declining the warning signs nothing. Four screens are accepted (the
+  // domain, `to` in two pages, `value`); the warning is the one declined.
+  EXPECT_EQ(walkSafeTx(approveCall(0, 0xff), false, 4, &titles, &bodies),
             EIP712_REQ_CANCELLED);
+  ASSERT_FALSE(titles.empty());
+  EXPECT_EQ(titles.back(), "UNLIMITED approval");
+
+  // increaseAllowance grants the same allowance and gets the same warning.
+  Bytes increase = approveCall(0, 0xff);
+  const uint8_t selector[4] = {0x39, 0x50, 0x93, 0x51};
+  std::copy(selector, selector + 4, increase.begin());
+  EXPECT_EQ(walkSafeTx(increase, false, 20, &titles, &bodies), EIP712_REQ_DONE);
+  EXPECT_EQ(std::count(titles.begin(), titles.end(), "UNLIMITED approval"), 1);
 
   // A dirty spender word is refused before any screen of it.
   EXPECT_EQ(walkSafeTx(approveCall(0x01, 0xff), false, 20, &titles, &bodies),
@@ -2106,16 +2232,17 @@ TEST(Eip712Stream, StreamedArraysPastTwoHundredFiftyFiveElementsComplete) {
       302);
   const std::vector<std::string> bodies = kkconfirm_capture_finish();
   ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
-  EXPECT_EQ(used, 301);
+  EXPECT_EQ(used, 302);
   EXPECT_EQ(hexOf(eip712_stream_next()->domain_separator, 32),
             "2d9145f2f941cb14d4c738374c6ebde69c75a737e93da5905ee040bab57e46a8");
   EXPECT_EQ(hexOf(eip712_stream_next()->message_hash, 32),
             "89f049ac78541e85b598bdf522d566bcf14f5d3441fb671742f5403aae9b5609");
   eip712_stream_abort();
-  ASSERT_EQ(bodies.size(), 301u);
-  EXPECT_EQ(bodies[1 + 255], "v[255]\nuint256: 255");
-  EXPECT_EQ(bodies[1 + 256], "v[256]\nuint256: 256");
-  EXPECT_EQ(bodies[1 + 299], "v[299]\nuint256: 299");
+  ASSERT_EQ(bodies.size(), 302u);
+  EXPECT_EQ(bodies[1], "v\nuint256[]: 300 items");
+  EXPECT_EQ(bodies[2 + 255], "v[255]\nuint256: 255");
+  EXPECT_EQ(bodies[2 + 256], "v[256]\nuint256: 256");
+  EXPECT_EQ(bodies[2 + 299], "v[299]\nuint256: 299");
 }
 
 // ── Values longer than one ValueAck ─────────────────────────────────
@@ -2620,17 +2747,21 @@ struct MsRun {
 
 MsRun signMultiSend(const Bytes& data, int screens = 400, int operation = -1,
                     bool operation_first = false, const char* to = nullptr,
-                    ToPlace to_place = TO_FIRST) {
+                    ToPlace to_place = TO_FIRST, uint32_t chain_id = 1,
+                    bool has_chain = true) {
   MsRun r;
   r.kind = walkSafeTx(data, false, screens, &r.titles, &r.bodies, operation,
-                      operation_first, to, to_place);
+                      operation_first, to, to_place, chain_id, has_chain);
   // The abort that ends walkSafeTx() leaves the last request in place.
   if (r.kind == EIP712_REQ_FAIL && eip712_stream_next()->error)
     r.error = eip712_stream_next()->error;
   for (size_t i = 0; i < r.titles.size(); i++) {
     if (r.titles[i] == "UNLIMITED approval") r.warned.push_back(i);
     if (r.titles[i] == "Delegatecall in batch") r.delegated.push_back(i);
-    if (r.titles[i] == "Delegatecall") r.safe_delegated.push_back(i);
+    if (r.titles[i] == "Delegatecall" ||
+        r.titles[i].compare(0, strlen("Delegatecall 1/"), "Delegatecall 1/") ==
+            0)
+      r.safe_delegated.push_back(i);
     if (r.titles[i] == "Batch not checked") r.unchecked.push_back(i);
     if (r.bodies[i].compare(0, 5, "data\n") == 0 ||
         r.bodies[i].compare(0, 6, "data (") == 0) {
@@ -2984,6 +3115,9 @@ const char* const kSafeMultiSends[] = {
     "A83c336B20401Af773B6219BA5027174338D1836",  // 1.5.0 CallOnly
 };
 
+const uint32_t kSafeMultiSendChains[] = {1, 1,   1, 324, 1, 1, 324,
+                                         1, 324, 1, 324, 1, 1};
+
 const char* const kAttacker = "1111111111111111111111111111111111111111";
 
 TEST(Eip712Stream, SafeTxDelegatecallWarnsUnlessACleanBatch) {
@@ -3032,18 +3166,69 @@ TEST(Eip712Stream, SafeTxDelegatecallWarnsUnlessACleanBatch) {
 
   // The same clean batch to a Safe MultiSend keeps its screens, in any
   // member order.
-  for (const char* multisend : kSafeMultiSends) {
+  for (size_t i = 0; i < sizeof(kSafeMultiSends) / sizeof(kSafeMultiSends[0]);
+       i++) {
+    const char* multisend = kSafeMultiSends[i];
     for (bool operation_first : {false, true}) {
       for (ToPlace place : {TO_FIRST, TO_LAST}) {
         SCOPED_TRACE(multisend);
         SCOPED_TRACE(operation_first);
         SCOPED_TRACE(place);
-        const MsRun r = signMultiSend(multiSendCall(clean), 400, 1,
-                                      operation_first, multisend, place);
+        const MsRun r =
+            signMultiSend(multiSendCall(clean), 400, 1, operation_first,
+                          multisend, place, kSafeMultiSendChains[i]);
         ASSERT_EQ(r.kind, EIP712_REQ_DONE);
         EXPECT_TRUE(r.unchecked.empty());
         EXPECT_TRUE(r.delegated.empty());
         EXPECT_TRUE(r.safe_delegated.empty());
+      }
+    }
+  }
+}
+
+TEST(Eip712Stream, SafeTxMultiSendExemptionRequiresTheDeploymentChain) {
+  const Bytes clean = multiSendCall(Bytes{});
+  const char* canonical = kSafeMultiSends[1];
+  const char* zksync = kSafeMultiSends[3];
+  for (const auto& c : std::vector<std::tuple<const char*, uint32_t, bool>>{
+           {canonical, 31337, true},
+           {canonical, 0, true},
+           {canonical, 1, false},
+           {zksync, 1, true}}) {
+    for (bool operation_first : {false, true}) {
+      for (ToPlace place : {TO_FIRST, TO_LAST}) {
+        SCOPED_TRACE(std::get<0>(c));
+        SCOPED_TRACE(std::get<1>(c));
+        SCOPED_TRACE(std::get<2>(c));
+        SCOPED_TRACE(operation_first);
+        SCOPED_TRACE(place);
+        const MsRun r =
+            signMultiSend(clean, 400, 1, operation_first, std::get<0>(c), place,
+                          std::get<1>(c), std::get<2>(c));
+        ASSERT_EQ(r.kind, EIP712_REQ_DONE);
+        ASSERT_EQ(r.safe_delegated.size(), 1u);
+        std::string shown;
+        for (size_t i = 0; i < r.titles.size(); i++) {
+          const std::string& title = r.titles[i];
+          if (title == "Delegatecall" ||
+              (title.compare(0, 13, "Delegatecall ") == 0 &&
+               title.size() > 13 &&
+               std::isdigit(static_cast<unsigned char>(title[13]))))
+            shown += r.bodies[i];
+        }
+        std::string expected = delegateText("SafeTx", std::get<0>(c));
+        auto whitespace = [](unsigned char ch) { return std::isspace(ch); };
+        shown.erase(std::remove_if(shown.begin(), shown.end(), whitespace),
+                    shown.end());
+        expected.erase(
+            std::remove_if(expected.begin(), expected.end(), whitespace),
+            expected.end());
+        EXPECT_EQ(shown, expected);
+        const MsRun refused = signMultiSend(
+            clean, static_cast<int>(r.safe_delegated[0]), 1, operation_first,
+            std::get<0>(c), place, std::get<1>(c), std::get<2>(c));
+        EXPECT_EQ(refused.kind, EIP712_REQ_CANCELLED);
+        EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
       }
     }
   }
@@ -3117,5 +3302,74 @@ TEST(Eip712Stream, DecliningADelegatecallWarningSignsNothing) {
     EXPECT_EQ(r.titles.size(), (size_t)before + 1);
     EXPECT_EQ(r.titles.back(), title);
     EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
+  }
+}
+
+// Identical leaf values do not imply identical EIP-712 schemas. Review must
+// distinguish array dimensions and nested struct names that affect typeHash.
+TEST(Eip712Stream, ContainerSchemaSubstitutionsChangeVisibleReview) {
+  for (int shape : {0, 1, 2}) {
+    SCOPED_TRACE(shape);
+    std::vector<std::vector<std::string>> shown;
+    std::vector<std::string> hashes;
+    for (int variant : {0, 1}) {
+      std::map<std::string, Struct> types;
+      Field field = shape == 0
+          ? mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32)
+          : structField(variant ? "Recipient" : "Sender");
+      if (shape != 1) {
+        field.array_levels_count = 1;
+        field.array_levels[0] = shape == 0 && variant == 0 ? 1 : 0;
+      }
+      addMember(types["Message"], "entry", field);
+      if (shape != 0)
+        addMember(types[variant ? "Recipient" : "Sender"], "amount",
+                  mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
+      static int current_shape;
+      current_shape = shape;
+      kkconfirm_capture_start();
+      EXPECT_GT(walk("Message", types,
+                     [](const std::vector<uint32_t>& path) -> Bytes {
+                       if (current_shape != 1 && path.size() == 2)
+                         return Bytes{0, 1};
+                       return word(1);
+                     }, 10), 0);
+      const auto bodies = kkconfirm_capture_finish();
+      ASSERT_EQ(eip712_stream_next()->kind, EIP712_REQ_DONE);
+      hashes.push_back(hexOf(eip712_stream_next()->message_hash, 32));
+      shown.push_back(pixels(kkconfirm_captured_titles(), bodies));
+      const std::string declared = shape == 0
+          ? (variant ? "uint256[]" : "uint256[1]")
+          : std::string(variant ? "Recipient" : "Sender") + (shape == 2 ? "[]" : "");
+      bool disclosed = false;
+      for (const auto& body : bodies)
+        disclosed |= body.find(declared + ": ") != std::string::npos;
+      EXPECT_TRUE(disclosed) << declared;
+      eip712_stream_abort();
+    }
+    EXPECT_NE(hashes[0], hashes[1]);
+    EXPECT_TRUE(shown[0] != shown[1]);
+  }
+}
+
+TEST(Eip712Stream, RejectingContainerTypesCancelsBeforeLeafValues) {
+  for (bool array : {false, true}) {
+    std::map<std::string, Struct> types;
+    Field entry = structField("Entry");
+    if (array) entry.array_levels_count = 1;
+    addMember(types["Message"], "entry", entry);
+    addMember(types["Entry"], "amount",
+              mkSized(EthereumTypedDataStructAck_EthereumDataType_UINT, 32));
+    static int value_requests;
+    value_requests = 0;
+    walk("Message", types,
+         [](const std::vector<uint32_t>&) -> Bytes {
+           ++value_requests;
+           return Bytes{0, 1};
+         }, 0);
+    EXPECT_EQ(eip712_stream_next()->kind, EIP712_REQ_CANCELLED);
+    EXPECT_EQ(value_requests, array ? 1 : 0);  // array length only
+    EXPECT_EQ(eip712_stream_waiting(), EIP712_IDLE);
+    eip712_stream_abort();
   }
 }

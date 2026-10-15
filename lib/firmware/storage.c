@@ -48,6 +48,7 @@
 #include "keepkey/firmware/reset.h"
 #if !BITCOIN_ONLY
 #include "keepkey/firmware/signed_metadata.h"
+#include "keepkey/firmware/contact_book.h"
 #endif
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/u2f.h"
@@ -1556,8 +1557,11 @@ void storage_reset_impl(SessionState* ss, ConfigFlash* cfg) {
 
   storage_resetPolicies(&cfg->storage);
 
-  /* Every fresh or wiped record needs its own PIN-KDF salt, drawn before
-   * storage_setPin_impl() derives the wrapping key from it. */
+  /* A record reset or wiped on this firmware gets its own PIN-KDF salt, drawn
+   * before storage_setPin_impl() derives the wrapping key from it. A record
+   * written by earlier firmware is loaded with the salt it has, which is zero
+   * unless it was migrated from a v1-v10 layout, and keeps it until the device
+   * is wiped: the wipe-code wrapping derives from the same salt. */
   storage_drawKeyMaterial(cfg->storage.pub.random_salt, RANDOM_SALT_LEN);
 
   storage_setPin_impl(ss, &cfg->storage, "");
@@ -1585,6 +1589,10 @@ void storage_wipe(void) {
 void storage_clearKeys(void) {
   fsm_abort_workflows();
   session_clear_impl(&session, &shadow_config.storage, false);
+  /* The wipe code erases the keys; the seed trezor-crypto cached must go
+   * with them. */
+  bip39_cache_clear();
+  bip32_cache_clear();
   memzero(&session.storageKey, sizeof(session.storageKey));
   memzero(&shadow_config.storage.pub.wrapped_storage_key,
           sizeof(shadow_config.storage.pub.wrapped_storage_key));
@@ -1601,6 +1609,7 @@ void session_clear(bool clear_pin) {
    * setup/authenticator state before the caller can report success. */
 #if !BITCOIN_ONLY
   signed_metadata_clear_signers();
+  contact_book_clear(); /* verified against this session's attestor key */
 #endif
   signing_abort();
   setup_abort();
@@ -1642,6 +1651,10 @@ pintest_t session_clear_impl(SessionState* ss, Storage* storage,
     signed_metadata_clear_signers();
 #endif
     storage_setPolicy_impl(storage->pub.policies, "AdvancedMode", false);
+    /* trezor-crypto caches the mnemonic, passphrase, seed and derived nodes
+     * of recent derivations. A lock must not leave them in RAM. */
+    bip39_cache_clear();
+    bip32_cache_clear();
   }
 
   ss->seedCached = false;

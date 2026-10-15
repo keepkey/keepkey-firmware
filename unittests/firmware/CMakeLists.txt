@@ -13,6 +13,7 @@ set(sources
     recovery_review_probe.c
     review_handlers.cpp
     rng_health.cpp
+    setup_ux.cpp
     setup_ceremony.cpp
     reset_policy_probe.c
     signing.cpp
@@ -47,6 +48,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       osmosis.cpp
       ripple.cpp
       signed_metadata.cpp
+      contact_book.cpp
       erc7730_abi.cpp
       erc7730_abi_stream.cpp
       erc7730_catalog.cpp

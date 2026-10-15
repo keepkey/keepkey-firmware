@@ -1163,6 +1163,7 @@ TEST(Solana, ParserCountsLookupLoadedAccounts) {
   raw[pos++] = 1; /* program = system */
   raw[pos++] = 2;
   raw[pos++] = 0;
+  const size_t recipient_at = pos;
   raw[pos++] = 2; /* first loaded address */
   raw[pos++] = 12;
   const uint8_t transfer[12] = {2, 0, 0, 0, 0x00, 0xCA, 0x9A, 0x3B};
@@ -1181,14 +1182,19 @@ TEST(Solana, ParserCountsLookupLoadedAccounts) {
   ASSERT_EQ(solana_inspectTx(raw, pos, &tx), SOL_TX_REVIEW_OPAQUE);
   EXPECT_EQ(3u, tx.num_loaded_accounts);
 
-  /* The same message without a lookup table loads nothing. */
+  /* The same transfer to a static account, with no lookup table, is a valid
+   * v0 message that loads nothing. */
+  raw[recipient_at] = 1;
   raw[lut_count_at] = 0;
-  solana_inspectTx(raw, lut_count_at + 1, &tx);
+  ASSERT_EQ(solana_inspectTx(raw, lut_count_at + 1, &tx),
+            SOL_TX_REVIEW_VERIFIED);
   EXPECT_EQ(0u, tx.num_loaded_accounts);
 }
 
-// A lookup-account attestation is shown only when it lists exactly the
-// accounts the message loads: a partial or padded list would mislead.
+// A lookup-account attestation is shown only when it attests as many accounts
+// as the message loads: a partial or padded list would mislead. Only the count
+// is checked here; the account keys are bound by the attestation signature
+// check, solana_lut_accounts_trusted().
 TEST(Solana, LookupAttestationMustCoverEveryLoadedAccount) {
   SolanaParsedTx tx;
   memset(&tx, 0, sizeof(tx));

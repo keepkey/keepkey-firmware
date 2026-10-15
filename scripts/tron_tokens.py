@@ -16,7 +16,7 @@ import re
 import sys
 
 ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-SYMBOL = re.compile(r"^[A-Z0-9]{1,8}$")
+SYMBOL = re.compile(r"^[A-Z0-9]{1,8}\Z")
 
 
 def b58check_decode(text):

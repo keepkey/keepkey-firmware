@@ -204,7 +204,7 @@ This version increased the size of the secret storage to accomodate the authenti
 |   has_mnemonic            |   bit 9        |              |                |
 |   has_u2froot             |   bit 10       |              |                |
 |   Experimental policy     |   bit 11       |              |                |
-|   AdvancedMode policy     |   bit 12       |              |                |
+|   AdvancedMode (unused*)  |   bit 12       |              |                |
 |   no backup (seedless)    |   bit 13       |              |                |
 |   has_sec_fingerprint     |   bit 14       |              |                |
 |   sca_hardened            |   bit 15       |              |                |
@@ -229,6 +229,8 @@ This version increased the size of the secret storage to accomodate the authenti
 | reserved                  | char[996]      |         1028 |            501 |
 | encrypted_secrets_version | u32            |            4 |           1497 |
 | encrypted_secrets         | char[1024]     |          512 |           1501 |
+
+\* From 7.15 AdvancedMode is session state. Bit 12 is written as 0 and ignored on read; it is not reused, because older firmware would read it as "blind signing enabled".
 
 
 #### Secret Storage

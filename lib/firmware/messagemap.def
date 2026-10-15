@@ -231,4 +231,6 @@
     MSG_OUT(MessageType_MessageType_EthereumClearSignDefinitionAck, EthereumClearSignDefinitionAck, NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EthereumClearSignDefinitionRequest, EthereumClearSignDefinitionRequest, NO_PROCESS_FUNC)
     MSG_IN(MessageType_MessageType_LoadClearsignSigner, LoadClearsignSigner, fsm_msgLoadClearsignSigner)
+    MSG_IN(MessageType_MessageType_ClearsignAttestorSign, ClearsignAttestorSign, fsm_msgClearsignAttestorSign)
+    MSG_OUT(MessageType_MessageType_ClearsignAttestorSignature, ClearsignAttestorSignature, NO_PROCESS_FUNC)
 #endif  // !BITCOIN_ONLY

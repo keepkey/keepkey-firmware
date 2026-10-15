@@ -1,0 +1,3 @@
+# The SRAM gate imports this while the release ELF and binaries are still
+# writable and not yet hashed, so it is pinned to one reviewed file.
+pyelftools==0.33 --hash=sha256:f215ad5f47d3f1373a21496a6c9e0707c622840d0622f23ff7ce08678b020036

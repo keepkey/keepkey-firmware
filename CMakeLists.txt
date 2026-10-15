@@ -96,8 +96,8 @@ endif()
 if(${KK_EMULATOR})
   add_definitions(-DEMULATOR)
   add_definitions(-DCONFIDENTIAL=)
-  # macOS/BSD declare strlcpy/strlcat in <string.h>; glibc (Linux) and MinGW
-  # (Windows) do not. Force-include the prototypes so the ~20 call sites build
+  # macOS/BSD and recent glibc declare strlcpy/strlcat in <string.h>; older
+  # glibc and MinGW do not. Force-include compatible prototypes so callers build
   # without -Werror=implicit-function-declaration (definitions come from
   # lib/board/strlcpy.c + strlcat.c). Apple already has them in <string.h>.
   if(NOT APPLE)

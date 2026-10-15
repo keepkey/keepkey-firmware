@@ -204,7 +204,7 @@ static bool passphrase_request(PassphraseInfo* passphrase_info) {
     ret =
         review(ButtonRequestType_ButtonRequest_Other, "passphrase confirmation",
                "If this is wrong, unplug/replug Keepkey:\n%s",
-               pp_len == 0 ? "(empty)" : escaped);
+               pp_len == 0 ? PASSPHRASE_NONE_TEXT : escaped);
     memzero(escaped, sizeof(escaped));
   } else {
     if (passphrase_info->passphrase_ack_msg == PASSPHRASE_ACK_CANCEL_BY_INIT) {

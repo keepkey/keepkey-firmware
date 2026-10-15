@@ -28,7 +28,9 @@
 #define ACCOUNT_SIZE 12  // allow 11 chars for account string
 #define AUTHSECRET_SIZE_MAX \
   20  // 128-bit key len is the recommended minimum, this is room for 160-bit
-#define AUTHSECRET_SIZE_MIN 16  // enforce the 128-bit minimum for new secrets
+/* 80 bits: the 16-character Base32 setup key many services still issue. A
+   higher floor refuses real accounts and makes nobody's secret stronger. */
+#define AUTHSECRET_SIZE_MIN 10
 #define AUTHDATA_SIZE \
   10  // WARNING: This value must be coordinated with the size of uint8_t
       // encrypted_sec[] in in lib/firmware/storage.h and the storage version

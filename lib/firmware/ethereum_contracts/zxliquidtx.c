@@ -153,7 +153,8 @@ bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg,
   if (!zx_formatZxLiquidityPrimaryAmount(msg, amount_text,
                                          sizeof(amount_text)) ||
       !confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-               isAddLiquidityEthCall(msg) ? "Uniswap Token" : "Uniswap LP Burn",
+               isAddLiquidityEthCall(msg) ? "Uniswap Add Liquidity"
+                                          : "Uniswap LP Burn",
                "%s", amount_text))
     return false;
 

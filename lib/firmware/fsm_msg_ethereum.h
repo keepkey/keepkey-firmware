@@ -2,6 +2,10 @@
 #include "keepkey/firmware/erc7730_capabilities.h"
 #include "keepkey/firmware/erc7730_field.h"
 #include "keepkey/firmware/erc7730_workflow.h"
+#include "keepkey/firmware/contact_book.h"
+
+/* Defined in fsm_msg_clearsign_attestor.h, included later into fsm.c. */
+static HDNode* attestor_getNode(void);
 
 /*
  * This file is part of the Keepkey project
@@ -1180,9 +1184,11 @@ void fsm_msgEthereumSignTx(EthereumSignTx* msg) {
       layoutHome();
       return;
     }
-    /* approve() needs the full 68-byte prefix for the allowance guard, which
-     * this path does not have. */
-    if (memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4) == 0) {
+    /* approve() and increaseAllowance() need the full 68-byte prefix for the
+     * allowance guard, which this path does not have. Refuse both here, before
+     * a review the signing pass could only end in a refusal. */
+    if (memcmp(msg->data_initial_chunk.bytes, "\x09\x5e\xa7\xb3", 4) == 0 ||
+        memcmp(msg->data_initial_chunk.bytes, "\x39\x50\x93\x51", 4) == 0) {
       memzero(&definition, sizeof(definition));
       erc7730_catalog_clear_preload();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
@@ -1727,7 +1733,15 @@ void fsm_msgEthereumClearSignDefinitionChunk(
 
 void fsm_msgEthereumTxMetadata(const EthereumTxMetadata* msg) {
   CHECK_INITIALIZED
-  if (!storage_isPolicyEnabled("AdvancedMode")) {
+
+  /* An address-book proof (KKABPRF1) is signed by this wallet's own attestor
+   * key and only labels a plain recipient; it never enables blind signing, so
+   * it needs no AdvancedMode. */
+  const bool contact_proof =
+      msg->has_signed_payload && msg->signed_payload.size >= 8 &&
+      memcmp(msg->signed_payload.bytes, "KKABPRF1", 8) == 0;
+
+  if (!contact_proof && !storage_isPolicyEnabled("AdvancedMode")) {
     ethereum_signing_abort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     _("AdvancedMode required for clearsign metadata"));
@@ -1747,6 +1761,25 @@ void fsm_msgEthereumTxMetadata(const EthereumTxMetadata* msg) {
               _("clearsign metadata key_id out of range"));
 
   RESP_INIT(EthereumMetadataAck);
+
+  /* One metadata message per transaction, the last one wins: a contact proof
+   * replaces any contract description and vice versa, so a label can never
+   * ride along with (or stand in for) a certified description. */
+  contact_book_clear();
+  if (contact_proof) {
+    signed_metadata_clear();
+    HDNode* node = attestor_getNode();
+    if (!node) return;
+    const bool ok = contact_book_process_proof(
+        msg->signed_payload.bytes, msg->signed_payload.size, node->public_key);
+    memzero(node, sizeof(*node));
+    resp->classification = ok ? METADATA_VERIFIED : METADATA_MALFORMED;
+    resp->has_display_summary = true;
+    strlcpy(resp->display_summary, ok ? "Contact verified" : "Invalid contact",
+            sizeof(resp->display_summary));
+    msg_write(MessageType_MessageType_EthereumMetadataAck, resp);
+    return;
+  }
 
   MetadataClassification result = signed_metadata_process(
       msg->signed_payload.bytes, msg->signed_payload.size,
@@ -1952,7 +1985,7 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
   CHECK_PIN
 
   /* A zero-length message is not a message. confirm_bytes() renders size 0 as
-     the literal "(empty)" and returns whatever the owner pressed, so without
+     the literal "(no data)" and returns whatever the owner pressed, so without
      this the device would sign a payload no screen ever showed -- the same
      hole already closed on the TON and Solana paths. (`message` is a required
      field here, so nanopb rejects an omitted one during decode; only the empty
@@ -2192,7 +2225,7 @@ static void eip712_pump(void) {
         erc7730_catalog_clear_preload();
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         _("ERC-7730 definition does not match typed data"));
-        layout_home();
+        layoutHome();
         return;
       }
       memzero(&facts, sizeof(facts));
@@ -2228,7 +2261,7 @@ static void eip712_pump(void) {
           eip712_stream_abort();
           fsm_sendFailure(FailureType_Failure_SyntaxError,
                           _("Certified EIP-712 value was not found"));
-          layout_home();
+          layoutHome();
           return;
         }
         const Erc7730UiResult ui = confirm_erc7730_source_and_intent(workflow);
@@ -2240,7 +2273,7 @@ static void eip712_pump(void) {
                                        : FailureType_Failure_ActionCancelled,
               ui == ERC7730_UI_INVALID ? _("Invalid ERC-7730 signer or intent")
                                        : _("Signing cancelled by user"));
-          layout_home();
+          layoutHome();
           return;
         }
         deliver_erc7730_capture(workflow);
@@ -2275,7 +2308,7 @@ static void eip712_pump(void) {
       if (!derived) {
         fsm_sendFailure(FailureType_Failure_Other,
                         _("Ethereum address derivation failed"));
-        layout_home();
+        layoutHome();
         return;
       }
       char address[2 + 40 + 1];
@@ -2284,15 +2317,22 @@ static void eip712_pump(void) {
       ethereum_address_checksum(pubkeyhash, address + 2, false, 0);
 
       /* The one screen that names the action being authorised and the
-       * account authorising it; every leaf before it was part of the review. */
+       * account authorising it; every leaf before it was part of the review.
+       * A message or a domain with no member had no screen, so it is named
+       * here as empty. */
       if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Sign Typed Data",
                    "Sign %s%s%s\nfrom %s?",
-                   done.message_empty && !done.domain_only ? "EMPTY " : "",
-                   done.primary_type, done.domain_only ? " (domain only)" : "",
+                   (done.domain_only ? done.domain_empty : done.message_empty)
+                       ? "EMPTY "
+                       : "",
+                   done.primary_type,
+                   done.domain_only    ? " (domain only)"
+                   : done.domain_empty ? " (EMPTY domain)"
+                                       : "",
                    address)) {
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
                         _("Signing cancelled by user"));
-        layout_home();
+        layoutHome();
         return;
       }
 
@@ -2306,7 +2346,7 @@ static void eip712_pump(void) {
       memzero(node, sizeof(*node));
       if (signed_rc != 0) {
         fsm_sendFailure(FailureType_Failure_Other, _("Signing failed"));
-        layout_home();
+        layoutHome();
         return;
       }
       RESP_INIT(EthereumTypedDataSignature);
@@ -2322,7 +2362,7 @@ static void eip712_pump(void) {
       resp->message_hash.size = done.domain_only ? 0 : 32;
       memcpy(resp->message_hash.bytes, done.message_hash, 32);
       msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
-      layout_home();
+      layoutHome();
       return;
     }
     case EIP712_REQ_CANCELLED:
@@ -2330,18 +2370,18 @@ static void eip712_pump(void) {
       erc7730_catalog_clear_preload();
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("EIP-712 cancelled"));
-      layout_home();
+      layoutHome();
       return;
     case EIP712_REQ_FAIL:
       erc7730_workflow_abort(erc7730_workflow_state());
       erc7730_catalog_clear_preload();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       next->error ? next->error : "EIP-712 error");
-      layout_home();
+      layoutHome();
       return;
     default:
       fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 internal state"));
-      layout_home();
+      layoutHome();
       return;
   }
 }
@@ -2357,7 +2397,7 @@ void fsm_msgEthereumSignTypedData(const EthereumSignTypedData* msg) {
   if (!ethereum_streamed_eip712_enabled()) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Structured EIP-712 is unavailable"));
-    layout_home();
+    layoutHome();
     return;
   }
 
@@ -2368,7 +2408,7 @@ void fsm_msgEthereumSignTypedData(const EthereumSignTypedData* msg) {
     erc7730_catalog_clear_preload();
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("AdvancedMode required for ERC-7730"));
-    layout_home();
+    layoutHome();
     return;
   }
   memzero(&definition, sizeof(definition));
@@ -2398,15 +2438,21 @@ void fsm_msgEthereumTypedDataValueAck(const EthereumTypedDataValueAck* msg) {
     return;
   }
   Erc7730Workflow* workflow = erc7730_workflow_state();
+  /* The stream accepted this ack, so an offset marks a later chunk of a long
+   * value and a total length marks its first. */
   if (workflow->phase == ERC7730_WORKFLOW_TYPED_DATA &&
       !erc7730_workflow_eip712_observe(workflow, member_path, member_path_count,
-                                       msg->value.bytes, msg->value.size)) {
+                                       msg->value.bytes, msg->value.size,
+                                       msg->has_value_total_length
+                                           ? msg->value_total_length
+                                           : msg->value.size,
+                                       msg->has_value_offset)) {
     memzero(member_path, sizeof(member_path));
     eip712_stream_abort();
     erc7730_workflow_abort(workflow);
     fsm_sendFailure(FailureType_Failure_SyntaxError,
                     _("EIP-712 value does not match certified definition"));
-    layout_home();
+    layoutHome();
     return;
   }
   memzero(member_path, sizeof(member_path));

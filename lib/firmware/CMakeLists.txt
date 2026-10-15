@@ -49,6 +49,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       ethereum_contracts/zxswap.c
       ethereum_tokens.c
       signed_metadata.c
+      contact_book.c
       mayachain.c
       nano.c
       osmosis.c

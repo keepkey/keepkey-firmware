@@ -1,9 +1,12 @@
 extern "C" {
 #include "keepkey/emulator/libkkemu.h"
 #include "keepkey/board/keepkey_display.h"
+#include "keepkey/board/timer.h"
+#include "keepkey/firmware/storage.h"
 }
 #include "gtest/gtest.h"
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <thread>
 #include <vector>
@@ -118,8 +121,10 @@ TEST_F(EmulatorLifecycle, UnlockReleasesLockAcquiredBeforeConcurrentStop) {
     kkemu_stop();
     stopped.store(true);
   });
-  // trylock is a no-op success once kkemu_stop() has cleared the flag.
-  while (!kkemu_trylock()) std::this_thread::yield();
+  // A stop request no longer drops mutex ownership. A second acquisition
+  // must not report success and let its unlock release our outer snapshot.
+  usleep(100000);
+  EXPECT_EQ(0, kkemu_trylock());
   kkemu_unlock();  // must still release the acquisition made while running
   for (int i = 0; i < 2000 && !stopped.load(); ++i) usleep(1000);
   if (!stopped.load()) {
@@ -159,4 +164,100 @@ TEST_F(EmulatorLifecycle, StopDiscardsCancelThePollThreadNeverRead) {
   kkemu_unlock();  // the thread takes the lock, sees the flag and exits
   stopper.join();
   EXPECT_TRUE(hostPollAnswersNothing());
+}
+
+TEST_F(EmulatorLifecycle, HostDrivenDelaysAdvanceWithoutSignals) {
+  uint32_t before = getSysTime();
+  delay_ms(10);
+  EXPECT_EQ(10u, getSysTime() - before);
+  before = getSysTime();
+  delay_ms_with_callback(10, [] {}, 2);
+  EXPECT_EQ(10u, getSysTime() - before);
+}
+
+TEST_F(EmulatorLifecycle, ThreePinFailuresStillReachPinPrompt) {
+  storage_setPin("1234");
+  for (int i = 0; i < 3; ++i) storage_increasePinFails();
+  session_clear(true);
+  uint8_t request[64] = {'?', '#', '#', 0, 1, 0, 0, 0, 2, 0x18, 1};
+  ASSERT_EQ(0, kkemu_write(request, sizeof(request), KKEMU_IFACE_MAIN));
+  auto began = std::chrono::steady_clock::now();
+  ASSERT_EQ(0, kkemu_start());
+  bool prompt = false;
+  while (std::chrono::steady_clock::now() - began < std::chrono::seconds(12)) {
+    uint8_t reply[64];
+    if (kkemu_read(reply, sizeof(reply), KKEMU_IFACE_MAIN) == 64 &&
+        reply[3] == 0 && reply[4] == 18) {
+      prompt = true;
+      break;
+    }
+    usleep(1000);
+  }
+  EXPECT_TRUE(prompt);
+  // The fix must not remove the real seven-second backoff at fail_count=3.
+  EXPECT_GE(std::chrono::steady_clock::now() - began, std::chrono::seconds(7));
+  EXPECT_EQ(0, kkemu_stop_timeout(1000));
+}
+
+TEST_F(EmulatorLifecycle, TimeoutPreservesOwnershipAndCanBeRetried) {
+  ASSERT_EQ(0, kkemu_start());
+  kkemu_lock();
+  usleep(50000);  // park the poll thread on the host-owned lock
+  std::atomic<int> stopped{0};
+  auto began = std::chrono::steady_clock::now();
+  std::thread stopper([&] { stopped = kkemu_shutdown_timeout(100); });
+  stopper.join();
+  EXPECT_EQ(-1, stopped.load());
+  EXPECT_LT(std::chrono::steady_clock::now() - began,
+            std::chrono::milliseconds(500));
+  EXPECT_EQ(1, kkemu_is_running());
+  EXPECT_EQ(-1, kkemu_start());
+  EXPECT_EQ(0, kkemu_poll());  // cannot run a second firmware loop
+  std::atomic<int> acquired{1};
+  std::thread reader([&] {
+    acquired = kkemu_trylock();
+    if (acquired) kkemu_unlock();
+  });
+  reader.join();
+  EXPECT_EQ(0, acquired.load());
+  kkemu_unlock();
+  ASSERT_EQ(0, kkemu_stop_timeout(1000));
+  EXPECT_TRUE(hostPollAnswersNothing());
+  EXPECT_EQ(0, kkemu_shutdown_timeout(1000));
+  ASSERT_EQ(0, kkemu_init(flash.data(), flash.size()));
+  ASSERT_EQ(0, kkemu_start());
+  EXPECT_EQ(0, kkemu_shutdown_timeout(1000));
+}
+
+TEST_F(EmulatorLifecycle, FullInputRingDoesNotDefeatStopDeadline) {
+  ASSERT_EQ(0, kkemu_start());
+  kkemu_lock();
+  usleep(50000);
+  uint8_t request[64] = {'?', '#', '#', 0, 1};
+  unsigned queued = 0;
+  while (kkemu_write(request, sizeof(request), KKEMU_IFACE_MAIN) == 0) ++queued;
+  ASSERT_GT(queued, 0u);
+  auto began = std::chrono::steady_clock::now();
+  std::atomic<int> result{0};
+  std::thread stopper([&] { result = kkemu_stop_timeout(100); });
+  stopper.join();
+  EXPECT_EQ(-1, result.load());
+  EXPECT_LT(std::chrono::steady_clock::now() - began,
+            std::chrono::milliseconds(500));
+  kkemu_unlock();
+  EXPECT_EQ(0, kkemu_shutdown_timeout(1000));
+}
+
+TEST_F(EmulatorLifecycle, StopDuringPinBackoffTimesOutThenJoins) {
+  storage_setPin("1234");
+  for (int i = 0; i < 3; ++i) storage_increasePinFails();
+  session_clear(true);
+  uint8_t request[64] = {'?', '#', '#', 0, 1, 0, 0, 0, 2, 0x18, 1};
+  ASSERT_EQ(0, kkemu_write(request, sizeof(request), KKEMU_IFACE_MAIN));
+  ASSERT_EQ(0, kkemu_start());
+  usleep(100000);
+  EXPECT_EQ(-1, kkemu_stop_timeout(100));
+  EXPECT_EQ(-1, kkemu_start());
+  EXPECT_EQ(0, kkemu_trylock());
+  EXPECT_EQ(0, kkemu_shutdown_timeout(12000));
 }

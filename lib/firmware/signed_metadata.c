@@ -171,6 +171,9 @@ static bool arg_value_ok(uint8_t format, const uint8_t* value, uint16_t len) {
       }
       return true;
     }
+    case ARG_FORMAT_ADDRESS:
+      /* Shown whole as an address: nothing but 20 bytes can be. */
+      return len == 20;
     default:
       return len <= 32;
   }
@@ -699,6 +702,12 @@ bool signed_metadata_matches_tx(const EthereumSignTx* msg) {
     return false;
   }
 
+  /* Metadata describes an Ethereum call. A Wanchain transaction (tx_type)
+   * with the same chain id, contract and selector is not one. */
+  if (msg->has_tx_type) {
+    return false;
+  }
+
   if (memcmp(stored_metadata.contract_address, msg->to.bytes,
              sizeof(stored_metadata.contract_address)) != 0) {
     return false;
@@ -770,7 +779,10 @@ static bool signed_metadata_confirm_screens(void) {
     }
 
     memset(body, 0, sizeof(body));
-    snprintf(body, sizeof(body), "%s (%s)\ndescribes this tx.", alias,
+    /* Quoted and disclaimed like the consent screen: the alias is the
+     * signer's own choice of words and may read as a claim. */
+    snprintf(body, sizeof(body),
+             "'%s' (%s) describes this tx. NOT verified by KeepKey.", alias,
              fingerprint);
     if (!confirm_with_icon(ButtonRequestType_ButtonRequest_ConfirmOutput,
                            screen_icon, "Identity", "%s", body)) {

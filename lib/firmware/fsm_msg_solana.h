@@ -206,7 +206,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
         return false;
       }
 
-      /* Firmware table or valid attestation only; NULL -> base units. */
+      /* Firmware table or valid attestation only; NULL -> the amount is
+       * still scaled by the signed decimals, labelled "tokens". */
       const char* symbol = solana_displaySymbol(ti, known, pi->extra_u8);
       const bool symbol_verified = symbol && !known;
 
@@ -445,8 +446,8 @@ static bool solana_confirmInstruction(const SolanaParsedInstruction* pi,
     case SOL_INSTR_MEMO:
       /* Page the FULL memo: swap intents (THORChain '=:ETH.ETH:...') ride in
        * it, so a byte-count summary would hide where funds go. */
-      return confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, title,
-                           pi->data, pi->data_len);
+      return confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo,
+                           "Solana Memo", pi->data, pi->data_len);
 
     case SOL_INSTR_UNKNOWN:
     default: {
@@ -506,6 +507,22 @@ static bool solana_offchain_payload_is_utf8(const uint8_t* data, size_t size) {
 }
 
 /* Validate Solana derivation path: m/44'/501'/account'[/change'] */
+/* Every Solana handler signs with, or shows, the key at the path the host
+ * names. Outside m/44'/501' that key belongs to another coin, and a signature
+ * made here would be that coin's signature under Solana's screens: a raw
+ * Ed25519 signature over a 32-byte hash is how a TON wallet authorizes a
+ * transfer. So a foreign path is refused, in every mode. */
+static bool solana_refuseForeignPath(const uint32_t* path, size_t count) {
+  if (count >= 2 && path[0] == (0x80000000 | 44) &&
+      path[1] == (0x80000000 | 501)) {
+    return false;
+  }
+  fsm_sendFailure(FailureType_Failure_SyntaxError,
+                  _("Invalid Solana path (expected m/44'/501'/...)"));
+  layoutHome();
+  return true;
+}
+
 static bool solana_pathIsStandard(const uint32_t* path, size_t count) {
   if (count < 3 || count > 4) return false;
   if (path[0] != (0x80000000 | 44)) return false;  /* 44' */
@@ -709,6 +726,7 @@ void fsm_msgSolanaGetAddress(const SolanaGetAddress* msg) {
   CHECK_PIN
 
   /* Path validation: warn on non-standard derivation */
+  if (solana_refuseForeignPath(msg->address_n, msg->address_n_count)) return;
   if (!solana_pathIsStandard(msg->address_n, msg->address_n_count)) {
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING",
                  "Non-standard Solana derivation path. Continue?")) {
@@ -791,6 +809,7 @@ void fsm_msgSolanaSignTx(const SolanaSignTx* msg) {
   }
 
   /* Path validation: warn on non-standard derivation */
+  if (solana_refuseForeignPath(msg->address_n, msg->address_n_count)) return;
   if (!solana_pathIsStandard(msg->address_n, msg->address_n_count)) {
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING",
                  "Non-standard Solana derivation path. Continue?")) {
@@ -999,6 +1018,7 @@ void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg) {
                                          &parsed) == SOL_TX_REVIEW_VERIFIED;
 
   /* Path validation: warn on non-standard derivation */
+  if (solana_refuseForeignPath(msg->address_n, msg->address_n_count)) return;
   if (!solana_pathIsStandard(msg->address_n, msg->address_n_count)) {
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING",
                  "Non-standard Solana derivation path. Continue?")) {
@@ -1139,6 +1159,7 @@ void fsm_msgSolanaSignOffchainMessage(const SolanaSignOffchainMessage* msg) {
 
   /* Path validation: warn on non-standard derivation, mirroring the
    * existing SolanaSignMessage handler. */
+  if (solana_refuseForeignPath(msg->address_n, msg->address_n_count)) return;
   if (!solana_pathIsStandard(msg->address_n, msg->address_n_count)) {
     if (!confirm(ButtonRequestType_ButtonRequest_Other, "WARNING",
                  "Non-standard Solana derivation path. Continue?")) {

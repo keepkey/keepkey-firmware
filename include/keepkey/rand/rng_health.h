@@ -93,8 +93,11 @@ bool rng_health_analyze(const uint8_t* buf, size_t len);
 ///   - the storage encryption key         storage_setPin_impl()
 ///   - the wipe-code key                  storage_setWipeCode_impl()
 ///   - the PIN-KDF salt                   storage_readStorageV1() on migration;
-///                                        storage_reset()/storage_init() for a
-///                                        fresh or wiped record
+///                                        storage_reset_impl() when a record is
+///                                        reset or wiped on this firmware. A
+///                                        record written by earlier firmware
+///                                        keeps its salt (zero unless migrated)
+///                                        until the device is wiped.
 ///   - the U2F key-handle derivation path generateKeyHandle()
 ///   - the one-shot OTP randomness block  flash_collectHWEntropy()
 ///   - the RedPallas spend-auth T          fsm_msg_zcash.h, the is_spend path

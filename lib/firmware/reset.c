@@ -316,6 +316,16 @@ void reset_init(uint32_t _strength, bool passphrase_protection,
     return;
   }
 
+  /* Validate the PIN before the expensive dice ceremony. It stays staged,
+   * so cancelling dice still clears it through setup_abort(). */
+  if (!setup_stagePin(pin_protection)) {
+    setup_abort();
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("PINs do not match"));
+    layoutHome();
+    return;
+  }
+
   /* Dice ceremony; the device names the host-selected mode for consent.
    * Verifiable offline: host EntropyAck bytes never enter the derivation.
    *
@@ -420,20 +430,14 @@ void reset_init(uint32_t _strength, bool passphrase_protection,
     memzero(dice_rolls, sizeof(dice_rolls));
   }
 
-  if (!setup_stagePin(pin_protection)) {
-    /* Clears the roll digest along with the staged settings and entropy. */
-    setup_abort();
-    fsm_sendFailure(FailureType_Failure_ActionCancelled,
-                    _("PINs do not match"));
-    layoutHome();
-    return;
-  }
-
   EntropyRequest resp;
   memset(&resp, 0, sizeof(EntropyRequest));
   /* Arm last, and only here: from this statement on an EntropyAck is in
    * sequence, and nothing else is. */
   setup_arm(SETUP_RESET);
+  /* Nothing above need have pressed the button: a new PIN is typed on the
+   * host. Without this, on a device idle past the lock delay the EntropyAck
+   * that continues the ceremony locks the device and ends it. */
   note_workflow_progress();
   msg_write(MessageType_MessageType_EntropyRequest, &resp);
 }

@@ -167,8 +167,9 @@ static bool pin_request(const char* prompt, PINInfo* pin_info) {
   /* Init and randomize pin matrix */
   strlcpy(pin_matrix, "123456789", PIN_BUF);
   if (!random_permute_char_checked(pin_matrix, 9)) {
-    /* Halt like every failed secret draw; false would yield two Failures.
-     * The verdict is latched anyway. */
+    /* Halt, as storage_drawKeyMaterial() does. Other checked draws send a
+     * Failure instead, but false here would yield two. The verdict is latched
+     * anyway. */
     layout_warning_static("RNG self-test failed. Reboot device!");
     shutdown();
   }

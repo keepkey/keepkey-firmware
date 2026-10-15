@@ -237,7 +237,7 @@ typedef enum {
   SOL_SCHEMA_ARG_U64 = 1,          /* 8 bytes, shown as a decimal integer */
   SOL_SCHEMA_ARG_U8 = 2,           /* 1 byte */
   SOL_SCHEMA_ARG_PUBKEY = 3,       /* 32 bytes, shown base58 */
-  SOL_SCHEMA_ARG_OPAQUE32 = 4,     /* 32 bytes, paged in full as hex */
+  SOL_SCHEMA_ARG_OPAQUE32 = 4,     /* 32 bytes, paged; non-printable as \xNN */
   SOL_SCHEMA_ARG_LAMPORTS = 5,     /* 8 bytes, shown as SOL */
   SOL_SCHEMA_ARG_TOKEN_AMOUNT = 6, /* 8 bytes; mint is an ix account */
   SOL_SCHEMA_ARG_DURATION = 7,     /* 8-byte seconds */
