@@ -57,6 +57,30 @@ if(NOT ${KK_BITCOIN_ONLY})
       erc7730_workflow.cpp
       solana.cpp
       thorchain.cpp)
+
+  # Native and Python tests share the corpus in the pinned Python dependency.
+  # Generate into the build tree, with an explicit dependency for parallel builds.
+  find_program(EIP712_PYTHON_EXECUTABLE NAMES python3)
+  if(NOT EIP712_PYTHON_EXECUTABLE)
+    message(FATAL_ERROR "Python 3 is required to generate the EIP-712 test corpus")
+  endif()
+  set(eip712_corpus_json
+      "${CMAKE_SOURCE_DIR}/deps/python-keepkey/tests/eip712_corpus.json")
+  set(eip712_corpus_inc
+      "${CMAKE_CURRENT_BINARY_DIR}/generated/eip712_corpus.inc")
+  add_custom_command(
+      OUTPUT "${eip712_corpus_inc}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory
+              "${CMAKE_CURRENT_BINARY_DIR}/generated"
+      COMMAND "${EIP712_PYTHON_EXECUTABLE}"
+              "${CMAKE_CURRENT_SOURCE_DIR}/eip712_corpus_gen.py"
+              --output "${eip712_corpus_inc}"
+      DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/eip712_corpus_gen.py"
+              "${eip712_corpus_json}"
+      VERBATIM)
+  list(APPEND sources "${eip712_corpus_inc}")
+  set_property(SOURCE eip712_stream.cpp APPEND PROPERTY OBJECT_DEPENDS
+               "${eip712_corpus_inc}")
 endif()
 
 include_directories(
@@ -66,6 +90,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/deps/crypto/trezor-crypto)
 
 add_executable(firmware-unit ${sources})
+target_include_directories(firmware-unit PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_link_libraries(firmware-unit
     gmock_main
     kkfirmware
