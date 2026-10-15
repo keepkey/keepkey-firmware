@@ -208,6 +208,12 @@ static bool confirm_screen(const char* request_title_param,
                            bool constant_power, IconType iconNum,
                            bool immediate) {
   bool ret_stat = false;
+#if DEBUG_LINK
+  snprintf(debug_confirm_title, sizeof(debug_confirm_title), "%s",
+           request_title_param ? request_title_param : "");
+  snprintf(debug_confirm_body, sizeof(debug_confirm_body), "%s",
+           request_body ? request_body : "");
+#endif
 #ifdef EMULATOR
   emulator_confirm_screen(request_title_param, request_body);
 #endif
@@ -295,6 +301,12 @@ static bool confirm_screen(const char* request_title_param,
           dld = (DebugLinkDecision*)msg_tiny_buf;
           ret_stat = dld->yes_no;
           debug_decided = true;
+          /* A "yes" stands in for the button press that renews the auto-lock
+           * deadline. A "no" is never a press: the device has no reject
+           * button, so only the host declines. */
+          if (dld->yes_no) {
+            keepkey_user_activity();
+          }
           break;
 
         case MessageType_MessageType_DebugLinkGetState:
@@ -559,12 +571,6 @@ static bool confirm_helper(const char* request_title, const char* request_body,
                            bool immediate, bool notify_host) {
   const uint16_t body_width =
       (uint16_t)((iconNum == NO_ICON) ? BODY_WIDTH : BODY_WIDTH_WITH_ICON);
-#if DEBUG_LINK
-  snprintf(debug_confirm_title, sizeof(debug_confirm_title), "%s",
-           request_title ? request_title : "");
-  snprintf(debug_confirm_body, sizeof(debug_confirm_body), "%s",
-           request_body ? request_body : "");
-#endif
 
   /* Only layout_standard_notification is known to wrap the body at BODY_WIDTH
    * over BODY_ROWS rows. Custom layouts place and size their own body, and

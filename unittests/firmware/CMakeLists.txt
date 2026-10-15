@@ -13,6 +13,7 @@ set(sources
     recovery_review_probe.c
     review_handlers.cpp
     rng_health.cpp
+    setup_ux.cpp
     setup_ceremony.cpp
     reset_policy_probe.c
     signing.cpp

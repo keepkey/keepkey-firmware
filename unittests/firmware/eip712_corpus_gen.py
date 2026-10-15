@@ -11,7 +11,9 @@ Those values are computed by a reference encoder written from the EIP-712
 specification (below; pure Python, no firmware code). With --crosscheck
 <node_modules> the same documents are also hashed by MetaMask's
 @metamask/eth-sig-util (signTypedData V4) and ethers' TypedDataEncoder, and
-the script refuses to write anything unless all of them agree.
+the script refuses to write anything unless they agree. Three named documents
+use forms ethers v5 refuses; only their exact expected refusals are allowed,
+and the reference encoder and eth-sig-util must still agree for those documents.
 
     python3 eip712_corpus_gen.py [--crosscheck path/to/node_modules]
 """
@@ -217,7 +219,7 @@ def values(doc):
 
 _JS = r"""
 const path = require('path');
-const nm = process.argv[1];
+const nm = path.resolve(process.argv[1]);
 const sigUtil = require(path.join(nm, '@metamask/eth-sig-util'));
 const ethers = require(path.join(nm, 'ethers'));
 const corpus = JSON.parse(require('fs').readFileSync(0, 'utf8'));
@@ -244,7 +246,10 @@ const out = corpus.map(({ doc }) => {
       digest: enc.hash(doc.domain, types, doc.message).slice(2),
     };
   } catch (e) {
-    r.ethers = { error: String(e.message || e).slice(0, 120) };
+    r.ethers = {
+      error: String(e.message || e).slice(0, 120),
+      code: e.code, reason: e.reason, argument: e.argument, value: e.value,
+    };
   }
   return r;
 });
@@ -252,11 +257,32 @@ process.stdout.write(JSON.stringify(out));
 """
 
 
+# These corpus documents deliberately preserve their published types/values.
+# An unavailable encoder API or a different validation error is never allowed.
+EXPECTED_ETHERS_REFUSALS = {
+    "metamask-Mail-v4": {
+        "code": "INVALID_ARGUMENT", "argument": "types",
+        "reason": 'ambiguous primary types or unused types: "Mail", "Group"',
+    },
+    "evmos-MsgSend": {
+        "code": "INVALID_ARGUMENT", "argument": "address",
+        "reason": "invalid address", "value": "cosmos",
+    },
+    "injective-MsgSend-v2": {
+        "code": "INVALID_ARGUMENT", "argument": "value",
+        "reason": "invalid arrayify value", "value": "0",
+    },
+}
+
+
 def crosscheck(corpus, node_modules):
     res = subprocess.run(["node", "-e", _JS, node_modules],
                          input=json.dumps(corpus).encode(),
                          capture_output=True, check=True)
     results = json.loads(res.stdout)
+    if len(results) != len(corpus):
+        print("Missing independent encoder results")
+        return False
     ok = True
     for entry, r in zip(corpus, results):
         ref = reference(entry["doc"])
@@ -265,6 +291,10 @@ def crosscheck(corpus, node_modules):
             ok = False
         if "error" in r["ethers"]:
             print("ethers refused %s: %s" % (entry["id"], r["ethers"]["error"]))
+            expected = EXPECTED_ETHERS_REFUSALS.get(entry["id"])
+            if not expected or any(r["ethers"].get(k) != v
+                                   for k, v in expected.items()):
+                ok = False
         elif r["ethers"] != ref:
             print("MISMATCH ethers:", entry["id"], r["ethers"], ref)
             ok = False

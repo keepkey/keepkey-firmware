@@ -66,6 +66,12 @@ bool ethereum_contractHandled(uint32_t data_total, const EthereumSignTx* msg,
    * disclosure (AdvancedMode-gated). */
   if (data_total != msg->data_initial_chunk.size) return false;
 
+  /* Every predicate compares msg->to.bytes. A `to` sent twice, the second
+   * time empty, leaves size 0 with the first value's bytes in place: that is
+   * a contract creation, and it must not be shown as a call to that
+   * contract. */
+  if (!msg->has_to || msg->to.size != 20) return false;
+
   /* Every predicate below opens with a 4-byte selector memcmp.
    * data_initial_chunk is a fixed-capacity buffer that is NOT cleared between
    * messages, so on a calldata shorter than its own selector those reads

@@ -283,25 +283,29 @@ TEST(RngHealth, ObserveReportsTheTrippingCall) {
 
 // The triggering draw must not be returned. random_buffer_checked() observes
 // the bytes it just produced, and if THOSE bytes tripped the test they are
-// wiped rather than handed over -- the triggering draw is part of the
-// degenerate run, so returning it and failing on the next call would deliver
-// exactly the output the test rejected.
+// wiped rather than handed over. The draw is real, so the run is brought to
+// one short of the cutoff and single bytes are drawn until one completes it.
 TEST(RngHealth, TrippingBytesAreWipedNotReturned) {
-  rng_health_force_verdict(true);
-  const uint8_t fine[4] = {0x01, 0x02, 0x03, 0x04};
-  EXPECT_TRUE(rng_health_observe(fine, sizeof(fine)));
-
-  uint8_t stuck[RNG_HEALTH_RCT_CUTOFF];
-  memset(stuck, 0x7E, sizeof(stuck));
-  EXPECT_FALSE(rng_health_observe(stuck, sizeof(stuck)))
-      << "the observing call that tripped the test reported success";
-
-  // With the verdict latched, the next checked draw refuses and wipes.
-  uint8_t buf[64];
-  memset(buf, 0xAB, sizeof(buf));
-  EXPECT_FALSE(random_buffer_checked(buf, sizeof(buf)));
-  const uint8_t zeros[64] = {0};
-  EXPECT_EQ(0, memcmp(buf, zeros, sizeof(buf)));
+  uint8_t run[RNG_HEALTH_RCT_CUTOFF - 1];
+  memset(run, 0x7E, sizeof(run));
+  bool tripped = false;
+  // One draw in 256 completes the run; 100000 tries cannot all miss.
+  for (int i = 0; i < 100000 && !tripped; i++) {
+    rng_health_force_verdict(true);
+    ASSERT_TRUE(rng_health_observe(run, sizeof(run)));
+    uint8_t byte = 0xAB;
+    if (random_buffer_checked(&byte, 1)) {
+      ASSERT_NE(0x7E, byte) << "the byte that completed the run was returned";
+      continue;
+    }
+    tripped = true;
+    EXPECT_EQ(0, byte) << "the tripping byte was not wiped";
+    uint8_t next = 0xAB;
+    EXPECT_FALSE(random_buffer_checked(&next, 1))
+        << "the verdict did not latch";
+    EXPECT_EQ(0, next);
+  }
+  EXPECT_TRUE(tripped);
 
   rng_health_force_verdict(true);
 }

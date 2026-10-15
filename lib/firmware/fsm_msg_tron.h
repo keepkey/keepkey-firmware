@@ -160,7 +160,7 @@ void fsm_msgTronSignMessage(TronSignMessage* msg) {
   CHECK_PIN
 
   /* An omitted or zero-length message is not a message. confirm_bytes()
-     renders size 0 as the literal "(empty)" and returns whatever the owner
+     renders size 0 as the literal "(no data)" and returns whatever the owner
      pressed, so without this the device would sign a payload no screen ever
      showed -- the same hole already closed on the TON and Solana paths. */
   if (!msg->has_message || msg->message.size == 0) {

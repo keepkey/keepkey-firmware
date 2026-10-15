@@ -1,4 +1,5 @@
 extern "C" {
+#include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/eip712.h"
 #include "keepkey/firmware/ethereum.h"
 #include "keepkey/firmware/ethereum_contracts/zxappliquid.h"
@@ -8,6 +9,7 @@ extern "C" {
 #include "keepkey/firmware/ethereum_contracts/thortx.h"
 #include "keepkey/firmware/ethereum_contracts/zxtransERC20.h"
 #include "keepkey/firmware/ethereum_tokens.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/tron.h"
 #include "trezor/crypto/address.h"
 #include "trezor/crypto/bip32.h"
@@ -26,6 +28,7 @@ extern "C" {
 
 void kkconfirm_capture_start(void);
 std::vector<std::string> kkconfirm_capture_finish(void);
+std::vector<std::string> kkconfirm_captured_titles(void);
 
 static uint8_t bin_from_ascii(char c) {
   if ('a' <= c && c <= 'f') return c - 'a' + 0xa;
@@ -595,6 +598,94 @@ TEST(Ethereum, ThorNewRoutersClearSignNativeAndTokenDeposits) {
   }
 }
 
+// Exact Base mainnet depositWithExpiry calls observed on 2026-10-12.
+// USDT tx d567902e...1d808 has a 100-byte memo (324-byte calldata);
+// TRX tx 3492f35c...0e856 has a 64-byte memo (260-byte calldata).
+// These regression vectors disclose every memo byte, including the affiliate.
+TEST(Ethereum, BaseThorchainRealDepositsReviewCompleteMemo) {
+  const struct {
+    const char* data;
+    const char* value;
+    const char* memo;
+    const char* amount_screen;
+    const char* expiry_screen;
+  } cases[] = {
+      {"44bc937b0000000000000000000000004d39d5c55cfeb48f44d680fcac204936"
+       "35dafdee00000000000000000000000000000000000000000000000000000000"
+       "000000000000000000000000000000000000000000000000000000000092a4aa"
+       "c79b600000000000000000000000000000000000000000000000000000000000"
+       "000000a000000000000000000000000000000000000000000000000000000000"
+       "6acd804100000000000000000000000000000000000000000000000000000000"
+       "000000643d3a54524f4e2e555344542d5452374e48514a454b51584754434938"
+       "51385a5934504c384f54535a474a4c4a36543a544d6f554a3245715645536763"
+       "614435654a647670686b6b6e384b337563586454703a39333231303034333739"
+       "3a6b6565703a3330000000000000000000000000000000000000000000000000"
+       "00000000",
+       "92a4aac79b6000",
+       "=:TRON.USDT-TR7NHQJEKQXGTCI8Q8ZY4PL8OTSZGJLJ6T:"
+       "TMoUJ2EqVESgcaD5eJdvphkkn8K3ucXdTp:9321004379:keep:30",
+       "Confirm sending 0.0412764 ETH", "Expiry epoch 1791852609"},
+      {"44bc937b0000000000000000000000004d39d5c55cfeb48f44d680fcac204936"
+       "35dafdee00000000000000000000000000000000000000000000000000000000"
+       "00000000000000000000000000000000000000000000000000000000001d5415"
+       "7d6dc00000000000000000000000000000000000000000000000000000000000"
+       "000000a000000000000000000000000000000000000000000000000000000000"
+       "6acd810400000000000000000000000000000000000000000000000000000000"
+       "000000403d3a54524f4e2e5452583a544d6f554a324571564553676361443565"
+       "4a647670686b6b6e384b337563586454703a353734303833303833333a6b6565"
+       "703a3330",
+       "1d54157d6dc000",
+       "=:TRON.TRX:TMoUJ2EqVESgcaD5eJdvphkkn8K3ucXdTp:5740830833:keep:30",
+       "Confirm sending 0.0082552256 ETH", "Expiry epoch 1791852804"},
+  };
+  for (const auto& c : cases) {
+    EthereumSignTx msg;
+    MakeThorDeposit(&msg, THOR_ROUTER_BASE, 8453);
+    msg.data_initial_chunk.size = std::strlen(c.data) / 2;
+    for (size_t i = 0; i < msg.data_initial_chunk.size; i++) {
+      msg.data_initial_chunk.bytes[i] = (bin_from_ascii(c.data[2 * i]) << 4) |
+                                        bin_from_ascii(c.data[2 * i + 1]);
+    }
+    msg.has_data_length = true;
+    msg.data_length = msg.data_initial_chunk.size;
+    msg.has_value = true;
+    msg.value.size = std::strlen(c.value) / 2;
+    for (size_t i = 0; i < msg.value.size; i++) {
+      msg.value.bytes[i] = (bin_from_ascii(c.value[2 * i]) << 4) |
+                           bin_from_ascii(c.value[2 * i + 1]);
+    }
+    ASSERT_TRUE(thor_isThorchainTx(&msg));
+    ASSERT_EQ(nullptr, thor_depositRefusal(&msg));
+    ASSERT_TRUE(kkconfirm_preload(20, 0));
+    kkconfirm_capture_start();
+    const bool confirmed = thor_confirmThorTx(msg.data_length, &msg);
+    const auto screens = kkconfirm_capture_finish();
+    kkconfirm_drain();
+    EXPECT_TRUE(confirmed);
+    EXPECT_TRUE(HasScreen(screens, "Routing through Thorchain router"));
+    EXPECT_TRUE(HasScreen(
+        screens,
+        "Pays UNVERIFIED vault 4d39d5c55cfeb48f44d680fcac20493635dafdee"));
+    EXPECT_TRUE(HasScreen(screens, c.amount_screen));
+    EXPECT_TRUE(HasScreen(screens, c.expiry_screen));
+    std::string shown;
+    for (const auto& page : screens) shown += page;
+    EXPECT_NE(std::string::npos, shown.find(c.memo)) << shown;
+
+    // The identical calldata cannot borrow the pin on an unrelated address
+    // or chain. Avalanche is intentionally excluded: it shares this pin.
+    msg.to.bytes[0] ^= 1;
+    EXPECT_FALSE(thor_isThorchainTx(&msg));
+    msg.to.bytes[0] ^= 1;
+    for (uint32_t chain : {1u, 56u, 42161u}) {
+      msg.chain_id = chain;
+      EXPECT_FALSE(thor_isThorchainTx(&msg)) << chain;
+    }
+    msg.has_chain_id = false;
+    EXPECT_FALSE(thor_isThorchainTx(&msg));
+  }
+}
+
 // A canonical transformERC20 call with one transformation whose data is one
 // byte. The transformation byte is deliberately outside the four static words
 // that the retired decoder displayed.
@@ -1003,6 +1094,57 @@ TEST(Ethereum, ThorchainDepositWithExpiryShowsTheExpiry) {
   EXPECT_EQ(0, kkconfirm_drain());
 }
 
+// A deposit with no memo draws a fixed text on the memo screen. It holds a
+// space, which no memo byte is drawn as, so a memo cannot spell that screen.
+TEST(Ethereum, ThorDepositWithNoMemoCannotBeSpelledByAMemo) {
+  EthereumSignTx msg;
+  MakeThorDeposit(&msg, THOR_ROUTER, 1);
+  msg.data_initial_chunk.bytes[4 + 3 * 32 + 31] = 0xa0;
+  ASSERT_TRUE(kkconfirm_preload(8, 0));
+  kkconfirm_capture_start();
+  (void)thor_confirmThorTx(msg.data_initial_chunk.size, &msg);
+  const auto screens = kkconfirm_capture_finish();
+  kkconfirm_drain();
+  ASSERT_TRUE(HasScreen(screens, "(no data)"))
+      << ::testing::PrintToString(screens);
+
+  const uint8_t spelled[] = "(no data)";
+  char escaped[64];
+  ASSERT_TRUE(confirm_bytes_escape(spelled, sizeof(spelled) - 1, escaped,
+                                   sizeof(escaped)));
+  EXPECT_STRNE("(no data)", escaped);
+}
+
+// The fee screen shows the value again. A value the Send screen showed and
+// the user approved must not be refused there for being long: 10^27 wei on a
+// chain with no ticker is 32 characters.
+TEST(Ethereum, LongNativeValueReachesTheFeeScreen) {
+  EthereumSignTx msg{};
+  msg.has_chain_id = true;
+  msg.chain_id = 369;
+  msg.has_nonce = msg.has_gas_price = msg.has_gas_limit = true;
+  msg.nonce.size = msg.gas_price.size = msg.gas_limit.size = 1;
+  msg.gas_price.bytes[0] = msg.gas_limit.bytes[0] = 1;
+  msg.has_to = true;
+  msg.to.size = 20;
+  std::memset(msg.to.bytes, 0x11, 20);
+  static const uint8_t ten_to_27[12] = {0x03, 0x3b, 0x2e, 0x3c, 0x9f, 0xd0,
+                                        0x80, 0x3c, 0xe8, 0x00, 0x00, 0x00};
+  msg.has_value = true;
+  msg.value.size = sizeof(ten_to_27);
+  std::memcpy(msg.value.bytes, ten_to_27, sizeof(ten_to_27));
+  HDNode node{};
+  const uint8_t seed[32] = {1};
+  ASSERT_TRUE(hdnode_from_seed(seed, sizeof(seed), "secp256k1", &node));
+
+  ASSERT_TRUE(kkconfirm_preload(1, 1));  // approve Send, decline the fee
+  fsm_test_clearLastFailure();
+  ethereum_signing_init(&msg, &node, /*needs_confirm=*/true);
+  EXPECT_EQ(0, kkconfirm_drain()) << "the fee screen was never shown";
+  EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+  EXPECT_FALSE(ethereum_signing_isInProgress());
+}
+
 TEST(Ethereum, TypedHashSigningRequiresAdvancedMode) {
   EXPECT_FALSE(ethereum_typed_hash_policy_allows(false));
   EXPECT_TRUE(ethereum_typed_hash_policy_allows(true));
@@ -1015,10 +1157,21 @@ TEST(Ethereum, DirectSigningEntryRejectsChainIdAboveMaximum) {
   msg.chain_id = 2147483630u;
   EXPECT_FALSE(ethereum_chainIdIsValid(&msg));
   HDNode node{};
+  fsm_test_clearLastFailure();
   ethereum_signing_init(&msg, &node, false);
   EXPECT_FALSE(ethereum_signing_isInProgress());
+  EXPECT_STREQ("Chain Id out of bounds", fsm_test_lastFailureMessage());
+
+  // The largest id is let through: the same message, which names no gas
+  // price, is refused by the next check instead.
   msg.chain_id--;
   EXPECT_TRUE(ethereum_chainIdIsValid(&msg));
+  fsm_test_clearLastFailure();
+  ethereum_signing_init(&msg, &node, false);
+  EXPECT_FALSE(ethereum_signing_isInProgress());
+  EXPECT_STREQ("Legacy transactions require gas_price",
+               fsm_test_lastFailureMessage());
+  EXPECT_EQ(0, kkconfirm_drain());
 }
 
 static const uint8_t DAI_MAINNET_ADDRESS[20] = {
@@ -1428,4 +1581,166 @@ TEST(Ethereum, ThorchainNativeAssetUsesOnlyItsZeroAddressSentinel) {
     EXPECT_FALSE(thor_confirmThorTx(msg.data_initial_chunk.size, &msg));
     EXPECT_EQ(0, kkconfirm_drain());
   }
+}
+
+extern "C" {
+#include "keepkey/board/font.h"
+#include "keepkey/board/layout.h"
+#include "keepkey/firmware/ethereum_contracts/zxswap.h"
+#include "pb_decode.h"
+}
+
+// A `to` sent twice, the second time empty, decodes to size 0 with the first
+// value's bytes still in place. That is a contract creation, and no decoder
+// may show it as a call to the contract those bytes name.
+TEST(Ethereum, DuplicateEmptyToIsNotClaimedByAContractDecoder) {
+  std::vector<uint8_t> wire;
+  auto field = [&](uint8_t tag, const uint8_t* p, size_t n) {
+    wire.push_back(tag);
+    wire.push_back(static_cast<uint8_t>(n));
+    wire.insert(wire.end(), p, p + n);
+  };
+  const uint8_t gas_price[] = {0x04, 0xa8, 0x17, 0xc8, 0x00};
+  const uint8_t gas_limit[] = {0x0f, 0x42, 0x40};
+  uint8_t data[68] = {0xfe, 0xa7, 0xc5, 0x3f};  // withdrawFromSalary
+  data[35] = 1;
+  data[67] = 1;
+  field(0x1a, gas_price, sizeof(gas_price));
+  field(0x22, gas_limit, sizeof(gas_limit));
+  field(0x2a, reinterpret_cast<const uint8_t*>(SAPROXY_ADDRESS), 20);
+  field(0x2a, data, 0);  // `to` again, empty
+  field(0x3a, data, sizeof(data));
+  wire.push_back(0x40);  // data_length
+  wire.push_back(68);
+  wire.push_back(0x60);  // chain_id
+  wire.push_back(1);
+
+  EthereumSignTx msg = EthereumSignTx{};
+  pb_istream_t in = pb_istream_from_buffer(wire.data(), wire.size());
+  ASSERT_TRUE(pb_decode(&in, EthereumSignTx_fields, &msg));
+  ASSERT_EQ(0u, msg.to.size);
+  ASSERT_EQ(0, std::memcmp(msg.to.bytes, SAPROXY_ADDRESS, 20));
+  EXPECT_FALSE(ethereum_contractHandled(68, &msg, nullptr));
+
+  // Control: the same call with `to` sent once is the Sablier withdrawal.
+  msg.to.size = 20;
+  EXPECT_TRUE(ethereum_contractHandled(68, &msg, nullptr));
+}
+
+// The chain id is signed. Chains that share a ticker draw the same amount
+// screens, so the last screen's title has to tell them apart.
+TEST(Ethereum, LastScreenTitleNamesTheChain) {
+  auto title = [](bool has_chain, uint32_t chain_id) {
+    EthereumSignTx msg = EthereumSignTx{};
+    msg.has_chain_id = has_chain;
+    msg.chain_id = chain_id;
+    char out[24];
+    ethereum_transactionTitle(&msg, out, sizeof(out));
+    return std::string(out);
+  };
+  EXPECT_EQ("Transaction", title(true, 1));
+  EXPECT_EQ("Transaction", title(false, 0));
+  EXPECT_EQ("Tx on Base", title(true, 8453));
+  EXPECT_EQ("Tx on Arbitrum", title(true, 42161));
+  EXPECT_EQ("Tx on Optimism", title(true, 10));
+  EXPECT_EQ("Tx on chain 59144", title(true, 59144));
+  EXPECT_EQ("Tx on chain 11155111", title(true, 11155111));
+  EXPECT_NE(title(true, 1), title(true, 8453));   // both "ETH" chains
+  EXPECT_NE(title(true, 59144), title(true, 11155111));  // both "Wei" chains
+  // A wrapped title draws over the body: every one fits a row.
+  for (uint32_t chain :
+       {10u, 56u, 100u, 137u, 8453u, 42161u, 43114u, 2147483629u}) {
+    EXPECT_EQ(1u, calc_str_line(get_title_font(), title(true, chain).c_str(),
+                                TITLE_WIDTH))
+        << title(true, chain);
+  }
+}
+
+// The amounts of a liquidity call do not say which way they move, so the
+// first screen of either flow names the operation, in a title that fits a row.
+TEST(Ethereum, LiquidityFirstScreenNamesTheOperation) {
+  for (bool add : {true, false}) {
+    EthereumSignTx msg = liquidity_tx(true, add);
+    // Decline the first screen, so it is the only one drawn.
+    ASSERT_TRUE(kkconfirm_preload(0, 1));
+    kkconfirm_capture_start();
+    EXPECT_FALSE(
+        zx_confirmZxLiquidTx(msg.data_initial_chunk.size, &msg, nullptr));
+    kkconfirm_capture_finish();
+    EXPECT_EQ(0, kkconfirm_drain());
+    const std::vector<std::string> titles = kkconfirm_captured_titles();
+    ASSERT_EQ(1u, titles.size());
+    EXPECT_EQ(add ? "Uniswap Add Liquidity" : "Uniswap LP Burn", titles[0]);
+    std::string drawn = titles[0];
+    for (char& ch : drawn) ch = (char)toupper((unsigned char)ch);
+    EXPECT_EQ(1u, calc_str_line(get_title_font(), drawn.c_str(), TITLE_WIDTH))
+        << drawn;
+  }
+}
+
+// The 0x router reads isSushi as "any non-zero word". Only the low four bytes
+// were checked, so a set upper byte traded on Sushiswap under a "Uniswap"
+// title. Non-canonical words are not claimed.
+TEST(Ethereum, ZxSwapClaimsOnlyCanonicalWords) {
+  static const uint8_t WETH[20] = {0xc0, 0x2a, 0xaa, 0x39, 0xb2, 0x23, 0xfe,
+                                   0x8d, 0x0a, 0x0e, 0x5c, 0x4f, 0x27, 0xea,
+                                   0xd9, 0x08, 0x3c, 0x75, 0x6c, 0xc2};
+  EthereumSignTx msg = EthereumSignTx{};
+  msg.has_chain_id = true;
+  msg.chain_id = 1;
+  msg.has_to = true;
+  msg.to.size = 20;
+  memcpy(msg.to.bytes, ZXSWAP_ADDRESS, 20);
+  msg.has_data_initial_chunk = true;
+  msg.data_initial_chunk.size = 4 + 7 * 32;
+  uint8_t* d = msg.data_initial_chunk.bytes;
+  memcpy(d, "\xd9\x62\x7a\xa4", 4);
+  d[4 + 31] = 0x80;           // tokens offset
+  d[4 + 32 + 31] = 100;       // sell amount
+  d[4 + 2 * 32 + 31] = 5;     // minimum buy
+  d[4 + 4 * 32 + 31] = 2;     // tokens.length
+  memcpy(d + 4 + 5 * 32 + 12, DAI_MAINNET_ADDRESS, 20);
+  memcpy(d + 4 + 6 * 32 + 12, WETH, 20);
+  ASSERT_TRUE(zx_isZxSwap(&msg));
+
+  for (size_t offset : {size_t{4 + 3 * 32},        // isSushi, top byte
+                        size_t{4 + 3 * 32 + 27},   // isSushi, just above the low four
+                        size_t{4 + 4 * 32},        // tokens.length, top byte
+                        size_t{4 + 5 * 32},        // tokens[0], above the address
+                        size_t{4 + 6 * 32 + 11}}) {  // tokens[1], above the address
+    EthereumSignTx dirty = msg;
+    dirty.data_initial_chunk.bytes[offset] = 1;
+    EXPECT_FALSE(zx_isZxSwap(&dirty)) << offset;
+  }
+  EthereumSignTx sushi = msg;
+  sushi.data_initial_chunk.bytes[4 + 3 * 32 + 31] = 1;
+  EXPECT_TRUE(zx_isZxSwap(&sushi));
+  sushi.data_initial_chunk.bytes[4 + 3 * 32 + 31] = 2;  // not a bool
+  EXPECT_FALSE(zx_isZxSwap(&sushi));
+}
+
+// A router deposit's vault and asset words are addresses: their upper 12
+// bytes are signed, shown nowhere, and zero in a canonical encoding. The
+// vault itself is whatever the host sent, so the screen does not vouch for it.
+TEST(Ethereum, ThorDepositRefusesDirtyAddressWordsAndDoesNotVouchForTheVault) {
+  EthereumSignTx msg;
+  MakeThorDeposit(&msg, THOR_ROUTER, 1);
+  ASSERT_EQ(nullptr, thor_depositRefusal(&msg));
+  for (size_t offset : {size_t{4}, size_t{4 + 11}, size_t{4 + 32},
+                        size_t{4 + 32 + 11}}) {
+    EthereumSignTx dirty = msg;
+    dirty.data_initial_chunk.bytes[offset] = 1;
+    EXPECT_STREQ("Malformed deposit: address word is not canonical",
+                 thor_depositRefusal(&dirty))
+        << offset;
+  }
+
+  bool confirmed = false;
+  const auto screens = ThorFullDepositScreens(THOR_ROUTER, 1, true, &confirmed);
+  EXPECT_TRUE(confirmed);
+  EXPECT_TRUE(HasScreen(
+      screens, "Pays UNVERIFIED vault 2222222222222222222222222222222222222222"))
+      << ::testing::PrintToString(screens);
+  for (const auto& screen : screens)
+    EXPECT_EQ(std::string::npos, screen.find("Asgard")) << screen;
 }

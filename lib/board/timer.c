@@ -29,6 +29,7 @@
 #include <windows.h>        /* Sleep() */
 #else
 #include <signal.h>
+#include <time.h>
 #include <unistd.h>
 #endif
 #endif
@@ -44,6 +45,16 @@
 
 static volatile uint32_t remaining_delay = UINT32_MAX;
 static volatile uint32_t timeSinceWakeup = 0;
+#ifdef EMULATOR
+/* Windows has no SIGALRM; the POSIX shared library opts in at initialization.
+ * Leave signal-driven callers, including native test harnesses, unchanged. */
+#ifdef _WIN32
+static bool poll_driven_timer = true;
+#else
+static bool poll_driven_timer = false;
+#endif
+void timer_set_poll_driven(bool enabled) { poll_driven_timer = enabled; }
+#endif
 static RunnableNode runnables[MAX_RUNNABLES];
 static RunnableQueue free_queue = {NULL, 0};
 static RunnableQueue active_queue = {NULL, 0};
@@ -224,6 +235,17 @@ static void reset_runnable_queues(void) {
 
 void kk_timer_init(void) { reset_runnable_queues(); }
 
+#if defined(EMULATOR) && !defined(_WIN32)
+/* The standalone process owns SIGALRM. Start it after board initialization,
+ * preserving the animation callbacks that layout_init() already registered. */
+void timer_start_emulator_signals(void) {
+  poll_driven_timer = false;
+  void tim4_sighandler(int sig);
+  signal(SIGALRM, tim4_sighandler);
+  ualarm(1000, 1000);
+}
+#endif
+
 /*
  * timer_init() - Timer 4 initialization.  Main timer for round robin tasking.
  *
@@ -251,9 +273,7 @@ void timer_init(void) {
 
   timer_enable_counter(TIM4);
 #elif !defined(_WIN32)
-  void tim4_sighandler(int sig);
-  signal(SIGALRM, tim4_sighandler);
-  ualarm(1000, 1000);
+  timer_start_emulator_signals();
 #endif
   /* _WIN32: no SIGALRM/ualarm — libkkemu's kkemu_poll() drives timerisr_usr().
    */
@@ -310,20 +330,55 @@ void delay_us(uint32_t us) {
  * OUTPUT
  *     none
  */
-void delay_ms(uint32_t ms) {
-  remaining_delay = ms;
+#ifdef EMULATOR
+static uint64_t tick_due_ms;
 
+static uint64_t monotonic_ms(void) {
 #ifdef _WIN32
-  /* No SIGALRM on Windows: a spin inside usbPoll() would never progress, so
-   * advance the tick from wall-clock Sleep (single-threaded). */
-  while (remaining_delay > 0) {
-    Sleep(1);
+  return GetTickCount64();
+#else
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+#endif
+}
+#endif
+
+/* A delay reached inside usbPoll() must drive its own ticks when the outer
+ * poll loop is the clock source. Tick once per elapsed wall-clock millisecond
+ * and catch up after an oversleep, so a delay lasts as long as it says on a
+ * slow host. Never add ticks to the standalone SIGALRM clock, or to the
+ * hardware interrupt clock. */
+static void delay_start(void) {
+#ifdef EMULATOR
+  tick_due_ms = monotonic_ms() + 1;
+#endif
+}
+
+static void delay_tick(void) {
+#ifdef EMULATOR
+  if (poll_driven_timer) {
+    uint64_t now = monotonic_ms();
+    if (now < tick_due_ms) {
+#ifdef _WIN32
+      Sleep((DWORD)(tick_due_ms - now));
+#else
+      usleep((useconds_t)((tick_due_ms - now) * 1000u));
+#endif
+    }
+    tick_due_ms++;
     timerisr_usr();
   }
-#else
-  while (remaining_delay > 0) {
-  }
 #endif
+}
+
+void delay_ms(uint32_t ms) {
+  remaining_delay = ms;
+  delay_start();
+
+  while (remaining_delay > 0) {
+    delay_tick();
+  }
 }
 
 /*
@@ -340,17 +395,13 @@ void delay_ms(uint32_t ms) {
 void delay_ms_with_callback(uint32_t ms, callback_func_t callback_func,
                             uint32_t frequency_ms) {
   remaining_delay = ms;
+  delay_start();
 
   while (remaining_delay > 0) {
     if (remaining_delay % frequency_ms == 0) {
       (*callback_func)();
     }
-#ifdef _WIN32
-    /* See delay_ms(): drive the tick from wall-clock Sleep on Windows so this
-     * loop terminates when reached from inside usbPoll(). */
-    Sleep(1);
-    timerisr_usr();
-#endif
+    delay_tick();
   }
 }
 

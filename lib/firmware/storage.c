@@ -1592,6 +1592,10 @@ void storage_wipe(void) {
 void storage_clearKeys(void) {
   fsm_abort_workflows();
   session_clear_impl(&session, &shadow_config.storage, false);
+  /* The wipe code erases the keys; the seed trezor-crypto cached must go
+   * with them. */
+  bip39_cache_clear();
+  bip32_cache_clear();
   memzero(&session.storageKey, sizeof(session.storageKey));
   memzero(&shadow_config.storage.pub.wrapped_storage_key,
           sizeof(shadow_config.storage.pub.wrapped_storage_key));
@@ -1649,6 +1653,10 @@ pintest_t session_clear_impl(SessionState* ss, Storage* storage,
     signed_metadata_clear_signers();
 #endif
     storage_setPolicy_impl(storage->pub.policies, "AdvancedMode", false);
+    /* trezor-crypto caches the mnemonic, passphrase, seed and derived nodes
+     * of recent derivations. A lock must not leave them in RAM. */
+    bip39_cache_clear();
+    bip32_cache_clear();
   }
 
   ss->seedCached = false;

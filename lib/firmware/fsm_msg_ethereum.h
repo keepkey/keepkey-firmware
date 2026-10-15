@@ -366,7 +366,7 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
   CHECK_PIN
 
   /* A zero-length message is not a message. confirm_bytes() renders size 0 as
-     the literal "(empty)" and returns whatever the owner pressed, so without
+     the literal "(no data)" and returns whatever the owner pressed, so without
      this the device would sign a payload no screen ever showed -- the same
      hole already closed on the TON and Solana paths. (`message` is a required
      field here, so nanopb rejects an omitted one during decode; only the empty
@@ -637,7 +637,7 @@ static void eip712_pump(void) {
       if (!derived) {
         fsm_sendFailure(FailureType_Failure_Other,
                         _("Ethereum address derivation failed"));
-        layout_home();
+        layoutHome();
         return;
       }
       char address[2 + 40 + 1];
@@ -646,15 +646,22 @@ static void eip712_pump(void) {
       ethereum_address_checksum(pubkeyhash, address + 2, false, 0);
 
       /* The one screen that names the action being authorised and the
-       * account authorising it; every leaf before it was part of the review. */
+       * account authorising it; every leaf before it was part of the review.
+       * A message or a domain with no member had no screen, so it is named
+       * here as empty. */
       if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Sign Typed Data",
                    "Sign %s%s%s\nfrom %s?",
-                   done.message_empty && !done.domain_only ? "EMPTY " : "",
-                   done.primary_type, done.domain_only ? " (domain only)" : "",
+                   (done.domain_only ? done.domain_empty : done.message_empty)
+                       ? "EMPTY "
+                       : "",
+                   done.primary_type,
+                   done.domain_only    ? " (domain only)"
+                   : done.domain_empty ? " (EMPTY domain)"
+                                       : "",
                    address)) {
         fsm_sendFailure(FailureType_Failure_ActionCancelled,
                         _("Signing cancelled by user"));
-        layout_home();
+        layoutHome();
         return;
       }
 
@@ -668,7 +675,7 @@ static void eip712_pump(void) {
       memzero(node, sizeof(*node));
       if (signed_rc != 0) {
         fsm_sendFailure(FailureType_Failure_Other, _("Signing failed"));
-        layout_home();
+        layoutHome();
         return;
       }
       RESP_INIT(EthereumTypedDataSignature);
@@ -684,22 +691,22 @@ static void eip712_pump(void) {
       resp->message_hash.size = done.domain_only ? 0 : 32;
       memcpy(resp->message_hash.bytes, done.message_hash, 32);
       msg_write(MessageType_MessageType_EthereumTypedDataSignature, resp);
-      layout_home();
+      layoutHome();
       return;
     }
     case EIP712_REQ_CANCELLED:
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("EIP-712 cancelled"));
-      layout_home();
+      layoutHome();
       return;
     case EIP712_REQ_FAIL:
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       next->error ? next->error : "EIP-712 error");
-      layout_home();
+      layoutHome();
       return;
     default:
       fsm_sendFailure(FailureType_Failure_Other, _("EIP-712 internal state"));
-      layout_home();
+      layoutHome();
       return;
   }
 }
@@ -715,7 +722,7 @@ void fsm_msgEthereumSignTypedData(const EthereumSignTypedData* msg) {
   if (!ethereum_streamed_eip712_enabled()) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Structured EIP-712 is unavailable"));
-    layout_home();
+    layoutHome();
     return;
   }
 

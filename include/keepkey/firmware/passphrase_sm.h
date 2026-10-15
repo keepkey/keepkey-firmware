@@ -26,6 +26,11 @@
 
 #define PASSPHRASE_BUF sizeof(((PassphraseAck*)NULL)->passphrase)
 
+/* What the confirmation shows for a zero-length passphrase. It has a space in
+ * it, and a typed space is always drawn as \x20, so no passphrase the host
+ * sends can draw the same screen. */
+#define PASSPHRASE_NONE_TEXT "(no passphrase)"
+
 /* State for Passphrase SM */
 typedef enum {
   PASSPHRASE_REQUEST,

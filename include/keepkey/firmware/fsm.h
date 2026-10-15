@@ -73,6 +73,8 @@ void fsm_init(void);
 /* End every in-flight workflow and scrub its volatile authorization/key
  * state. Call before any operation that clears or revokes a session. */
 void fsm_abort_workflows(void);
+/* Revoke only the empty-device RNG audit grant, without aborting workflows. */
+void fsm_revoke_entropy_audit(void);
 void fsm_abort_signing_workflows(void);
 /* True while a setup ceremony is armed or any signer waits for the host. */
 bool fsm_workflowInProgress(void);
