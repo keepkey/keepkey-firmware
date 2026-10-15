@@ -219,7 +219,11 @@ struct U2FWait : ::testing::Test {
 
 }  // namespace
 
+size_t kk_test_u2f_reply_count(void) { return u2f_replies.size(); }
+uint8_t kk_test_u2f_last_reply_command(void) { return u2f_reply_cmds.back(); }
+void kk_test_poll(void);
 extern "C" void emulatorPoll(void) {
+  kk_test_poll();
   if (poll_script.empty()) return;
   auto step = poll_script.front();
   poll_script.pop_front();

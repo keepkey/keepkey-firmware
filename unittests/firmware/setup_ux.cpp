@@ -1,10 +1,8 @@
 #include "gtest/gtest.h"
-#include <atomic>
+#include <functional>
 #include <cstring>
 #include <string>
-#include <thread>
 #include <vector>
-#include <unistd.h>
 extern "C" {
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/board/messages.h"
@@ -18,6 +16,8 @@ extern "C" {
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/reset.h"
 #include "keepkey/firmware/storage.h"
+#include "keepkey/firmware/u2f.h"
+#include "keepkey/firmware/u2f/u2f.h"
 #include "storage.h"
 }
 void kk_test_board_init(void);
@@ -27,6 +27,10 @@ bool kkconfirm_sendTiny(uint16_t, const uint8_t*, uint8_t);
 void kkconfirm_capture_start(void);
 std::vector<std::string> kkconfirm_capture_finish(void);
 extern "C" bool keepkey_before_message_dispatch(MessageType);
+size_t kk_test_u2f_reply_count(void);
+uint8_t kk_test_u2f_last_reply_command(void);
+void kk_test_set_poll_hook(std::function<void()>);
+void kk_test_set_message_hook(std::function<void(MessageType, const void*)>);
 
 namespace {
 void receiveMessage(MessageType type, const pb_field_t* fields,
@@ -83,6 +87,8 @@ class SetupUx : public ::testing::Test {
     kkconfirm_capture_start();
   }
   void TearDown() override {
+    kk_test_set_poll_hook({});
+    kk_test_set_message_hook({});
     reset_idle_time();
     fsm_abort_workflows();
     kkconfirm_drain();
@@ -170,36 +176,55 @@ TEST_F(SetupUx, ArmedSetupRejectsEntropyWithoutDiscardingCeremony) {
   EXPECT_TRUE(kkconfirm_capture_finish().empty());
 }
 
-// Drive the actual PIN protocol before dice. On the old ordering the device
-// waits for dice instead; a bounded watchdog cancels it and the count fails.
-static int resetWithPinThenCancel(bool mismatch) {
-  std::atomic<int> answered{0};
-  std::thread host([&] {
-    std::string seen = "XXXXXXXXX";
-    for (int prompt = 0; prompt < 2; ++prompt) {
-      bool found = false;
-      for (int tries = 0; tries < 2000; ++tries, usleep(1000)) {
-        const std::string first = get_pin_matrix();
-        if (first == "XXXXXXXXX" || first == seen) continue;
-        usleep(50000);
-        const std::string matrix = get_pin_matrix();
-        std::string positions;
-        const char* pin = mismatch && prompt == 1 ? "5678" : "1234";
-        for (const char* d = pin; *d; ++d)
-          positions += (char)('1' + matrix.find(*d));
-        uint8_t ack[11] = {0x0a, (uint8_t)positions.size()};
-        std::memcpy(&ack[2], positions.data(), positions.size());
-        kkconfirm_sendTiny(MessageType_MessageType_PinMatrixAck, ack,
-                           (uint8_t)(2 + positions.size()));
-        seen = matrix;
-        ++answered;
-        found = true;
-        break;
-      }
-      if (!found) break;
+// Respond only after observing the corresponding request. Both callbacks run
+// on the firmware thread; the matrix is stable at its USB polling boundary.
+struct PinRun {
+  int answered = 0;
+  int dice_requests = 0;
+  int cancels = 0;
+  int polls = 0;
+  bool watchdog = false;
+  std::string failure;
+};
+static PinRun resetWithPinThenCancel(bool mismatch) {
+  PinRun result;
+  MessageType pending = (MessageType)0;
+  kk_test_set_message_hook([&](MessageType id, const void* msg) {
+    if (id == MessageType_MessageType_PinMatrixRequest) pending = id;
+    if (id == MessageType_MessageType_ButtonRequest &&
+        ((const ButtonRequest*)msg)->code ==
+            ButtonRequestType_ButtonRequest_DiceRoll) {
+      ++result.dice_requests;
+      pending = MessageType_MessageType_Cancel;
     }
-    usleep(100000);
-    kkconfirm_sendTiny(MessageType_MessageType_Cancel, nullptr, 0);
+    if (id == MessageType_MessageType_Failure)
+      result.failure = ((const Failure*)msg)->message;
+  });
+  kk_test_set_poll_hook([&] {
+    if (++result.polls > 10000 && pending == (MessageType)0) {
+      result.watchdog = true;
+      pending = MessageType_MessageType_Cancel;
+    }
+    if (pending == MessageType_MessageType_PinMatrixRequest) {
+      const std::string matrix = get_pin_matrix();
+      const char* pin = mismatch && result.answered == 1 ? "5678" : "1234";
+      PinMatrixAck ack = {};
+      for (size_t i = 0; i < 4; ++i) {
+        const auto pos = matrix.find(pin[i]);
+        EXPECT_NE(std::string::npos, pos);
+        if (pos == std::string::npos) return;
+        ack.pin[i] = '1' + pos;
+      }
+      pending = (MessageType)0;
+      ++result.answered;
+      receiveMessage(MessageType_MessageType_PinMatrixAck, PinMatrixAck_fields,
+                     &ack);
+    } else if (pending == MessageType_MessageType_Cancel) {
+      pending = (MessageType)0;
+      ++result.cancels;
+      Cancel cancel = {};
+      receiveMessage(MessageType_MessageType_Cancel, Cancel_fields, &cancel);
+    }
   });
   ResetDevice reset = {};
   reset.has_strength = true;
@@ -208,12 +233,18 @@ static int resetWithPinThenCancel(bool mismatch) {
   reset.has_dice_entropy = reset.dice_entropy = true;
   receiveMessage(MessageType_MessageType_ResetDevice, ResetDevice_fields,
                  &reset);
-  host.join();
-  return answered;
+  kk_test_set_poll_hook({});
+  kk_test_set_message_hook({});
+  return result;
 }
 
 TEST_F(SetupUx, PinMismatchHappensBeforeDiceAndLeavesNoWallet) {
-  EXPECT_EQ(2, resetWithPinThenCancel(true));
+  const auto run = resetWithPinThenCancel(true);
+  EXPECT_EQ(2, run.answered);
+  EXPECT_EQ("PINs do not match", run.failure);
+  EXPECT_EQ(0, run.dice_requests);
+  EXPECT_EQ(0, run.cancels);
+  EXPECT_FALSE(run.watchdog);
   EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
   EXPECT_FALSE(setup_isArmed());
   EXPECT_FALSE(storage_isInitialized());
@@ -223,7 +254,11 @@ TEST_F(SetupUx, PinMismatchHappensBeforeDiceAndLeavesNoWallet) {
 }
 
 TEST_F(SetupUx, DiceCancelAfterPinLeavesNoWalletOrStagedPin) {
-  EXPECT_EQ(2, resetWithPinThenCancel(false));
+  const auto run = resetWithPinThenCancel(false);
+  EXPECT_EQ(2, run.answered);
+  EXPECT_EQ(1, run.dice_requests);
+  EXPECT_EQ(1, run.cancels);
+  EXPECT_FALSE(run.watchdog);
   EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
   EXPECT_FALSE(setup_isArmed());
   EXPECT_FALSE(storage_isInitialized());
@@ -232,4 +267,28 @@ TEST_F(SetupUx, DiceCancelAfterPinLeavesNoWalletOrStagedPin) {
   EXPECT_EQ(0u, reset_get_dice_digest(digest));
   setup_arm(SETUP_RESET);  // abort also removed the staged ceremony
   EXPECT_FALSE(setup_isArmed());
+}
+
+TEST_F(SetupUx, U2fPingAndInitRevokeAuditApproval) {
+  usb_set_u2f_rx_callback(u2fhid_read);
+  for (uint8_t cmd : {U2FHID_PING, U2FHID_INIT}) {
+    SCOPED_TRACE((int)cmd);
+    ASSERT_TRUE(kkconfirm_preload(1, 1));
+    fsm_test_clearLastFailure();
+    entropy();
+    entropy();  // positive control: the grant works before U2F
+    ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+    U2FHID_FRAME frame = {};
+    frame.cid = cmd == U2FHID_INIT ? CID_BROADCAST : 0x01020304;
+    frame.init.cmd = cmd;
+    frame.init.bcntl = cmd == U2FHID_INIT ? 8 : 1;
+    frame.init.data[0] = 0x42;
+    const auto replies = kk_test_u2f_reply_count();
+    usb_test_receive_u2f(&frame);
+    ASSERT_EQ(replies + 1, kk_test_u2f_reply_count());
+    EXPECT_EQ(cmd, kk_test_u2f_last_reply_command());
+    entropy();
+    EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+    kkconfirm_drain();
+  }
 }

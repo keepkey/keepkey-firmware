@@ -96,6 +96,7 @@ TEST(Signing, AbortScrubsAllInstrumentedSignerState) {
 
 extern "C" {
 #include "keepkey/board/layout.h"
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
@@ -160,5 +161,35 @@ TEST(Signing, MixedModeChangeMustPreserveLeadingPathComponents) {
       extract_input_bip32_path(&input);
       EXPECT_FALSE(check_change_bip32_path(&output));
     }
+  }
+}
+
+void kkconfirm_capture_start(void);
+std::vector<std::string> kkconfirm_capture_finish(void);
+std::vector<std::string> kkconfirm_capture_titles(void);
+TEST(Signing, LongDerivationCannotOverlapAddressReview) {
+  const char* path = "m/2147483647'/2147483647'/2147483647'/2147483647'";
+  ASSERT_GT(calc_str_width(get_title_font(), path), TITLE_WIDTH);
+  for (const char* address :
+       {"bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr",
+        "1JAd7XCBzGudGpJQSDSfpmJhiygtLQWaGL"}) {
+    ASSERT_TRUE(kkconfirm_preload(8, 0));
+    kkconfirm_capture_start();
+    EXPECT_TRUE(confirm_address(path, address));
+    const auto bodies = kkconfirm_capture_finish();
+    const auto titles = kkconfirm_capture_titles();
+    ASSERT_GE(bodies.size(), 2u);
+    ASSERT_EQ(bodies.size(), titles.size());
+    std::string text;
+    for (size_t i = 0; i + 1 < bodies.size(); ++i) {
+      EXPECT_LE(calc_str_width(get_title_font(), titles[i].c_str()),
+                TITLE_WIDTH);
+      EXPECT_TRUE(confirm_body_fits(bodies[i].c_str(), BODY_WIDTH));
+      text += bodies[i];
+    }
+    EXPECT_EQ(std::string(path) + "\n" + address, text);
+    EXPECT_EQ("Address QR", titles.back());
+    EXPECT_EQ(address, bodies.back());
+    kkconfirm_drain();
   }
 }

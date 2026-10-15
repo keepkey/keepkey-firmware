@@ -154,6 +154,10 @@ typedef struct {
 U2F_ReadBuffer* reader;
 
 void u2fhid_read(char tiny, const U2FHID_FRAME* f) {
+  /* U2F bypasses the protobuf dispatch gate. A new top-level operation,
+   * including INIT, must end a previously approved RNG audit too. */
+  if (!tiny) fsm_revoke_entropy_audit();
+
   // Always handle init packets directly
   if (f->init.cmd == U2FHID_INIT) {
     u2fhid_init(f);

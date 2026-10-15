@@ -341,11 +341,16 @@ bool confirm_qr(const char* desc, const char* data) {
  *
  */
 bool confirm_address(const char* desc, const char* address) {
-  /* A multi-line address crowds its QR: show the text alone, then the QR. */
-  if (!layout_address_fits_one_line(address)) {
-    return confirm(ButtonRequestType_ButtonRequest_Address, desc, "%s",
-                   address) &&
-           confirm_qr(desc, address);
+  /* Long addresses and descriptions cannot safely share a screen with a QR.
+   * Standard-layout titles have only one row: put the complete description
+   * in the paginated body and keep both screen titles short. Also account for
+   * the description's left margin in the compact address layout. */
+  if (!layout_address_fits_one_line(address) || strchr(desc, '\n') ||
+      calc_str_width(get_title_font(), desc) >
+          KEEPKEY_DISPLAY_WIDTH - MULTISIG_LEFT_MARGIN) {
+    return confirm(ButtonRequestType_ButtonRequest_Address, "Address", "%s\n%s",
+                   desc, address) &&
+           confirm_qr("Address QR", address);
   }
   return confirm_address_with_custom_layout(
       &layout_address_notification, ButtonRequestType_ButtonRequest_Address,
