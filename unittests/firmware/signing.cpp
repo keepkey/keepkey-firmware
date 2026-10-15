@@ -107,7 +107,7 @@ bool kkconfirm_preload(int nYes, int nNo);
 int kkconfirm_drain(void);
 
 // A 62-character bech32 address does not fit beside its QR, so it is shown
-// as text on its own screen and the QR follows: two approvals, not one.
+// after its derivation screen, followed by the QR: three approvals.
 TEST(Signing, LongAddressIsShownAsTextThenQr) {
   const char* p2tr =
       "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr";
@@ -115,7 +115,7 @@ TEST(Signing, LongAddressIsShownAsTextThenQr) {
   ASSERT_FALSE(layout_address_fits_one_line(p2tr));
   ASSERT_TRUE(layout_address_fits_one_line(p2pkh));
 
-  ASSERT_TRUE(kkconfirm_preload(2, 0));
+  ASSERT_TRUE(kkconfirm_preload(3, 0));
   EXPECT_TRUE(confirm_address("m/86'/0'/0'/0/0", p2tr));
   EXPECT_EQ(0, kkconfirm_drain());
 
@@ -172,7 +172,8 @@ TEST(Signing, LongDerivationCannotOverlapAddressReview) {
   ASSERT_GT(calc_str_width(get_title_font(), path), TITLE_WIDTH);
   for (const char* address :
        {"bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr",
-        "1JAd7XCBzGudGpJQSDSfpmJhiygtLQWaGL"}) {
+        "1JAd7XCBzGudGpJQSDSfpmJhiygtLQWaGL",
+        "tb1qqzv60m9ajw8drqulta4ld4gfx0rdh82un5s65s"}) {
     ASSERT_TRUE(kkconfirm_preload(8, 0));
     kkconfirm_capture_start();
     EXPECT_TRUE(confirm_address(path, address));
@@ -180,16 +181,50 @@ TEST(Signing, LongDerivationCannotOverlapAddressReview) {
     const auto titles = kkconfirm_capture_titles();
     ASSERT_GE(bodies.size(), 2u);
     ASSERT_EQ(bodies.size(), titles.size());
-    std::string text;
+    std::string derivation, address_text;
+    bool whole_address_visible = false;
     for (size_t i = 0; i + 1 < bodies.size(); ++i) {
       EXPECT_LE(calc_str_width(get_title_font(), titles[i].c_str()),
                 TITLE_WIDTH);
       EXPECT_TRUE(confirm_body_fits(bodies[i].c_str(), BODY_WIDTH));
-      text += bodies[i];
+      if (titles[i].find("Derivation") == 0) {
+        derivation += bodies[i];
+      } else {
+        EXPECT_EQ(0u, titles[i].find("Address"));
+        address_text += bodies[i];
+        whole_address_visible |= bodies[i] == address;
+      }
     }
-    EXPECT_EQ(std::string(path) + "\n" + address, text);
+    EXPECT_EQ(path, derivation);
+    EXPECT_EQ(address, address_text);
+    EXPECT_TRUE(whole_address_visible);
     EXPECT_EQ("Address QR", titles.back());
     EXPECT_EQ(address, bodies.back());
     kkconfirm_drain();
   }
+}
+
+TEST(Signing, SegwitAddressStartsOnItsOwnScreen) {
+  char description[128] = {};
+  const uint32_t path[] = {0x80000031, 0x80000001, 0x80000000, 0, 0};
+  ASSERT_TRUE(bip32_node_to_string(description, sizeof(description),
+                                   coinByName("Testnet"), path, 5, false,
+                                   true));
+  const char* address = "tb1qqzv60m9ajw8drqulta4ld4gfx0rdh82un5s65s";
+  ASSERT_TRUE(kkconfirm_preload(8, 0));
+  kkconfirm_capture_start();
+  EXPECT_TRUE(confirm_address(description, address));
+  const auto bodies = kkconfirm_capture_finish();
+  const auto titles = kkconfirm_capture_titles();
+  ASSERT_EQ(bodies.size(), titles.size());
+  bool complete_address = false;
+  for (size_t i = 0; i < bodies.size(); ++i) {
+    if (titles[i] == "Address") {
+      EXPECT_EQ(address, bodies[i]);
+      EXPECT_TRUE(confirm_body_fits(bodies[i].c_str(), BODY_WIDTH));
+      complete_address = true;
+    }
+  }
+  EXPECT_TRUE(complete_address);
+  kkconfirm_drain();
 }
