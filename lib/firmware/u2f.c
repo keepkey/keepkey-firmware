@@ -259,6 +259,15 @@ static void forgetPromptIfOverdrawn(void) {
  * dropped, so its sender is told. */
 static bool hostEndedSession(bool msg_tiny) {
   const MessageType id = msg_take_tiny_id();
+#if DEBUG_LINK
+  /* Inspect the active prompt without dispatching a nested workflow. The
+   * request has no fields and msg_take_tiny_id() already cleared its buffer. */
+  if (id == MessageType_MessageType_DebugLinkGetState) {
+    DebugLinkGetState request = {0};
+    call_msg_debug_link_get_state_handler(&request);
+    return false;
+  }
+#endif
   if (id != MessageType_MessageType_Initialize &&
       id != MessageType_MessageType_Cancel) {
     return false;

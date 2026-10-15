@@ -510,6 +510,9 @@ bool msg_debug_write(MessageType msg_id, const void* msg) {
       pb_ostream_from_buffer(framebuf.buffer, sizeof(framebuf.buffer));
 
   if (!pb_encode(&os, fields, msg)) return false;
+#ifdef EMULATOR
+  emulator_message_written(msg_id, msg);
+#endif
 
   framebuf.frame.header.len = __builtin_bswap32(os.bytes_written);
 
