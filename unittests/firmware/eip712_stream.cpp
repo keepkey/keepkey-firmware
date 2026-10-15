@@ -1704,7 +1704,7 @@ struct CorpusDoc {
 };
 
 const std::vector<CorpusDoc> kCorpus = {
-#include "eip712_corpus.inc"
+#include "generated/eip712_corpus.inc"
 };
 
 // "uint160", "bytes32", "Person[]", "OrderComponents[2][2]" as the host's
