@@ -275,6 +275,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
+      - name: Checkout pinned Python corpus
+        run: git submodule update --init -- deps/python-keepkey
+
       - name: Validate release report evidence gates
         run: |
           python3 -B -m unittest tools/test_build_entrypoints.py

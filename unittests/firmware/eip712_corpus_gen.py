@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate eip712_corpus.inc from eip712_corpus.json.
+"""Emit the native fixture from the pinned Python client's EIP-712 corpus.
 
 The corpus is a list of real-world EIP-712 documents, one per protocol, each
 written from the type strings in the protocol's own source (see "source").
@@ -7,27 +7,34 @@ Every one must sign on the device; Eip712Stream.RealWorldCorpus walks each
 through the firmware and compares its domain separator and message hash with
 the "expected" values here.
 
-Those values are computed by a reference encoder written from the EIP-712
-specification (below; pure Python, no firmware code). With --crosscheck
+The checked-in expected values are retained unchanged when emitting the fixture.
+With --crosscheck
 <node_modules> the same documents are also hashed by MetaMask's
 @metamask/eth-sig-util (signTypedData V4) and ethers' TypedDataEncoder, and
-the script refuses to write anything unless they agree. Three named documents
+the reference encoder below (pure Python, no firmware code). The script refuses
+to write the output unless all agree with the pinned expected values. Three named documents
 use forms ethers v5 refuses; only their exact expected refusals are allowed,
 and the reference encoder and eth-sig-util must still agree for those documents.
 
-    python3 eip712_corpus_gen.py [--crosscheck path/to/node_modules]
+    python3 eip712_corpus_gen.py --output build/eip712_corpus.inc
+    python3 eip712_corpus_gen.py --output build/eip712_corpus.inc \\
+        --crosscheck path/to/node_modules
+
+The input corpus is never rewritten. Its revision is bound by the firmware's
+python-keepkey gitlink; native and Python tests consume the same documents.
 """
 
 import argparse
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CORPUS = os.path.join(HERE, "eip712_corpus.json")
-INC = os.path.join(HERE, "eip712_corpus.inc")
+CORPUS = os.path.join(HERE, "..", "..", "deps", "python-keepkey", "tests",
+                      "eip712_corpus.json")
 
 # --- keccak-256 (pure Python) ------------------------------------------------
 _RC = [
@@ -286,6 +293,9 @@ def crosscheck(corpus, node_modules):
     ok = True
     for entry, r in zip(corpus, results):
         ref = reference(entry["doc"])
+        if entry["expected"] != ref:
+            print("MISMATCH pinned expected values:", entry["id"])
+            ok = False
         if r["sigutil"] != ref:
             print("MISMATCH eth-sig-util:", entry["id"], r["sigutil"], ref)
             ok = False
@@ -341,20 +351,20 @@ def emit(corpus):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--output", required=True, metavar="FILE",
+                    help="write the native fixture without modifying the corpus")
     ap.add_argument("--crosscheck", metavar="NODE_MODULES")
     args = ap.parse_args()
+    output = Path(args.output)
+    if output.resolve() == Path(CORPUS).resolve():
+        ap.error("--output must not overwrite the input corpus")
     with open(CORPUS) as f:
         corpus = json.load(f)
-    for entry in corpus:
-        entry["expected"] = reference(entry["doc"])
-        values(entry["doc"])  # every value must be encodable
     if args.crosscheck and not crosscheck(corpus, args.crosscheck):
         sys.exit("independent implementations disagree; nothing written")
-    with open(CORPUS, "w") as f:
-        json.dump(corpus, f, indent=1)
-        f.write("\n")
-    with open(INC, "w") as f:
-        f.write(emit(corpus))
+    # Finish validation/serialization before opening an existing output file.
+    rendered = emit(corpus)
+    output.write_text(rendered, encoding="utf-8")
     print("wrote %d documents" % len(corpus))
 
 
