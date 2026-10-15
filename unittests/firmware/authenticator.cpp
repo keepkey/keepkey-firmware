@@ -154,7 +154,7 @@ TEST(Authenticator, ExactIdentityAndSecretBoundsRejectBeforeReview) {
     SCOPED_TRACE(prefix);
     EXPECT_NE(NOERR, add_credential(std::string(prefix) + strong_secret, 0, 0));
   }
-  for (size_t length : {0u, 1u, 16u, 25u, 27u, 30u, 33u, 34u, 40u}) {
+  for (size_t length : {0u, 1u, 15u, 25u, 27u, 30u, 33u, 34u, 40u}) {
     SCOPED_TRACE(length);
     EXPECT_NE(NOERR, add_credential("example:alice:" + std::string(length, 'A'),
                                     0, 0));
@@ -165,6 +165,15 @@ TEST(Authenticator, ExactIdentityAndSecretBoundsRejectBeforeReview) {
   EXPECT_EQ(TOKERR, removeAuthAccount(nullptr));
   char account[DOMAIN_SIZE + ACCOUNT_SIZE + 2] = {};
   EXPECT_EQ(NOACC, getAuthAccount("0", account));
+}
+
+// 16 Base32 characters (80 bits) is the setup key many services issue.
+TEST(Authenticator, SixteenCharacterSetupKeyIsAccepted) {
+  reset_auth_accounts();
+  EXPECT_EQ(NOERR, add_credential("example:alice:JBSWY3DPEHPK3PXP", 2, 0));
+  authType stored[AUTHDATA_SIZE] = {};
+  ASSERT_TRUE(storage_getAuthData(stored));
+  EXPECT_EQ(10, stored[0].secretSize);
 }
 
 TEST(Authenticator, ExactBoundsPersistAndDuplicateCannotReplaceSecret) {

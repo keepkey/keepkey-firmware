@@ -1759,8 +1759,15 @@ void signing_txack(TransactionType* tx) {
         to_spend += tx->inputs[0].amount;
         authorized_bip143_in += tx->inputs[0].amount;
 
+        /* The amount is not checked against a previous transaction for this
+         * script type, so it belongs in the digest: two requests over the
+         * same outpoints that claim different amounts are different inputs. */
         txin_dgst_addto(tx->inputs[0].prev_hash.bytes,
                         sizeof(tx->inputs[0].prev_hash.bytes));
+        txin_dgst_addto((const uint8_t*)&tx->inputs[0].prev_index,
+                        sizeof(tx->inputs[0].prev_index));
+        txin_dgst_addto((const uint8_t*)&tx->inputs[0].amount,
+                        sizeof(tx->inputs[0].amount));
 
         phase1_request_next_input();
       } else {

@@ -313,11 +313,9 @@ void mayachain_signAbort(void) {
   memzero(&node, sizeof(node));
 }
 
-/* Maya inherited THORChain's strtok-based parser. strtok() collapses empty
- * components even though memo fields are positional, so a valid `::` can
- * shift an affiliate into the limit slot while producing the same structured
- * screens as different signed bytes. Until this parser understands empty
- * positions explicitly, route such memos to the caller's raw-byte review. */
+/* Memo fields are positional. A memo with an empty component (`::`, a
+ * leading or trailing separator, or one beside the chain/asset dot) does not
+ * get the structured screens below: it goes to the caller's raw-byte review. */
 static bool mayachain_memo_has_empty_component(const char* memo, size_t size) {
   if (!memo || size == 0) return true;
 
@@ -338,18 +336,9 @@ static bool mayachain_memo_has_canonical_separators(const char* memo,
   /* The grammar is  OP:CHAIN.ASSET:DEST:LIMIT[:AFFILIATE:BPS]  -- ':' between
      fields, '.' only inside the chain/asset pair.
 
-     The tokenizer below cannot tell the two apart. After splitting the
-     operation on ':' it calls strtok(NULL, ":.") three times, so ':' and '.'
-     are interchangeable for everything it reads. A memo that puts a colon
-     where the dot belongs,
-
-         SWAP:ETH:USDT:dest:limit
-
-     therefore produces exactly the same three tokens as SWAP:ETH.USDT:... and
-     is reviewed as "asset USDT on chain ETH", while THORChain/MAYAChain read
-     that same memo with USDT as the DESTINATION -- every field after the
-     operation shifts by one, including the address the funds go to. The screen
-     and the protocol disagree about a memo the signature covers.
+     The splitter below cuts fields on ':' and then cuts the second field once,
+     at its first '.', so a second dot there would be shown as part of the
+     asset name.
 
      Require the dot exactly once and only inside the second colon-delimited
      field. Anything else is not this grammar, so it goes to the raw-byte path
@@ -419,8 +408,8 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
 
     Fields past the ones labelled below (affiliate, affiliate fee, aggregator
     routing) are executed by MAYAChain, so each branch pages whatever is left
-    rather than signing it unseen. Mirrors thorchain.c -- Maya is a fork of
-    that path and kept the original code.
+    rather than signing it unseen. thorchain.c pages them too; the field
+    splitting below is Maya's own.
   */
 
   char* fields[8] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
@@ -475,7 +464,7 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
     if (memoBuf[i] == '\0') return MAYACHAIN_MEMO_UNPARSED;
   }
 
-  // Split on ':', keeping empty fields
+  // Split on ':'. No field is empty: such memos were refused above.
   nfields = 0;
   fields[nfields++] = memoBuf;
   for (i = 0; memoBuf[i] != '\0' && nfields < 8; i++) {
@@ -503,23 +492,25 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
   // Check for swap
   if (strcmp(fields[0], "SWAP") == 0 || strcmp(fields[0], "s") == 0 ||
       strcmp(fields[0], "=") == 0) {
-    // This is a swap, set up destination and limit
-    // The dest may be blank which means swap to self
-    const char* dest =
-        (nfields > 2 && fields[2][0] != '\0') ? fields[2] : "self";
-    const char* limit =
-        (nfields > 3 && fields[3][0] != '\0') ? fields[3] : "none";
+    /* Describe omitted trailing fields separately from literal memo text.
+     * "self" can be a MAYAName, not the sender, and "none" is not a numeric
+     * limit. Giving either omission that literal spelling made distinct signed
+     * memos look identical. Empty positional fields still take raw review. */
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Mayachain swap", "Confirm swap asset %s\n on chain %s", asset,
                  chain)) {
       return MAYACHAIN_MEMO_CANCELLED;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Mayachain swap", "Confirm to %s", dest)) {
+                 "Mayachain swap", "%s%s",
+                 nfields > 2 ? "Confirm to " : "Destination field omitted",
+                 nfields > 2 ? fields[2] : "")) {
       return MAYACHAIN_MEMO_CANCELLED;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Mayachain swap", "Confirm limit %s", limit)) {
+                 "Mayachain swap", "%s%s",
+                 nfields > 3 ? "Confirm limit " : "Limit field omitted",
+                 nfields > 3 ? fields[3] : "")) {
       return MAYACHAIN_MEMO_CANCELLED;
     }
     /* Everything after the limit - affiliate, affiliate fee in basis points,
@@ -571,8 +562,8 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
     if (nfields < 3 || fields[2][0] == '\0') {
       return MAYACHAIN_MEMO_UNPARSED;  // malformed memo
     }
-    /* WD:POOL:BPS[:ASSET] — refuse only genuinely-unknown structure (>4
-     * fields), mirroring thorchain.c. */
+    /* WD:POOL:BPS[:ASSET] — more than four fields is not this grammar, so it
+     * goes to raw review. thorchain.c pages the extra fields instead. */
     if (nfields > 4) {
       return MAYACHAIN_MEMO_UNPARSED;
     }

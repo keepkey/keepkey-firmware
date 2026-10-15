@@ -39,6 +39,9 @@ void ethereum_signing_init(EthereumSignTx* msg, const HDNode* node,
                            bool needs_confirm);
 void ethereum_signing_abort(void);
 bool ethereum_signing_isInProgress(void);
+/* Title of the last signing screen: names the chain unless it is mainnet. */
+void ethereum_transactionTitle(const EthereumSignTx* msg, char* title,
+                               size_t title_len);
 void ethereum_signing_txack(EthereumTxAck* tx);
 void format_ethereum_address(const uint8_t* to, char* destination_str,
                              uint32_t destination_str_len);

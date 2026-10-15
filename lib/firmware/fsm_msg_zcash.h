@@ -134,11 +134,16 @@ static CONFIDENTIAL struct {
   ZcashTransparentSigned pending_transparent;
 } zcash_signing;
 
+/* The decrypted memo of the output under review. Static because 512 bytes
+ * are too many for the handler's stack; wiped with the session. */
+static CONFIDENTIAL uint8_t zcash_memo[ZCASH_MEMO_SIZE];
+
 /* Public API; declared in keepkey/firmware/zcash.h. */
 void zcash_signing_abort(void) {
   /* Every abort path must stop the trickle animation. */
   layoutProgressTrickleStop();
   memzero(&zcash_signing, sizeof(zcash_signing));
+  memzero(zcash_memo, sizeof(zcash_memo));
 }
 
 bool zcash_signing_is_active(void) { return zcash_signing.active; }
@@ -148,6 +153,26 @@ static uint32_t zcash_test_sign_operations;
 uint32_t zcash_test_signOperations(void) { return zcash_test_sign_operations; }
 void zcash_test_clearSignOperations(void) { zcash_test_sign_operations = 0; }
 #define ZCASH_TEST_COUNT_SIGN() (zcash_test_sign_operations++)
+
+void zcash_test_emptyDigest(int component, uint8_t out[32]) {
+  switch (component) {
+    case 0:
+      memcpy(out, EMPTY_TRANSPARENT_DIGEST, 32);
+      break;
+    case 1:
+      memcpy(out, EMPTY_SAPLING_DIGEST, 32);
+      break;
+    case 2:
+      zcash_empty_orchard_digest(false, out);
+      break;
+    case 3:
+      zcash_empty_orchard_digest(true, out);
+      break;
+    default:
+      memcpy(out, EMPTY_IRONWOOD_DIGEST_V6, 32);
+      break;
+  }
+}
 #else
 #define ZCASH_TEST_COUNT_SIGN() ((void)0)
 #endif
@@ -344,11 +369,14 @@ static bool zcash_verify_and_confirm_orchard_output(
 
   /* cmx alone does not reach the recipient: a corrupted epk or ciphertext
    * leaves a valid note that normal wallet scanning can never find. */
+  /* The memo is signed and the recipient reads it, so it is decrypted here
+   * and shown below. */
+  uint8_t* const memo = zcash_memo;
   if (!zcash_orchard_note_ciphertext_valid(
           msg->recipient.bytes, msg->value, msg->nullifier.bytes,
           msg->rseed.bytes, zcash_signing.is_ironwood, msg->epk.bytes,
           msg->enc_compact.bytes, msg->enc_memo.bytes,
-          msg->enc_noncompact.bytes)) {
+          msg->enc_noncompact.bytes, memo)) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Shielded note ciphertext mismatch"));
     return false;
@@ -401,6 +429,8 @@ static bool zcash_verify_and_confirm_orchard_output(
       return false;
     }
     zcash_signing.change_value += msg->value;
+    /* A note to self: nobody else reads its memo. */
+    memzero(zcash_memo, sizeof(zcash_memo));
     return true;
   }
 
@@ -436,8 +466,31 @@ static bool zcash_verify_and_confirm_orchard_output(
     memzero(address, sizeof(address));
     return false;
   }
-
   memzero(address, sizeof(address));
+
+  /* The recipient acts on the memo (a deposit tag, an order id, a refund
+   * address). Text (ZIP 302: a first byte up to 0xF4) is paged in full, as
+   * for other chains' memos. Anything else is nothing a person can read, so
+   * it is named by its hash instead of twenty pages of escapes. */
+  const size_t memo_length = zcash_memo_shown_length(zcash_memo);
+  bool memo_approved = true;
+  if (memo_length != 0 && zcash_memo[0] <= 0xF4) {
+    memo_approved = confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                                  "Zcash Memo", zcash_memo, memo_length);
+  } else if (memo_length != 0) {
+    uint8_t digest[32];
+    char digest_hex[65];
+    sha256_Raw(zcash_memo, sizeof(zcash_memo), digest);
+    data2hex(digest, sizeof(digest), digest_hex);
+    memo_approved = confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                            "Zcash Memo", "Not text. SHA-256:\n%s", digest_hex);
+  }
+  memzero(zcash_memo, sizeof(zcash_memo));
+  if (!memo_approved) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Signing cancelled"));
+    return false;
+  }
   return true;
 }
 
@@ -1664,6 +1717,14 @@ void fsm_msgZcashTransparentOutput(const ZcashTransparentOutput* msg) {
                  _("Transparent output script does not match path"));
       return;
     }
+  }
+
+  /* A TEX address (ZIP 320) may only be paid by a transaction with no
+   * shielded component; n_actions counts both pools. */
+  if (tex && zcash_signing.n_actions > 0) {
+    zcash_fail(FailureType_Failure_SyntaxError,
+               _("A TEX output needs a transparent-only transaction"));
+    return;
   }
 
   /* is_tex is a host hint the chain cannot show: a TEX address (ZIP 320) is

@@ -126,6 +126,16 @@ const char* thor_depositRefusal(const EthereumSignTx* msg) {
   const uint8_t* d = msg->data_initial_chunk.bytes;
   const size_t size = msg->data_initial_chunk.size;
 
+  /* The vault and asset words' upper 12 bytes are signed but no screen shows
+   * them, and a canonical encoding leaves them zero. */
+  if (size >= 4 + 2 * 32) {
+    for (size_t i = 0; i < 12; i++) {
+      if (d[4 + i] != 0 || d[4 + 32 + i] != 0) {
+        return "Malformed deposit: address word is not canonical";
+      }
+    }
+  }
+
   if (pin->kind == THOR_KIND_V6) {
     /* RouterV6 _executeTransfer(): require(msg.value == amount) for the native
      * asset. Every real host sends amount == value; anything else, including
@@ -336,7 +346,7 @@ static bool thor_confirm_deposit_tx(uint32_t data_total,
     snprintf(&confStr[ctr * 2], 3, "%02x", vaultAddress[ctr]);
   }
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, protocol_label,
-               "Using Asgard vault %s", confStr)) {
+               "Pays UNVERIFIED vault %s", confStr)) {
     return false;
   }
 

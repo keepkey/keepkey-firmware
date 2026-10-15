@@ -48,6 +48,7 @@ TEST(U2F, ShapeShift) {
 }
 
 extern "C" void set_msg_failure_handler(msg_failure_t failure_func);
+void kk_test_set_message_hook(std::function<void(MessageType, const void*)>);
 bool kkconfirm_preload(int nYes, int nNo);
 int kkconfirm_drain(void);
 void kkconfirm_capture_start(void);
@@ -201,6 +202,7 @@ struct U2FWait : ::testing::Test {
   }
 
   void TearDown() override {
+    kk_test_set_message_hook({});
     poll_script.clear();
     button_up = false;
     fsm_init();  // restores the real failure handler
@@ -219,7 +221,11 @@ struct U2FWait : ::testing::Test {
 
 }  // namespace
 
+size_t kk_test_u2f_reply_count(void) { return u2f_replies.size(); }
+uint8_t kk_test_u2f_last_reply_command(void) { return u2f_reply_cmds.back(); }
+void kk_test_poll(void);
 extern "C" void emulatorPoll(void) {
+  kk_test_poll();
   if (poll_script.empty()) return;
   auto step = poll_script.front();
   poll_script.pop_front();
@@ -250,10 +256,10 @@ TEST_F(U2FWait, NormalMessageIsNotDispatched) {
   const uint8_t ping[] = {0x10, 0x01};  // Ping.button_protection = true
   poll_script.push_back(
       [&] { send_main(MessageType_MessageType_Ping, ping, sizeof(ping)); });
+  poll_script.push_back([] { send_register(1); });
   // If the Ping was dispatched, this Cancel unwinds its confirm.
   poll_script.push_back(
       [] { send_main(MessageType_MessageType_Cancel, nullptr, 0); });
-  poll_script.push_back([] { send_register(1); });
   kkconfirm_capture_start();
   run(1);
   const auto screens = kkconfirm_capture_finish();
@@ -264,6 +270,91 @@ TEST_F(U2FWait, NormalMessageIsNotDispatched) {
   EXPECT_EQ((std::vector<uint16_t>{U2F_SW_CONDITIONS_NOT_SATISFIED,
                                    U2F_SW_CONDITIONS_NOT_SATISFIED}),
             statuses());
+}
+
+// Read-only debug inspection must be answered in both receive and presence
+// waits without replacing the prompt or granting presence.
+TEST_F(U2FWait, DebugStateIsAnsweredWithoutChangingPromptOrPresence) {
+  int replies = 0;
+  kk_test_set_message_hook([&](MessageType id, const void* msg) {
+    if (id != MessageType_MessageType_DebugLinkState) return;
+    ++replies;
+    const auto* state = static_cast<const DebugLinkState*>(msg);
+    EXPECT_TRUE(state->has_layout);
+    EXPECT_EQ(2048u, state->layout.size);
+  });
+  const auto get_state = [] {
+    const uint16_t id = MessageType_MessageType_DebugLinkGetState;
+    uint8_t frame[64] = {'?', '#', '#', uint8_t(id >> 8), uint8_t(id)};
+    handle_debug_usb_rx(frame, sizeof(frame));
+  };
+  U2FHID_FRAME init, cont;
+  register_frames(1, &init, &cont);
+  poll_script.push_back(get_state);
+  poll_script.push_back([&] {
+    EXPECT_EQ(1, replies) << "no state reply while receiving the U2F request";
+    u2fhid_read(1, &cont);
+  });
+  std::vector<uint8_t> prompt;
+  poll_script.push_back([&] {
+    prompt = screen();
+    get_state();
+  });
+  poll_script.push_back([&] {
+    EXPECT_EQ(2, replies) << "no state reply during the presence prompt";
+    EXPECT_EQ(prompt, screen());
+    send_register(1);
+  });
+  poll_script.push_back(
+      [] { send_main(MessageType_MessageType_Cancel, nullptr, 0); });
+  u2fhid_read(0, &init);
+  EXPECT_EQ(2, replies);
+  EXPECT_EQ(0, failures);
+  EXPECT_TRUE(poll_script.empty());
+  EXPECT_EQ((std::vector<uint16_t>{U2F_SW_CONDITIONS_NOT_SATISFIED,
+                                   U2F_SW_CONDITIONS_NOT_SATISFIED}),
+            statuses());
+}
+
+// Initialize and Cancel from a wallet host end the session and get their
+// usual answer. The tiny reader used to store them, and nothing read them.
+TEST_F(U2FWait, InitializeAndCancelEndTheSessionAndAreAnswered) {
+  size_t size = 0;
+  auto* features = reinterpret_cast<Features*>(fsm_test_responseArena(&size));
+  for (uint16_t id :
+       {MessageType_MessageType_Initialize, MessageType_MessageType_Cancel}) {
+    SCOPED_TRACE(id);
+    memset(features, 0, sizeof(*features));
+    fsm_test_clearLastFailure();
+    u2f_replies.clear();
+    u2f_reply_cmds.clear();
+    poll_script.clear();
+    int polls_after = 0;
+    poll_script.push_back([=] { send_main(id, nullptr, 0); });
+    poll_script.push_back([&] { polls_after++; });
+    run(1);
+    EXPECT_EQ(0, polls_after) << "the session went on waiting";
+    EXPECT_EQ(std::vector<uint16_t>{U2F_SW_CONDITIONS_NOT_SATISFIED},
+              statuses());
+    if (id == MessageType_MessageType_Initialize) {
+      EXPECT_STREQ("keepkey.com", features->vendor);
+    } else {
+      EXPECT_EQ(FailureType_Failure_ActionCancelled,
+                fsm_test_lastFailureCode());
+    }
+  }
+}
+
+// The same while a request is still being received drops that request, so
+// its sender is told rather than left to time out.
+TEST_F(U2FWait, InitializeDuringReceiveAnswersU2FBusy) {
+  U2FHID_FRAME init, cont;
+  register_frames(1, &init, &cont);
+  poll_script.push_back(
+      [] { send_main(MessageType_MessageType_Initialize, nullptr, 0); });
+  u2fhid_read(0, &init);
+  EXPECT_EQ(1u, count(U2FHID_ERROR, ERR_CHANNEL_BUSY));
+  EXPECT_EQ(1u, u2f_replies.size());
 }
 
 // Presence is a press and release that starts after the prompt is drawn.

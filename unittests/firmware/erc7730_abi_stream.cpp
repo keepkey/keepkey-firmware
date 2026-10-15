@@ -180,7 +180,7 @@ TEST(Erc7730AbiStream, CapturesNestedDynamicValueByNegativeArrayIndex) {
   EXPECT_EQ(memcmp(capture.data, "beta", 4), 0);
 }
 
-TEST(Erc7730AbiStream, CapturesAtomicWordAndRejectsMissingOrLargeTargets) {
+TEST(Erc7730AbiStream, CapturesAtomicWordRejectsMissingAndFlagsOverlongTarget) {
   const Erc7730AbiNode atomic_nodes[] = {
       {ERC7730_ABI_TUPLE, 0, 1, 1, 0},
       {ERC7730_ABI_UINT, 256, 0, 0, 0},

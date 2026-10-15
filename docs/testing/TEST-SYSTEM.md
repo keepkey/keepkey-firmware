@@ -1,6 +1,10 @@
 # KeepKey Firmware Test System
 
-Single source of truth for the test suite, report generation, screenshot capture, and release validation pipeline.
+Historical design reference for the test suite, report generation, screenshot capture, and release validation pipeline.
+
+Current firmware candidates use canonical upstream dependency PR branches and
+exact gitlinks documented in the [release record](../release/7.14.3-COMBINED-CANDIDATE.md).
+The `release/<version>` dependency branches below describe an earlier workflow.
 
 ---
 

@@ -566,12 +566,15 @@ TEST(Zcash, DeriveOrchardKeys_ReferenceVector_Account0) {
   curve_point ak_point;
   redpallas_scalar_mult_spendauth_G(&ask_scalar, &ak_point);
 
+  /* The sign of ak is the parity of y; the x encoding below never carries
+   * it. */
+  EXPECT_FALSE(bn_is_odd(&ak_point.y))
+      << "ak sign bit must be 0 after ask normalization";
+
   uint8_t ak_bytes[32];
   bignum256 x_copy;
   bn_copy(&ak_point.x, &x_copy);
   bn_write_le(&x_copy, ak_bytes);
-  EXPECT_EQ(ak_bytes[31] & 0x80, 0)
-      << "ak sign bit must be 0 after ask normalization";
 
   EXPECT_TRUE(memcmp(ak_bytes, EXPECTED_AK_ALL_0, 32) == 0)
       << "ak mismatch for all-mnemonic account 0";
@@ -932,6 +935,23 @@ TEST(Zcash, OrchardUnifiedAddress_FromDerivedKeys) {
   memzero(&keys, sizeof(keys));
 }
 
+// An address is built from the cached public ak: with the spending key wiped
+// from the key set it is still the reference address.
+TEST(Zcash, OrchardUnifiedAddress_DoesNotUseTheSpendingKey) {
+  ZcashOrchardKeys keys;
+  ASSERT_TRUE(zcash_derive_orchard_keys(SEED_ALL, 64, 0, &keys));
+  memzero(keys.ask, sizeof(keys.ask));
+
+  char address[ZCASH_ZIP316_ORCHARD_ONLY_MAX_ADDRESS_SIZE];
+  const uint8_t index0[11] = {0};
+  ASSERT_TRUE(zcash_orchard_derive_unified_address(&keys, index0, "u", address,
+                                                   sizeof(address)));
+  EXPECT_STREQ(address, ORCHARD_ONLY_UA_MAINNET_0);
+
+  memzero(address, sizeof(address));
+  memzero(&keys, sizeof(keys));
+}
+
 TEST(Zcash, OrchardUnifiedAddress_RejectsInvalidInputs) {
   ZcashOrchardKeys keys;
   ASSERT_TRUE(zcash_derive_orchard_keys(SEED_ALL, 64, 0, &keys));
@@ -1062,7 +1082,47 @@ static void decode_note(const ZcashNoteVector& v, DecodedNote* n) {
 static bool note_ciphertext_valid(const DecodedNote& n, bool ironwood) {
   return zcash_orchard_note_ciphertext_valid(n.receiver, n.value, n.rho,
                                              n.rseed, ironwood, n.epk, n.c_enc,
-                                             n.c_enc + 52, n.c_enc + 564);
+                                             n.c_enc + 52, n.c_enc + 564,
+                                             nullptr);
+}
+
+// The memo is signed, and the host can compute the key that authenticates
+// it, so the check hands back the plaintext for the screen. These are the
+// official vectors' own memos, not values this code produced.
+TEST(Zcash, OrchardNoteCiphertext_ReturnsTheMemo) {
+  for (const auto& vector : kZcashOrchardNoteVectors) {
+    DecodedNote n;
+    decode_note(vector, &n);
+    uint8_t expected[ZCASH_MEMO_SIZE], memo[ZCASH_MEMO_SIZE];
+    decode_hex(vector.memo, expected, sizeof(expected));
+    memset(memo, 0xAB, sizeof(memo));
+    ASSERT_TRUE(zcash_orchard_note_ciphertext_valid(
+        n.receiver, n.value, n.rho, n.rseed, false, n.epk, n.c_enc,
+        n.c_enc + 52, n.c_enc + 564, memo));
+    EXPECT_EQ(0, memcmp(expected, memo, sizeof(memo)));
+
+    // A refused note hands back nothing.
+    n.c_enc[100] ^= 1;
+    EXPECT_FALSE(zcash_orchard_note_ciphertext_valid(
+        n.receiver, n.value, n.rho, n.rseed, false, n.epk, n.c_enc,
+        n.c_enc + 52, n.c_enc + 564, memo));
+    const uint8_t zeros[ZCASH_MEMO_SIZE] = {};
+    EXPECT_EQ(0, memcmp(zeros, memo, sizeof(memo)));
+  }
+}
+
+TEST(Zcash, MemoShownLengthFollowsZip302) {
+  uint8_t memo[ZCASH_MEMO_SIZE] = {};
+  EXPECT_EQ(0u, zcash_memo_shown_length(memo));  // all zero
+  memo[0] = 0xF6;
+  EXPECT_EQ(0u, zcash_memo_shown_length(memo));  // "no memo"
+  memo[5] = 1;
+  EXPECT_EQ(6u, zcash_memo_shown_length(memo));  // 0xF6 with a tail is data
+  memset(memo, 0, sizeof(memo));
+  memcpy(memo, "thanks for lunch!", 17);
+  EXPECT_EQ(17u, zcash_memo_shown_length(memo));
+  memset(memo, 0xFF, sizeof(memo));
+  EXPECT_EQ((size_t)ZCASH_MEMO_SIZE, zcash_memo_shown_length(memo));
 }
 
 TEST(Zcash, OrchardNoteCiphertext_ReferenceVectors) {
@@ -1674,15 +1734,6 @@ TEST(Zcash, AkSignBit_AlwaysClear) {
     EXPECT_FALSE(bn_is_odd(&ak_point.y))
         << "ak y-coordinate must be even for account " << account;
 
-    /* Check serialized sign bit */
-    uint8_t ak_bytes[32];
-    bignum256 x_copy;
-    bn_copy(&ak_point.x, &x_copy);
-    bn_write_le(&x_copy, ak_bytes);
-
-    EXPECT_EQ(ak_bytes[31] & 0x80, 0)
-        << "ak sign bit must be clear for account " << account;
-
     memzero(&keys, sizeof(keys));
   }
 }
@@ -2102,7 +2153,7 @@ TEST(Zcash, ComputeShieldedSighash_KnownVector) {
    * ZIP-244 sighash test vector.
    *
    * The sighash personalization is "ZcashTxHash_" || branch_id_LE.
-   * For NU5 (branch_id = 0x37519621):
+   * For branch_id = 0x37519621 (not the NU5 id, which is 0xc2d6d0b4):
    *   personalization = "ZcashTxHash_" || 0x21965137
    *
    * Input: BLAKE2b-256(personalization, header || transparent || sapling ||
@@ -2120,7 +2171,8 @@ TEST(Zcash, ComputeShieldedSighash_KnownVector) {
 
   /*
    * BLAKE2b-256 with personalization "ZcashTxHash_\x21\x96\x51\x37" over
-   * 128 zero bytes, computed offline: a change detector, not a spec vector.
+   * 128 zero bytes, recomputed here: it checks the construction, and is not
+   * a stored vector. Zip244OfficialVectors_V5Sighash holds the spec vectors.
    */
   uint8_t expected[32];
   BLAKE2B_CTX ctx;
@@ -2399,7 +2451,8 @@ TEST(Zcash, RedPallasSign_ProducesVerifiableSignature) {
  * fsm_msg_zcash.h.
  *
  * These expected bytes are NOT taken from our own constants; they are the
- * specification values, so this test catches a mistyped literal as well as a
+ * specification values, and the digest the handlers use for each component is
+ * compared with them, so this test catches a mistyped literal as well as a
  * wrong personalization string. A wrong Orchard value would reject every
  * Ironwood transaction, which is safe but would look like an Ironwood bug.
  */
@@ -2421,12 +2474,19 @@ TEST(Zcash, EmptyBundleDigests_MatchZip244AndZip229) {
        "b9cfe643ce45b28c33190f0d5223e475972f2a149dc54404fd8365521f8416c5"},
   };
 
+  // In the component order of zcash_test_emptyDigest().
+  int component = 0;
   for (const Case& c : cases) {
     BLAKE2B_CTX ctx;
     ASSERT_EQ(blake2b_InitPersonal(&ctx, 32, c.personal, 16), 0)
         << "personalization " << c.personal;
     uint8_t out[32];
     ASSERT_EQ(blake2b_Final(&ctx, out, 32), 0) << c.personal;
+
+    uint8_t device[32];
+    zcash_test_emptyDigest(component++, device);
+    EXPECT_EQ(0, memcmp(device, out, 32))
+        << "the device's empty digest for " << c.personal;
 
     char hex[65];
     for (int i = 0; i < 32; i++) {

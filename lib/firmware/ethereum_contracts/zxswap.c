@@ -110,6 +110,23 @@ static bool zxswap_resolveBothTokens(const EthereumSignTx* msg,
   const size_t tokens_end = (size_t)(4 + (7 + adder) * 32);
   if (msg->data_initial_chunk.size < tokens_end) return false;
 
+  /* Only the low bytes of these words are read above and below, but all 32
+   * are signed. The router is hand-written assembly: it takes any non-zero
+   * isSushi word as true, so a set upper byte would trade on Sushiswap under
+   * a "Uniswap" title. Claim canonical words only: a 0/1 flag, a small
+   * count, and addresses with clean upper bytes. */
+  const uint8_t* const head = msg->data_initial_chunk.bytes + 4;
+  for (size_t i = 0; i < 31; i++) {
+    if (head[3 * 32 + i] != 0) return false;           /* isSushi */
+    if (i < 28 && head[4 * 32 + i] != 0) return false; /* tokens.length */
+  }
+  if (head[3 * 32 + 31] > 1) return false;
+  for (uint32_t token = 0; token < numOfTokens; token++) {
+    for (size_t i = 0; i < 12; i++) {
+      if (head[(5 + token) * 32 + i] != 0) return false;
+    }
+  }
+
   const TokenType* f = tokenByChainAddress(
       msg->chain_id, msg->data_initial_chunk.bytes + 4 + 5 * 32 + 12);
   const TokenType* t = tokenByChainAddress(

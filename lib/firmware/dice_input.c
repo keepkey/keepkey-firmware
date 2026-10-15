@@ -385,6 +385,7 @@ bool dice_input_collect(char *rolls, uint32_t target) {
 #if DEBUG_LINK
       case MessageType_MessageType_DebugLinkDecision: {
         const DebugLinkDecision *dld = (const DebugLinkDecision *)msg_tiny_buf;
+        keepkey_user_activity(); /* stands in for a button press */
         if (dice_accept && dld->has_input) {
           for (const char *c = dld->input; *c != '\0' && count < target; c++) {
             if (*c >= '1' && *c <= '6') {

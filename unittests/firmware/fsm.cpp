@@ -43,7 +43,7 @@ bool keepkey_before_message_dispatch(MessageType msg_id);
 #include <cstring>
 #include <algorithm>
 #include <string>
-#include <thread>
+#include <functional>
 #include <vector>
 #include <unistd.h>
 
@@ -55,6 +55,8 @@ extern "C" {
 // The shared bootstrap initializes the canvas and timer queues exactly once.
 // Calling timer_init() again relinks the static runnable nodes into a cycle.
 #include "test_board.h"
+void kk_test_set_poll_hook(std::function<void()>);
+void kk_test_set_message_hook(std::function<void(MessageType, const void*)>);
 bool kkconfirm_preload(int nYes, int nNo);
 bool kkconfirm_preload_no_sentinel(int nYes, int nNo);
 int kkconfirm_drain(void);
@@ -64,12 +66,46 @@ std::vector<std::string> kkconfirm_capture_finish(void);
 std::vector<std::string> kkconfirm_captured_titles(void);
 bool kkconfirm_openDebugPeer(void);
 bool kkconfirm_readDebugFrame(uint8_t frame[64]);
+void kkconfirm_capture_start(void);
+std::vector<std::string> kkconfirm_capture_finish(void);
+std::vector<std::string> kkconfirm_capture_titles(void);
 extern "C" void keepkey_user_activity(void);  // lib/firmware/home_sm.c
 
 // Auto-lock reads home_clock_ms(). The real 1 ms tick would make the deadline
 // checks below racy, so this binary's clock moves only when a test says so.
 static uint32_t fake_clock_ms = 0;
-extern "C" uint32_t home_clock_ms(void) { return fake_clock_ms; }
+static bool inject_button_during_clock_read = false;
+static bool pending_button_interrupt = false;
+static unsigned idle_clock_critical_depth = 0;
+static unsigned delivered_button_interrupts = 0;
+
+extern "C" uint32_t home_clock_ms(void) {
+  if (inject_button_during_clock_read) {
+    inject_button_during_clock_read = false;
+    if (idle_clock_critical_depth != 0) {
+      pending_button_interrupt = true;
+    } else {
+      ++delivered_button_interrupts;
+      keepkey_user_activity();
+    }
+  }
+  return fake_clock_ms;
+}
+
+// Model the device's interrupt mask: a physical edge remains pending until
+// the complete idle-clock update finishes, rather than reentering its RMWs.
+extern "C" void home_idle_clock_enter(void) { ++idle_clock_critical_depth; }
+extern "C" void home_idle_clock_leave(void) {
+  EXPECT_GT(idle_clock_critical_depth, 0u);
+  if (idle_clock_critical_depth == 0) return;
+  --idle_clock_critical_depth;
+  if (idle_clock_critical_depth == 0 && pending_button_interrupt) {
+    pending_button_interrupt = false;
+    ++delivered_button_interrupts;
+    keepkey_user_activity();
+  }
+}
+
 static void advance_clock(uint32_t ms) { fake_clock_ms += ms; }
 
 TEST(Fsm, CoinTableRetainsPredecessorPageCapacity) {
@@ -412,6 +448,93 @@ struct ScopedFlash {
     emulator_flash_base = previous;
   }
 };
+
+// GetPublicKey accepts the same InputScriptType enum as GetAddress. BIP-86
+// uses an ordinary xpub/tpub containing the untweaked account public node.
+TEST(Fsm, TaprootPublicKeyExportsTheStandardAccountNode) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  LoadDevice load = {};
+  load.has_mnemonic = true;
+  std::strcpy(load.mnemonic,
+              "abandon abandon abandon abandon abandon abandon abandon "
+              "abandon abandon abandon abandon about");
+  storage_loadDevice(&load);
+  storage_commit();
+
+  for (const char* coin : {"Bitcoin", "Testnet"}) {
+    GetPublicKey get = {};
+    get.has_coin_name = true;
+    std::strcpy(get.coin_name, coin);
+    get.address_n_count = 3;
+    get.address_n[0] = 0x80000000u | 86;
+    get.address_n[1] = 0x80000000u | (std::strcmp(coin, "Testnet") == 0);
+    get.address_n[2] = 0x80000000u;
+    get.has_script_type = true;
+    get.script_type = InputScriptType_SPENDADDRESS;
+    fsm_test_clearLastFailure();
+    receiveMessage(MessageType_MessageType_GetPublicKey, GetPublicKey_fields,
+                   &get);
+    ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+    size_t arena_size = 0;
+    const PublicKey control = *reinterpret_cast<const PublicKey*>(
+        fsm_test_responseArena(&arena_size));
+    ASSERT_TRUE(control.has_xpub);
+    ASSERT_FALSE(control.node.has_private_key);
+    ASSERT_EQ(33u, control.node.public_key.size);
+    if (std::strcmp(coin, "Bitcoin") == 0) {
+      // Published BIP-86 account-0 xpub for the mnemonic above.
+      EXPECT_STREQ(
+          "xpub6BgBgsespWvERF3LHQu6CnqdvfEvtMcQjYrcRzx53QJjSxarj2afYWcLteoG"
+          "Vky7D3UKDP9QyrLprQ3VCECoY49yfdDEHGCtMMj92pReUsQ",
+          control.xpub);
+    } else {
+      ASSERT_EQ(0, std::strncmp(control.xpub, "tpub", 4));
+    }
+
+    get.script_type = InputScriptType_SPENDTAPROOT;
+    fsm_test_clearLastFailure();
+    receiveMessage(MessageType_MessageType_GetPublicKey, GetPublicKey_fields,
+                   &get);
+    ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+    const PublicKey* result =
+        reinterpret_cast<const PublicKey*>(fsm_test_responseArena(&arena_size));
+    ASSERT_TRUE(result->has_xpub);
+    EXPECT_STREQ(control.xpub, result->xpub);
+    EXPECT_FALSE(result->node.has_private_key);
+    EXPECT_EQ(0,
+              std::memcmp(&control.node, &result->node, sizeof(control.node)));
+    EXPECT_TRUE(fsm_test_derivedNodeIsZero());
+  }
+}
+
+#if !BITCOIN_ONLY
+TEST(Fsm, TaprootPublicKeyRefusesCoinsWithoutTaproot) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  LoadDevice load = {};
+  load.has_mnemonic = true;
+  std::strcpy(load.mnemonic, "all all all all all all all all all all all all");
+  storage_loadDevice(&load);
+  storage_commit();
+  GetPublicKey get = {};
+  get.has_coin_name = true;
+  std::strcpy(get.coin_name, "Litecoin");
+  get.address_n_count = 3;
+  get.address_n[0] = 0x80000000u | 86;
+  get.address_n[1] = 0x80000000u | 2;
+  get.address_n[2] = 0x80000000u;
+  get.has_script_type = true;
+  get.script_type = InputScriptType_SPENDTAPROOT;
+  fsm_test_clearLastFailure();
+  receiveMessage(MessageType_MessageType_GetPublicKey, GetPublicKey_fields,
+                 &get);
+  EXPECT_EQ(FailureType_Failure_Other, fsm_test_lastFailureCode());
+  EXPECT_TRUE(fsm_test_derivedNodeIsZero());
+}
+#endif
 
 LoadDevice allLoad() {
   LoadDevice load = {};
@@ -779,25 +902,67 @@ class AutoLockProgress : public ::testing::Test {
   }
 };
 
-// Plays the host: waits for the next PIN prompt, then sends `pin` as matrix
-// positions, the way a host relays the user's clicks on the scrambled grid.
-std::thread answerPinPrompt(const char* pin) {
-  return std::thread([pin] {
-    for (int tries = 0; tries < 5000; tries++, usleep(1000)) {
-      if (std::strcmp(get_pin_matrix(), "XXXXXXXXX") == 0) continue;
-      usleep(50000);  // let the prompt finish shuffling
+// Observe each published request and reply at the USB polling boundary on
+// the firmware thread. No background reader may race the matrix shuffle/wipe.
+struct PinResponder {
+  std::string pin;
+  bool pending = false;
+  int answers = 0;
+  int polls = 0;
+  bool watchdog = false;
+  bool approve_confirmation;
+  int confirmations = 0;
+  explicit PinResponder(const char* value, bool approve = false)
+      : pin(value), approve_confirmation(approve) {
+    kk_test_set_message_hook([this](MessageType id, const void*) {
+      if (id == MessageType_MessageType_PinMatrixRequest) pending = true;
+      if (id == MessageType_MessageType_ButtonRequest && approve_confirmation) {
+        ++confirmations;
+        static const uint8_t yes[] = {0x08, 0x01};
+        EXPECT_TRUE(kkconfirm_sendTiny(MessageType_MessageType_ButtonAck, nullptr, 0));
+        EXPECT_TRUE(kkconfirm_sendTiny(MessageType_MessageType_DebugLinkDecision, yes, 2));
+      }
+    });
+    kk_test_set_poll_hook([this] {
+      if (++polls > 10000) {
+        watchdog = true;
+        Cancel cancel = {};
+        receiveMessage(MessageType_MessageType_Cancel, Cancel_fields, &cancel);
+        return;
+      }
+      if (!pending) return;
+      pending = false;
       const std::string matrix = get_pin_matrix();
-      std::string positions;
-      for (const char* d = pin; *d; d++)
-        positions += (char)('1' + matrix.find(*d));
-      uint8_t ack[2 + 9] = {0x0a, (uint8_t)positions.size()};
-      std::memcpy(&ack[2], positions.data(), positions.size());
-      kkconfirm_sendTiny(MessageType_MessageType_PinMatrixAck, ack,
-                         (uint8_t)(2 + positions.size()));
-      return;
-    }
-  });
-}
+      PinMatrixAck ack = {};
+      for (size_t i = 0; i < pin.size(); ++i) {
+        const auto pos = matrix.find(pin[i]);
+        EXPECT_NE(std::string::npos, pos);
+        if (pos == std::string::npos) {
+          watchdog = true;
+          Cancel cancel = {};
+          receiveMessage(MessageType_MessageType_Cancel, Cancel_fields,
+                         &cancel);
+          return;
+        }
+        ack.pin[i] = '1' + pos;
+      }
+      ++answers;
+      receiveMessage(MessageType_MessageType_PinMatrixAck, PinMatrixAck_fields,
+                     &ack);
+    });
+  }
+  void finish(int expected) {
+    kk_test_set_poll_hook({});
+    kk_test_set_message_hook({});
+    EXPECT_EQ(expected, answers);
+    EXPECT_EQ(approve_confirmation ? 1 : 0, confirmations);
+    EXPECT_FALSE(watchdog);
+  }
+  ~PinResponder() {
+    kk_test_set_poll_hook({});
+    kk_test_set_message_hook({});
+  }
+};
 
 // Locks a PIN-protected session by idling, then unlocks it with a protected
 // Ping answered with `pin`.
@@ -815,10 +980,10 @@ void lockThenEnterPin(const char* pin) {
   Ping ping = {};
   ping.has_pin_protection = true;
   ping.pin_protection = true;
-  std::thread host = answerPinPrompt(pin);
+  PinResponder host(pin);
   fsm_test_clearLastFailure();
   receiveMessage(MessageType_MessageType_Ping, Ping_fields, &ping);
-  host.join();
+  host.finish(1);
 }
 }  // namespace
 
@@ -833,6 +998,46 @@ TEST(Fsm, CorrectPinAfterAutoLockRenewsTheDeadline) {
   toggle_screensaver();
   EXPECT_NE(SCREENSAVER, home_get_state());
   EXPECT_TRUE(session_isPinCached());
+  layoutHomeForced();
+}
+
+// A new PIN is typed on the host and presses no button either. A device that
+// sat idle past the lock delay must still finish the reset it has just armed:
+// without a deferral the EntropyAck that continues it locked the device and
+// was answered "Not in Reset mode", every time, until a button was pressed.
+TEST(Fsm, ResetWithANewPinSurvivesAnIdleDevice) {
+  ScopedFlash flash;
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  ASSERT_EQ(0, kkconfirm_drain());
+  storage_reset();
+  ASSERT_FALSE(storage_isInitialized());
+  layoutHomeForced();
+  advance_clock(storage_getAutoLockDelayMs());
+  toggle_screensaver();
+  ASSERT_EQ(SCREENSAVER, home_get_state());
+
+  // The same PIN is acknowledged only after each of the two requests.
+  PinResponder host("1234");
+  ResetDevice reset = {};
+  reset.has_pin_protection = reset.pin_protection = true;
+  fsm_test_clearLastFailure();
+  receiveMessage(MessageType_MessageType_ResetDevice, ResetDevice_fields,
+                 &reset);
+  host.finish(2);
+  ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+  ASSERT_TRUE(setup_isArmedAs(SETUP_RESET));
+
+  // The first backup screen is declined, so the ceremony ends there: what
+  // matters is that it ran, and was not locked out before it started.
+  ASSERT_TRUE(kkconfirm_preload(0, 1));
+  EntropyAck ack = {};
+  ack.has_entropy = true;
+  ack.entropy.size = 32;
+  receiveMessage(MessageType_MessageType_EntropyAck, EntropyAck_fields, &ack);
+  kkconfirm_drain();
+  EXPECT_NE(FailureType_Failure_UnexpectedMessage, fsm_test_lastFailureCode());
+  EXPECT_NE(SCREENSAVER, home_get_state());
+  fsm_abort_workflows();
   layoutHomeForced();
 }
 
@@ -878,6 +1083,151 @@ TEST(Fsm, UserActivityRenewsTheAutoLockDeadline) {
   toggle_screensaver();
   EXPECT_EQ(SCREENSAVER, home_get_state());
   layoutHomeForced();
+}
+
+TEST(Fsm, DebugLinkConfirmationRenewsTheAutoLockDeadline) {
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+  kkconfirm_drain();
+  ScopedFlash flash;
+  fsm_init();
+  loadAllWallet();
+  storage_setPin("1234");
+  layoutHomeForced();
+  reset_idle_time();
+  advance_clock(STORAGE_MIN_SCREENSAVER_TIMEOUT - 1);
+
+  // Exercise the wire confirmation, not the activity hook directly.
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  Ping ping = {};
+  ping.has_button_protection = ping.button_protection = true;
+  fsm_test_clearLastFailure();
+  receiveMessage(MessageType_MessageType_Ping, Ping_fields, &ping);
+  kkconfirm_drain();
+  ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+
+  advance_clock(STORAGE_MIN_SCREENSAVER_TIMEOUT - 1);
+  toggle_screensaver();
+  EXPECT_EQ(AT_HOME, home_get_state());
+  EXPECT_TRUE(session_isPinCached());
+  advance_clock(1);
+  toggle_screensaver();
+  EXPECT_EQ(SCREENSAVER, home_get_state());
+  EXPECT_FALSE(session_isPinCached());
+  layoutHomeForced();
+}
+
+TEST(Fsm, HostOnlyMessagesDoNotRenewTheAutoLockDeadline) {
+  kk_test_board_init();
+  ScopedFlash flash;
+  fsm_init();
+  for (auto id : {MessageType_MessageType_Ping,
+                  MessageType_MessageType_GetFeatures,
+                  MessageType_MessageType_Initialize}) {
+    SCOPED_TRACE((int)id);
+    loadAllWallet();
+    storage_setPin("1234");
+    layoutHomeForced();
+    reset_idle_time();
+    advance_clock(STORAGE_MIN_SCREENSAVER_TIMEOUT - 1);
+    Ping ping = {};
+    GetFeatures features = {};
+    Initialize initialize = {};
+    fsm_test_clearLastFailure();
+    if (id == MessageType_MessageType_Ping)
+      receiveMessage(id, Ping_fields, &ping);
+    else if (id == MessageType_MessageType_GetFeatures)
+      receiveMessage(id, GetFeatures_fields, &features);
+    else
+      receiveMessage(id, Initialize_fields, &initialize);
+    ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
+    ASSERT_TRUE(session_isPinCached());
+    advance_clock(1);
+    toggle_screensaver();
+    EXPECT_EQ(SCREENSAVER, home_get_state());
+    EXPECT_FALSE(session_isPinCached());
+    layoutHomeForced();
+  }
+}
+
+namespace {
+struct ScopedIdleClockInterrupt {
+  ScopedIdleClockInterrupt() {
+    EXPECT_EQ(idle_clock_critical_depth, 0u);
+    EXPECT_FALSE(inject_button_during_clock_read);
+    EXPECT_FALSE(pending_button_interrupt);
+    delivered_button_interrupts = 0;
+  }
+
+  ~ScopedIdleClockInterrupt() {
+    inject_button_during_clock_read = false;
+    pending_button_interrupt = false;
+    EXPECT_EQ(idle_clock_critical_depth, 0u);
+    idle_clock_critical_depth = 0;
+    delivered_button_interrupts = 0;
+    fsm_abort_workflows();
+    layoutHomeForced();
+  }
+};
+
+void checkButtonInterruptDuringIdleSample(bool wrap_clock) {
+  kk_test_board_init();
+  ScopedFlash flash;
+  ScopedIdleClockInterrupt interrupt;
+  fsm_init();
+  storage_setPin("1234");
+  storage_setAutoLockDelayMs(STORAGE_MIN_SCREENSAVER_TIMEOUT);
+  layoutHomeForced();
+  if (wrap_clock) {
+    advance_clock(0u - fake_clock_ms - STORAGE_MIN_SCREENSAVER_TIMEOUT / 2);
+  }
+  keepkey_user_activity();
+
+  SignTx start = {};
+  start.inputs_count = 1;
+  start.outputs_count = 1;
+  HDNode root = {};
+  const CoinType* coin = coinByName("Bitcoin");
+  ASSERT_NE(nullptr, coin);
+  signing_init(&start, coin, &root);
+  ASSERT_TRUE(signing_is_active());
+  ASSERT_TRUE(session_isPinCached());
+
+  // The next sample is due to lock. Inject a physical edge during its clock
+  // read, after it has already loaded the previous sample. Without masking,
+  // the nested activity reset is overwritten by the old elapsed interval.
+  advance_clock(STORAGE_MIN_SCREENSAVER_TIMEOUT);
+  if (wrap_clock) ASSERT_LT(fake_clock_ms, STORAGE_MIN_SCREENSAVER_TIMEOUT);
+  inject_button_during_clock_read = true;
+  toggle_screensaver();
+  EXPECT_EQ(1u, delivered_button_interrupts);
+  EXPECT_FALSE(inject_button_during_clock_read);
+  EXPECT_FALSE(pending_button_interrupt);
+  EXPECT_EQ(0u, idle_clock_critical_depth);
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+  EXPECT_TRUE(session_isPinCached());
+  EXPECT_TRUE(signing_is_active());
+
+  // The edge renews only user activity; a stalled signing workflow cannot
+  // extend the new deadline or retain PIN authorization after it expires.
+  advance_clock(STORAGE_MIN_SCREENSAVER_TIMEOUT - 1);
+  toggle_screensaver();
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+  EXPECT_TRUE(session_isPinCached());
+  EXPECT_TRUE(signing_is_active());
+  advance_clock(1);
+  toggle_screensaver();
+  EXPECT_EQ(SCREENSAVER, home_get_state());
+  EXPECT_FALSE(session_isPinCached());
+  EXPECT_FALSE(signing_is_active());
+}
+}  // namespace
+
+TEST(Fsm, ButtonInterruptDuringIdleSampleRenewsDeadline) {
+  checkButtonInterruptDuringIdleSample(false);
+}
+
+TEST(Fsm, ButtonInterruptDuringIdleSampleSurvivesClockWrap) {
+  checkButtonInterruptDuringIdleSample(true);
 }
 
 // The ms counter wraps after ~49.7 days of uptime; a deadline that straddles
@@ -1194,6 +1544,53 @@ TEST(Fsm, SolanaCertificateIsRejectedAtTheProductionHandler) {
 
   EXPECT_EQ(FailureType_Failure_UnexpectedMessage, fsm_test_lastFailureCode())
       << "a decoded certificate must not fall through to ordinary signing";
+  layoutHomeForced();
+}
+
+// Solana's handlers sign with the key at the path the host names. Outside
+// m/44'/501' that is another coin's key: a raw Ed25519 signature over 32
+// printable bytes on the TON path authorizes a TON transfer, and the screen
+// for a printable message says "It cannot authorize a transaction."
+TEST(Fsm, SolanaHandlersRefuseAnotherCoinsPath) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  storage_setMnemonic("all all all all all all all all all all all all");
+  ASSERT_TRUE(storage_isInitialized());
+  const char* refusal = "Invalid Solana path (expected m/44'/501'/...)";
+  const uint32_t ton[3] = {0x80000000 | 44, 0x80000000 | 607, 0x80000000};
+  ASSERT_TRUE(kkconfirm_preload(0, 0));
+
+  SolanaSignMessage message = {};
+  message.address_n_count = 3;
+  std::memcpy(message.address_n, ton, sizeof(ton));
+  message.has_message = true;
+  message.message.size = 32;
+  std::memset(message.message.bytes, 'A', 32);
+  fsm_test_clearLastFailure();
+  receiveMessage(MessageType_MessageType_SolanaSignMessage,
+                 SolanaSignMessage_fields, &message);
+  EXPECT_EQ(FailureType_Failure_SyntaxError, fsm_test_lastFailureCode());
+  EXPECT_STREQ(refusal, fsm_test_lastFailureMessage());
+
+  // AdvancedMode does not open it either: the raw-bytes branch would sign
+  // the same thing.
+  storage_setPolicy("AdvancedMode", true);
+  fsm_test_clearLastFailure();
+  receiveMessage(MessageType_MessageType_SolanaSignMessage,
+                 SolanaSignMessage_fields, &message);
+  EXPECT_STREQ(refusal, fsm_test_lastFailureMessage());
+
+  SolanaGetAddress get = {};
+  get.address_n_count = 3;
+  std::memcpy(get.address_n, ton, sizeof(ton));
+  fsm_test_clearLastFailure();
+  receiveMessage(MessageType_MessageType_SolanaGetAddress,
+                 SolanaGetAddress_fields, &get);
+  EXPECT_STREQ(refusal, fsm_test_lastFailureMessage());
+
+  EXPECT_EQ(0, kkconfirm_drain());
+  storage_setPolicy("AdvancedMode", false);
   layoutHomeForced();
 }
 #endif
@@ -1546,15 +1943,10 @@ TEST_F(AutoLockProgress, DryRunRecoveryPastTheDeadlineServesNoPinGatedRead) {
   ASSERT_TRUE(session_isPinCached());
   // A dry run asks for the PIN, then for confirmation.
   ASSERT_TRUE(kkconfirm_preload_no_sentinel(0, 0));
-  std::thread host([] {
-    answerPinPrompt("1234").join();
-    static const uint8_t yes[] = {0x08, 0x01};
-    kkconfirm_sendTiny(MessageType_MessageType_ButtonAck, nullptr, 0);
-    kkconfirm_sendTiny(MessageType_MessageType_DebugLinkDecision, yes, 2);
-  });
+  PinResponder host("1234", /*approve=*/true);
   recovery_cipher_init(12, false, false, "english", "dry run", false,
                        STORAGE_MIN_SCREENSAVER_TIMEOUT, 0, /*dry_run=*/true);
-  host.join();
+  host.finish(1);
   ASSERT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
   keepkey_user_activity();  // the press that confirmed the dry run
   for (int i = 0; i < 4; ++i) {
@@ -1752,6 +2144,28 @@ TEST(Fsm, TypedDataStreamRefusesMetadataAndSignerLoads) {
   }
 }
 
+// An ordinary Ping between typed-data acks is answered without ending the
+// stream, so it must not draw home over the review while the stream is live.
+TEST(Fsm, PingDuringTypedDataStreamKeepsTheSigningScreen) {
+  kk_test_board_init();
+  fsm_init();
+  keepkey_user_activity();
+  EthereumSignTypedData start{};
+  std::strcpy(start.primary_type, "Mail");
+  ASSERT_TRUE(eip712_stream_begin(&start, false));
+  leave_home();
+  Ping ping = {};
+  receiveMessage(MessageType_MessageType_Ping, Ping_fields, &ping);
+  EXPECT_EQ(eip712_stream_waiting(), EIP712_WANT_STRUCT);
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+
+  // With no stream waiting, the same Ping does go home.
+  eip712_stream_abort();
+  leave_home();
+  receiveMessage(MessageType_MessageType_Ping, Ping_fields, &ping);
+  EXPECT_EQ(AT_HOME, home_get_state());
+}
+
 // The final screen names the action being authorised. A primary type longer
 // than a row (Hyperliquid's are up to 40 characters) is paged, never cut.
 TEST(Fsm, TypedDataFinalScreenShowsTheWholePrimaryType) {
@@ -1801,8 +2215,81 @@ TEST(Fsm, TypedDataFinalScreenShowsTheWholePrimaryType) {
     final_screen += bodies[i];
   }
   EXPECT_NE(std::string::npos,
-            final_screen.find(std::string("Sign ") + primary + "\nfrom 0x"))
+            final_screen.find(std::string("Sign ") + primary +
+                              " (EMPTY domain)\nfrom 0x"))
       << final_screen;
+}
+
+// A domain with no member has no screen of its own, so the final screen says
+// it is empty, in the pages it already takes.
+TEST(Fsm, TypedDataFinalScreenFlagsAnEmptyDomain) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  loadAllWallet();
+  EthereumTypedDataStructAck empty{};
+  EthereumTypedDataStructAck named{};
+  named.members_count = 1;
+  std::strcpy(named.members[0].name, "name");
+  named.members[0].type.data_type =
+      EthereumTypedDataStructAck_EthereumDataType_STRING;
+  EthereumTypedDataStructAck message{};
+  message.members_count = 1;
+  std::strcpy(message.members[0].name, "nonce");
+  message.members[0].type.data_type =
+      EthereumTypedDataStructAck_EthereumDataType_UINT;
+  message.members[0].type.has_size = true;
+  message.members[0].type.size = 8;
+  struct Case {
+    const char* primary;
+    const EthereumTypedDataStructAck* domain;
+    size_t leaves;
+    const char* final_screen;
+  };
+  const Case cases[] = {
+      {"Mail", &named, 2, "Sign Mail\nfrom 0x"},
+      {"Mail", &empty, 1, "Sign Mail (EMPTY domain)\nfrom 0x"},
+      {"EIP712Domain", &named, 1, "Sign EIP712Domain (domain only)\nfrom 0x"},
+      {"EIP712Domain", &empty, 0,
+       "Sign EMPTY EIP712Domain (domain only)\nfrom 0x"},
+  };
+  for (const Case& c : cases) {
+    SCOPED_TRACE(c.final_screen);
+    ASSERT_TRUE(kkconfirm_preload(10, 0));
+    kkconfirm_capture_start();
+    EthereumSignTypedData start{};
+    std::strcpy(start.primary_type, c.primary);
+    receiveMessage(MessageType_MessageType_EthereumSignTypedData,
+                   EthereumSignTypedData_fields, &start);
+    for (int step = 0; step < 20 && eip712_stream_waiting() != EIP712_IDLE;
+         step++) {
+      const Eip712Next* next = eip712_stream_next();
+      if (eip712_stream_waiting() == EIP712_WANT_STRUCT) {
+        const bool is_domain =
+            std::strcmp(next->struct_name, "EIP712Domain") == 0;
+        receiveMessage(MessageType_MessageType_EthereumTypedDataStructAck,
+                       EthereumTypedDataStructAck_fields,
+                       is_domain ? c.domain : &message);
+      } else {
+        EthereumTypedDataValueAck value{};
+        if (next->member_path[0] == 0) {
+          value.value.size = 3;
+          std::memcpy(value.value.bytes, "App", 3);
+        } else {
+          value.value.size = 8;
+          value.value.bytes[7] = 1;
+        }
+        receiveMessage(MessageType_MessageType_EthereumTypedDataValueAck,
+                       EthereumTypedDataValueAck_fields, &value);
+      }
+    }
+    const std::vector<std::string> bodies = kkconfirm_capture_finish();
+    kkconfirm_drain();
+    // The leaves, then the final screen: two pages with or without the flag.
+    ASSERT_EQ(bodies.size(), c.leaves + 2);
+    EXPECT_EQ(0u, bodies[c.leaves].rfind(c.final_screen, 0))
+        << bodies[c.leaves];
+  }
 }
 
 // Ping between typed-data acks must not draw home over a live stream.
@@ -1824,8 +2311,6 @@ TEST(Fsm, PingKeepsAWaitingTypedDataStreamOnScreen) {
   layoutHomeForced();
 }
 
-// A definition chunk refused for AdvancedMode ends the certified workflow
-// (and the typed-data stream it belongs to) instead of leaving it armed.
 // Every ERC-7730 phase is driven by the host between screens, so a Ping in
 // any of them must not draw home over the live workflow.
 TEST(Fsm, PingKeepsALiveErc7730WorkflowOnScreen) {
@@ -1846,6 +2331,8 @@ TEST(Fsm, PingKeepsALiveErc7730WorkflowOnScreen) {
   }
 }
 
+// A definition chunk refused for AdvancedMode ends the certified workflow
+// (and the typed-data stream it belongs to) instead of leaving it armed.
 TEST(Fsm, Erc7730ChunkRefusedWithoutAdvancedModeEndsTheWorkflow) {
   kk_test_board_init();
   fsm_init();
@@ -2337,6 +2824,48 @@ TEST(Fsm, CrossWorkflowAcknowledgementsTerminateTheActiveSigner) {
   EXPECT_FALSE(tendermint_signingIsInited(TENDERMINT_SIGNING_COSMOS));
 }
 
+// The Binance abort only clears state, so the gate itself has to take the
+// aborted transaction's approval screen down. An armed ceremony keeps its own.
+TEST(Fsm, StaleAckTakesTheAbortedSignersScreenDown) {
+  kk_test_board_init();
+  fsm_init();
+  fsm_abort_workflows();
+  layoutHomeForced();
+  keepkey_user_activity();  // or a due auto-lock takes the screen instead
+  HDNode node = {};
+  node.curve = &secp256k1_info;
+
+  BinanceSignTx binance = {};
+  binance.has_msg_count = true;
+  binance.msg_count = 1;
+  binance.has_account_number = true;
+  binance.has_chain_id = true;
+  std::strcpy(binance.chain_id, "Binance-Chain-Nile");
+  binance.has_sequence = true;
+  binance.has_source = true;
+  ASSERT_TRUE(binance_signTxInit(&node, &binance));
+  leave_home();  // its last approval screen is still up
+  ASSERT_EQ(AWAY_FROM_HOME, home_get_state());
+
+  TxAck stale = {};
+  stale.has_tx = true;
+  receiveMessage(MessageType_MessageType_TxAck, TxAck_fields, &stale);
+  EXPECT_FALSE(binance_signingIsInited());
+  EXPECT_EQ(AT_HOME, home_get_state())
+      << "the aborted transaction is still on screen";
+
+  ASSERT_TRUE(setup_stage(false, "english", "reset", 0, 0, false));
+  setup_arm(SETUP_RESET);
+  leave_home();
+  receiveMessage(MessageType_MessageType_TxAck, TxAck_fields, &stale);
+  EXPECT_TRUE(setup_isArmedAs(SETUP_RESET));
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state())
+      << "a stale ACK drew home over an armed ceremony";
+
+  setup_abort();
+  layoutHomeForced();
+}
+
 TEST(Fsm, StaleEthereumAckCannotReplaceARecoveryCeremony) {
   kk_test_board_init();
   fsm_init();
@@ -2568,6 +3097,27 @@ TEST(Fsm, DecliningTheUnlimitedWarningSignsNothing) {
   EXPECT_FALSE(ethereum_signing_isInProgress());
   ASSERT_EQ(1u, shown.titles.size());
   EXPECT_EQ("UNLIMITED approval", shown.titles[0]);
+}
+
+// increaseAllowance(spender, 2^256-1) grants the same allowance as an
+// unlimited approve, so it gets the same warning, first. A finite one does not.
+TEST(Fsm, UnlimitedIncreaseAllowanceShowsTheWarningFirst) {
+  EthereumSignTx msg = usdcApproval(0xff);
+  memcpy(msg.data_initial_chunk.bytes, "\x39\x50\x93\x51", 4);
+  Shown shown = signApproval(&msg, 0);
+  EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+  EXPECT_FALSE(ethereum_signing_isInProgress());
+  ASSERT_EQ(1u, shown.titles.size());
+  EXPECT_EQ("UNLIMITED approval", shown.titles[0]);
+  EXPECT_EQ(std::string("Allow ") + kSpender + " to spend ALL your USDC",
+            shown.bodies[0]);
+
+  msg = usdcApproval(0x00);
+  memcpy(msg.data_initial_chunk.bytes, "\x39\x50\x93\x51", 4);
+  msg.data_initial_chunk.bytes[67] = 1;
+  shown = signApproval(&msg, 0);
+  EXPECT_EQ(0, std::count(shown.titles.begin(), shown.titles.end(),
+                          "UNLIMITED approval"));
 }
 
 // Control: a finite approve has no warning and reads as before.
@@ -3038,6 +3588,48 @@ TEST(DiceCeremonyPrivacy, AbortAtEveryPhaseWipesAndAllowsOrdinaryRestart) {
   }
 }
 
+// Gated tests key on Features.capabilities: one that stops being reported
+// turns its tests into accepted skips. Dropping a capability therefore has to
+// be a visible edit here. A block that adds a capability appends it.
+TEST(Fsm, FeaturesReportExactlyTheStagedCapabilities) {
+  kk_test_board_init();
+  fsm_init();
+  ScopedFlash flash;
+  fsm_msgGetFeatures(nullptr);
+  size_t size = 0;
+  Features features;
+  ASSERT_GE((fsm_test_responseArena(&size), size), sizeof(features));
+  std::memcpy(&features, fsm_test_responseArena(&size), sizeof(features));
+  const std::vector<Features_Capability> expected = {
+      Features_Capability_CAPABILITY_ENTROPY_AUDIT_BUDGET,
+      Features_Capability_CAPABILITY_PROMPT_WORKFLOW_UNWIND,
+      Features_Capability_CAPABILITY_PROTECTED_PING_PRESENCE,
+      Features_Capability_CAPABILITY_SAFE_RESET_CEREMONY,
+      Features_Capability_CAPABILITY_SESSION_TRUST_LIFETIME,
+#if !BITCOIN_ONLY
+      Features_Capability_CAPABILITY_LEGACY_EVM_ROUTER_SIGNING,
+      Features_Capability_CAPABILITY_THOR_DEPOSIT_REVIEW,
+      Features_Capability_CAPABILITY_EVM_MAX_AMOUNT_REVIEW,
+      Features_Capability_CAPABILITY_EVM_UNKNOWN_TOKEN_REVIEW,
+      Features_Capability_CAPABILITY_EVM_TX_METADATA,
+      Features_Capability_CAPABILITY_ERC20_UNLIMITED_APPROVE_REVIEW,
+      Features_Capability_CAPABILITY_ERC20_UNLIMITED_PERMIT_REVIEW,
+      Features_Capability_CAPABILITY_EIP712_CHUNKED_VALUES,
+      Features_Capability_CAPABILITY_ERC7730_RUNTIME_REVIEW,
+      Features_Capability_CAPABILITY_OSMOSIS_WIRE_GUARDS,
+      Features_Capability_CAPABILITY_RIPPLE_MEMO_POLICY,
+      Features_Capability_CAPABILITY_HIVE_RELEASE_REVIEW,
+      Features_Capability_CAPABILITY_SOLANA_RUNTIME_REVIEW,
+      Features_Capability_CAPABILITY_MAYA_SINGLE_MESSAGE,
+      Features_Capability_CAPABILITY_TENDERMINT_PROGRESS,
+      Features_Capability_CAPABILITY_TRON_TRC20_REVIEW,
+#endif
+  };
+  EXPECT_EQ(expected, std::vector<Features_Capability>(
+                          features.capabilities,
+                          features.capabilities + features.capabilities_count));
+}
+
 // DebugLinkGetState is also serviced inside the PIN, passphrase and confirm
 // waits. The suspended outer handler may already hold its pending response in
 // the shared RESP_INIT arena, so the debug reply must not be built there.
@@ -3119,6 +3711,49 @@ TEST(DiceCeremonyPrivacy, AbortClearsConfirmTextBeforeDiagnosticsResume) {
   EXPECT_FALSE(reset_debug_is_private());
   EXPECT_STREQ("", confirm_debug_title());
   EXPECT_STREQ("", confirm_debug_body());
+}
+
+TEST(Fsm, DebugLinkConfirmationTextTracksEveryPage) {
+  struct Cleanup {
+    ~Cleanup() {
+      kk_test_set_poll_hook({});
+      kkconfirm_capture_finish();
+      kkconfirm_drain();
+      confirm_debug_clear();
+    }
+  } cleanup;
+  const std::string body =
+      "first alpha beta gamma delta epsilon zeta eta theta iota kappa lambda "
+      "middle mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega "
+      "last alpha beta gamma delta epsilon zeta eta theta iota kappa lambda";
+  for (bool constant_power : {false, true}) {
+    SCOPED_TRACE(constant_power);
+    ASSERT_TRUE(kkconfirm_preload(20, 0));
+    confirm_debug_clear();
+    std::vector<std::string> reported_bodies, reported_titles;
+    kk_test_set_poll_hook([&] {
+      const std::string shown = confirm_debug_body();
+      if (reported_bodies.empty() || reported_bodies.back() != shown) {
+        reported_bodies.push_back(shown);
+        reported_titles.emplace_back(confirm_debug_title());
+      }
+    });
+    kkconfirm_capture_start();
+    const bool ok = constant_power
+        ? confirm_constant_power_paged(ButtonRequestType_ButtonRequest_Other,
+                                       "Page", "1. abandon\n2. ability\n3. able\n4. about\n"
+                                       "5. above\n6. absent\n7. absorb\n8. abstract")
+        : confirm(ButtonRequestType_ButtonRequest_Other, "Page", "%s",
+                  body.c_str());
+    kk_test_set_poll_hook({});
+    const auto displayed = kkconfirm_capture_finish();
+    ASSERT_TRUE(ok);
+    ASSERT_GT(displayed.size(), 1u);
+    EXPECT_EQ(displayed, reported_bodies);
+    EXPECT_EQ(kkconfirm_capture_titles(), reported_titles);
+    if (!constant_power) EXPECT_NE(std::string::npos, reported_titles[0].find("1/"));
+    kkconfirm_drain();
+  }
 }
 
 TEST(Fsm, Bip85CompletionAndCancelClearConfirmText) {

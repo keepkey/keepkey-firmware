@@ -36,7 +36,9 @@ void fsm_msgGetPublicKey(GetPublicKey* msg) {
   }
   resp->has_xpub = true;
 
-  if (coin->xpub_magic && script_type == InputScriptType_SPENDADDRESS) {
+  if (coin->xpub_magic && (script_type == InputScriptType_SPENDADDRESS ||
+                           (script_type == InputScriptType_SPENDTAPROOT &&
+                            coin->has_taproot && coin->taproot))) {
     hdnode_serialize_public(node, fingerprint, coin->xpub_magic, resp->xpub,
                             sizeof(resp->xpub));
   } else if (coin->has_segwit && coin->xpub_magic_segwit_p2sh &&
@@ -297,7 +299,7 @@ void fsm_msgSignMessage(SignMessage* msg) {
   CHECK_INITIALIZED
 
   /* A zero-length message is not a message. confirm_bytes() renders size 0 as
-     the literal "(empty)" and returns whatever the owner pressed, so without
+     the literal "(no data)" and returns whatever the owner pressed, so without
      this the device would sign a payload no screen ever showed -- the same
      hole already closed on the TON and Solana paths. (`message` is a required
      field here, so nanopb rejects an omitted one during decode; only the empty

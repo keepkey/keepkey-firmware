@@ -356,11 +356,18 @@ bool confirm_zcash_address(const char* desc, const char* address) {
  *
  */
 bool confirm_address(const char* desc, const char* address) {
-  /* A multi-line address crowds its QR: show the text alone, then the QR. */
-  if (!layout_address_fits_one_line(address)) {
-    return confirm(ButtonRequestType_ButtonRequest_Address, desc, "%s",
+  /* Long addresses and descriptions cannot safely share a screen with a QR.
+   * Standard-layout titles have only one row: put the complete description
+   * in its own paginated body and keep the screen titles short. Start the
+   * address on a fresh screen so a preceding path cannot split it. Preserve
+   * the compact layout when its complete description actually fits. */
+  if (!layout_address_fits_one_line(address) ||
+      !layout_address_description_fits(desc, address)) {
+    return confirm(ButtonRequestType_ButtonRequest_Address, "Derivation", "%s",
+                   desc) &&
+           confirm(ButtonRequestType_ButtonRequest_Address, "Address", "%s",
                    address) &&
-           confirm_qr(desc, address);
+           confirm_qr("Address QR", address);
   }
   return confirm_address_with_custom_layout(
       &layout_address_notification, ButtonRequestType_ButtonRequest_Address,
@@ -570,7 +577,9 @@ size_t confirm_bytes_format_page(const uint8_t* data, size_t size, char* out,
 bool confirm_bytes(ButtonRequestType button_request, const char* title,
                    const uint8_t* data, size_t size) {
   if (!title || (!data && size != 0)) return false;
-  if (size == 0) return confirm(button_request, title, "(empty)");
+  /* Holds a space, which no byte is drawn as (confirm_byte_token), so no
+   * value can draw the screen that means "no value". */
+  if (size == 0) return confirm(button_request, title, "(no data)");
 
   static char page_body[BODY_CHAR_MAX];
   static char page_title[TITLE_CHAR_MAX];

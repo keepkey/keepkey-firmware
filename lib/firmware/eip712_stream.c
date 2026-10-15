@@ -285,6 +285,15 @@ bool eip712_validate_leaf(const Eip712FieldType* field, const uint8_t* value,
   }
 }
 
+/* The facts' index of a domain member, 5 for a name they do not hold. */
+static int domain_member_index(const char* member_name) {
+  static const char* const members[] = {"name", "version", "salt", "chainId",
+                                        "verifyingContract"};
+  int index = 0;
+  while (index < 5 && strcmp(member_name, members[index]) != 0) index++;
+  return index;
+}
+
 bool eip712_domain_facts_observe(Eip712DomainFacts* facts,
                                  const char* member_name,
                                  const Eip712FieldType* field,
@@ -292,10 +301,7 @@ bool eip712_domain_facts_observe(Eip712DomainFacts* facts,
   if (!facts || !member_name || !field || (!value && value_len != 0) ||
       !eip712_validate_leaf(field, value, value_len))
     return false;
-  static const char* const members[] = {"name", "version", "salt", "chainId",
-                                        "verifyingContract"};
-  int index = 0;
-  while (index < 5 && strcmp(member_name, members[index]) != 0) index++;
+  const int index = domain_member_index(member_name);
   if (index == 5) return true;
   const uint8_t bit = 1u << index;
   if ((facts->domain_present & bit) != 0) return false;
@@ -540,6 +546,7 @@ static struct {
   uint8_t root;
   uint8_t domain_separator[32];
   bool have_domain_separator;
+  bool domain_value_confirmed;
   bool message_value_confirmed;
 
   Eip712Frame stack[EIP712_MAX_DEPTH];
@@ -846,14 +853,16 @@ static const char* leaf_title(void) {
   return e712.root == 0 ? "EIP-712 Domain" : "EIP-712 Message";
 }
 
-/* approve(spender, amount) carried in a dynamic `bytes` leaf, such as a
- * Safe transaction's data: the policy of a top-level approve. */
+/* approve(spender, amount) or increaseAllowance(spender, amount) carried in
+ * a dynamic `bytes` leaf, such as a Safe transaction's data: the policy of a
+ * top-level approve, the same as inside a batch. */
 static bool embedded_approve(const Eip712FieldType* field, const uint8_t* value,
                              uint16_t len) {
   return field->data_type ==
              EthereumTypedDataStructAck_EthereumDataType_BYTES &&
          !field->has_size && len >= 68 &&
-         memcmp(value, "\x09\x5e\xa7\xb3", 4) == 0;
+         (memcmp(value, "\x09\x5e\xa7\xb3", 4) == 0 ||
+          memcmp(value, "\x39\x50\x93\x51", 4) == 0);
 }
 
 /* Pre-0.8 Solidity masks the spender word's high bytes, so a dirty one
@@ -1092,8 +1101,9 @@ static MultisendScan multisend_feed(const uint8_t* bytes, size_t len) {
 /* MultiSend and MultiSendCallOnly, every address variant of each release
  * that packs its calls (1.1.1 on; 1.0.0 takes ABI words), from
  * safe-global/safe-deployments 7b1fb6d6, src/assets/v1.x.x/multi_send*.json.
- * Each address holds the same code on every chain that has it, so the
- * list is not per chain. */
+ * The paired masks bind deployments to Ethereum (1) and zkSync Era (324)
+ * using networkAddresses from those same pinned manifests. Other chains
+ * retain the full-authority delegatecall warning. */
 static const uint8_t safe_multisend[][20] = {
     /* 1.1.1 MultiSend */
     {0x8d, 0x29, 0xbe, 0x29, 0x92, 0x3b, 0x68, 0xab, 0xfd, 0xd2,
@@ -1129,9 +1139,19 @@ static const uint8_t safe_multisend[][20] = {
      0x21, 0x9b, 0xa5, 0x02, 0x71, 0x74, 0x33, 0x8d, 0x18, 0x36},
 };
 
+static const uint8_t safe_multisend_chains[] = {1, 3, 3, 2, 3, 3, 2,
+                                                3, 2, 3, 2, 3, 3};
+
 static bool is_safe_multisend(const uint8_t* to) {
+  /* Only pinned deployment evidence on these chains permits the exemption.
+   * Unknown/absent chains still receive the full-authority warning. */
+  const uint32_t chain = domain_chain_id();
+  const uint8_t mask = chain == 1 ? 1 : (chain == 324 ? 2 : 0);
+  if (!mask) return false;
   for (size_t i = 0; i < sizeof(safe_multisend) / 20; i++)
-    if (memcmp(to, safe_multisend[i], 20) == 0) return true;
+    if ((safe_multisend_chains[i] & mask) &&
+        memcmp(to, safe_multisend[i], 20) == 0)
+      return true;
   return false;
 }
 
@@ -1226,9 +1246,11 @@ static Eip712LeafResult eip712_confirm_leaf(const Eip712FieldType* field,
                        (const uint8_t*)text, strlen(text));
 }
 
-/* An empty array has no element screen, so it would otherwise sign unseen.
- * `arr` is staged but not pushed, so leaf_path() still ends at the array. */
-static Eip712LeafResult eip712_confirm_empty_array(const Eip712Frame* arr) {
+/* Leaf types omit array dimensions and enclosing struct names. Show each
+ * declared container type before its values so schema substitutions cannot
+ * produce identical approvals. `arr` is staged, so leaf_path ends at it. */
+static Eip712LeafResult eip712_confirm_array(const Eip712Frame* arr,
+                                             uint16_t count) {
   Eip712FieldType type;
   char type_name[EIP712_MAX_TYPE_NAME];
   char path[EIP712_MAX_PATH];
@@ -1248,9 +1270,21 @@ static Eip712LeafResult eip712_confirm_empty_array(const Eip712Frame* arr) {
   if (!eip712_type_name(&type, type_name, sizeof(type_name)) ||
       !leaf_path(path, sizeof(path)))
     return EIP712_LEAF_INVALID;
-  static const char empty[] = "0 items";
+  char count_text[20];
+  snprintf(count_text, sizeof(count_text), "%u items", (unsigned)count);
   return confirm_parts(leaf_title(), path, type_name, EIP712_RENDER_TEXT,
-                       (const uint8_t*)empty, sizeof(empty) - 1);
+                       (const uint8_t*)count_text, strlen(count_text));
+}
+
+static Eip712LeafResult eip712_confirm_struct(const Eip712FieldType* field) {
+  char type_name[EIP712_MAX_TYPE_NAME];
+  char path[EIP712_MAX_PATH];
+  if (!eip712_type_name(field, type_name, sizeof(type_name)) ||
+      !leaf_path(path, sizeof(path)))
+    return EIP712_LEAF_INVALID;
+  static const char structure[] = "struct";
+  return confirm_parts("EIP-712 type", path, type_name, EIP712_RENDER_TEXT,
+                       (const uint8_t*)structure, sizeof(structure) - 1);
 }
 
 /* The walk: each function emits one request and returns, or finishes; the
@@ -1269,6 +1303,13 @@ static void fail(const char* why) {
   next_step.error = why;
 }
 
+/* What a handler returns after a step that cannot report its own failure:
+ * false once a failure or a cancel is staged, when the session is gone. */
+static bool walk_continues(void) {
+  return next_step.kind != EIP712_REQ_FAIL &&
+         next_step.kind != EIP712_REQ_CANCELLED;
+}
+
 /* True when the user approved the screen; otherwise the walk has ended. */
 static bool review_approved(Eip712LeafResult shown) {
   if (shown == EIP712_LEAF_INVALID) {
@@ -1281,7 +1322,11 @@ static bool review_approved(Eip712LeafResult shown) {
     next_step.kind = EIP712_REQ_CANCELLED;
     return false;
   }
-  if (e712.root == 1) e712.message_value_confirmed = true;
+  if (e712.root == 1) {
+    e712.message_value_confirmed = true;
+  } else {
+    e712.domain_value_confirmed = true;
+  }
   return true;
 }
 
@@ -1510,6 +1555,7 @@ static void complete_frame(void) {
    * primary type is the domain itself: there is no message hash. */
   next_step.domain_only = domain_only;
   next_step.message_empty = domain_only || !e712.message_value_confirmed;
+  next_step.domain_empty = !e712.domain_value_confirmed;
   if (!domain_only) memcpy(next_step.message_hash, digest, 32);
   strlcpy(next_step.primary_type, e712.primary_type,
           sizeof(next_step.primary_type));
@@ -1815,7 +1861,7 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck* ack) {
       }
       if (f->member_index >= f->member_count) {
         complete_frame();
-        return true;
+        return walk_continues();
       }
       if (f->slot_base + f->member_count > EIP712_MAX_SLOTS) {
         fail("EIP-712 document too wide for this device");
@@ -1828,6 +1874,19 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck* ack) {
       e712.pending_has_size = m->type.has_size;
       e712.pending_size = m->type.size;
       strlcpy(e712.pending_name, m->name, sizeof(e712.pending_name));
+
+      /* The facts hold one leaf per domain member. An array or a struct
+       * under one of their names is shown and hashed like any other, but
+       * nothing may bind to that domain. */
+      if (e712.root == 0 && e712.depth == 1 &&
+          (m->type.array_levels_count > 0 ||
+           m->type.data_type ==
+               EthereumTypedDataStructAck_EthereumDataType_STRUCT)) {
+        const int index = domain_member_index(m->name);
+        if (index < 5)
+          e712.domain_facts.domain_present |=
+              (uint8_t)(1u << index) | EIP712_DOMAIN_UNBINDABLE;
+      }
 
       if (m->type.array_levels_count > 0) {
         if (e712.depth >= EIP712_MAX_DEPTH || m->type.array_levels_count > 4) {
@@ -1891,6 +1950,7 @@ bool eip712_stream_on_struct(const EthereumTypedDataStructAck* ack) {
           fail("EIP-712 member path too long for this device");
           return false;
         }
+        if (!review_approved(eip712_confirm_struct(&m->type))) return false;
         child->slot_base = f->slot_base + f->member_count;
         e712.depth++;
         begin_type_hash();
@@ -2061,7 +2121,7 @@ static bool chunk_absorb(const Eip712FieldType* field, const uint8_t* bytes,
   }
   memzero(&e712.chunk, sizeof(e712.chunk));
   finish_leaf(word);
-  return true;
+  return walk_continues();
 }
 
 /* The first chunk: value_total_length names the whole value's length. */
@@ -2186,7 +2246,10 @@ bool eip712_stream_on_value(const EthereumTypedDataValueAck* ack) {
       fail("EIP-712 array is too long for this device");
       return false;
     }
-    if (len == 0 && !review_approved(eip712_confirm_empty_array(arr)))
+    /* The outer array screen includes every declared dimension. Empty inner
+     * arrays still need their own screen because they have no leaf values. */
+    if ((len == 0 || arr->u.a.level_index == 0) &&
+        !review_approved(eip712_confirm_array(arr, len)))
       return false;
 
     arr->u.a.array_len = len;
@@ -2197,10 +2260,10 @@ bool eip712_stream_on_value(const EthereumTypedDataValueAck* ack) {
     if (len == 0) {
       /* An empty array still hashes -- keccak of no bytes at all. */
       complete_frame();
-      return true;
+      return walk_continues();
     }
     drive_array_element();
-    return true;
+    return walk_continues();
   }
 
   Eip712FieldType rebuilt;
@@ -2248,7 +2311,7 @@ bool eip712_stream_on_value(const EthereumTypedDataValueAck* ack) {
       strcmp(e712.types.names[f->u.s.type], "SafeTx") == 0)
     e712.safe_to_slot = (uint8_t)(f->slot_base + f->member_index + 1);
   finish_leaf(word);
-  return true;
+  return walk_continues();
 }
 
 bool eip712_stream_domain_facts(Eip712DomainFacts* facts) {

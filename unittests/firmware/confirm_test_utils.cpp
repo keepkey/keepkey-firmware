@@ -9,6 +9,7 @@ extern "C" {
 
 #include <arpa/inet.h>
 #include <cstring>
+#include <functional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -34,13 +35,31 @@ extern "C" {
  * exercise security disclosures through confirm_bytes().
  */
 
+static std::function<void()> poll_hook;
+static std::function<void(MessageType, const void*)> message_hook;
+void kk_test_set_poll_hook(std::function<void()> hook) { poll_hook = hook; }
+void kk_test_poll(void) {
+  if (poll_hook) poll_hook();
+}
+void kk_test_set_message_hook(
+    std::function<void(MessageType, const void*)> hook) {
+  message_hook = hook;
+}
+extern "C" void emulator_message_written(MessageType id, const void* msg) {
+  if (message_hook) message_hook(id, msg);
+}
+
 static bool capture_screens;
-static std::vector<std::string> captured_screens;
 static std::vector<std::string> captured_titles;
+std::vector<std::string> kkconfirm_capture_titles(void) {
+  return captured_titles;
+}
+static std::vector<std::string> captured_screens;
 extern "C" void emulator_confirm_screen(const char* title, const char* body) {
-  if (!capture_screens) return;
-  captured_screens.emplace_back(body ? body : "");
-  captured_titles.emplace_back(title ? title : "");
+  if (capture_screens) {
+    captured_screens.emplace_back(body ? body : "");
+    captured_titles.emplace_back(title ? title : "");
+  }
 }
 void kkconfirm_capture_start(void) {
   captured_screens.clear();
@@ -278,8 +297,8 @@ bool kkconfirm_openDebugPeer(void) {
   addr.sin_port = htons(11045);  // emulator debug "usb" port
   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   static const char ping[] = {'P', 'I', 'N', 'G', 'P', 'I', 'N', 'G'};
-  if (sendto(kkconfirm_debug_fd, ping, sizeof(ping), 0,
-             (struct sockaddr*)&addr, sizeof(addr)) != (ssize_t)sizeof(ping))
+  if (sendto(kkconfirm_debug_fd, ping, sizeof(ping), 0, (struct sockaddr*)&addr,
+             sizeof(addr)) != (ssize_t)sizeof(ping))
     return false;
   if (kkconfirm_drain() != 0) return false;  // polls the ports
   uint8_t pong[64] = {};
@@ -306,8 +325,9 @@ std::thread kkconfirm_answerPinMatrix(const std::string& pin) {
     PinMatrixRequest request = {};
     bool requested = false;
     for (int i = 0; i < 25 && !requested; ++i) {
-      requested = kkconfirm_readResponse(MessageType_MessageType_PinMatrixRequest,
-                                         PinMatrixRequest_fields, &request);
+      requested =
+          kkconfirm_readResponse(MessageType_MessageType_PinMatrixRequest,
+                                 PinMatrixRequest_fields, &request);
     }
     const std::string matrix = get_pin_matrix();
     std::string positions;

@@ -452,7 +452,16 @@ bool fsm_workflowInProgress(void) {
   return false;
 }
 
+/* One physical approval permits a bounded consecutive audit on an empty
+ * device. Read-only feature polls may interleave; other operations revoke it.
+ */
+#define ENTROPY_AUDIT_APPROVED_BYTES (8u * 1024u * 1024u)
+static uint32_t entropy_audit_approved_remaining;
+
+void fsm_revoke_entropy_audit(void) { entropy_audit_approved_remaining = 0; }
+
 void fsm_init(void) {
+  entropy_audit_approved_remaining = 0;
   msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
   set_msg_failure_handler(&sendFailureWrapper);
 
@@ -468,17 +477,19 @@ void fsm_init(void) {
   txin_dgst_initialize();
 }
 
-/* Reject continuation packets unless their signing workflow is active. */
 static void abort_signing_engines(void);
 
+/* Reject continuation packets unless their signing workflow is active. */
 static bool reject_stale_continuation(const char* text) {
   /* A decoded request always gets a terminal response. Silently dropping an
    * inactive ACK leaves the host blocked forever, while dispatching it would
    * let the handler replace an unrelated recovery screen. End signing, keep
-   * any setup ceremony armed, and reject on the wire without changing OLED
-   * state. */
+   * any setup ceremony armed and on its own screen, and reject on the wire.
+   * Several signer aborts only clear state, so with no ceremony armed go home
+   * rather than leave the aborted transaction's approval screen up. */
   fsm_abort_signing_workflows();
   fsm_sendFailure(FailureType_Failure_UnexpectedMessage, text);
+  if (!setup_isArmed()) layoutHome();
   return false;
 }
 
@@ -620,8 +631,14 @@ static bool fsm_dispatchGate(MessageType msg_id) {
 #if ZCASH_PRIVACY
         case MessageType_MessageType_ZcashSignPCZT:
 #endif
+        {
+          const bool was_armed = setup_isArmed();
           setup_abort();
+          /* The handler may fail before it draws anything, which would leave
+           * the ended ceremony's screen up. */
+          if (was_armed) layoutHome();
           break;
+        }
         case MessageType_MessageType_Initialize:
         case MessageType_MessageType_Cancel:
         case MessageType_MessageType_ClearSession:
@@ -662,6 +679,10 @@ static bool fsm_dispatchGate(MessageType msg_id) {
  * "not in progress"; after, so the request that just ended a workflow runs
  * on a locked session. */
 bool keepkey_before_message_dispatch(MessageType msg_id) {
+  if (msg_id != MessageType_MessageType_GetEntropy &&
+      msg_id != MessageType_MessageType_GetFeatures) {
+    entropy_audit_approved_remaining = 0;
+  }
   auto_lock_if_due();
   if (!fsm_dispatchGate(msg_id)) return false;
   auto_lock_if_due();
@@ -718,14 +739,13 @@ void fsm_sendFailure(FailureType code, const char* text) {
 }
 
 void fsm_abort_workflows(void) {
+  entropy_audit_approved_remaining = 0;
   setup_abort();
   fsm_abort_signing_workflows();
 }
 
-/* The signing half of the above. Clearing PIN authorization revokes retained
- * signing state, but must not discard a setup ceremony: recovery stages its
- * ceremony before prompting for the PIN, and every routine PIN entry clears
- * the session while checking the entered digits against the wipe code. */
+/* End every signing engine. A preloaded ERC-7730 definition that no review
+ * has started on is kept, for the signing request that consumes it. */
 static void abort_signing_engines(void) {
   signing_abort();
 #if !BITCOIN_ONLY
@@ -747,7 +767,13 @@ static void abort_signing_engines(void) {
   drop_workflow_progress_if_idle();
 }
 
-/* A preloaded ERC-7730 definition is consumed only by the signing request that
+/* The signing half of fsm_abort_workflows(). Clearing PIN authorization
+ * revokes retained signing state, but must not discard a setup ceremony:
+ * recovery stages its ceremony before prompting for the PIN, and every routine
+ * PIN entry clears the session while checking the entered digits against the
+ * wipe code.
+ *
+ * A preloaded ERC-7730 definition is consumed only by the signing request that
  * follows it. Every other abort -- Initialize, Cancel, ClearSession, autolock,
  * a rejected frame or any unrelated request -- discards it too. */
 void fsm_abort_signing_workflows(void) {
@@ -796,10 +822,9 @@ void fsm_msgClearSession(ClearSession* msg) {
 #include "fsm_msg_solana.h"
 #include "fsm_msg_hive.h"
 #else
-// Bitcoin-only: the coin engines above are compiled out, but the always-on
-// Initialize/ClearSession/Cancel handlers still call their *_abort() hooks,
-// and factory-reset calls signed_metadata_clear_signers() (EVM clearsign).
-// With no state to reset, no-ops are correct.
+// The coin engines above are compiled out, and every call to these hooks is
+// compiled out with them. The no-ops keep the symbols defined in this
+// variant, so a caller shared by both variants links in either.
 void ethereum_signing_abort(void) {}
 void tendermint_signAbort(void) {}
 void eos_signingAbort(void) {}

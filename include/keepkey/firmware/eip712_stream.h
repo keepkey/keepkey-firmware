@@ -192,7 +192,8 @@ typedef struct {
   /* For the final signing screen. */
   char primary_type[EIP712_MAX_STRUCT_NAME];
   bool message_empty;
-  bool domain_only; /* primaryType EIP712Domain: sign keccak(0x1901 || ds) */
+  bool domain_empty; /* no domain member was shown: it has none */
+  bool domain_only;  /* primaryType EIP712Domain: sign keccak(0x1901 || ds) */
 } Eip712Next;
 
 const Eip712Next* eip712_stream_next(void);

@@ -397,6 +397,14 @@ char usbTiny(char set) {
 
 #endif  // EMULATOR
 
+#ifdef EMULATOR
+__attribute__((weak)) void emulator_message_written(MessageType id,
+                                                    const void* msg) {
+  (void)id;
+  (void)msg;
+}
+#endif
+
 bool msg_write(MessageType msg_id, const void* msg) {
   if (msg_handler_rejected()) return false;
   const pb_field_t* fields = message_fields(NORMAL_MSG, msg_id, OUT_MSG);
@@ -415,6 +423,9 @@ bool msg_write(MessageType msg_id, const void* msg) {
       pb_ostream_from_buffer(framebuf->buffer, sizeof(framebuf->buffer));
 
   if (!pb_encode(&os, fields, msg)) return false;
+#ifdef EMULATOR
+  emulator_message_written(msg_id, msg);
+#endif
 
   framebuf->frame.header.len = __builtin_bswap32(os.bytes_written);
 
@@ -456,6 +467,9 @@ bool msg_debug_write(MessageType msg_id, const void* msg) {
       pb_ostream_from_buffer(framebuf->buffer, sizeof(framebuf->buffer));
 
   if (!pb_encode(&os, fields, msg)) return false;
+#ifdef EMULATOR
+  emulator_message_written(msg_id, msg);
+#endif
 
   framebuf->frame.header.len = __builtin_bswap32(os.bytes_written);
 

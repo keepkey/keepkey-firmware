@@ -40,7 +40,7 @@ typedef enum {
   ARG_FORMAT_ADDRESS = 1, /* 20 bytes -> full EIP-55 address, never truncated */
   ARG_FORMAT_AMOUNT = 2,  /* big-endian uint256 -> raw integer, "wei" */
   ARG_FORMAT_BYTES = 3,   /* hex dump (all bytes, paginated) */
-  /* Printable label; alias character rules minus length (no '%'). */
+  /* Label of 1..32 printable ASCII bytes, '%' excluded. */
   ARG_FORMAT_STRING = 4,
   /* decimals(1) + symbol_len(1) + symbol(<=10, [A-Za-z0-9]) + amount(1..32
    * BE); all-0xFF 32-byte amount renders "UNLIMITED <symbol>". */

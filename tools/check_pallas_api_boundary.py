@@ -29,6 +29,10 @@ MACRO = re.compile(r"^[ \t]*#[ \t]*(?:define|undef)\b", re.M)
 # gate reads, or `#define pallas_ct_x pallas_x` would satisfy require().
 GUARDED = set()
 
+# Tokens named by forbid(); no macro the gate reads may expand to one, or a
+# checked body could make the forbidden call under the macro's name.
+FORBIDDEN = set()
+
 PALLAS_CT_INCLUDE = re.compile(
     r'^[ \t]*#[ \t]*include[ \t]*[<"](?:[^>"\n]*/)?pallas_ct\.h[>"]', re.M)
 
@@ -71,15 +75,31 @@ def splice(text):
     return re.sub(r"\\\r?\n", "", text)
 
 
+def includes_pallas_ct(text):
+    """True when the text #includes pallas_ct.h, with continuations joined
+    and comments removed as the compiler does both before it reads a
+    directive. The quoted file name is kept."""
+    return bool(PALLAS_CT_INCLUDE.search(
+        code_only(splice(text), keep_literals=True)))
+
+
 def function_body(text, name):
     text = code_only(splice(text))
     # A definition: the name starts a line or follows its return type there,
     # and the parameter list holds no ';' or brace. An indented caller such
     # as `if (name(x)) {` can therefore never stand in for the definition.
-    match = re.search(r"^(?:[A-Za-z_][\w \t*]*[ \t*])?" + re.escape(name) +
-                      r"\s*\([^;{}]*\)\s*\{", text, re.M)
-    if not match:
+    matches = list(re.finditer(
+        r"^(?:[A-Za-z_][\w \t*]*[ \t*])?" + re.escape(name) +
+        r"\s*\([^;{}]*\)\s*\{", text, re.M))
+    if not matches:
         raise AssertionError("function not found: " + name)
+    # Two definitions can only be alternatives under the preprocessor, and
+    # checking the first says nothing about the other.
+    if len(matches) > 1:
+        raise AssertionError(
+            name + " is defined more than once; this gate cannot tell which "
+            "is compiled")
+    match = matches[0]
     for directive, branch in enclosing_conditionals(text[:match.start()]):
         if directive not in PRODUCTION_CONDITIONALS or branch != "if":
             raise AssertionError(
@@ -106,9 +126,10 @@ def function_body(text, name):
     raise AssertionError("unterminated function: " + name)
 
 
-def code_only(text):
+def code_only(text, keep_literals=False):
     """Blank comments and string/char literals so neither can satisfy a token
-    check or unbalance the brace count. Literals keep their quotes."""
+    check or unbalance the brace count. Literals keep their quotes, and their
+    text too when keep_literals is set."""
     out = []
     i, n = 0, len(text)
     while i < n:
@@ -121,11 +142,12 @@ def code_only(text):
             i = n if end < 0 else end
         elif text[i] in "\"'":
             quote = text[i]
+            start = i
             i += 1
             while i < n and text[i] != quote and text[i] != "\n":
                 i += 2 if text[i] == "\\" else 1
             i += 1
-            out.append(quote + quote)
+            out.append(text[start:i] if keep_literals else quote + quote)
         else:
             out.append(text[i])
             i += 1
@@ -137,6 +159,7 @@ def token_pattern(token):
     'pallas_ct_add_mod_q' is not satisfied by 'pallas_ct_add_mod_q_result',
     and '(' may follow any whitespace. A trailing '_' marks a prefix."""
     pattern = re.escape(token).replace(r"\(", r"\s*\(")
+    pattern = pattern.replace(re.escape("->"), re.escape("->") + r"\s*")
     if re.match(r"\w", token):
         pattern = r"\b" + pattern
     # A token ending in '_' (e.g. 'pallas_ct_') is a deliberate prefix.
@@ -156,11 +179,12 @@ def require(body, token, where):
 
 def forbid(body, token, where):
     guard(token)
+    FORBIDDEN.add(token)
     if token.endswith("("):
         # A call: any whitespace may sit between the name and its "(".
         found = re.search(r"\b" + re.escape(token[:-1]) + r"\s*\(", body)
     else:
-        found = token in body
+        found = token_pattern(token).search(body)
     if found:
         raise AssertionError("{} must not call {}".format(where, token))
 
@@ -185,6 +209,107 @@ def check_wide_reductions(zcash):
                    name)
 
 
+def check_address_derivation(zcash):
+    """An address is built from the cached public ak. The spend authorizing
+    key takes no part, so nothing here reads it or multiplies by it."""
+    where = "Orchard unified-address derivation"
+    body = code_only(function_body(zcash,
+                                   "zcash_orchard_derive_unified_address"))
+    for token in ("->ask", "redpallas_scalar_mult_spendauth_G(",
+                  "redpallas_scalar_mult_spendauth_G_progress("):
+        forbid(body, token, where)
+
+
+# The two functions the final gate signs through. The handler tests count
+# their signing operations to show that nothing is signed while a transaction
+# streams, which holds only while no other code in the file can sign.
+FINAL_GATE_SIGNERS = ("zcash_sign_transparent_inputs",
+                      "zcash_sign_orchard_spends")
+SIGNING_NAME = r"\b(?:redpallas_sign|hdnode_sign|ecdsa_sign)\w*"
+
+
+def check_signing_sites(zcash_fsm):
+    """Every RedPallas or ECDSA signing call in the Zcash handlers sits in a
+    final-gate signer, each beside one ZCASH_TEST_COUNT_SIGN()."""
+    rest = code_only(splice(zcash_fsm))
+    for name in FINAL_GATE_SIGNERS:
+        body = function_body(zcash_fsm, name)
+        calls = len(re.findall(SIGNING_NAME + r"\s*\(", body))
+        counts = len(re.findall(r"\bZCASH_TEST_COUNT_SIGN\s*\(", body))
+        if calls == 0 or calls != counts:
+            raise AssertionError(
+                "{} must count each of its signing calls".format(name))
+        rest = rest.replace(body, "")
+    found = re.search(SIGNING_NAME, rest)
+    if found:
+        raise AssertionError(
+            "{} is named outside the final-gate signers".format(found.group(0)))
+
+
+# Sources read whole for macro aliases, beside every header: the files checked
+# in main(), and fsm.c, the translation unit fsm_msg_zcash.h is compiled in.
+ALIAS_SCAN_SOURCES = (
+    "deps/crypto/trezor-firmware/crypto/pallas.c",
+    "deps/crypto/trezor-firmware/crypto/pallas_sinsemilla.c",
+    "deps/crypto/trezor-firmware/crypto/redpallas.c",
+    "lib/firmware/zcash.c",
+    "lib/firmware/storage.c",
+    "lib/firmware/fsm.c",
+)
+
+
+def alias_scan_texts():
+    """Path -> text of everything check_aliases() reads: the sources above and
+    every header they can reach inside the tree, the crypto library's and the
+    firmware's own."""
+    header_roots = [ROOT / "deps/crypto/trezor-firmware/crypto",
+                    ROOT / "include", ROOT / "lib"]
+    texts = {str(h.relative_to(ROOT)): h.read_text(encoding="utf-8",
+                                                   errors="replace")
+             for base in header_roots for h in sorted(base.rglob("*.h"))}
+    for path in ALIAS_SCAN_SOURCES:
+        texts[path] = source(path)
+    return texts
+
+
+def check_aliases(texts):
+    """No file the gate reads, nor the Pallas headers, may #define a checked
+    identifier: an alias would satisfy require() while compiling to another
+    call. Nor may any macro there expand to a forbidden one, which a checked
+    body could then call under the macro's name. Run after the checks above,
+    which fill GUARDED and FORBIDDEN."""
+    for where, text in sorted(texts.items()):
+        for match in re.finditer(
+                r"^[ \t]*#[ \t]*define[ \t]+([A-Za-z_]\w*)(.*)$",
+                code_only(splice(text)), re.M):
+            name, replacement = match.groups()
+            if name in GUARDED:
+                raise AssertionError("{} #defines checked identifier {}".format(
+                    where, name))
+            for token in sorted(FORBIDDEN):
+                if token.endswith("("):
+                    # The macro may supply the "(" itself, or leave it to
+                    # the caller.
+                    found = re.search(r"\b" + re.escape(token[:-1]) + r"\b",
+                                      replacement)
+                else:
+                    found = token_pattern(token).search(replacement)
+                if found:
+                    raise AssertionError(
+                        "{} #defines {} to forbidden {}".format(
+                            where, name, token))
+
+
+def check_nonce_reduction(redpallas):
+    nonce_hash = code_only(function_body(redpallas, "redpallas_hash_nonce"))
+    require(nonce_hash, "pallas_from_uniform_bytes", "RedPallas nonce hash")
+    reduction = code_only(function_body(redpallas, "pallas_from_uniform_bytes"))
+    for token in ("pallas_ct_mod_q", "pallas_ct_mul_mod_q", "pallas_ct_add_mod_q"):
+        require(reduction, token, "secret RedPallas wide reduction")
+    for token in ("pallas_mod_q(", "pallas_mul_mod_q(", "pallas_add_mod_q("):
+        forbid(reduction, token, "secret RedPallas wide reduction")
+
+
 def main():
     pallas = source("deps/crypto/trezor-firmware/crypto/pallas.c")
     sinsemilla = source("deps/crypto/trezor-firmware/crypto/pallas_sinsemilla.c")
@@ -194,7 +319,7 @@ def main():
     storage = source("lib/firmware/storage.c")
 
     # Public transaction data needs the fast compatibility implementation.
-    if PALLAS_CT_INCLUDE.search(pallas):
+    if includes_pallas_ct(pallas):
         raise AssertionError(
             "pallas.c public compatibility path must not include pallas_ct.h")
     hash_to_point = code_only(function_body(
@@ -279,6 +404,7 @@ def main():
     # rsk = (s - r) / c. Found in review after the fix landed, so it is pinned
     # here rather than left to the next reader to notice.
     nonce_hash = code_only(function_body(redpallas, "redpallas_hash_nonce"))
+    check_nonce_reduction(redpallas)
     require(nonce_hash, "memzero(&ctx", "RedPallas nonce hash")
     require(nonce_hash, "memzero(hash_out", "RedPallas nonce hash")
     for token in ("pallas_add_mod_q(", "pallas_mod_q(", "pallas_mul_mod_q("):
@@ -332,6 +458,7 @@ def main():
                         (final_gate, "Zcash final gate"),
                         (spend_signer, "Orchard spend signer")):
         forbid(body, "redpallas_sign_digest_for_rk(", where)
+    check_signing_sites(zcash_fsm)
     require(action_handler, "signatures[zcash_signing.signature_count]",
             "compact PCZT signature collection")
     require(action_handler, "zcash_signing.signature_count++",
@@ -368,12 +495,7 @@ def main():
             "Orchard key derivation")
     forbid(key_derivation, "redpallas_scalar_mult_spendauth_G(",
            "Orchard key derivation")
-    address_derivation = code_only(function_body(
-        zcash, "zcash_orchard_derive_unified_address"))
-    require(address_derivation, "redpallas_scalar_mult_spendauth_G_progress",
-            "Orchard unified-address derivation")
-    forbid(address_derivation, "redpallas_scalar_mult_spendauth_G(",
-           "Orchard unified-address derivation")
+    check_address_derivation(zcash)
     stored_key_derivation = code_only(function_body(
         storage, "storage_zcashOrchardKeys"))
     require(stored_key_derivation, "zcash_derive_orchard_keys_with_progress",
@@ -384,26 +506,7 @@ def main():
     require(transmission, "pallas_ct_point_mult", "Orchard transmission-key derivation")
     forbid(transmission, "pallas_point_mult(", "Orchard transmission-key derivation")
 
-    # No file the gate reads, nor the Pallas headers, may #define a checked
-    # identifier: an alias would satisfy require() while compiling to another
-    # call.
-    # Every header these sources can reach inside the tree: the crypto
-    # library's and the firmware's own.
-    header_roots = [ROOT / "deps/crypto/trezor-firmware/crypto",
-                    ROOT / "include", ROOT / "lib"]
-    headers = {str(h.relative_to(ROOT)): h.read_text(encoding="utf-8",
-                                                     errors="replace")
-               for base in header_roots for h in sorted(base.rglob("*.h"))}
-    checked = dict(headers, **{
-        "pallas.c": pallas, "pallas_sinsemilla.c": sinsemilla,
-        "redpallas.c": redpallas, "zcash.c": zcash,
-        "fsm_msg_zcash.h": zcash_fsm, "storage.c": storage})
-    for where, text in sorted(checked.items()):
-        for match in re.finditer(r"^[ \t]*#[ \t]*define[ \t]+([A-Za-z_]\w*)",
-                                 code_only(splice(text)), re.M):
-            if match.group(1) in GUARDED:
-                raise AssertionError("{} #defines checked identifier {}".format(
-                    where, match.group(1)))
+    check_aliases(alias_scan_texts())
 
     print("Pallas API boundary: public Sinsemilla fast path and secret CT path verified")
     return 0

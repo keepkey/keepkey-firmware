@@ -11,12 +11,34 @@ extern "C" {
 #include "gtest/gtest.h"
 #include <cstring>
 #include <string>
+#include <vector>
 
 // confirm() auto-accept driver, defined in thorchain.cpp (same binary).
 // kkconfirm_preload(nYes, nNo) queues nYes accepted confirm screens then
 // nNo rejected ones; kkconfirm_drain() == 0 proves the exact screen count.
 bool kkconfirm_preload(int nYes, int nNo);
 int kkconfirm_drain(void);
+void kkconfirm_capture_start(void);
+std::vector<std::string> kkconfirm_captured_titles(void);
+std::vector<std::string> kkconfirm_capture_finish(void);
+
+TEST(Mayachain, OmittedSwapFieldsCannotImpersonateLiteralMemoFields) {
+  std::vector<std::vector<std::string>> reviews;
+  for (const char* memo : {"=:ETH.ETH", "=:ETH.ETH:self",
+                           "=:ETH.ETH:self:none"}) {
+    ASSERT_TRUE(kkconfirm_preload(3, 0));
+    kkconfirm_capture_start();
+    EXPECT_EQ(MAYACHAIN_MEMO_CONFIRMED,
+              mayachain_parseConfirmMemo(memo, strlen(memo)));
+    reviews.push_back(kkconfirm_capture_finish());
+    EXPECT_EQ(0, kkconfirm_drain());
+    ASSERT_EQ(3u, reviews.back().size());
+  }
+  EXPECT_NE(reviews[0][1], reviews[1][1]);
+  EXPECT_NE(reviews[1][2], reviews[2][2]);
+  EXPECT_EQ("Confirm to self", reviews[1][1]);
+  EXPECT_EQ("Confirm limit none", reviews[2][2]);
+}
 
 /* Every MAYAChain screen scales by the denom's own exponent, and they all ask
  * the same function, so a send screen and a deposit screen cannot disagree
@@ -82,14 +104,25 @@ TEST(Mayachain, RejectingAssetScreenAbortsSendHandler) {
   std::memset(ack.send.denom, 'a', 68);
   ack.send.denom[68] = '\0';
 
-  // The amount/recipient screen is accepted; the independent Asset screen is
-  // refused. The handler must abort before serializing this send.
-  ASSERT_TRUE(kkconfirm_preload(1, 1));
+  // A denom this long pages the amount/recipient review in two. Both pages
+  // are accepted; the independent Asset screen is refused. The handler must
+  // abort before serializing this send.
+  ASSERT_TRUE(kkconfirm_preload(2, 1));
   fsm_test_clearLastFailure();
+  kkconfirm_capture_start();
   fsm_msgMayachainMsgAck(&ack);
+  const auto titles = kkconfirm_captured_titles();
+  const auto screens = kkconfirm_capture_finish();
   EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
   EXPECT_FALSE(mayachain_signingIsInited());
   EXPECT_EQ(0, kkconfirm_drain());
+  // The refused screen is the last one drawn: it must be the Asset screen,
+  // carrying the whole denom, after the amount and then the recipient.
+  ASSERT_EQ(3u, screens.size());
+  EXPECT_EQ(0u, screens[0].rfind("Send 1 a", 0)) << screens[0];
+  EXPECT_EQ(ack.send.to_address, screens[1]);
+  EXPECT_EQ("Asset", titles[2]);
+  EXPECT_EQ(ack.send.denom, screens[2]);
 }
 
 TEST(Mayachain, MemoWithMisdeclaredLengthIsRefused) {

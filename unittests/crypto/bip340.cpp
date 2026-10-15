@@ -475,10 +475,10 @@ TEST(BIP340, XOnlyPubkeyZeroesOnFailure) {
   ASSERT_EQ(0, memcmp(pk, empty, sizeof(pk)));
 }
 
-TEST(BIP340, ZeroSTakesTheSpecPath) {
-  // s == 0 is in range per BIP-340 and carries no special guard: verification
-  // must compute R = -eP and reject on the x-coordinate comparison, not bail
-  // out early.  Pins the absence of a guard that would deviate from the spec.
+TEST(BIP340, ZeroSIsRejected) {
+  // s == 0 is in range per BIP-340, so bip340_verify() has no guard for it
+  // and R = -eP decides.  This checks only that the signature is rejected,
+  // which would hold with an early guard too.
   std::vector<uint8_t> pk = unhex(kVectors[1].pubkey);
   std::vector<uint8_t> msg = unhex(kVectors[1].msg);
   std::vector<uint8_t> sig = unhex(kVectors[1].sig);

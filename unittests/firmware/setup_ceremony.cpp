@@ -29,6 +29,7 @@
 extern "C" {
 #include "keepkey/board/keepkey_board.h"
 #include "keepkey/firmware/fsm.h"
+#include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/recovery_cipher.h"
 #include "keepkey/firmware/reset.h"
 #include "trezor/crypto/bip39.h"
@@ -226,10 +227,42 @@ TEST_F(SetupCeremony, StrayAcksLeaveTheArmedCeremonyAlone) {
   }
 }
 
+// A signing request ends the ceremony, and its handler may refuse without
+// drawing (an uninitialized device), so the gate itself must take the dead
+// ceremony's screen down.
+TEST_F(SetupCeremony, SigningRequestEndsTheCeremonyAndItsScreen) {
+  kk_test_board_init();
+  reset_idle_time();  // the gate also locks an idle session
+  const MessageType kSigners[] = {
+      MessageType_MessageType_SignTx,
+      MessageType_MessageType_SignMessage,
+      MessageType_MessageType_CipherKeyValue,
+  };
+  for (MessageType id : kSigners) {
+    SCOPED_TRACE(::testing::Message() << "id " << id);
+    ASSERT_TRUE(setup_stage(false, "english", "armed", 0, 0, false));
+    setup_arm(SETUP_RECOVERY);
+    leave_home();  // as drawing the cipher does
+    ASSERT_EQ(AWAY_FROM_HOME, home_get_state());
+
+    EXPECT_TRUE(keepkey_before_message_dispatch(id));
+    EXPECT_FALSE(setup_isArmed());
+    EXPECT_EQ(AT_HOME, home_get_state());
+  }
+
+  // With nothing armed the gate leaves the screen to the handler.
+  leave_home();
+  EXPECT_TRUE(keepkey_before_message_dispatch(MessageType_MessageType_SignTx));
+  EXPECT_EQ(AWAY_FROM_HOME, home_get_state());
+  layoutHomeForced();
+}
+
 TEST_F(SetupCeremony, InvalidRecoveryWordCountDisarmsCeremony) {
   ASSERT_TRUE(setup_stage(false, "english", "recovery", 0, 0, false));
   setup_arm(SETUP_RECOVERY);
   ASSERT_TRUE(setup_isArmedAs(SETUP_RECOVERY));
+  recovery_cipher_test_set_word_fragments();
+  ASSERT_FALSE(recovery_cipher_test_word_fragments_are_zero());
 
   recovery_cipher_finalize();
 
