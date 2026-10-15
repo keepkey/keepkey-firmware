@@ -201,7 +201,7 @@ static PinRun resetWithPinThenCancel(bool mismatch) {
       result.failure = ((const Failure*)msg)->message;
   });
   kk_test_set_poll_hook([&] {
-    if (++result.polls > 10000 && pending == (MessageType)0) {
+    if (++result.polls > 10000) {
       result.watchdog = true;
       pending = MessageType_MessageType_Cancel;
     }
@@ -212,7 +212,11 @@ static PinRun resetWithPinThenCancel(bool mismatch) {
       for (size_t i = 0; i < 4; ++i) {
         const auto pos = matrix.find(pin[i]);
         EXPECT_NE(std::string::npos, pos);
-        if (pos == std::string::npos) return;
+        if (pos == std::string::npos) {
+          result.watchdog = true;
+          pending = MessageType_MessageType_Cancel;
+          return;
+        }
         ack.pin[i] = '1' + pos;
       }
       pending = (MessageType)0;

@@ -33,13 +33,15 @@ extern "C" {
 #include <cstring>
 #include <algorithm>
 #include <string>
-#include <thread>
+#include <functional>
 #include <vector>
 #include <unistd.h>
 
 // The shared bootstrap initializes the canvas and timer queues exactly once.
 // Calling timer_init() again relinks the static runnable nodes into a cycle.
 void kk_test_board_init(void);
+void kk_test_set_poll_hook(std::function<void()>);
+void kk_test_set_message_hook(std::function<void(MessageType, const void*)>);
 bool kkconfirm_preload(int nYes, int nNo);
 int kkconfirm_drain(void);
 bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload, uint8_t len);
@@ -427,25 +429,57 @@ class AutoLockProgress : public ::testing::Test {
   }
 };
 
-// Plays the host: waits for the next PIN prompt, then sends `pin` as matrix
-// positions, the way a host relays the user's clicks on the scrambled grid.
-std::thread answerPinPrompt(const char* pin) {
-  return std::thread([pin] {
-    for (int tries = 0; tries < 5000; tries++, usleep(1000)) {
-      if (std::strcmp(get_pin_matrix(), "XXXXXXXXX") == 0) continue;
-      usleep(50000);  // let the prompt finish shuffling
+// Observe each published request and reply at the USB polling boundary on
+// the firmware thread. No background reader may race the matrix shuffle/wipe.
+struct PinResponder {
+  std::string pin;
+  bool pending = false;
+  int answers = 0;
+  int polls = 0;
+  bool watchdog = false;
+  explicit PinResponder(const char* value) : pin(value) {
+    kk_test_set_message_hook([this](MessageType id, const void*) {
+      if (id == MessageType_MessageType_PinMatrixRequest) pending = true;
+    });
+    kk_test_set_poll_hook([this] {
+      if (++polls > 10000) {
+        watchdog = true;
+        Cancel cancel = {};
+        receiveMessage(MessageType_MessageType_Cancel, Cancel_fields, &cancel);
+        return;
+      }
+      if (!pending) return;
+      pending = false;
       const std::string matrix = get_pin_matrix();
-      std::string positions;
-      for (const char* d = pin; *d; d++)
-        positions += (char)('1' + matrix.find(*d));
-      uint8_t ack[2 + 9] = {0x0a, (uint8_t)positions.size()};
-      std::memcpy(&ack[2], positions.data(), positions.size());
-      kkconfirm_sendTiny(MessageType_MessageType_PinMatrixAck, ack,
-                         (uint8_t)(2 + positions.size()));
-      return;
-    }
-  });
-}
+      PinMatrixAck ack = {};
+      for (size_t i = 0; i < pin.size(); ++i) {
+        const auto pos = matrix.find(pin[i]);
+        EXPECT_NE(std::string::npos, pos);
+        if (pos == std::string::npos) {
+          watchdog = true;
+          Cancel cancel = {};
+          receiveMessage(MessageType_MessageType_Cancel, Cancel_fields,
+                         &cancel);
+          return;
+        }
+        ack.pin[i] = '1' + pos;
+      }
+      ++answers;
+      receiveMessage(MessageType_MessageType_PinMatrixAck, PinMatrixAck_fields,
+                     &ack);
+    });
+  }
+  void finish(int expected) {
+    kk_test_set_poll_hook({});
+    kk_test_set_message_hook({});
+    EXPECT_EQ(expected, answers);
+    EXPECT_FALSE(watchdog);
+  }
+  ~PinResponder() {
+    kk_test_set_poll_hook({});
+    kk_test_set_message_hook({});
+  }
+};
 
 // Locks a PIN-protected session by idling, then unlocks it with a protected
 // Ping answered with `pin`.
@@ -463,10 +497,10 @@ void lockThenEnterPin(const char* pin) {
   Ping ping = {};
   ping.has_pin_protection = true;
   ping.pin_protection = true;
-  std::thread host = answerPinPrompt(pin);
+  PinResponder host(pin);
   fsm_test_clearLastFailure();
   receiveMessage(MessageType_MessageType_Ping, Ping_fields, &ping);
-  host.join();
+  host.finish(1);
 }
 }  // namespace
 
@@ -499,33 +533,14 @@ TEST(Fsm, ResetWithANewPinSurvivesAnIdleDevice) {
   toggle_screensaver();
   ASSERT_EQ(SCREENSAVER, home_get_state());
 
-  // The host relays the new PIN twice, each time on a fresh matrix.
-  std::thread host([] {
-    std::string seen = "XXXXXXXXX";
-    for (int prompt = 0; prompt < 2; prompt++) {
-      for (int tries = 0; tries < 5000; tries++, usleep(1000)) {
-        const std::string first = get_pin_matrix();
-        if (first == "XXXXXXXXX" || first == seen) continue;
-        usleep(50000);  // let the prompt finish shuffling
-        const std::string matrix = get_pin_matrix();
-        std::string positions;
-        for (const char* d = "1234"; *d; d++)
-          positions += (char)('1' + matrix.find(*d));
-        uint8_t ack[2 + 9] = {0x0a, (uint8_t)positions.size()};
-        std::memcpy(&ack[2], positions.data(), positions.size());
-        kkconfirm_sendTiny(MessageType_MessageType_PinMatrixAck, ack,
-                           (uint8_t)(2 + positions.size()));
-        seen = matrix;
-        break;
-      }
-    }
-  });
+  // The same PIN is acknowledged only after each of the two requests.
+  PinResponder host("1234");
   ResetDevice reset = {};
   reset.has_pin_protection = reset.pin_protection = true;
   fsm_test_clearLastFailure();
   receiveMessage(MessageType_MessageType_ResetDevice, ResetDevice_fields,
                  &reset);
-  host.join();
+  host.finish(2);
   ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode());
   ASSERT_TRUE(setup_isArmedAs(SETUP_RESET));
 

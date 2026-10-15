@@ -204,27 +204,20 @@ TEST(Signing, LongDerivationCannotOverlapAddressReview) {
   }
 }
 
-TEST(Signing, SegwitAddressStartsOnItsOwnScreen) {
+TEST(Signing, FriendlyDescriptionKeepsTheCompleteCompactAddress) {
   char description[128] = {};
   const uint32_t path[] = {0x80000031, 0x80000001, 0x80000000, 0, 0};
   ASSERT_TRUE(bip32_node_to_string(description, sizeof(description),
                                    coinByName("Testnet"), path, 5, false,
                                    true));
   const char* address = "tb1qqzv60m9ajw8drqulta4ld4gfx0rdh82un5s65s";
-  ASSERT_TRUE(kkconfirm_preload(8, 0));
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  ASSERT_NE(nullptr, std::strchr(description, '\n'));
+  ASSERT_TRUE(layout_address_description_fits(description, address));
   kkconfirm_capture_start();
   EXPECT_TRUE(confirm_address(description, address));
-  const auto bodies = kkconfirm_capture_finish();
-  const auto titles = kkconfirm_capture_titles();
-  ASSERT_EQ(bodies.size(), titles.size());
-  bool complete_address = false;
-  for (size_t i = 0; i < bodies.size(); ++i) {
-    if (titles[i] == "Address") {
-      EXPECT_EQ(address, bodies[i]);
-      EXPECT_TRUE(confirm_body_fits(bodies[i].c_str(), BODY_WIDTH));
-      complete_address = true;
-    }
-  }
-  EXPECT_TRUE(complete_address);
-  kkconfirm_drain();
+  EXPECT_EQ((std::vector<std::string>{address}), kkconfirm_capture_finish());
+  EXPECT_EQ((std::vector<std::string>{description}),
+            kkconfirm_capture_titles());
+  EXPECT_EQ(0, kkconfirm_drain());
 }

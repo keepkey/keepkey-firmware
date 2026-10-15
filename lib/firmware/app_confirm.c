@@ -344,11 +344,10 @@ bool confirm_address(const char* desc, const char* address) {
   /* Long addresses and descriptions cannot safely share a screen with a QR.
    * Standard-layout titles have only one row: put the complete description
    * in its own paginated body and keep the screen titles short. Start the
-   * address on a fresh screen so a preceding path cannot split it. Account for
-   * the description's left margin in the compact address layout. */
-  if (!layout_address_fits_one_line(address) || strchr(desc, '\n') ||
-      calc_str_width(get_title_font(), desc) >
-          KEEPKEY_DISPLAY_WIDTH - MULTISIG_LEFT_MARGIN) {
+   * address on a fresh screen so a preceding path cannot split it. Preserve
+   * the compact layout when its complete description actually fits. */
+  if (!layout_address_fits_one_line(address) ||
+      !layout_address_description_fits(desc, address)) {
     return confirm(ButtonRequestType_ButtonRequest_Address, "Derivation", "%s",
                    desc) &&
            confirm(ButtonRequestType_ButtonRequest_Address, "Address", "%s",
