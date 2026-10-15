@@ -357,7 +357,14 @@ static bool fsm_continuation(bool active, const char* text) {
   return false;
 }
 
+/* One physical approval permits a bounded consecutive audit on an empty
+ * device. Read-only feature polls may interleave; other operations revoke it.
+ */
+#define ENTROPY_AUDIT_APPROVED_BYTES (8u * 1024u * 1024u)
+static uint32_t entropy_audit_approved_remaining;
+
 void fsm_init(void) {
+  entropy_audit_approved_remaining = 0;
   msg_map_init(MessagesMap, sizeof(MessagesMap) / sizeof(MessagesMap_t));
   set_msg_failure_handler(&sendFailureWrapper);
 
@@ -491,6 +498,10 @@ static bool fsm_dispatchGate(MessageType msg_id) {
  * "not in progress"; after, so the request that just ended a workflow runs
  * on a locked session. */
 bool keepkey_before_message_dispatch(MessageType msg_id) {
+  if (msg_id != MessageType_MessageType_GetEntropy &&
+      msg_id != MessageType_MessageType_GetFeatures) {
+    entropy_audit_approved_remaining = 0;
+  }
   auto_lock_if_due();
   if (!fsm_dispatchGate(msg_id)) return false;
   auto_lock_if_due();
@@ -536,6 +547,7 @@ void fsm_sendFailure(FailureType code, const char* text) {
 }
 
 void fsm_abort_workflows(void) {
+  entropy_audit_approved_remaining = 0;
   setup_abort();
   fsm_abort_signing_workflows();
 }

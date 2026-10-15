@@ -566,21 +566,42 @@ void fsm_msgFirmwareUpload(FirmwareUpload* msg) {
 }
 
 void fsm_msgGetEntropy(GetEntropy* msg) {
-  if (!confirm(ButtonRequestType_ButtonRequest_GetEntropy, "Generate Entropy",
-               "Do you want to generate and return entropy using the hardware "
-               "RNG?")) {
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
-    layoutHome();
+  /* Never interrupt a reset/recovery holding private entropy in RAM. */
+  if (setup_isArmed()) {
+    entropy_audit_approved_remaining = 0;
+    fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
+                    "Entropy unavailable during setup");
     return;
   }
 
-  RESP_INIT(Entropy);
   uint32_t len = msg->size;
+  if (len > ENTROPY_BUF) len = ENTROPY_BUF;
+  const bool audit_eligible =
+      !storage_isInitialized() && !storage_isBitcoinOnlyLocked();
+  if (!audit_eligible) entropy_audit_approved_remaining = 0;
 
-  if (len > ENTROPY_BUF) {
-    len = ENTROPY_BUF;
+  if (!audit_eligible || len > entropy_audit_approved_remaining ||
+      entropy_audit_approved_remaining == 0) {
+    entropy_audit_approved_remaining = 0;
+    if (!confirm(
+            ButtonRequestType_ButtonRequest_GetEntropy, "Generate Entropy",
+            audit_eligible
+                ? "Allow up to 8 MiB of hardware RNG samples for this audit?"
+                : "Do you want to generate and return entropy using the "
+                  "hardware RNG?")) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
+      layoutHome();
+      return;
+    }
+    if (audit_eligible && len != 0) {
+      entropy_audit_approved_remaining = ENTROPY_AUDIT_APPROVED_BYTES;
+    }
   }
 
+  if (audit_eligible && len <= entropy_audit_approved_remaining) {
+    entropy_audit_approved_remaining -= len;
+  }
+  RESP_INIT(Entropy);
   resp->entropy.size = len;
   random_buffer(resp->entropy.bytes, len);
   msg_write(MessageType_MessageType_Entropy, resp);

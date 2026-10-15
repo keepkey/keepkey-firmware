@@ -3,6 +3,31 @@
 On-device dice rolls, folded into the seed at creation time. Available from
 firmware v7.14.3 (bitcoin-only line) and v7.15.0 (`ResetDevice.dice_entropy`).
 
+## Setup and retry order
+
+When PIN protection is requested, both new-PIN entries must match before dice
+entry begins. A mismatch aborts setup before any rolls are collected. The PIN
+is staged, not stored: cancelling dice entry or its digest confirmation clears
+the staged PIN and entropy, leaving the device uninitialized. Retrying starts
+a new ceremony. Host entropy is still requested only after dice collection and
+mixing are complete.
+
+## Hardware RNG sampling before setup
+
+On 7.14.3, for an uninitialized device without a storage compatibility lock, one physical
+approval authorizes up to 8 MiB of consecutive `GetEntropy` output. The amount
+charged is the returned byte count, not the requested size. Feature polls may
+interleave, but another top-level operation (including Initialize, Cancel,
+ClearSession, or ResetDevice), workflow abort, idle lock, or reboot revokes the
+grant. Exhaustion requires another approval. A zero-byte request cannot open
+a grant. Initialized or compatibility-locked wallets retain per-request
+confirmation, and an armed reset or recovery refuses entropy sampling.
+
+This grant changes approval frequency, not the protocol response size or RNG
+analysis guarantees. A host must handle short chunks, provide cancellation,
+and distinguish an incomplete audit from a pass. Dice entry remains a separate
+physical operation after the optional sampling audit.
+
 ## What happens
 
 `reset.c:reset_init()`, when `dice_entropy` is set:
