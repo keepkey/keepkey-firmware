@@ -9,6 +9,7 @@ extern "C" {
 
 #include <arpa/inet.h>
 #include <cstring>
+#include <functional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -34,13 +35,35 @@ extern "C" {
  * exercise security disclosures through confirm_bytes().
  */
 
+static std::function<void()> poll_hook;
+static std::function<void(MessageType, const void*)> message_hook;
+void kk_test_set_poll_hook(std::function<void()> hook) { poll_hook = hook; }
+void kk_test_poll(void) {
+  if (poll_hook) poll_hook();
+}
+void kk_test_set_message_hook(
+    std::function<void(MessageType, const void*)> hook) {
+  message_hook = hook;
+}
+extern "C" void emulator_message_written(MessageType id, const void* msg) {
+  if (message_hook) message_hook(id, msg);
+}
+
 static bool capture_screens;
+static std::vector<std::string> captured_titles;
+std::vector<std::string> kkconfirm_capture_titles(void) {
+  return captured_titles;
+}
 static std::vector<std::string> captured_screens;
-extern "C" void emulator_confirm_screen(const char*, const char* body) {
-  if (capture_screens) captured_screens.emplace_back(body ? body : "");
+extern "C" void emulator_confirm_screen(const char* title, const char* body) {
+  if (capture_screens) {
+    captured_screens.emplace_back(body ? body : "");
+    captured_titles.emplace_back(title ? title : "");
+  }
 }
 void kkconfirm_capture_start(void) {
   captured_screens.clear();
+  captured_titles.clear();
   capture_screens = true;
 }
 std::vector<std::string> kkconfirm_capture_finish(void) {

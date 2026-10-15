@@ -22,6 +22,7 @@
 #include "keepkey/board/keepkey_display.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/messages.h"
+#include "keepkey/board/supervise.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/home_sm.h"
@@ -40,6 +41,20 @@ static uint32_t idle_clock = 0;
 /* Weak only so unit tests can drive the clock without the 1 ms tick. */
 __attribute__((weak)) uint32_t home_clock_ms(void) { return getSysTime(); }
 
+/* Unit tests override these to model a button interrupt during a sample.
+ * The device SVCs mask both user interrupts and preserve ISR entry masking. */
+__attribute__((weak)) void home_idle_clock_enter(void) {
+#ifndef EMULATOR
+  svc_disable_interrupts();
+#endif
+}
+
+__attribute__((weak)) void home_idle_clock_leave(void) {
+#ifndef EMULATOR
+  svc_enable_interrupts();
+#endif
+}
+
 static uint32_t saturating_add(uint32_t a, uint32_t b) {
   return (b > UINT32_MAX - a) ? UINT32_MAX : a + b;
 }
@@ -49,10 +64,16 @@ static uint32_t saturating_add(uint32_t a, uint32_t b) {
  * unsigned difference survives the ms counter's ~49.7-day wrap as long as
  * samples are taken less than that far apart. */
 static void update_idle_time(void) {
+  /* The button ISR updates and resets these ages too. Keep the clock sample
+   * and both age updates together so an interrupt cannot restore pre-press
+   * idle time or move the clock backwards after the press. */
+  home_idle_clock_enter();
+  const uint32_t last = idle_clock;
   const uint32_t now = home_clock_ms();
-  increment_idle_time(now - idle_clock);
+  increment_idle_time(now - last);
   idle_clock = now;
   drop_workflow_progress_if_idle();
+  home_idle_clock_leave();
 }
 
 /* Progress defers the lock only for the workflow that made it. Once none
@@ -64,8 +85,8 @@ void drop_workflow_progress_if_idle(void) {
 }
 
 /* Called from every nested USB wait so that no stretch between samples
- * approaches the counter's wrap. Throttled to keep the read-modify-write that
- * the button ISR can race no more frequent than the main loop's tick. */
+ * approaches the counter's wrap. Throttled to one sample per second while
+ * waiting between main-loop ticks. */
 void keepkey_idle_clock_sample(void) {
   if (home_clock_ms() - idle_clock >= 1000) update_idle_time();
 }

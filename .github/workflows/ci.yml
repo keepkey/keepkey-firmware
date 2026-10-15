@@ -277,9 +277,10 @@ jobs:
 
       - name: Validate release report evidence gates
         run: |
+          python3 -B -m unittest tools/test_build_entrypoints.py
           python3 -B -m unittest scripts/test_preflight_cppcheck.py
           # The SRAM gate must keep refusing unbounded (dynamic) stack frames.
-          pip install --quiet pyelftools
+          pip install --quiet --require-hashes -r tools/requirements-sram.txt
           PYTHONPATH=tools python3 -B -m unittest tools/test_check_sram_budget.py
 
       - name: Verify submodules are declared
@@ -543,7 +544,7 @@ jobs:
       # (tools/sram-budgets.json).
       - name: SRAM budget gate (${{ matrix.variant }})
         run: |
-          pip install --quiet pyelftools
+          pip install --quiet --require-hashes -r tools/requirements-sram.txt
           python3 tools/check_sram_budget.py \
             --elf bin/firmware.keepkey.elf \
             --su-tar bin/stack-usage.tgz \
@@ -1109,6 +1110,10 @@ jobs:
           cmake --build build-emu --target emulator-unit -j "$(sysctl -n hw.ncpu)"
           mkdir -p test-reports/emulator
           build-emu/bin/emulator-unit --gtest_output=xml:test-reports/emulator/lifecycle.xml
+          cmake --build build-emu --target kkemu -j "$(sysctl -n hw.ncpu)"
+          python unittests/emulator/standalone_backoff.py \
+            --library "$DYLIB_PATH" --emulator build-emu/bin/kkemu \
+            --output test-reports/emulator/standalone-backoff.json
 
       - name: Upload libkkemu.dylib
         # Always upload, even on later test failure — the binary is
@@ -1156,6 +1161,7 @@ jobs:
           path: |
             test-reports/dylib-junit.xml
             test-reports/emulator/lifecycle.xml
+            test-reports/emulator/standalone-backoff.json
           retention-days: 30
           if-no-files-found: warn
 

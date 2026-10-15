@@ -44,6 +44,13 @@ int kkemu_init(uint8_t* flash_buf, size_t flash_len);
  */
 void kkemu_shutdown(void);
 
+/** Shutdown with a bounded wait for the poll thread. Returns 0 after joining
+ * and cleanup is complete; -1 on timeout. On -1 the host MUST retain this
+ * library and the flash buffer, must not read/write/free flash, and may retry
+ * later. Lifecycle calls and writes to the input rings must be serialized by
+ * the host. A timeout does not authorize starting or polling another thread. */
+int kkemu_shutdown_timeout(uint32_t timeout_ms);
+
 /**
  * Write a 64-byte HID report into the emulator's input queue.
  *
@@ -115,7 +122,13 @@ int kkemu_start(void);
  * confirm. Idempotent; called by kkemu_shutdown(). */
 void kkemu_stop(void);
 
-/* Bracket host flash reads so they cannot tear a storage_commit(). Blocks:
+/* Bounded stop/join. Returns 0 on completion, -1 on timeout; retains thread
+ * ownership on timeout. Same resource/lifecycle contract as shutdown_timeout.
+ * The legacy void stop/shutdown calls remain blocking for ABI compatibility. */
+int kkemu_stop_timeout(uint32_t timeout_ms);
+
+/* Nonrecursive: balance each successful acquisition with one unlock.
+ * Bracket host flash reads so they cannot tear a storage_commit(). Blocks:
  * never call from a loop that must deliver a confirm; use kkemu_trylock(). */
 void kkemu_lock(void);
 void kkemu_unlock(void);

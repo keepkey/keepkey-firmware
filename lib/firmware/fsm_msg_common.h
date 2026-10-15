@@ -317,8 +317,8 @@ void fsm_msgPing(Ping* msg) {
   /* A protected Ping can block inside its confirmation or PIN/passphrase
    * prompt while the main-loop auto-lock check is suspended. End any older
    * signing stream before it can wait, so a Cancel cannot resume it. This is
-   * not a lock: PIN, passphrase, AdvancedMode and ClearSign signers stay with
-   * the session (hosts unlock via Ping(pin_protection) and then sign). */
+   * not a lock: the PIN and passphrase stay with the session (hosts unlock
+   * via Ping(pin_protection) and then sign). */
   if (authMsg < NUM_AUTHMESSAGES ||
       (msg->has_button_protection && msg->button_protection) ||
       (msg->has_pin_protection && msg->pin_protection) ||
@@ -615,9 +615,9 @@ void fsm_msgFirmwareUpload(FirmwareUpload* msg) {
 
 // cppcheck-suppress constParameterPointer -- protobuf dispatcher ABI is mutable
 void fsm_msgGetEntropy(GetEntropy* msg) {
-  /* Uninitialized storage does not mean there is no secret: reset/recovery
-   * may already hold one in RAM. Preserve that ceremony and its screen. */
+  /* Never interrupt a reset/recovery holding private entropy in RAM. */
   if (setup_isArmed()) {
+    entropy_audit_approved_remaining = 0;
     fsm_sendFailure(FailureType_Failure_UnexpectedMessage,
                     "Entropy unavailable during setup");
     return;
@@ -625,19 +625,37 @@ void fsm_msgGetEntropy(GetEntropy* msg) {
 
   uint32_t len = msg->size;
   if (len > ENTROPY_BUF) len = ENTROPY_BUF;
-  const bool press_free =
-      !storage_isInitialized() && !storage_isBitcoinOnlyLocked() &&
-      !storage_isFirmwareTooOld() && len <= entropy_audit_remaining;
+  const bool audit_eligible = !storage_isInitialized() &&
+                              !storage_isBitcoinOnlyLocked() &&
+                              !storage_isFirmwareTooOld();
+  if (!audit_eligible) entropy_audit_approved_remaining = 0;
+  // Preserve the advertised initial press-free budget on this release line.
+  const bool press_free = audit_eligible && len <= entropy_audit_remaining;
+  if (press_free) entropy_audit_remaining -= len;
+
   if (!press_free &&
-      !confirm(ButtonRequestType_ButtonRequest_GetEntropy, "Generate Entropy",
-               "Do you want to generate and return entropy using the hardware "
-               "RNG?")) {
-    fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
-    layoutHome();
-    return;
+      (!audit_eligible || len > entropy_audit_approved_remaining ||
+       entropy_audit_approved_remaining == 0)) {
+    entropy_audit_approved_remaining = 0;
+    if (!confirm(
+            ButtonRequestType_ButtonRequest_GetEntropy, "Generate Entropy",
+            audit_eligible
+                ? "Allow up to 8 MiB of hardware RNG samples for this audit?"
+                : "Do you want to generate and return entropy using the "
+                  "hardware RNG?")) {
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Entropy cancelled");
+      layoutHome();
+      return;
+    }
+    if (audit_eligible && len != 0) {
+      entropy_audit_approved_remaining = ENTROPY_AUDIT_APPROVED_BYTES;
+    }
   }
 
-  if (press_free) entropy_audit_remaining -= len;
+  if (!press_free && audit_eligible &&
+      len <= entropy_audit_approved_remaining) {
+    entropy_audit_approved_remaining -= len;
+  }
   RESP_INIT(Entropy);
   resp->entropy.size = len;
   random_buffer(resp->entropy.bytes, len);
