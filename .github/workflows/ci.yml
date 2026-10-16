@@ -84,13 +84,13 @@ permissions:
   contents: read
 
 env:
-  BASE_IMAGE: kktech/firmware:v15
+  BASE_IMAGE: kktech/firmware@sha256:7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
   # Pulls of the 650 MB base image from Docker Hub cost ~34s per job. The
   # same blob served from GHCR to a GitHub-hosted runner is markedly faster
   # and is not subject to Docker Hub's anonymous pull limits. Populate it
   # with the mirror-base-image workflow; CI falls back to Docker Hub
   # automatically when the mirror is absent or unreadable.
-  BASE_IMAGE_MIRROR: ghcr.io/${{ github.repository_owner }}/firmware:v15
+  BASE_IMAGE_MIRROR: ghcr.io/${{ github.repository_owner }}/firmware:sha256-7438e53933d47d53157ed6d96d864cb208597e62dce26235ace09d1063427fa2
   EMU_IMAGE: kkemu-ci
 
 jobs:
@@ -103,7 +103,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -188,7 +188,7 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -210,15 +210,43 @@ jobs:
           rm -f "$TARBALL"
           gitleaks version
 
+      - name: Check secret-scan exceptions
+        run: python3 -B -m unittest tools/test_gitleaks_allowlists.py
+
       - name: Run gitleaks
-        run: gitleaks detect --source . --verbose --redact
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          # fetch-depth: 0 makes every fork ref available. An unscoped scan
+          # therefore walks disconnected keepkey-stack histories that are not
+          # ancestors of this firmware change (#544). Scan only the revisions
+          # introduced by the triggering event.
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            LOG_OPTS="${PR_BASE_SHA}..${PR_HEAD_SHA}"
+          elif [ "$EVENT_NAME" = "push" ] &&
+               [[ ! "$PUSH_BEFORE_SHA" =~ ^0+$ ]]; then
+            LOG_OPTS="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            LOG_OPTS="${GITHUB_SHA}"
+          else
+            gitleaks detect --source . --no-git --verbose --redact
+            exit 0
+          fi
+
+          echo "Scanning revision range: ${LOG_OPTS}"
+          gitleaks detect --source . --log-opts="${LOG_OPTS}" --verbose --redact
 
   static-analysis:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: false
@@ -294,7 +322,7 @@ jobs:
           echo "cppcheck: clean — zero findings"
 
       - name: Upload cppcheck report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: cppcheck-report
@@ -319,7 +347,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -343,7 +371,7 @@ jobs:
       # ever gets a chance to run. A failed login simply means the subsequent
       # mirror pull is unauthenticated, which takes the fallback path.
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4
         continue-on-error: true
         with:
           registry: ghcr.io
@@ -351,16 +379,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Pull base image
         run: |
           # Two consumers, resolved differently:
           #
-          #  1. `docker build` for the emulator image uses the classic builder,
-          #     which reads the local daemon image store. Re-tagging the mirror
-          #     to the Docker Hub name satisfies the `FROM kktech/firmware:v15`
-          #     in scripts/emulator/Dockerfile with no registry round-trip.
+          #  1. `docker build` for the emulator image uses the classic builder.
+          #     RESOLVED_BASE is passed as a build argument so the mirror can be
+          #     used without trying to create an invalid digest-form tag.
           #
           #  2. buildx (docker/build-push-action) uses the docker-container
           #     driver, which does NOT see daemon-local images and resolves
@@ -373,10 +400,11 @@ jobs:
           # stderr is deliberately not suppressed: the fallback stops a mirror
           # problem being fatal, but hiding the error makes auth vs missing tag
           # vs transient network indistinguishable.
-          if docker pull "${{ env.BASE_IMAGE_MIRROR }}"; then
-            docker tag "${{ env.BASE_IMAGE_MIRROR }}" "${{ env.BASE_IMAGE }}"
-            echo "RESOLVED_BASE=${{ env.BASE_IMAGE_MIRROR }}" >> "$GITHUB_ENV"
-            echo "base image: GHCR mirror"
+          EXPECTED_DIGEST="${BASE_IMAGE#*@}"
+          MIRROR_IMAGE="${BASE_IMAGE_MIRROR%:*}@$EXPECTED_DIGEST"
+          if docker pull "$MIRROR_IMAGE"; then
+            echo "RESOLVED_BASE=$MIRROR_IMAGE" >> "$GITHUB_ENV"
+            echo "base image: digest-pinned GHCR mirror"
           else
             echo "::warning::GHCR mirror unavailable — falling back to Docker Hub. Run the mirror-base-image workflow to populate it."
             docker pull "${{ env.BASE_IMAGE }}"
@@ -390,7 +418,7 @@ jobs:
           # Dockerfile's digest default is pulled straight from Docker Hub and
           # the GHCR mirror above buys nothing on the heaviest job in the run.
           docker build \
-            --build-arg BASE_IMAGE="${RESOLVED_BASE:-${{ env.BASE_IMAGE }}}" \
+            --build-arg BASE_IMAGE="${RESOLVED_BASE}" \
             -t ${{ env.EMU_IMAGE }} \
             -f scripts/emulator/Dockerfile \
             .
@@ -458,7 +486,7 @@ jobs:
       # buildx from a shell step here would warn and export nothing -- a cache
       # that looks configured and silently does no work.
       - name: Build python-keepkey dependency layers
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: scripts/emulator/python-keepkey.Dockerfile
@@ -475,7 +503,7 @@ jobs:
       # python-keepkey compose service, so `docker compose up` reuses this
       # instead of rebuilding it.
       - name: Build python-keepkey test image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: scripts/emulator/python-keepkey.Dockerfile
@@ -532,7 +560,7 @@ jobs:
           echo "python-keepkey exit code: $PY_RC"
 
       - name: Upload unit test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: unit-test-results
@@ -540,7 +568,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Python test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: python-test-results
@@ -548,7 +576,7 @@ jobs:
           retention-days: 30
 
       - name: Upload OLED screenshots
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: oled-screenshots
@@ -568,12 +596,11 @@ jobs:
         if: >-
           github.event_name == 'workflow_dispatch' &&
           github.event.inputs.publish_emulator == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: emu-image
           path: /tmp/emu-image.tar
           retention-days: 1
-
 
       # The verdict is applied here, once, after both suites have run and every
       # artifact has been captured. Failing at the point of the first red suite
@@ -606,7 +633,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -630,7 +657,7 @@ jobs:
       # ever gets a chance to run. A failed login simply means the subsequent
       # mirror pull is unauthenticated, which takes the fallback path.
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4
         continue-on-error: true
         with:
           registry: ghcr.io
@@ -640,20 +667,21 @@ jobs:
       - name: Pull base image
         run: |
           # This job runs the toolchain with `docker run`, so it only needs the
-          # image present in the local daemon store under its Docker Hub name.
-          # No buildx here, and so no RESOLVED_BASE -- see build-and-test,
-          # which does need both because buildx resolves FROM against a
-          # registry rather than the daemon.
+          # image present in the local daemon store. RESOLVED_BASE names the
+          # verified mirror image or the digest-pinned Docker Hub fallback.
           #
           # stderr is deliberately not suppressed: the fallback stops a mirror
           # problem being fatal, but hiding the error makes auth vs missing tag
           # vs transient network indistinguishable.
-          if docker pull "${{ env.BASE_IMAGE_MIRROR }}"; then
-            docker tag "${{ env.BASE_IMAGE_MIRROR }}" "${{ env.BASE_IMAGE }}"
-            echo "base image: GHCR mirror"
+          EXPECTED_DIGEST="${BASE_IMAGE#*@}"
+          MIRROR_IMAGE="${BASE_IMAGE_MIRROR%:*}@$EXPECTED_DIGEST"
+          if docker pull "$MIRROR_IMAGE"; then
+            echo "RESOLVED_BASE=$MIRROR_IMAGE" >> "$GITHUB_ENV"
+            echo "base image: digest-pinned GHCR mirror"
           else
             echo "::warning::GHCR mirror unavailable — falling back to Docker Hub. Run the mirror-base-image workflow to populate it."
             docker pull "${{ env.BASE_IMAGE }}"
+            echo "RESOLVED_BASE=${{ env.BASE_IMAGE }}" >> "$GITHUB_ENV"
             echo "base image: Docker Hub"
           fi
 
@@ -670,7 +698,7 @@ jobs:
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/root/keepkey-firmware:z \
-            ${{ env.BASE_IMAGE }} /bin/sh -c "\
+            "${RESOLVED_BASE}" /bin/sh -c "\
               mkdir /root/build && cd /root/build && \
               cmake -C /root/keepkey-firmware/cmake/caches/device.cmake /root/keepkey-firmware \
                 -DCMAKE_BUILD_TYPE=MinSizeRel \
@@ -695,59 +723,13 @@ jobs:
           ls -lh
           echo "::notice::Firmware v${{ steps.version.outputs.fw_version }} built successfully"
 
-      # Both generate-test-report.py and release.yml verify an ARM build
-      # manifest, but nothing ever wrote one: 251f7a3f added the two consumers
-      # and no producer, which is why generate-test-report has failed on this
-      # branch since. Emit it here, the one place that has the binaries and
-      # both source SHAs at the same time.
-      #
-      # firmware_sha uses the same expression as this job's checkout and as
-      # the report's KK_FIRMWARE_SHA, so the three cannot disagree.
-      - name: Write ARM build manifest
-        env:
-          KK_FIRMWARE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          python3 - <<'PY'
-          import hashlib, json, os, pathlib, subprocess
-
-          bin_dir = pathlib.Path("bin")
-
-          def digest(path):
-              value = hashlib.sha256()
-              with path.open("rb") as handle:
-                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                      value.update(chunk)
-              return value.hexdigest()
-
-          files = sorted(
-              p for p in bin_dir.iterdir() if p.suffix in (".bin", ".elf"))
-          if not files:
-              raise SystemExit("no ARM binaries to manifest")
-
-          python_sha = subprocess.check_output(
-              ["git", "rev-parse", "HEAD:deps/python-keepkey"],
-              text=True).strip()
-
-          manifest = {
-              "firmware_sha": os.environ["KK_FIRMWARE_SHA"],
-              "python_sha": python_sha,
-              "files": [{"name": p.name, "sha256": digest(p)} for p in files],
-          }
-          target = bin_dir / "arm-build-manifest.json"
-          with target.open("w", encoding="utf-8") as handle:
-              json.dump(manifest, handle, indent=2, sort_keys=True)
-              handle.write("\n")
-          print(json.dumps(manifest, indent=2, sort_keys=True))
-          PY
-
       - name: Upload firmware artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: firmware-v${{ steps.version.outputs.fw_version }}-${{ steps.version.outputs.git_short }}
           path: |
             bin/*.bin
             bin/*.elf
-            bin/arm-build-manifest.json
           retention-days: 90
 
   # ═══════════════════════════════════════════════════════════
@@ -787,7 +769,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -809,7 +791,7 @@ jobs:
           git submodule update --init deps/googletest
 
       - name: Setup Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.10'
           cache: 'pip'
@@ -824,7 +806,7 @@ jobs:
 
       - name: Cache pinned protoc
         id: cache-protoc
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: /tmp/protoc.zip
           key: protoc-21.12-osx-aarch_64
@@ -929,7 +911,7 @@ jobs:
         # PR. Tagged with the short commit SHA so multiple PR pushes
         # don't overwrite each other when a reviewer downloads them.
         if: always() && env.DYLIB_PATH != ''
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: libkkemu-${{ github.sha }}
           path: ${{ env.DYLIB_PATH }}
@@ -962,7 +944,7 @@ jobs:
             -v --tb=short --junit-xml=../../../test-reports/dylib-junit.xml
 
       - name: Upload dylib test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: python-dylib-test-results
@@ -973,136 +955,6 @@ jobs:
   # ═══════════════════════════════════════════════════════════
   # STAGE 4: PUBLISH — manual trigger only, all tests must pass
   # ═══════════════════════════════════════════════════════════
-
-  # ═══════════════════════════════════════════════════════════
-  # STAGE 3.5: RELEASE EVIDENCE — the signed test-report PDF
-  # ═══════════════════════════════════════════════════════════
-
-  # Deliberately NOT folded into build-and-test, unlike on develop.
-  #
-  # That fold was correct for develop's report script, which only needed the
-  # directories build-and-test already had. This branch's
-  # generate-test-report.py also consumes test-reports/dylib-junit.xml and the
-  # ARM manifest, and it fail()s hard when either is missing -- both are
-  # produced by other jobs, on other runners, in parallel. Folded, the report
-  # could never succeed. One runner spin-up is the price of evidence that
-  # covers the whole run.
-  generate-test-report:
-    needs: [build-and-test, python-dylib-tests, build-arm-firmware]
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Download unit test results
-        uses: actions/download-artifact@v8
-        with:
-          name: unit-test-results
-          path: test-reports/firmware-unit/
-
-      - name: Download python test results
-        uses: actions/download-artifact@v8
-        with:
-          name: python-test-results
-          path: test-reports/python-keepkey/
-
-      - name: Download OLED screenshots
-        uses: actions/download-artifact@v8
-        with:
-          name: oled-screenshots
-          path: test-reports/screenshots/
-
-      - name: Download dylib test results
-        uses: actions/download-artifact@v8
-        with:
-          name: python-dylib-test-results
-          path: test-reports/
-
-      - name: Download ARM firmware
-        uses: actions/download-artifact@v8
-        with:
-          pattern: firmware-v*
-          path: test-reports/arm/
-          merge-multiple: true
-
-      - name: Extract firmware version
-        id: version
-        run: |
-          FW_VERSION=$(sed -n '/^project/,/)/p' CMakeLists.txt | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
-          echo "fw_version=${FW_VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve python-keepkey pin
-        id: python
-        run: |
-          git submodule update --init deps/python-keepkey
-          echo "sha=$(git rev-parse HEAD:deps/python-keepkey)" >> "$GITHUB_OUTPUT"
-
-      # generate-test-report.py records the exact provenance of the evidence
-      # it produces -- both source SHAs, the run it came from, and the two PRs
-      # under review. Those are release gates for 7.14.2, so the PDF names
-      # them rather than a single build label.
-      - name: Generate test report PDF
-        env:
-          FW_VERSION: ${{ steps.version.outputs.fw_version }}
-          KK_FIRMWARE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          KK_PYTHON_SHA: ${{ steps.python.outputs.sha }}
-          KK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          KK_WORKFLOW_EVENT: ${{ github.event_name }}
-          KK_FIRMWARE_PR: ${{ github.event.pull_request.html_url }}
-          # The submodule is pinned to ce5c1bb, the merge of python-keepkey
-          # PR #221 -- keep this URL and that pin in step. It previously named
-          # PR #219 while pinning 92e8745, which is #221's FIRST commit, so
-          # the evidence credited the wrong PR and the pinned tree predated
-          # 7c04903 ("test(solana): match AdvancedMode refusal").
-          KK_PYTHON_PR: https://github.com/keepkey/python-keepkey/pull/221
-        run: python3 scripts/generate-test-report.py
-
-      # A DIRECTORY, not a bare PDF: the script emits test-report.pdf next to
-      # test-report-manifest.json and test-report.pdf.sha256, and the hash and
-      # manifest are what make the PDF evidence rather than a printout.
-      - name: Upload test report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: test-report
-          path: test-report/
-          retention-days: 90
-          if-no-files-found: error
-
-  # ═══════════════════════════════════════════════════════════
-  # RELEASE EVIDENCE GATE
-  # ═══════════════════════════════════════════════════════════
-
-  # One required check that says "every job that produces release evidence
-  # succeeded". The individual jobs already fail the run on their own, but a
-  # release needs a single status to point at, and `if: always()` here means
-  # a skipped job is caught too -- a job that never ran has produced no
-  # evidence, which for a release is the same as failing.
-  #
-  # Job names track develop's folded pipeline: unit tests, the python
-  # integration suite and the report PDF all live in build-and-test now.
-  release-evidence-gate:
-    needs: [build-and-test, python-dylib-tests, build-arm-firmware,
-            generate-test-report]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require every release job
-        env:
-          BUILD_AND_TEST_RESULT: ${{ needs.build-and-test.result }}
-          DYLIB_RESULT: ${{ needs.python-dylib-tests.result }}
-          ARM_RESULT: ${{ needs.build-arm-firmware.result }}
-          REPORT_RESULT: ${{ needs.generate-test-report.result }}
-        run: |
-          set -eu
-          for result in "$BUILD_AND_TEST_RESULT" "$DYLIB_RESULT" "$ARM_RESULT" \
-                        "$REPORT_RESULT"; do
-            test "$result" = success || exit 1
-          done
 
   publish-emulator:
     # static-analysis is listed explicitly even though it gates nothing else.
@@ -1122,12 +974,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download emulator image
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: emu-image
           path: /tmp
@@ -1148,7 +1000,7 @@ jobs:
           docker tag ${{ env.EMU_IMAGE }} kktech/kkemu:v${{ steps.version.outputs.fw_version }}
 
       - name: Login to DockerHub
-        uses: docker/login-action@v4
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4
         with:
           username: ${{ secrets.KK_DOCKERHUB_USER }}
           password: ${{ secrets.KK_DOCKERHUB_PASS }}

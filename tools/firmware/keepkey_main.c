@@ -230,7 +230,6 @@ int main(void) {
 
   while (1) {
     delay_ms_with_callback(ONE_SEC, &exec, 1);
-    increment_idle_time(ONE_SEC);
     toggle_screensaver();
   }
 

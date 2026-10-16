@@ -323,6 +323,13 @@ bool confirm_nano_address(const char* desc, const char* address) {
       ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
 }
 
+/* confirm_qr() - Show desc and a QR code of data, without text. */
+bool confirm_qr(const char* desc, const char* data) {
+  return confirm_address_with_custom_layout(
+      &layout_qr_notification, ButtonRequestType_ButtonRequest_Address, desc,
+      "%s", data);
+}
+
 /*
  * confirm_address() - Show address confirmation
  *
@@ -334,6 +341,19 @@ bool confirm_nano_address(const char* desc, const char* address) {
  *
  */
 bool confirm_address(const char* desc, const char* address) {
+  /* Long addresses and descriptions cannot safely share a screen with a QR.
+   * Standard-layout titles have only one row: put the complete description
+   * in its own paginated body and keep the screen titles short. Start the
+   * address on a fresh screen so a preceding path cannot split it. Preserve
+   * the compact layout when its complete description actually fits. */
+  if (!layout_address_fits_one_line(address) ||
+      !layout_address_description_fits(desc, address)) {
+    return confirm(ButtonRequestType_ButtonRequest_Address, "Derivation", "%s",
+                   desc) &&
+           confirm(ButtonRequestType_ButtonRequest_Address, "Address", "%s",
+                   address) &&
+           confirm_qr("Address QR", address);
+  }
   return confirm_address_with_custom_layout(
       &layout_address_notification, ButtonRequestType_ButtonRequest_Address,
       desc, "%s", address);

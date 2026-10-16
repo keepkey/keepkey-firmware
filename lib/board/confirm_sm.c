@@ -178,12 +178,23 @@ static void swap_layout(ActiveLayout active_layout, volatile StateInfo* si,
 /// \param requesta_body  The body of the confirmation message.
 /// \param layout_notification_func  layout callback for displaying confirm
 /// message. \returns true iff the device confirmed.
+#ifdef EMULATOR
+__attribute__((weak)) void emulator_confirm_screen(const char* title,
+                                                   const char* body) {
+  (void)title;
+  (void)body;
+}
+#endif
+
 static bool confirm_screen(const char* request_title_param,
                            const char* request_body,
                            layout_notification_t layout_notification_func,
                            bool constant_power, IconType iconNum,
                            bool immediate) {
   bool ret_stat = false;
+#ifdef EMULATOR
+  emulator_confirm_screen(request_title_param, request_body);
+#endif
 #if DEBUG_LINK
   last_exit_was_debug_decision = false;
 #endif
@@ -311,6 +322,7 @@ static bool confirm_screen(const char* request_title_param,
   }
 
 confirm_screen_exit:
+  memzero(msg_tiny_buf, sizeof(msg_tiny_buf));
 
   keepkey_button_set_on_press_handler(NULL, NULL);
   keepkey_button_set_on_release_handler(NULL, NULL);
@@ -581,11 +593,14 @@ size_t confirm_constant_power_subpage_take(const char* body) {
   const size_t len = strlen(body);
   if (len == 0) return 0;
 
+  /* The bodies measured here are the seed-backup word rows, so the probe holds
+   * mnemonic text and is scrubbed on every exit rather than left on the stack.
+   */
+  char probe[BODY_CHAR_MAX];
   size_t best = 0;
   for (size_t i = 0; i < len; i++) {
     if (body[i] != '\n' && i + 1 != len) continue;
     const size_t take = i + 1;
-    char probe[BODY_CHAR_MAX];
     if (take >= sizeof(probe)) break;
     memcpy(probe, body, take);
     probe[take] = '\0';
@@ -595,6 +610,7 @@ size_t confirm_constant_power_subpage_take(const char* body) {
       break;
     }
   }
+  memzero(probe, sizeof(probe));
   return best;
 }
 
@@ -629,6 +645,8 @@ bool confirm_constant_power_paged(ButtonRequestType type,
 
 #if DEBUG_LINK
     if (decided_via_debug) {
+      /* Each debug subpage must consume its own host acknowledgement. */
+      button_request_acked = false;
       /* Production keeps the legacy one-ButtonRequest-per-word-group
        * protocol. The debug build emits a request for each renderer subpage
        * so the evidence harness can capture every physical OLED page instead

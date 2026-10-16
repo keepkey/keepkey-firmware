@@ -32,11 +32,24 @@
 #include "keepkey/board/supervise.h"
 #include "keepkey/board/util.h"
 #include "keepkey/rand/rng.h"
+#include "keepkey/rand/rng_health.h"
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/rand.h"
 
 #include <string.h>
 #include <stdint.h>
+
+#ifdef EMULATOR
+/* Fault injection after emulated programming; no production call sites. */
+__attribute__((weak)) bool emulator_flash_write_completed(Allocation group,
+                                                          uint32_t offset,
+                                                          uint32_t len) {
+  (void)group;
+  (void)offset;
+  (void)len;
+  return true;
+}
+#endif
 
 uint8_t HW_ENTROPY_DATA[HW_ENTROPY_LEN];
 
@@ -96,15 +109,17 @@ bool flash_chk_status(void) {
  *     none
  */
 void flash_erase_word(Allocation group) {
-#ifndef EMULATOR
   const FlashSector* s = flash_sector_map;
   while (s->use != FLASH_INVALID) {
     if (s->use == group) {
+#ifndef EMULATOR
       svc_flash_erase_sector((uint32_t)s->sector);
+#else
+      memset((void*)FLASH_PTR(s->start), 0xff, s->len);
+#endif
     }
     ++s;
   }
-#endif
 }
 
 /*
@@ -163,7 +178,7 @@ fww_exit:
   return (retval);
 #else
   memcpy((void*)(flash_write_helper(group) + offset), data, len);
-  return true;
+  return emulator_flash_write_completed(group, offset, len);
 #endif
 }
 
@@ -189,7 +204,7 @@ bool flash_write(Allocation group, uint32_t offset, uint32_t len,
   return (retval);
 #else
   memcpy((void*)(flash_write_helper(group) + offset), data, len);
-  return true;
+  return emulator_flash_write_completed(group, offset, len);
 #endif
 }
 
@@ -329,10 +344,17 @@ void flash_collectHWEntropy(bool privileged) {
     // set entropy in the OTP randomness block
     if (!flash_otp_is_locked(FLASH_OTP_BLOCK_RANDOMNESS)) {
       uint8_t entropy[FLASH_OTP_BLOCK_SIZE] = {0};
-      random_buffer(entropy, FLASH_OTP_BLOCK_SIZE);
-      flash_otp_write(FLASH_OTP_BLOCK_RANDOMNESS, 0, entropy,
-                      FLASH_OTP_BLOCK_SIZE);
-      flash_otp_lock(FLASH_OTP_BLOCK_RANDOMNESS);
+      /* Written once and then locked forever, and it feeds the PIN KDF salt
+       * via flash_readHWEntropy(). A block filled from a dead generator can
+       * never be corrected, so on a failed draw write nothing: the block stays
+       * unlocked and a later healthy boot claims it. Halting is wrong here --
+       * this runs before kk_board_init(), so there is no display to warn on. */
+      if (random_buffer_checked(entropy, FLASH_OTP_BLOCK_SIZE)) {
+        flash_otp_write(FLASH_OTP_BLOCK_RANDOMNESS, 0, entropy,
+                        FLASH_OTP_BLOCK_SIZE);
+        flash_otp_lock(FLASH_OTP_BLOCK_RANDOMNESS);
+      }
+      memzero(entropy, sizeof(entropy));
     }
     // collect entropy from OTP randomness block
     flash_otp_read(FLASH_OTP_BLOCK_RANDOMNESS, 0, HW_ENTROPY_DATA + 12,

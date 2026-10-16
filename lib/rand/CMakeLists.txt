@@ -1,5 +1,6 @@
 set(sources
-    rng.c)
+    rng.c
+    rng_health.c)
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/include

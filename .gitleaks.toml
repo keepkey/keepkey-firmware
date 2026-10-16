@@ -10,7 +10,7 @@
 [extend]
 useDefault = true
 
-# Published U2F attestation material and vendored third-party code.
+# Published U2F attestation material.
 #
 # Deliberately NOT allowlisted: any first-party test tree. An earlier revision
 # of this branch carried '''^tests/''' here, which turned off secret detection
@@ -20,11 +20,10 @@ useDefault = true
 # If a fixture ever does trip a rule, allowlist that path or its fingerprint,
 # not the tree above it.
 [[allowlists]]
-description = "Public device material and vendored third-party code"
+description = "Public device U2F attestation material"
 paths = [
   '''include/keepkey/firmware/u2f/trezordevkey\.pem''',
   '''include/keepkey/firmware/u2f/u2f_keys\.h''',
-  '''^deps/''',
 ]
 
 # Release/security docs record the exact submodule commits a build pins, e.g.
@@ -38,6 +37,7 @@ paths = [
 # exempted is a subset of this one.
 [[allowlists]]
 description = "Git commit SHAs quoted in markdown docs"
+targetRules = ["generic-api-key"]
 condition = "AND"
 paths = ['''(^|/)docs/.*\.md$''']
 regexes = ['''\b[0-9a-f]{40}\b''']
