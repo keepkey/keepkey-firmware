@@ -30,6 +30,8 @@
 #include "keepkey/firmware/home_sm.h"
 
 #include "messages-eos.pb.h"
+#include "trezor/crypto/base58.h"
+#include "trezor/crypto/ripemd160.h"
 
 #include <inttypes.h>
 #include <stdbool.h>
@@ -434,6 +436,26 @@ bool eos_compileActionVoteProducer(const EosActionCommon* common,
   return true;
 }
 
+// The hashed key type must match what the user is shown. A derived key is
+// K1 (type 0). A raw key is K1, shown as EOS..., or R1 (type 1), shown as
+// PUB_R1_...; WebAuthn keys (type 2) are not 33 bytes.
+static bool eos_authorizationKeyValid(const EosAuthorizationKey* key) {
+  return (key->key.size == 33 && key->address_n_count == 0 && key->type <= 1) ||
+         (key->key.size == 0 && key->address_n_count != 0 && key->type == 0);
+}
+
+static bool eos_r1PublicKeyToString(const uint8_t* key, char* out, size_t len) {
+  uint8_t data[33 + 4];
+  uint8_t digest[RIPEMD160_DIGEST_LENGTH];
+  memcpy(data, key, 33);
+  memcpy(data + 33, "R1", 2);
+  ripemd160(data, 35, digest);
+  memcpy(data + 33, digest, 4);
+  size_t b58len = len - 7;
+  strlcpy(out, "PUB_R1_", len);
+  return b58enc(out + 7, &b58len, data, sizeof(data));
+}
+
 static size_t eos_hashAuthorization(Hasher* h, const EosAuthorization* auth) {
   size_t count = 0;
 
@@ -443,6 +465,7 @@ static size_t eos_hashAuthorization(Hasher* h, const EosAuthorization* auth) {
   count += eos_hashUInt(h, auth->keys_count);
   for (size_t i = 0; i < auth->keys_count; i++) {
     const EosAuthorizationKey* auth_key = &auth->keys[i];
+    if (!eos_authorizationKeyValid(auth_key)) return 0;
 
     count += eos_hashUInt(NULL, auth_key->type);
     if (h) eos_hashUInt(h, auth_key->type);
@@ -481,7 +504,7 @@ static size_t eos_hashAuthorization(Hasher* h, const EosAuthorization* auth) {
   }
 
   count += eos_hashUInt(h, auth->waits_count);
-  for (size_t i = 0; i < auth->accounts_count; i++) {
+  for (size_t i = 0; i < auth->waits_count; i++) {
     count += 4;
     if (h) hasher_Update(h, (const uint8_t*)&auth->waits[i].wait_sec, 4);
 
@@ -503,7 +526,7 @@ static bool isStandardAuthorization(const EosAuthorization* auth) {
 
   if (auth->keys[0].weight != 1) return false;
 
-  if (auth->waits_count != 0) return false;
+  if (auth->accounts_count != 0 || auth->waits_count != 0) return false;
 
   return true;
 }
@@ -555,14 +578,16 @@ static bool confirmArbitraryAuthorization(const char* title,
     const EosAuthorizationKey* auth_key = &auth->keys[i];
 
     CHECK_PARAM_RET(auth_key->has_weight, "Required field missing", false);
-    CHECK_PARAM_RET(
-        (auth_key->key.size == 33) ^ (auth_key->address_n_count != 0),
-        "Required field missing", false);
+    CHECK_PARAM_RET(eos_authorizationKeyValid(auth_key),
+                    "Required field missing", false);
 
     char pubkey[MAX(65, NODE_STRING_LENGTH)];
     if (auth_key->key.size != 0) {
-      if (!eos_publicKeyToWif(auth_key->key.bytes, EosPublicKeyKind_EOS, pubkey,
-                              sizeof(pubkey))) {
+      if (auth_key->type == 1
+              ? !eos_r1PublicKeyToString(auth_key->key.bytes, pubkey,
+                                         sizeof(pubkey))
+              : !eos_publicKeyToWif(auth_key->key.bytes, EosPublicKeyKind_EOS,
+                                    pubkey, sizeof(pubkey))) {
         fsm_sendFailure(FailureType_Failure_SyntaxError,
                         "Cannot encode pubkey");
         eos_signingAbort();

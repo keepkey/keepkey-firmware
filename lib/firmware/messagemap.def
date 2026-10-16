@@ -43,6 +43,11 @@
     MSG_IN(MessageType_MessageType_EthereumSignTypedHash,           EthereumSignTypedHash,       fsm_msgEthereumSignTypedHash)
 
     MSG_IN(MessageType_MessageType_Ethereum712TypesValues,          Ethereum712TypesValues,      fsm_msgEthereum712TypesValues)
+    MSG_IN(MessageType_MessageType_EthereumSignTypedData,           EthereumSignTypedData,       fsm_msgEthereumSignTypedData)
+    MSG_IN(MessageType_MessageType_EthereumTypedDataStructAck,      EthereumTypedDataStructAck,  fsm_msgEthereumTypedDataStructAck)
+    MSG_IN(MessageType_MessageType_EthereumTypedDataValueAck,       EthereumTypedDataValueAck,   fsm_msgEthereumTypedDataValueAck)
+    MSG_IN(MessageType_MessageType_EthereumClearSignDefinition,     EthereumClearSignDefinition, fsm_msgEthereumClearSignDefinition)
+    MSG_IN(MessageType_MessageType_EthereumClearSignDefinitionChunk, EthereumClearSignDefinitionChunk, fsm_msgEthereumClearSignDefinitionChunk)
 
     MSG_IN(MessageType_MessageType_NanoGetAddress,                  NanoGetAddress,              fsm_msgNanoGetAddress)
     MSG_IN(MessageType_MessageType_NanoSignTx,                      NanoSignTx,                  fsm_msgNanoSignTx)
@@ -54,10 +59,6 @@
     MSG_IN(MessageType_MessageType_OsmosisGetAddress,               OsmosisGetAddress,           fsm_msgOsmosisGetAddress)
     MSG_IN(MessageType_MessageType_OsmosisSignTx,                   OsmosisSignTx,               fsm_msgOsmosisSignTx)
     MSG_IN(MessageType_MessageType_OsmosisMsgAck,                   OsmosisMsgAck,               fsm_msgOsmosisMsgAck)
-
-    MSG_IN(MessageType_MessageType_BinanceGetAddress,               BinanceGetAddress,           fsm_msgBinanceGetAddress)
-    MSG_IN(MessageType_MessageType_BinanceSignTx,                   BinanceSignTx,               fsm_msgBinanceSignTx)
-    MSG_IN(MessageType_MessageType_BinanceTransferMsg,              BinanceTransferMsg,          fsm_msgBinanceTransferMsg)
 
     MSG_IN(MessageType_MessageType_EosGetPublicKey,                 EosGetPublicKey,             fsm_msgEosGetPublicKey)
     MSG_IN(MessageType_MessageType_EosSignTx,                       EosSignTx,                   fsm_msgEosSignTx)
@@ -74,6 +75,9 @@
     MSG_IN(MessageType_MessageType_MayachainSignTx,                 MayachainSignTx,             fsm_msgMayachainSignTx)
     MSG_IN(MessageType_MessageType_MayachainMsgAck,                 MayachainMsgAck,             fsm_msgMayachainMsgAck)
 #endif  // !BITCOIN_ONLY
+
+    MSG_IN(MessageType_MessageType_GetBip85Mnemonic,               GetBip85Mnemonic,            fsm_msgGetBip85Mnemonic)
+    MSG_OUT(MessageType_MessageType_Bip85Mnemonic,                  Bip85Mnemonic,               NO_PROCESS_FUNC)
 
     /* Normal Out Messages */
     MSG_OUT(MessageType_MessageType_Success,                        Success,                     NO_PROCESS_FUNC)
@@ -103,6 +107,8 @@
     MSG_OUT(MessageType_MessageType_EthereumMessageSignature,       EthereumMessageSignature,    NO_PROCESS_FUNC)
 
     MSG_OUT(MessageType_MessageType_EthereumTypedDataSignature,     EthereumTypedDataSignature,  NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_EthereumTypedDataStructRequest, EthereumTypedDataStructRequest, NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_EthereumTypedDataValueRequest,  EthereumTypedDataValueRequest,  NO_PROCESS_FUNC)
 
     MSG_OUT(MessageType_MessageType_NanoAddress,                    NanoAddress,                 NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_NanoSignedTx,                   NanoSignedTx,                NO_PROCESS_FUNC)
@@ -114,11 +120,6 @@
     MSG_OUT(MessageType_MessageType_OsmosisAddress,                 OsmosisAddress,              NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_OsmosisMsgRequest,              OsmosisMsgRequest,           NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_OsmosisSignedTx,                OsmosisSignedTx,             NO_PROCESS_FUNC)
-
-    MSG_OUT(MessageType_MessageType_BinanceAddress,                 BinanceAddress,              NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_BinancePublicKey,               BinancePublicKey,            NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_BinanceTxRequest,               BinanceTxRequest,            NO_PROCESS_FUNC)
-    MSG_OUT(MessageType_MessageType_BinanceSignedTx,                BinanceSignedTx,             NO_PROCESS_FUNC)
 
     MSG_OUT(MessageType_MessageType_EosPublicKey,                   EosPublicKey,                NO_PROCESS_FUNC)
     MSG_OUT(MessageType_MessageType_EosTxActionRequest,             EosTxActionRequest,          NO_PROCESS_FUNC)
@@ -168,6 +169,38 @@
     MSG_OUT(MessageType_MessageType_SolanaOffchainMessageSignature, SolanaOffchainMessageSignature, NO_PROCESS_FUNC)
 #endif  // !BITCOIN_ONLY
 
+    /* Zcash shielded/Orchard (privacy engine). Transparent t-address Zcash uses
+       the generic SignTx/GetAddress rows above and needs none of these. */
+#if ZCASH_PRIVACY
+    MSG_IN(MessageType_MessageType_ZcashSignPCZT,                  ZcashSignPCZT,               fsm_msgZcashSignPCZT)
+    MSG_IN(MessageType_MessageType_ZcashPCZTAction,                ZcashPCZTAction,             fsm_msgZcashPCZTAction)
+    MSG_IN(MessageType_MessageType_ZcashGetOrchardFVK,             ZcashGetOrchardFVK,          fsm_msgZcashGetOrchardFVK)
+    MSG_IN(MessageType_MessageType_ZcashTransparentOutput,         ZcashTransparentOutput,      fsm_msgZcashTransparentOutput)
+    MSG_IN(MessageType_MessageType_ZcashTransparentInput,          ZcashTransparentInput,       fsm_msgZcashTransparentInput)
+    MSG_IN(MessageType_MessageType_ZcashDisplayAddress,            ZcashDisplayAddress,         fsm_msgZcashDisplayAddress)
+
+    MSG_OUT(MessageType_MessageType_ZcashPCZTActionAck,            ZcashPCZTActionAck,          NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ZcashSignedPCZT,               ZcashSignedPCZT,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ZcashOrchardFVK,               ZcashOrchardFVK,             NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ZcashTransparentSigned,        ZcashTransparentSigned,      NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ZcashTransparentAck,           ZcashTransparentAck,         NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_ZcashAddress,                  ZcashAddress,                NO_PROCESS_FUNC)
+#endif
+#if !BITCOIN_ONLY
+    /* Hive */
+    MSG_IN(MessageType_MessageType_HiveGetPublicKey,               HiveGetPublicKey,            fsm_msgHiveGetPublicKey)
+    MSG_IN(MessageType_MessageType_HiveGetPublicKeys,              HiveGetPublicKeys,           fsm_msgHiveGetPublicKeys)
+    MSG_IN(MessageType_MessageType_HiveSignTx,                     HiveSignTx,                  fsm_msgHiveSignTx)
+    MSG_IN(MessageType_MessageType_HiveSignAccountCreate,          HiveSignAccountCreate,       fsm_msgHiveSignAccountCreate)
+    MSG_IN(MessageType_MessageType_HiveSignAccountUpdate,          HiveSignAccountUpdate,       fsm_msgHiveSignAccountUpdate)
+
+    MSG_OUT(MessageType_MessageType_HivePublicKey,                 HivePublicKey,               NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HivePublicKeys,                HivePublicKeys,              NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedTx,                  HiveSignedTx,                NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedAccountCreate,       HiveSignedAccountCreate,     NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_HiveSignedAccountUpdate,       HiveSignedAccountUpdate,     NO_PROCESS_FUNC)
+#endif  // !BITCOIN_ONLY
+
 #if DEBUG_LINK
     /* Debug Messages */
     DEBUG_IN(MessageType_MessageType_DebugLinkDecision,             DebugLinkDecision,           NO_PROCESS_FUNC)
@@ -182,3 +215,15 @@
     DEBUG_OUT(MessageType_MessageType_DebugLinkLog,                 DebugLinkLog,                NO_PROCESS_FUNC)
     DEBUG_OUT(MessageType_MessageType_DebugLinkFlashDumpResponse,   DebugLinkFlashDumpResponse,  NO_PROCESS_FUNC)
 #endif
+
+#if !BITCOIN_ONLY
+    MSG_IN(MessageType_MessageType_EthereumTxMetadata, EthereumTxMetadata, fsm_msgEthereumTxMetadata)
+    MSG_OUT(MessageType_MessageType_EthereumMetadataAck, EthereumMetadataAck, NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_EthereumClearSignDefinitionAck, EthereumClearSignDefinitionAck, NO_PROCESS_FUNC)
+    MSG_OUT(MessageType_MessageType_EthereumClearSignDefinitionRequest, EthereumClearSignDefinitionRequest, NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_LoadClearsignSigner, LoadClearsignSigner, fsm_msgLoadClearsignSigner)
+    MSG_IN(MessageType_MessageType_ClearsignAttestorGetPublicKey, ClearsignAttestorGetPublicKey, fsm_msgClearsignAttestorGetPublicKey)
+    MSG_OUT(MessageType_MessageType_ClearsignAttestorPublicKey, ClearsignAttestorPublicKey, NO_PROCESS_FUNC)
+    MSG_IN(MessageType_MessageType_ClearsignAttestorSign, ClearsignAttestorSign, fsm_msgClearsignAttestorSign)
+    MSG_OUT(MessageType_MessageType_ClearsignAttestorSignature, ClearsignAttestorSignature, NO_PROCESS_FUNC)
+#endif  // !BITCOIN_ONLY

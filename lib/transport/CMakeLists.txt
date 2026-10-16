@@ -8,7 +8,6 @@ set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/messages-ethereum.proto
     ${DEVICE_PROTOCOL}/messages-eos.proto
     ${DEVICE_PROTOCOL}/messages-nano.proto
-    ${DEVICE_PROTOCOL}/messages-binance.proto
     ${DEVICE_PROTOCOL}/messages-cosmos.proto
     ${DEVICE_PROTOCOL}/messages-osmosis.proto
     ${DEVICE_PROTOCOL}/messages-ripple.proto
@@ -18,6 +17,8 @@ set(protoc_pb_sources
     ${DEVICE_PROTOCOL}/messages-solana.proto
     ${DEVICE_PROTOCOL}/messages-tron.proto
     ${DEVICE_PROTOCOL}/messages-ton.proto
+    ${DEVICE_PROTOCOL}/messages-zcash.proto
+    ${DEVICE_PROTOCOL}/messages-hive.proto
     ${DEVICE_PROTOCOL}/messages.proto)
 
 set(protoc_pb_options
@@ -25,7 +26,6 @@ set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-ethereum.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-eos.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-nano.options
-    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-binance.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-cosmos.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-osmosis.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-ripple.options
@@ -35,6 +35,8 @@ set(protoc_pb_options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-solana.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-tron.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-ton.options
+    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-zcash.options
+    ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages-hive.options
     ${CMAKE_SOURCE_DIR}/include/keepkey/transport/messages.options)
 
 set(protoc_c_sources
@@ -42,7 +44,6 @@ set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ethereum.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-eos.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-nano.pb.c
-    ${CMAKE_BINARY_DIR}/lib/transport/messages-binance.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-cosmos.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-osmosis.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ripple.pb.c
@@ -52,6 +53,8 @@ set(protoc_c_sources
     ${CMAKE_BINARY_DIR}/lib/transport/messages-solana.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-tron.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ton.pb.c
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-zcash.pb.c
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-hive.pb.c
     ${CMAKE_BINARY_DIR}/lib/transport/messages.pb.c)
 
 set(protoc_c_headers
@@ -59,7 +62,6 @@ set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/messages-ethereum.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-eos.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-nano.pb.h
-    ${CMAKE_BINARY_DIR}/include/messages-binance.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-cosmos.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-osmosis.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-ripple.pb.h
@@ -69,6 +71,8 @@ set(protoc_c_headers
     ${CMAKE_BINARY_DIR}/include/messages-solana.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-tron.pb.h
     ${CMAKE_BINARY_DIR}/include/messages-ton.pb.h
+    ${CMAKE_BINARY_DIR}/include/messages-zcash.pb.h
+    ${CMAKE_BINARY_DIR}/include/messages-hive.pb.h
     ${CMAKE_BINARY_DIR}/include/messages.pb.h)
 
 set(protoc_pb_sources_moved
@@ -76,7 +80,6 @@ set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ethereum.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-eos.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-nano.proto
-    ${CMAKE_BINARY_DIR}/lib/transport/messages-binance.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-cosmos.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-osmosis.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ripple.proto
@@ -86,6 +89,8 @@ set(protoc_pb_sources_moved
     ${CMAKE_BINARY_DIR}/lib/transport/messages-solana.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-tron.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages-ton.proto
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-zcash.proto
+    ${CMAKE_BINARY_DIR}/lib/transport/messages-hive.proto
     ${CMAKE_BINARY_DIR}/lib/transport/messages.proto)
 
 add_custom_command(
@@ -126,10 +131,6 @@ add_custom_command(
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-      "--nanopb_out=-f messages-binance.options:." messages-binance.proto
-  COMMAND
-    ${PROTOC_BINARY} -I. -I/usr/include
-      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f messages-cosmos.options:." messages-cosmos.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
@@ -163,6 +164,14 @@ add_custom_command(
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
       "--nanopb_out=-f messages-ton.options:." messages-ton.proto
+  COMMAND
+    ${PROTOC_BINARY} -I. -I/usr/include
+      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      "--nanopb_out=-f messages-zcash.options:." messages-zcash.proto
+  COMMAND
+    ${PROTOC_BINARY} -I. -I/usr/include
+      --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
+      "--nanopb_out=-f messages-hive.options:." messages-hive.proto
   COMMAND
     ${PROTOC_BINARY} -I. -I/usr/include
       --plugin=nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb

@@ -10,6 +10,7 @@ extern "C" {
 #include "keepkey/firmware/signing.h"
 #include "keepkey/firmware/storage.h"
 #include "trezor/crypto/bip39_english.h"
+#include "keepkey/rand/rng_health.h"
 }
 
 #include "gtest/gtest.h"
@@ -23,6 +24,8 @@ int kkconfirm_drain(void);
 bool kkconfirm_sendTiny(uint16_t msgId, const uint8_t* payload, uint8_t len);
 
 extern "C" bool keepkey_before_message_dispatch(MessageType msg_id);
+extern "C" void recovery_review_reset_cipher_draws(void);
+extern "C" unsigned recovery_review_cipher_draws(void);
 
 static void ensure_recovery_storage_ready(void) {
   static bool ready = false;
@@ -79,11 +82,14 @@ TEST(Recovery, SpacesOnlyCeremonyIsRefusedAndCommitsNothing) {
   ASSERT_TRUE(kkconfirm_preload(1, 0));
   ensure_recovery_storage_ready();
   storage_wipe();
+  // Wiping flash does not reset the RAM shadow. A reused emulator image or
+  // preceding wallet test can leave it initialized; match WipeDevice's order.
   storage_reset();
   ASSERT_FALSE(storage_isInitialized());
 
-  // enforce_wordlist is omitted by default on the wire, which is what makes
-  // the commit condition skip mnemonic_check() entirely.
+  // enforce_wordlist is omitted by default on the wire. Firmware now ignores
+  // it and always checks words, but the empty ceremony must still be refused
+  // by the word-count guard before any check runs.
   recovery_cipher_init(/*word_count=*/12, /*passphrase_protection=*/false,
                        /*pin_protection=*/false, "english", "spaces",
                        /*enforce_wordlist=*/false, /*auto_lock_delay_ms=*/0,
@@ -103,6 +109,44 @@ TEST(Recovery, SpacesOnlyCeremonyIsRefusedAndCommitsNothing) {
   EXPECT_FALSE(setup_isArmed());
   (void)kkconfirm_drain();
   storage_wipe();
+  storage_reset();
+  layoutHomeForced();
+}
+
+// The recovery call site: with a failed RNG verdict the cipher shuffle must
+// refuse and disarm the ceremony instead of showing a predictable cipher. The
+// old unchecked shuffle left it armed. Control: a healthy verdict arms it.
+TEST(Recovery, FailedRngVerdictRefusesTheCipherAndDisarms) {
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  ensure_recovery_storage_ready();
+  storage_wipe();
+  storage_reset();
+
+  recovery_review_reset_cipher_draws();
+  rng_health_force_verdict(false);
+  recovery_cipher_init(/*word_count=*/12, /*passphrase_protection=*/false,
+                       /*pin_protection=*/false, "english", "spaces",
+                       /*enforce_wordlist=*/false, /*auto_lock_delay_ms=*/0,
+                       /*u2f_counter=*/0, /*dry_run=*/false);
+  rng_health_force_verdict(true);
+  EXPECT_FALSE(setup_isArmed())
+      << "a failed RNG verdict must not leave a recovery ceremony armed";
+  EXPECT_EQ(0u, recovery_review_cipher_draws())
+      << "the cipher must never be rendered, even briefly before aborting";
+  (void)kkconfirm_drain();
+
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  recovery_cipher_init(/*word_count=*/12, /*passphrase_protection=*/false,
+                       /*pin_protection=*/false, "english", "spaces",
+                       /*enforce_wordlist=*/false, /*auto_lock_delay_ms=*/0,
+                       /*u2f_counter=*/0, /*dry_run=*/false);
+  EXPECT_TRUE(setup_isArmedAs(SETUP_RECOVERY)) << "control: healthy RNG arms";
+  EXPECT_EQ(1u, recovery_review_cipher_draws())
+      << "control: the observer must see the healthy recovery screen";
+  recovery_cipher_abort();
+  (void)kkconfirm_drain();
+  storage_wipe();
+  storage_reset();
   layoutHomeForced();
 }
 
@@ -306,6 +350,8 @@ TEST(Recovery, UnrelatedRequestsKeepTheCipherAndSigningEndsTheCeremony) {
   // Requests that would draw over the ceremony are refused untouched.
   EXPECT_FALSE(
       keepkey_before_message_dispatch(MessageType_MessageType_GetAddress));
+  EXPECT_FALSE(
+      keepkey_before_message_dispatch(MessageType_MessageType_GetPublicKey));
   Ping protected_ping = {};
   protected_ping.has_button_protection = true;
   protected_ping.button_protection = true;
@@ -336,8 +382,8 @@ TEST(Recovery, UnrelatedRequestsKeepTheCipherAndSigningEndsTheCeremony) {
       keepkey_before_message_dispatch(MessageType_MessageType_Initialize));
 
 #if !BITCOIN_ONLY
-  EXPECT_TRUE(keepkey_before_message_dispatch(
-      MessageType_MessageType_EthereumSignTx));
+  EXPECT_TRUE(
+      keepkey_before_message_dispatch(MessageType_MessageType_EthereumSignTx));
   EXPECT_FALSE(setup_isArmed())
       << "a signing request must end the ceremony, not run beside it";
 #endif
@@ -345,4 +391,75 @@ TEST(Recovery, UnrelatedRequestsKeepTheCipherAndSigningEndsTheCeremony) {
   setup_abort();
   (void)kkconfirm_drain();
   layoutHomeForced();
+}
+
+extern "C" {
+void recovery_review_seed_scratch(void);
+bool recovery_review_scratch_empty(void);
+void setup_abort(void);
+void recovery_cipher_reset(void);
+bool recovery_review_delete_resync(const char*, const char*, bool, char*,
+                                   char*);
+void recovery_review_previous_after_delete(const char*, char*);
+}
+
+TEST(Recovery, DeleteKeepsTypedCipherCharactersNotTheCurrentMapping) {
+  char coded[12], decoded[12];
+  // "ab" remains of word "abc", typed as "qwe" under per-character ciphers.
+  EXPECT_FALSE(
+      recovery_review_delete_resync("zoo ab", "qwe", false, coded, decoded));
+  EXPECT_STREQ("qw", coded);  // recomputing from the identity would be "ab"
+  EXPECT_STREQ("ab", decoded);
+
+  // Stepping back over a space into a finished word: its typed characters
+  // were discarded, so the heuristic must not see a guessed coded prefix.
+  EXPECT_TRUE(recovery_review_delete_resync("zoo", "", false, coded, decoded));
+  EXPECT_STREQ("", coded);
+  EXPECT_STREQ("zoo", decoded);
+
+  // Once unknown, stays unknown until the word is emptied.
+  EXPECT_TRUE(recovery_review_delete_resync("zo", "x", true, coded, decoded));
+  EXPECT_STREQ("", coded);
+  EXPECT_FALSE(recovery_review_delete_resync("", "", true, coded, decoded));
+  EXPECT_STREQ("", decoded);
+}
+TEST(Recovery, AbortAndResetClearPreviousWordAndDisplayEquivalent) {
+  recovery_review_seed_scratch();
+  ASSERT_FALSE(recovery_review_scratch_empty());
+  setup_abort();
+  EXPECT_TRUE(recovery_review_scratch_empty());
+  recovery_review_seed_scratch();
+  recovery_cipher_reset();
+  EXPECT_TRUE(recovery_review_scratch_empty());
+  setup_abort();
+  EXPECT_TRUE(recovery_review_scratch_empty());
+}
+
+TEST(Recovery, DeleteAcrossWordBoundaryShowsTheWordBeforeTheEditedOne) {
+  char previous[12];
+  // "aban zoo " -> "aban zoo": zoo is being edited, aban(don) precedes it.
+  recovery_review_previous_after_delete("aban zoo", previous);
+  EXPECT_STREQ("abandon", previous);
+  recovery_review_previous_after_delete("abandon  zoo", previous);
+  EXPECT_STREQ("abandon", previous);
+  recovery_review_previous_after_delete("zoo", previous);  // first word
+  EXPECT_STREQ("", previous);
+}
+
+// The previous-word indicator must stay on one line: a wrapped second line
+// lands on "Recovery Cipher:".
+TEST(Recovery, PrevWordIndicatorFitsOneLine) {
+  const Font* font = get_body_font();
+  char info[32];
+  int overflows = 0;
+  for (uint32_t pos = 1; pos <= 24; pos++) {
+    for (int i = 0; wordlist[i]; i++) {
+      recovery_cipher_prev_word_info(info, sizeof(info), pos, wordlist[i]);
+      uint32_t width = calc_str_width(font, info);
+      if (width > CIPHER_PREV_WORD_WIDTH) {
+        if (overflows++ < 5) ADD_FAILURE() << info << " is " << width << " px";
+      }
+    }
+  }
+  EXPECT_EQ(0, overflows);
 }

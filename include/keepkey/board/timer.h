@@ -58,6 +58,15 @@ void timerisr_usr(void);
  **/
 void kk_timer_init(void);
 
+#ifdef EMULATOR
+/* Select local delay ticks for a library whose host supplies the clock. */
+void timer_set_poll_driven(bool enabled);
+#ifndef _WIN32
+/* Standalone process only: start SIGALRM without resetting queued callbacks. */
+void timer_start_emulator_signals(void);
+#endif
+#endif
+
 void timer_init(void);
 void delay_ms(uint32_t ms);
 void delay_us(uint32_t us);

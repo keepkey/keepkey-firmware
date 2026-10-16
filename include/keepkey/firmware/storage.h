@@ -24,9 +24,12 @@
 #include "trezor/crypto/bip32.h"
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/authenticator.h"
+#include "keepkey/firmware/passkey.h"
 
+/* 20, not 18: alpha builds wrote 18 (clear-sign identity) and 19 (PIN-KDF),
+ * so those numbers stay burned and are refused, never parsed as passkeys. */
 #define STORAGE_VERSION \
-  17 /* Must add case fallthrough in storage_fromFlash after increment*/
+  20 /* Must add case fallthrough in storage_fromFlash after increment*/
 
 /* The highest storage version that has actually SHIPPED to users. A signed
  * upgrade must never wipe, and the way that breaks is a release whose
@@ -71,16 +74,25 @@ void storage_wipe(void);
 
 /// \brief True when flash holds storage this build must refuse to load or
 /// overwrite -- a bitcoin-only wallet seen by multi-chain firmware, or a newer
-/// in-band wallet than this build understands.
+/// bitcoin-only format than this build understands.
 ///
-/// Handlers that CREATE a seed must check this and refuse. The device looks
+/// Handlers that create a seed or persist settings must check both this and
+/// storage_isFirmwareTooOld() and refuse. The device looks
 /// uninitialized while locked (the RAM shadow was reset, so
 /// storage_isInitialized() is false), and storage_commit() silently declines to
 /// write, so a ceremony allowed to run would report success while persisting
 /// nothing -- and a seed the user funded would vanish on the next boot.
 ///
-/// Cleared only by storage_wipe().
+/// Cleared by storage_wipe(); recomputed by every storage_init().
 bool storage_isBitcoinOnlyLocked(void);
+
+/// \brief Locked by a NEWER bitcoin-only format: fixed by a firmware upgrade,
+/// so callers must not advise wiping.
+bool storage_isBitcoinOnlyTooNew(void);
+
+/// \brief True iff flash contains a newer storage format than this firmware.
+///        The bytes remain untouched until an explicit wipe.
+bool storage_isFirmwareTooOld(void);
 
 /// \brief Clear storage key and storage key fingerprint.
 void storage_clearKeys(void);
@@ -198,6 +210,21 @@ uint32_t storage_getAutoLockDelayMs(void);
 void storage_setAutoLockDelayMs(uint32_t auto_lock_delay_ms);
 
 bool storage_getAuthData(authType* returnData);
+/// Read or atomically replace CTAP2 PIN and discoverable-credential metadata.
+void storage_getPasskeyData(PasskeyStorage* data);
+void storage_setPasskeyData(const PasskeyStorage* data);
+
+/// Return the active stateless-credential generation, creating and persisting
+/// one through the checked RNG path on first use. Version-1 U2F handles remain
+/// accepted until the first explicit authenticator reset.
+bool storage_getPasskeyCredentialGeneration(
+    uint8_t generation[PASSKEY_CREDENTIAL_GENERATION_SIZE],
+    bool* legacy_credentials_enabled);
+
+/// Atomically clear CTAP state and rotate the stateless-credential generation.
+/// Returns false without changing storage if checked entropy is unavailable.
+bool storage_resetPasskeyData(void);
+
 void storage_setAuthData(const authType* setData);
 void storage_wipeAuthData(void);
 

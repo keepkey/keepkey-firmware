@@ -1,5 +1,6 @@
 extern "C" {
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/mayachain.h"
 #include "keepkey/firmware/tendermint.h"
 #include "trezor/crypto/ecdsa.h"
@@ -9,6 +10,48 @@ extern "C" {
 
 #include "gtest/gtest.h"
 #include <cstring>
+#include <string>
+#include <vector>
+
+// confirm() auto-accept driver, defined in thorchain.cpp (same binary).
+// kkconfirm_preload(nYes, nNo) queues nYes accepted confirm screens then
+// nNo rejected ones; kkconfirm_drain() == 0 proves the exact screen count.
+bool kkconfirm_preload(int nYes, int nNo);
+int kkconfirm_drain(void);
+void kkconfirm_capture_start(void);
+std::vector<std::string> kkconfirm_captured_titles(void);
+std::vector<std::string> kkconfirm_capture_finish(void);
+
+TEST(Mayachain, OmittedSwapFieldsCannotImpersonateLiteralMemoFields) {
+  std::vector<std::vector<std::string>> reviews;
+  for (const char* memo : {"=:ETH.ETH", "=:ETH.ETH:self",
+                           "=:ETH.ETH:self:none"}) {
+    ASSERT_TRUE(kkconfirm_preload(3, 0));
+    kkconfirm_capture_start();
+    EXPECT_EQ(MAYACHAIN_MEMO_CONFIRMED,
+              mayachain_parseConfirmMemo(memo, strlen(memo)));
+    reviews.push_back(kkconfirm_capture_finish());
+    EXPECT_EQ(0, kkconfirm_drain());
+    ASSERT_EQ(3u, reviews.back().size());
+  }
+  EXPECT_NE(reviews[0][1], reviews[1][1]);
+  EXPECT_NE(reviews[1][2], reviews[2][2]);
+  EXPECT_EQ("Confirm to self", reviews[1][1]);
+  EXPECT_EQ("Confirm limit none", reviews[2][2]);
+}
+
+/* Every MAYAChain screen scales by the denom's own exponent, and they all ask
+ * the same function, so a send screen and a deposit screen cannot disagree
+ * about the same coin. */
+TEST(Mayachain, DecimalsAreKeyedOnTheDenomNotTheChain) {
+  EXPECT_EQ(10, mayachain_decimalsForDenom("cacao"));
+  EXPECT_EQ(10, mayachain_decimalsForDenom("MAYA.CACAO"));
+  EXPECT_EQ(0, mayachain_decimalsForDenom("maya"));
+  EXPECT_EQ(0, mayachain_decimalsForDenom("btc/btc"));
+  EXPECT_EQ(0, mayachain_decimalsForDenom("ETH.ETH"));
+  EXPECT_EQ(0, mayachain_decimalsForDenom(""));
+  EXPECT_EQ(0, mayachain_decimalsForDenom(nullptr));
+}
 
 TEST(Mayachain, FormatsOnlyCacaoWithTenDecimals) {
   char rendered[96];
@@ -16,6 +59,12 @@ TEST(Mayachain, FormatsOnlyCacaoWithTenDecimals) {
   ASSERT_TRUE(mayachain_formatAmount(10000000000ULL, "cacao", rendered,
                                      sizeof(rendered)));
   EXPECT_STREQ("1 cacao", rendered);
+
+  /* MsgDeposit names the same coin by its pool identifier. Rendering this at
+   * zero decimals showed 1 CACAO as "10000000000 MAYA.CACAO". */
+  ASSERT_TRUE(mayachain_formatAmount(10000000000ULL, "MAYA.CACAO", rendered,
+                                     sizeof(rendered)));
+  EXPECT_STREQ("1 MAYA.CACAO", rendered);
 
   ASSERT_TRUE(mayachain_formatAmount(10000000000ULL, "maya", rendered,
                                      sizeof(rendered)));
@@ -29,6 +78,51 @@ TEST(Mayachain, FormatsOnlyCacaoWithTenDecimals) {
       mayachain_formatAmount(1, "ETH.ETH\n", rendered, sizeof(rendered)));
   EXPECT_FALSE(
       mayachain_formatAmount(1, "ETH.\\ETH", rendered, sizeof(rendered)));
+}
+
+TEST(Mayachain, RejectingAssetScreenAbortsSendHandler) {
+  HDNode node = {};
+  const uint8_t seed[32] = {1};
+  ASSERT_TRUE(hdnode_from_seed(seed, sizeof(seed), "secp256k1", &node));
+  hdnode_fill_public_key(&node);
+
+  MayachainSignTx sign_tx = {};
+  sign_tx.has_msg_count = true;
+  sign_tx.msg_count = 1;
+  sign_tx.has_chain_id = true;
+  std::strcpy(sign_tx.chain_id, "mayachain-mainnet-v1");
+  ASSERT_TRUE(mayachain_signTxInit(&node, &sign_tx));
+
+  MayachainMsgAck ack = {};
+  ack.has_send = true;
+  ack.send.has_to_address = true;
+  std::strcpy(ack.send.to_address,
+              "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
+  ack.send.has_amount = true;
+  ack.send.amount = 1;
+  ack.send.has_denom = true;
+  std::memset(ack.send.denom, 'a', 68);
+  ack.send.denom[68] = '\0';
+
+  // A denom this long pages the amount/recipient review in two. Both pages
+  // are accepted; the independent Asset screen is refused. The handler must
+  // abort before serializing this send.
+  ASSERT_TRUE(kkconfirm_preload(2, 1));
+  fsm_test_clearLastFailure();
+  kkconfirm_capture_start();
+  fsm_msgMayachainMsgAck(&ack);
+  const auto titles = kkconfirm_captured_titles();
+  const auto screens = kkconfirm_capture_finish();
+  EXPECT_EQ(FailureType_Failure_ActionCancelled, fsm_test_lastFailureCode());
+  EXPECT_FALSE(mayachain_signingIsInited());
+  EXPECT_EQ(0, kkconfirm_drain());
+  // The refused screen is the last one drawn: it must be the Asset screen,
+  // carrying the whole denom, after the amount and then the recipient.
+  ASSERT_EQ(3u, screens.size());
+  EXPECT_EQ(0u, screens[0].rfind("Send 1 a", 0)) << screens[0];
+  EXPECT_EQ(ack.send.to_address, screens[1]);
+  EXPECT_EQ("Asset", titles[2]);
+  EXPECT_EQ(ack.send.denom, screens[2]);
 }
 
 TEST(Mayachain, MemoWithMisdeclaredLengthIsRefused) {
@@ -385,12 +479,43 @@ TEST(Mayachain, DepositAssetAndSignerFailClosed) {
   strcpy(deposit.signer, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
   EXPECT_FALSE(mayachain_signTxUpdateMsgDeposit(&deposit));
 
+  strcpy(deposit.asset, "ETH:ETH");
+  EXPECT_FALSE(mayachain_signTxUpdateMsgDeposit(&deposit));
   strcpy(deposit.asset, "ETH.ETH");
   strcpy(deposit.signer, "thor18vhdczjut44gpsy804crfhnd5nq003nzf5s36n");
   EXPECT_FALSE(mayachain_signTxUpdateMsgDeposit(&deposit));
 
   strcpy(deposit.signer, "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k");
   EXPECT_TRUE(mayachain_signTxUpdateMsgDeposit(&deposit));
+  EXPECT_TRUE(mayachain_signingIsFinished());
+  mayachain_signAbort();
+}
+
+TEST(Mayachain, AssetGrammarRejectsSafeTextOutsideContract) {
+  for (const char* value : {"MAYA.CACAO", "ETH.USDT-0x123", "BTC/BTC"})
+    EXPECT_TRUE(tendermint_isValidAsset(value));
+  for (const char* value : {"MAYA:CACAO", "MAYA_CACAO", "MAYA+CACAO", ""})
+    EXPECT_FALSE(tendermint_isValidAsset(value));
+  EXPECT_FALSE(tendermint_isValidAsset(nullptr));
+}
+
+TEST(Mayachain, SendSerializerRefusesInvalidDenomWithoutConsumingMessage) {
+  HDNode node = {};
+  node.curve = &secp256k1_info;
+  node.private_key[31] = 1;
+  hdnode_fill_public_key(&node);
+  MayachainSignTx tx = {};
+  tx.has_chain_id = tx.has_msg_count = true;
+  strcpy(tx.chain_id, "mayachain");
+  tx.msg_count = 1;
+  ASSERT_TRUE(mayachain_signTxInit(&node, &tx));
+  const char* recipient = "maya1g9el7lzjwh9yun2c4jjzhy09j98vkhfxfqkl5k";
+  for (const char* denom : {static_cast<const char*>(nullptr), "", "ca:cao",
+                            "ca_cao", "ca\"cao", "ca\ncao"}) {
+    EXPECT_FALSE(mayachain_signTxUpdateMsgSend(1, recipient, denom));
+    EXPECT_FALSE(mayachain_signingIsFinished());
+  }
+  EXPECT_TRUE(mayachain_signTxUpdateMsgSend(1, recipient, "cacao"));
   EXPECT_TRUE(mayachain_signingIsFinished());
   mayachain_signAbort();
 }

@@ -92,10 +92,16 @@ bool rng_health_analyze(const uint8_t* buf, size_t len);
 ///   - the device half of the seed        reset_init()
 ///   - the storage encryption key         storage_setPin_impl()
 ///   - the wipe-code key                  storage_setWipeCode_impl()
-///   - the PIN-KDF salt                   storage_readStorageV1(), the V1
-///                                        upgrade path that mints one
+///   - the PIN-KDF salt                   storage_readStorageV1() on migration;
+///                                        storage_reset_impl() when a record is
+///                                        reset or wiped on this firmware. A
+///                                        record written by earlier firmware
+///                                        keeps its salt (zero unless migrated)
+///                                        until the device is wiped.
 ///   - the U2F key-handle derivation path generateKeyHandle()
 ///   - the one-shot OTP randomness block  flash_collectHWEntropy()
+///   - the RedPallas spend-auth T          fsm_msg_zcash.h, the is_spend path
+///   - PIN/recovery secret permutations   pin_sm.c, recovery_cipher.c
 ///
 /// NOT covered: everything else in the tree and in deps/, because plain
 /// random_buffer() and random32() are unchecked exactly as on develop.
@@ -120,10 +126,8 @@ bool rng_health_check(void);
 /// last word of a buffer delivers that whole buffer first.
 bool rng_health_observe(const uint8_t* buf, size_t len);
 
-/// Draw \p len bytes and report failure instead of halting, for the paths that
-/// have somewhere better to go: a host-visible error, or a one-shot write that
-/// should simply be skipped and retried on a later healthy boot. Returns false
-/// with \p buf zeroed.
+/// Draw \p len bytes; on failure return false with \p buf zeroed, so the
+/// caller can report the error or halt.
 ///
 /// THIS IS THE ONLY CHECKED DRAW. Plain random_buffer() and random32() are
 /// NOT checked -- they behave exactly as on develop. A previous revision of
@@ -132,13 +136,16 @@ bool rng_health_observe(const uint8_t* buf, size_t len);
 /// gated, you have to call this function by name.
 bool random_buffer_checked(uint8_t* buf, size_t len);
 
+/// Health-tested Fisher-Yates; false (no partial permutation) on RNG failure.
+bool random_permute_char_checked(char* str, size_t len);
+
 #ifdef EMULATOR
 /// Test-only: force the latched verdict. `false` stands in for a generator
 /// that failed its self-test, which is otherwise unreachable from a host build;
 /// `true` re-arms the continuous state.
 void rng_health_force_verdict(bool passed);
-/// Test-only: reset the statistical verdict to model a new boot.
-void rng_health_test_reset(void);
+/// Test-only: restore the untested verdict so boot-gate tests are order-free.
+void rng_health_reset_for_test(void);
 #endif
 
 #endif

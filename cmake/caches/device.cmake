@@ -23,6 +23,7 @@ set(ARCH_FLAGS
     -ffunction-sections \
     -fdata-sections \
     -fno-common \
+    -fstack-usage \
     -fstack-protector-all" CACHE STRING "")
 
 set(WARN_FLAGS

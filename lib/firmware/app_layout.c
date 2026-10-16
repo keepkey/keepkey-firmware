@@ -17,6 +17,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "keepkey/board/confirm_sm.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/draw.h"
 #include "keepkey/board/font.h"
@@ -459,13 +460,15 @@ void layout_cosmos_address_notification(const char* desc, const char* address,
                 font_height(title_font) + BODY_FONT_LINE_PADDING);
   }
 
-  /* Body */
-  sp.y = TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN + TOP_MARGIN;
+  /* Body: three 140 px rows hold any 52-character bech32 address (a
+     cosmosvaloper1... needs three). Starting one pixel higher than before is
+     what lets the third row fit; at y=27 draw_string() silently dropped it. */
+  const uint16_t row = font_height(address_font) + BODY_FONT_LINE_PADDING;
+  sp.y = KEEPKEY_DISPLAY_HEIGHT - 3 * row + BODY_FONT_LINE_PADDING;
   sp.x = LEFT_MARGIN + 65;
   sp.color = BODY_COLOR;
 
-  draw_string(canvas, address_font, address, &sp, 140,
-              font_height(address_font) + BODY_FONT_LINE_PADDING);
+  draw_string(canvas, address_font, address, &sp, 140, row);
 
   layout_address(address, QR_LARGE);
   layout_notification_icon(type, &sp);
@@ -597,6 +600,57 @@ void layout_nano_address_notification(const char* desc, const char* address,
   layout_notification_icon(type, &sp);
 }
 
+#if ZCASH_PRIVACY
+/*
+ * layout_zcash_address_notification() - Unified address as QR only; the full
+ * text is shown on the preceding confirm step.
+ */
+void layout_zcash_address_notification(const char* desc, const char* address,
+                                       NotificationType type) {
+  DrawableParams sp;
+  Canvas* canvas = layout_get_canvas();
+
+  call_leaving_handler();
+  layout_clear();
+
+  if (strcmp(desc, "") != 0) {
+    const Font* title_font = get_title_font();
+    sp.y = TOP_MARGIN_FOR_TWO_LINES;
+    sp.x = LEFT_MARGIN + 65;
+    sp.color = BODY_COLOR;
+    draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
+                font_height(title_font) + BODY_FONT_LINE_PADDING);
+  }
+
+  layout_address(address, QR_LARGE);
+  layout_notification_icon(type, &sp);
+}
+#endif  // ZCASH_PRIVACY
+
+/*
+ * layout_qr_notification() - Display a title and a QR code of data, with no
+ * text body: for values too long for an address layout's text area, whose
+ * full text the caller has already shown on paged screens.
+ */
+void layout_qr_notification(const char* desc, const char* data,
+                            NotificationType type) {
+  DrawableParams sp;
+  Canvas* canvas = layout_get_canvas();
+
+  call_leaving_handler();
+  layout_clear();
+
+  const Font* title_font = get_title_font();
+  sp.y = TOP_MARGIN_FOR_TWO_LINES;
+  sp.x = LEFT_MARGIN + 65;
+  sp.color = BODY_COLOR;
+  draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
+              font_height(title_font) + BODY_FONT_LINE_PADDING);
+
+  layout_address(data, QR_LARGE);
+  layout_notification_icon(type, &sp);
+}
+
 /*
  * layout_address_notification() - Display address notification
  *
@@ -634,30 +688,6 @@ bool layout_address_description_fits(const char* desc, const char* address) {
       TOP_MARGIN_FOR_ONE_LINE + font_height(font) + ADDRESS_TOP_MARGIN;
   return draw_string_fits(&available, font, desc, &sp, TRANSACTION_WIDTH - 2,
                           font_height(font) + BODY_FONT_LINE_PADDING);
-}
-
-/*
- * layout_qr_notification() - Display a title and a QR code of data, with no
- * text body: for values too long for an address layout's text area, whose
- * full text the caller has already shown on paged screens.
- */
-void layout_qr_notification(const char* desc, const char* data,
-                            NotificationType type) {
-  DrawableParams sp;
-  Canvas* canvas = layout_get_canvas();
-
-  call_leaving_handler();
-  layout_clear();
-
-  const Font* title_font = get_title_font();
-  sp.y = TOP_MARGIN_FOR_TWO_LINES;
-  sp.x = LEFT_MARGIN + 65;
-  sp.color = BODY_COLOR;
-  draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
-              font_height(title_font) + BODY_FONT_LINE_PADDING);
-
-  layout_address(data, QR_LARGE);
-  layout_notification_icon(type, &sp);
 }
 
 void layout_address_notification(const char* desc, const char* address,
@@ -773,7 +803,8 @@ void layout_pin(const char* str, char pin[]) {
  * OUTPUT
  *     none
  */
-void layout_cipher(const char* current_word, const char* cipher) {
+void layout_cipher(const char* current_word, const char* cipher,
+                   const char* prev_word_info, bool animate_cipher) {
   DrawableParams sp;
   const Font* title_font = get_body_font();
   Canvas* canvas = layout_get_canvas();
@@ -781,8 +812,18 @@ void layout_cipher(const char* current_word, const char* cipher) {
   call_leaving_handler();
   layout_clear();
 
-  /* Draw prompt */
-  sp.y = 11;
+  /* Draw previous word info at top-left -- must be x < 76 to avoid
+   * being wiped by cipher animation which clears x >= CIPHER_START_X */
+  if (prev_word_info && prev_word_info[0]) {
+    sp.y = 2;
+    sp.x = 4;
+    sp.color = CIPHER_FONT_COLOR; /* gray -- less prominent than current word */
+    draw_string(canvas, title_font, prev_word_info, &sp, CIPHER_PREV_WORD_WIDTH,
+                font_height(title_font));
+  }
+
+  /* Draw prompt -- push down when prev word is shown */
+  sp.y = (prev_word_info && prev_word_info[0]) ? 14 : 11;
   sp.x = 4;
   sp.color = BODY_COLOR;
   draw_string(canvas, title_font, "Recovery Cipher:", &sp, 58,
@@ -794,11 +835,15 @@ void layout_cipher(const char* current_word, const char* cipher) {
   sp.color = BODY_COLOR;
   draw_string(canvas, title_font, current_word, &sp, 68,
               font_height(title_font));
+  const uint32_t duration = CIPHER_ANIMATION_FREQUENCY_MS * 30;
+  if (animate_cipher) {
+    layout_add_animation(&layout_animate_cipher, (void*)cipher, duration);
+  } else {
+    /* Restore an obscured mapping immediately. Replaying its introduction
+     * lets repeated host requests keep its last letters off the display. */
+    layout_animate_cipher((void*)cipher, duration, duration);
+  }
   display_refresh();
-
-  /* Animate cipher */
-  layout_add_animation(&layout_animate_cipher, (void*)cipher,
-                       CIPHER_ANIMATION_FREQUENCY_MS * 30);
 }
 
 /*
@@ -846,13 +891,26 @@ void layout_address(const char* address, QRSize qr_size) {
   }
 }
 
-void layoutU2FDialog(bool request, const char* title, const char* body, ...) {
+bool layoutU2FDialog(bool request, const char* title, const char* body, ...) {
   char strbuf[BODY_CHAR_MAX];
+
+  /* Measure and draw at the same width: no icon column. */
+  layout_has_icon(false);
 
   va_list vl;
   va_start(vl, body);
-  vsnprintf(strbuf, BODY_CHAR_MAX, body, vl);
+  int written = vsnprintf(strbuf, BODY_CHAR_MAX, body, vl);
   va_end(vl);
+
+  // Detect both SOURCE truncation (the formatted body did not fit strbuf)
+  // and RENDER truncation (the body fit strbuf but not the OLED canvas), the
+  // same two checks confirm_helper() runs for every other confirmation
+  // screen. This dialog draws unconditionally either way -- callers that
+  // display attacker-controlled, unbounded-length text (e.g. a CTAP2 rp_id)
+  // must check the return value and refuse rather than proceed on an
+  // approval the user could not fully read.
+  bool fits = written >= 0 && (size_t)written < BODY_CHAR_MAX &&
+              confirm_body_fits(strbuf, BODY_WIDTH);
 
   layout_standard_notification(title, strbuf,
                                request ? NOTIFICATION_REQUEST_NO_ANIMATION
@@ -863,4 +921,6 @@ void layoutU2FDialog(bool request, const char* title, const char* body, ...) {
     animate();
     display_refresh();
   }
+
+  return fits;
 }

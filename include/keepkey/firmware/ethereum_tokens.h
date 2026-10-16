@@ -25,6 +25,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#if BITCOIN_ONLY
+#define TOKENS_COUNT 0  // no ERC-20 tokens in the bitcoin-only image
+#else
 enum {
 #define X(CHAIN_ID, CONTRACT_ADDR, TICKER, DECIMALS) \
   CONCAT(TokenIndex, __COUNTER__),
@@ -35,6 +38,7 @@ enum {
 };
 
 #define TOKENS_COUNT ((int)TokenIndexLast - (int)TokenIndexFirst)
+#endif
 
 typedef struct _TokenType {
   const char* const address;

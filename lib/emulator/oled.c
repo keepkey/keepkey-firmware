@@ -20,5 +20,11 @@
 
 void oledInit(void) {}
 void oledRefresh(void) {}
-/* Weak so a unit test can feed frames from inside usbPoll(). */
-__attribute__((weak)) void emulatorPoll(void) {}
+/* Native unit tests replace this to feed frames from inside usbPoll().
+ * The DLL has no such override; MinGW needs a strong definition to resolve
+ * kkboard's reference across the static-library boundary. */
+#ifndef KKEMU_DYLIB
+__attribute__((weak))
+#endif
+void emulatorPoll(void) {
+}

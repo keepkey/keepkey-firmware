@@ -79,8 +79,16 @@ static void wait_for_passphrase_ack(PassphraseInfo* passphrase_info) {
       passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL_BY_INIT;
       break;
 
+#if DEBUG_LINK
+    case MessageType_MessageType_DebugLinkGetState:
+      call_msg_debug_link_get_state_handler((DebugLinkGetState*)msg_tiny_buf);
+      break;
+#endif
     case MSG_TINY_TYPE_ERROR:
+      break;
     default:
+      msg_reject_unexpected_tiny();
+      passphrase_info->passphrase_ack_msg = PASSPHRASE_ACK_CANCEL;
       break;
   }
   memzero(msg_tiny_buf, sizeof(msg_tiny_buf));

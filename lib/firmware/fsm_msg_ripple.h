@@ -31,14 +31,15 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
 
   const CoinType* coin = fsm_getCoin(true, "Ripple");
 
-  if (!ripple_getAddress(node->public_key, resp->address)) {
+  /* RippleAddress.address holds 36 but the encoder is bounded by
+     MAX_ADDR_SIZE (130): encode into a local so the bound is the real one. */
+  char ripple_addr[MAX_ADDR_SIZE];
+  if (!ripple_getAddress(node->public_key, ripple_addr)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_Other, _("Address derivation failed"));
     layoutHome();
     return;
   }
-
-  resp->has_address = true;
 
   if (msg->has_show_display && msg->show_display) {
     char node_str[NODE_STRING_LENGTH];
@@ -51,7 +52,7 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
       memset(node_str, 0, sizeof(node_str));
     }
 
-    if (!confirm_ethereum_address(node_str, resp->address)) {
+    if (!confirm_ethereum_address(node_str, ripple_addr)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Show address cancelled"));
@@ -60,6 +61,10 @@ void fsm_msgRippleGetAddress(const RippleGetAddress* msg) {
     }
   }
 
+  /* Filled only after the confirm: a prompt that is refused writes its
+   * Failure into this same response arena. */
+  strlcpy(resp->address, ripple_addr, sizeof(resp->address));
+  resp->has_address = true;
   memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_RippleAddress, resp);
   layoutHome();
@@ -141,6 +146,17 @@ void fsm_msgRippleSignTx(RippleSignTx* msg) {
                      : "Send %s to %s?",
                  amount_string, msg->payment.destination,
                  msg->payment.destination_tag)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
+      layoutHome();
+      return;
+    }
+  }
+
+  if (msg->has_memo && msg->memo[0] != '\0') {
+    /* Page the COMPLETE memo: an unpaged confirm silently drops overflow,
+     * hiding signed deposit-routing bytes. */
+    if (!thorchain_confirm_full_memo("Memo", msg->memo, strlen(msg->memo))) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
       layoutHome();

@@ -1,7 +1,10 @@
 set(sources
+    ctap2.c
+    ctap2_cbor.c
     app_confirm.c
     app_layout.c
     authenticator.c
+    bip85.c
     coins.c
     crypto.c
     dice_input.c
@@ -22,13 +25,22 @@ set(sources
 # Non-Bitcoin coin families -- excluded from the bitcoin-only image.
 if(NOT ${KK_BITCOIN_ONLY})
   list(APPEND sources
-      binance.c
       eip712.c
+      eip712_stream.c
       eos.c
       eos-contracts/eosio.system.c
       eos-contracts/eosio.token.c
       ethereum.c
       ethereum_contracts.c
+      erc7730_abi.c
+      erc7730_abi_stream.c
+      erc7730_capabilities.c
+      erc7730_catalog.c
+      erc7730_field.c
+      erc7730_format.c
+      erc7730_program.c
+      erc7730_tx.c
+      erc7730_workflow.c
       ethereum_contracts/makerdao.c
       ethereum_contracts/saproxy.c
       ethereum_contracts/zxappliquid.c
@@ -37,6 +49,10 @@ if(NOT ${KK_BITCOIN_ONLY})
       ethereum_contracts/zxtransERC20.c
       ethereum_contracts/zxswap.c
       ethereum_tokens.c
+      clearsign_root.c
+      signed_metadata.c
+      contact_book.c
+      uniswap_ur.c
       mayachain.c
       nano.c
       osmosis.c
@@ -44,10 +60,21 @@ if(NOT ${KK_BITCOIN_ONLY})
       ripple_base58.c
       signtx_tendermint.c
       solana.c
+      hive.c
       tron.c
       ton.c
       tendermint.c
       thorchain.c)
+endif()
+
+# Zcash shielded/Orchard engine -- transparent Zcash needs none of this.
+if(${KK_ZCASH_PRIVACY})
+  list(APPEND sources zcash.c)
+  # Match the portable ChaCha context layout in deps/crypto. Its public
+  # rfc7539.h also includes ecrypt-config.h, whose SSE/MMX alignment headers
+  # are unavailable in the emulator image's clang toolchain.
+  set_source_files_properties(zcash.c
+      PROPERTIES COMPILE_OPTIONS "-U__SSE__;-U__MMX__")
 endif()
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scm_revision.h.in"
@@ -64,11 +91,19 @@ add_dependencies(kkfirmware kktransport.pb trezorcrypto qrcodegenerator ethereum
 
 set(ETHEREUM_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/ethereum_tokens)
 set(UNISWAP_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/uniswap_tokens)
+set(TRON_TOKENS ${CMAKE_BINARY_DIR}/include/keepkey/firmware/tron_tokens)
 
 add_custom_target(ethereum_tokens.def
-  BYPRODUCTS ${ETHEREUM_TOKENS}.def ${UNISWAP_TOKENS}.def
+  BYPRODUCTS ${ETHEREUM_TOKENS}.def ${UNISWAP_TOKENS}.def ${TRON_TOKENS}.def
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/keepkey/firmware
-  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def
-  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/uniswap_tokens.py ${UNISWAP_TOKENS}.def)
+  # 7.16 (D-014): stablecoins plus what coins[] and the fixtures need; the long
+  # tail is named by signed ClearSign metadata instead of flash.
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/ethereum_tokens.py ${ETHEREUM_TOKENS}.def --profile priority-only
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/deps/python-keepkey/keepkeylib/eth/uniswap_tokens.py ${UNISWAP_TOKENS}.def
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/tron_tokens.py
+          ${CMAKE_SOURCE_DIR}/scripts/tron_tokens.json ${TRON_TOKENS}.def
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/verify-token-def.py
+          ${ETHEREUM_TOKENS}.def ${UNISWAP_TOKENS}.def ${TRON_TOKENS}.def
+  COMMENT "Generating and verifying firmware token tables")
 
 add_library(kkfirmware.keepkey variant/keepkey/resources.c)

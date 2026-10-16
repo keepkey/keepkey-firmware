@@ -25,10 +25,14 @@ extern "C" {
 #include "keepkey/board/keepkey_flash.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/usb.h"
+#include "keepkey/board/timer.h"
 #include "keepkey/board/resources.h"
 #include "keepkey/board/keepkey_usart.h"
 #include "keepkey/emulator/setup.h"
 #include "keepkey/firmware/app_layout.h"
+#if DEBUG_LINK && !BITCOIN_ONLY
+#include "keepkey/firmware/clearsign_root.h"
+#endif
 #include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
@@ -67,8 +71,15 @@ static void sigintHandler(int sig_num) {
 
 int main(void) {
   setup();
+#if DEBUG_LINK && !BITCOIN_ONLY
+  clearsign_root_load_test_root_from_env();
+#endif
   flash_collectHWEntropy(false);
   kk_board_init();
+  /* Only delays (PIN backoff) advance the clock, by wall time. A free-running
+   * clock would fire idle auto-lock, which the host test suites never expect
+   * from the standalone emulator. */
+  timer_set_poll_driven(true);
   drbg_init();
 
   led_func(SET_RED_LED);

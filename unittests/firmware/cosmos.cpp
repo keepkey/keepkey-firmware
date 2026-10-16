@@ -1,4 +1,6 @@
 extern "C" {
+#include "keepkey/board/layout.h"
+#include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/cosmos.h"
 #include "keepkey/firmware/signtx_tendermint.h"
@@ -8,7 +10,42 @@ extern "C" {
 }
 
 #include "gtest/gtest.h"
+#include "test_board.h"
 #include <cstring>
+#include <string>
+#include <vector>
+
+namespace {
+/* The text half of the screen; the QR code is left of x = 60. */
+std::vector<uint8_t> cosmosAddressText(const std::string& address) {
+  layout_cosmos_address_notification("Confirm validator address",
+                                     address.c_str(),
+                                     NOTIFICATION_REQUEST_NO_ANIMATION);
+  const Canvas* canvas = layout_get_canvas();
+  std::vector<uint8_t> text;
+  for (int y = 0; y < canvas->height; y++)
+    text.insert(text.end(), canvas->buffer + y * canvas->width + 60,
+                canvas->buffer + (y + 1) * canvas->width);
+  return text;
+}
+}  // namespace
+
+/* Staking screens showed a 52-character cosmosvaloper1... address in two
+   140 px rows and silently dropped the third. Changing the LAST character
+   must change the screen, so the whole address is drawn. */
+TEST(Cosmos, AddressLayoutDrawsTheWholeValidatorAddress) {
+  kk_test_board_init();
+  const std::string addresses[] = {
+      "cosmosvaloper1sjllsnramtg3ewxqwwrwjxfgc4n4ef9u2lcnj0",
+      /* the widest 52-character bech32 string: 8 px glyphs and one '1' */
+      std::string(51, 'm') + "1",
+  };
+  for (const std::string& address : addresses) {
+    std::string other = address;
+    other.back() = 'q';
+    EXPECT_NE(cosmosAddressText(address), cosmosAddressText(other)) << address;
+  }
+}
 
 TEST(Cosmos, HostTextMustBeSafeForJsonAndDisplay) {
   EXPECT_FALSE(tendermint_validateSafeText(nullptr));

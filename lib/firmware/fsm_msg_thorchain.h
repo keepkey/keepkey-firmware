@@ -113,6 +113,7 @@ void fsm_msgThorchainSignTx(const ThorchainSignTx* msg) {
   }
 
   memzero(node, sizeof(*node));
+  note_workflow_progress();
   msg_write(MessageType_MessageType_ThorchainMsgRequest, resp);
   layoutHome();
 }
@@ -142,13 +143,27 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
 
   const ThorchainSignTx* sign_tx = thorchain_getThorchainSignTx();
 
+  // Validated before any display or signing JSON (default "rune").
+  const char* coin_denom =
+      (msg->has_send && msg->send.has_denom && msg->send.denom[0])
+          ? msg->send.denom
+          : "rune";
+
   if (msg->has_send) {
+    if (!tendermint_isValidDenom(coin_denom)) {
+      thorchain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid denom");
+      layoutHome();
+      return;
+    }
     switch (msg->send.address_type) {
       case OutputAddressType_TRANSFER:
       default: {
+        // amount_str only needs to hold the numeric part (no denom suffix).
+        // Denom is confirmed on a separate screen so no truncation is possible.
         char amount_str[32];
-        if (!thorchain_formatAmount(msg->send.amount, "RUNE", amount_str,
-                                    sizeof(amount_str))) {
+        if (!bn_format_uint64(msg->send.amount, NULL, NULL, 8, 0, false,
+                              amount_str, sizeof(amount_str))) {
           thorchain_signAbort();
           fsm_sendFailure(FailureType_Failure_SyntaxError,
                           "Invalid THORChain send amount");
@@ -179,12 +194,19 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
           layoutHome();
           return;
         }
+        if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Asset",
+                     "%s", coin_denom)) {
+          thorchain_signAbort();
+          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+          layoutHome();
+          return;
+        }
 
         break;
       }
     }
-    if (!thorchain_signTxUpdateMsgSend(msg->send.amount,
-                                       msg->send.to_address)) {
+    if (!thorchain_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
+                                       coin_denom)) {
       thorchain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include send message in transaction");
@@ -201,7 +223,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
        document the device's key cannot authorize -- and the confirmation below
        labels that address as though it were a destination, so the screen would
        not have given it away. */
-    if (!tendermint_validateSafeText(msg->deposit.asset) ||
+    if (!tendermint_isValidAsset(msg->deposit.asset) ||
         !tendermint_validateBech32Address(msg->deposit.signer, signer_prefix) ||
         !thorchain_addressIsSigner(msg->deposit.signer)) {
       thorchain_signAbort();
@@ -216,7 +238,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
      * did not fit the old 32-byte amount_str. bn_format() zeroes its output
      * and returns 0 on overflow, and the ignored return let an EMPTY amount
      * reach the confirmation screen and be signed. Size for the maximum and
-     * fail closed, as fsm_msg_binance.h does. */
+     * fail closed. */
     char amount_str[21 + THORCHAIN_ASSET_SUFFIX_LEN + 1];
     if (!thorchain_formatAmount(msg->deposit.amount, msg->deposit.asset,
                                 amount_str, sizeof(amount_str))) {
@@ -281,6 +303,7 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
 
   if (!thorchain_signingIsFinished()) {
     RESP_INIT(ThorchainMsgRequest);
+    note_workflow_progress();
     msg_write(MessageType_MessageType_ThorchainMsgRequest, resp);
     return;
   }
@@ -342,8 +365,10 @@ void fsm_msgThorchainMsgAck(const ThorchainMsgAck* msg) {
   }
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
-               "Sign RUNE on %s? Fee: %s. Gas: %" PRIu32 ".", sign_tx->chain_id,
-               fee_str, sign_tx->gas)) {
+               "Sign %s on %s? Fee: %s. Gas: %" PRIu32 ".",
+               (msg->has_send && strcmp(coin_denom, "rune") != 0) ? coin_denom
+                                                                  : "RUNE",
+               sign_tx->chain_id, fee_str, sign_tx->gas)) {
     thorchain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();

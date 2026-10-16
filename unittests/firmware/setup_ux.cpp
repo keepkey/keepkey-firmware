@@ -84,6 +84,15 @@ class SetupUx : public ::testing::Test {
     reset_idle_time();
     layoutHomeForced();
     fsm_test_clearLastFailure();
+    // This line advertises an initial 64 KiB press-free audit budget.
+    // Exhaust it before testing the separately approved bulk grant.
+    ASSERT_TRUE(kkconfirm_preload(0, 1));
+    for (int i = 0; i < 64; ++i) {
+      entropy();
+      if (fsm_test_lastFailureCode() != (FailureType)0) break;
+    }
+    kkconfirm_drain();
+    fsm_test_clearLastFailure();
     kkconfirm_capture_start();
   }
   void TearDown() override {
@@ -116,9 +125,9 @@ TEST_F(SetupUx, OneApprovalCovers64KiBAudit) {
 
 TEST_F(SetupUx, AuditGrantIsBoundedByReturnedBytes) {
   ASSERT_TRUE(kkconfirm_preload(1, 1));
-  // Oversized requests must charge only the 1024 bytes actually returned.
-  for (int i = 0; i < 8192; ++i) {
-    entropy(8192);
+  // Oversized requests must charge only the capped bytes actually returned.
+  for (size_t i = 0; i < (8u * 1024u * 1024u) / ENTROPY_BUF; ++i) {
+    entropy(ENTROPY_BUF * 2);
     ASSERT_EQ((FailureType)0, fsm_test_lastFailureCode()) << "chunk " << i;
   }
   entropy();

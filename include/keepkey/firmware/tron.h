@@ -30,6 +30,53 @@
 // TRON decimals (1 TRX = 1,000,000 SUN)
 #define TRON_DECIMALS 6
 
+// Raw 21-byte TRON address: 0x41 prefix + 20-byte keccak hash tail
+#define TRON_RAW_ADDRESS_SIZE 21
+
+/* The device signs sha256(raw_data): display MUST be decoded from raw_data,
+ * never side-channel fields. Anything not fully understood is UNVERIFIED. */
+typedef enum {
+  TRON_TX_UNVERIFIED = 0,  // not fully understood — blind-sign only
+  TRON_TX_TRANSFER,        // single TransferContract (native TRX send)
+  TRON_TX_TRC20_TRANSFER,  // single TriggerSmartContract:
+                           // transfer(address,uint256)
+} TronTxType;
+
+typedef struct {
+  TronTxType type;
+  uint8_t owner[TRON_RAW_ADDRESS_SIZE];     // spending account
+  uint8_t to[TRON_RAW_ADDRESS_SIZE];        // TRX or token recipient
+  uint8_t contract[TRON_RAW_ADDRESS_SIZE];  // TRC-20 token contract
+  uint64_t amount;                          // SUN, TransferContract only
+  uint8_t trc20_amount[32];  // big-endian uint256 token base units
+  bool has_fee_limit;
+  uint64_t fee_limit;   // SUN
+  const uint8_t* memo;  // points into caller's raw_data
+  uint16_t memo_len;
+} TronParsedTx;
+
+/* Fail-closed: any unrecognized field or contract yields UNVERIFIED.
+ * out->memo points into raw. */
+TronTxType tron_parseRawTx(const uint8_t* raw, size_t len, TronParsedTx* out);
+
+bool tron_addressFromBytes(const uint8_t addr[TRON_RAW_ADDRESS_SIZE], char* out,
+                           size_t out_len);
+
+/* A TRC-20 contract from the vetted table (scripts/tron_tokens.json). */
+typedef struct {
+  uint8_t contract[TRON_RAW_ADDRESS_SIZE];
+  const char* symbol;
+  uint8_t decimals;
+} TronToken;
+
+/* The trusted token at this contract address, or NULL. */
+const TronToken* tron_knownToken(const uint8_t contract[TRON_RAW_ADDRESS_SIZE]);
+
+/* TRC-20 amount in raw base units, or in token units with the symbol when
+ * token is non-NULL. */
+bool tron_formatTrc20Amount(const uint8_t amount_be[32], const TronToken* token,
+                            char* buf, size_t len);
+
 /**
  * Generate TRON address from secp256k1 public key
  * @param public_key secp256k1 public key (33 bytes compressed)

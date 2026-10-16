@@ -85,6 +85,9 @@ typedef enum {
 typedef enum {
   NO_ICON = 0,
   ETHEREUM_ICON,
+  VERIFIED_ICON,
+  /* Runtime 1bpp RLE bitmap set via layout_set_runtime_icon(). */
+  RUNTIME_ICON,
 } IconType;
 
 typedef void (*AnimateCallback)(void* data, uint32_t duration,
@@ -109,6 +112,8 @@ typedef struct {
 void layout_has_icon(bool tf);
 void layout_init(Canvas* new_canvas);
 Canvas* layout_get_canvas(void);
+/// Changes whenever the framebuffer is cleared, including progress layouts.
+uint32_t layout_get_generation(void);
 void call_leaving_handler(void);
 void layout_firmware_update_confirmation(void);
 void layout_standard_notification(const char* str1, const char* str2,
@@ -117,10 +122,17 @@ void layout_constant_power_notification(const char* str1, const char* str2,
                                         NotificationType type);
 void layout_notification_icon(NotificationType type, DrawableParams* sp);
 void layout_add_icon(IconType type);
+
+/// \brief Set the RUNTIME_ICON frame (NULL clears); must outlive the confirm.
+struct AnimationFrame_;
+void layout_set_runtime_icon(const struct AnimationFrame_* frame);
 void layout_warning(const char* str);
 void layout_warning_static(const char* str);
 void layout_simple_message(const char* str);
 void layout_version(int32_t major, int32_t minor, int32_t patch);
+#if DEBUG_LINK
+void layout_debuglink_watermark(void);
+#endif
 void layout_home(void);
 void layout_home_reversed(void);
 void animate(void);
@@ -130,6 +142,10 @@ void animating_progress_handler(const char* desc, int permil);
 void layoutProgress(const char* desc, int permil);
 void layoutProgressForAuth(const char* otp, const char* desc, int permil);
 void layoutProgressSwipe(const char* desc, int permil);
+void layoutProgressTrickle(const char* desc, int base_permil,
+                           int target_permil);
+void layoutProgressTrickleStop(void);
+void layout_animate_poll(void);
 void layout_add_animation(AnimateCallback callback, void* data,
                           uint32_t duration);
 void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed);

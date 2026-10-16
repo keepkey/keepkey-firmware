@@ -41,3 +41,13 @@ targetRules = ["generic-api-key"]
 condition = "AND"
 paths = ['''(^|/)docs/.*\.md$''']
 regexes = ['''\b[0-9a-f]{40}\b''']
+
+# EIP-712 fixtures name public token contract addresses, not API credentials.
+# Keep the exception limited to address-valued token fields in this corpus.
+[[allowlists]]
+description = "Public token addresses in the EIP-712 corpus"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)unittests/firmware/eip712_corpus\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"(?:token|baseInputToken|buyToken|inputToken|makerToken|outputToken|sellToken|takerToken)"\s*:\s*"0x[0-9a-fA-F]{40}"\s*,?\s*$''']

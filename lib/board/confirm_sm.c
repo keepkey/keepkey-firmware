@@ -52,6 +52,22 @@ extern bool reset_msg_stack;
 
 static CONFIDENTIAL char strbuf[BODY_CHAR_MAX];
 
+#if DEBUG_LINK
+/* The text of the most recent confirmation, for DebugLinkState. Tests assert
+ * the exact displayed text; OLED pixels alone cannot tell a raw glyph from an
+ * escape sequence of the same width. */
+static char debug_confirm_title[TITLE_CHAR_MAX];
+static char debug_confirm_body[BODY_CHAR_MAX];
+
+const char* confirm_debug_title(void) { return debug_confirm_title; }
+const char* confirm_debug_body(void) { return debug_confirm_body; }
+
+void confirm_debug_clear(void) {
+  memzero(debug_confirm_title, sizeof(debug_confirm_title));
+  memzero(debug_confirm_body, sizeof(debug_confirm_body));
+}
+#endif
+
 /* vsnprintf() returns the length it WOULD have written. Treat anything that
  * did not fit as a refusal: once characters are lost, no renderer or pager can
  * recover them and there is no complete body the user can approve. */
@@ -192,6 +208,12 @@ static bool confirm_screen(const char* request_title_param,
                            bool constant_power, IconType iconNum,
                            bool immediate) {
   bool ret_stat = false;
+#if DEBUG_LINK
+  snprintf(debug_confirm_title, sizeof(debug_confirm_title), "%s",
+           request_title_param ? request_title_param : "");
+  snprintf(debug_confirm_body, sizeof(debug_confirm_body), "%s",
+           request_body ? request_body : "");
+#endif
 #ifdef EMULATOR
   emulator_confirm_screen(request_title_param, request_body);
 #endif
@@ -279,6 +301,12 @@ static bool confirm_screen(const char* request_title_param,
           dld = (DebugLinkDecision*)msg_tiny_buf;
           ret_stat = dld->yes_no;
           debug_decided = true;
+          /* A "yes" stands in for the button press that renews the auto-lock
+           * deadline. A "no" is never a press: the device has no reject
+           * button, so only the host declines. */
+          if (dld->yes_no) {
+            keepkey_user_activity();
+          }
           break;
 
         case MessageType_MessageType_DebugLinkGetState:
@@ -287,8 +315,12 @@ static bool confirm_screen(const char* request_title_param,
           break;
 #endif
 
+        case MSG_TINY_TYPE_ERROR:
+          break;
         default:
-          break; /* break from switch statement and stay in the while loop*/
+          msg_reject_unexpected_tiny();
+          ret_stat = false;
+          goto confirm_screen_exit;
       }
     }
 
@@ -654,6 +686,7 @@ bool confirm_constant_power_paged(ButtonRequestType type,
       memset(&resp, 0, sizeof(resp));
       resp.has_code = true;
       resp.code = type;
+      button_request_acked = false;
       msg_write(MessageType_MessageType_ButtonRequest, &resp);
       decided_via_debug = false;
     }

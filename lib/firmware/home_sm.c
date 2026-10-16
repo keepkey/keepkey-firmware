@@ -121,6 +121,12 @@ bool auto_lock_if_due(void) {
   return true;
 }
 
+/* A correct PIN is the user's own action, like a button press, so it renews
+ * the deadline. Returning home no longer does, so without this an unlock
+ * entered on the host after an idle lock relocks on the next tick and clears
+ * the PIN it just cached. */
+void note_pin_accepted(void) { reset_idle_time(); }
+
 static void layoutLockedState(void) {
   const Font* font = get_body_font();
   const char* state =
