@@ -43,6 +43,21 @@ static bool testnet;
 
 const MayachainSignTx* mayachain_getMayachainSignTx(void) { return &msg; }
 
+/* MsgSend carries the bare denom ("cacao"); MsgDeposit carries the pool
+ * identifier ("MAYA.CACAO"). Both are CACAO, whose base unit is 1e-10. Any
+ * other denom is rendered in base units, because its exponent is not known
+ * on-device -- scaling it by CACAO's exponent states an amount the signed
+ * document does not contain, which is worse than an unscaled integer.
+ *
+ * One rule, one place: every screen that renders a MAYAChain amount asks this,
+ * so a send screen and a deposit screen cannot disagree about the same coin.
+ */
+int mayachain_decimalsForDenom(const char* denom) {
+  if (!denom) return 0;
+  return (strcmp(denom, "cacao") == 0 || strcmp(denom, "MAYA.CACAO") == 0) ? 10
+                                                                           : 0;
+}
+
 bool mayachain_formatAmount(uint64_t amount, const char* denom, char* out,
                             size_t out_len) {
   if (!tendermint_validateSafeText(denom) || !out || out_len == 0) return false;
@@ -51,7 +66,7 @@ bool mayachain_formatAmount(uint64_t amount, const char* denom, char* out,
   const int suffix_len = snprintf(suffix, sizeof(suffix), " %s", denom);
   if (suffix_len <= 0 || (size_t)suffix_len >= sizeof(suffix)) return false;
 
-  const int decimals = strcmp(denom, "cacao") == 0 ? 10 : 0;
+  const int decimals = mayachain_decimalsForDenom(denom);
   return bn_format_uint64(amount, NULL, suffix, decimals, 0, false, out,
                           out_len) != 0;
 }
@@ -123,7 +138,7 @@ bool mayachain_signTxInit(const HDNode* _node, const MayachainSignTx* _msg) {
 bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
                                    const char* to_address, const char* denom) {
   if (!initialized || msgs_remaining == 0) return false;
-  if (!tendermint_validateSafeText(denom)) return false;
+  if (!tendermint_isValidDenom(denom)) return false;
 
   const char mainnetp[] = "maya";
   const char testnetp[] = "smaya";
@@ -179,11 +194,14 @@ bool mayachain_signTxUpdateMsgSend(const uint64_t amount,
   const char* const prelude = "{\"type\":\"mayachain/MsgSend\",\"value\":{";
   sha256_Update(&ctx, (uint8_t*)prelude, strlen(prelude));
 
-  // 21 + ^20 + 11 + ^69 + 3 = ^124
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 "\"amount\":[{\"amount\":\"%" PRIu64
-                                 "\",\"denom\":\"%s\"}]",
-                                 amount, denom);
+  // Write amount prefix: 21 + ^20 = ^41
+  success &= tendermint_snprintf(
+      &ctx, buffer, sizeof(buffer),
+      "\"amount\":[{\"amount\":\"%" PRIu64 "\",\"denom\":\"", amount);
+  // Use escaping as defense-in-depth; valid denoms have no escapable chars
+  tendermint_sha256UpdateEscaped(&ctx, denom, strlen(denom));
+  // Close coins array: 3 bytes
+  sha256_Update(&ctx, (uint8_t*)"\"}]", 3);
 
   // 17 + 45 + 1 = 63
   success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
@@ -205,7 +223,7 @@ bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit* depmsg) {
 
   const char* const signer_prefix = testnet ? "smaya" : "maya";
   if (!depmsg || !depmsg->has_asset ||
-      !tendermint_validateSafeText(depmsg->asset) || !depmsg->has_signer ||
+      !tendermint_isValidAsset(depmsg->asset) || !depmsg->has_signer ||
       !tendermint_validateBech32Address(depmsg->signer, signer_prefix)) {
     return false;
   }
@@ -226,9 +244,11 @@ bool mayachain_signTxUpdateMsgDeposit(const MayachainMsgDeposit* depmsg) {
                                  "\"coins\":[{\"amount\":\"%" PRIu64 "\"",
                                  depmsg->amount);
 
-  // 10 + ^20 + 3 = ^33
-  success &= tendermint_snprintf(&ctx, buffer, sizeof(buffer),
-                                 ",\"asset\":\"%s\"}]", depmsg->asset);
+  // Use escaping as defense-in-depth; valid assets have no escapable chars
+  const char* const asset_prefix = ",\"asset\":\"";
+  sha256_Update(&ctx, (uint8_t*)asset_prefix, strlen(asset_prefix));
+  tendermint_sha256UpdateEscaped(&ctx, depmsg->asset, strlen(depmsg->asset));
+  sha256_Update(&ctx, (uint8_t*)"\"}]", 3);
 
   // <escape memo>
   const char* const memo_prefix = ",\"memo\":\"";
@@ -293,11 +313,9 @@ void mayachain_signAbort(void) {
   memzero(&node, sizeof(node));
 }
 
-/* Maya inherited THORChain's strtok-based parser. strtok() collapses empty
- * components even though memo fields are positional, so a valid `::` can
- * shift an affiliate into the limit slot while producing the same structured
- * screens as different signed bytes. Until this parser understands empty
- * positions explicitly, route such memos to the caller's raw-byte review. */
+/* Memo fields are positional. A memo with an empty component (`::`, a
+ * leading or trailing separator, or one beside the chain/asset dot) does not
+ * get the structured screens below: it goes to the caller's raw-byte review. */
 static bool mayachain_memo_has_empty_component(const char* memo, size_t size) {
   if (!memo || size == 0) return true;
 
@@ -318,18 +336,9 @@ static bool mayachain_memo_has_canonical_separators(const char* memo,
   /* The grammar is  OP:CHAIN.ASSET:DEST:LIMIT[:AFFILIATE:BPS]  -- ':' between
      fields, '.' only inside the chain/asset pair.
 
-     The tokenizer below cannot tell the two apart. After splitting the
-     operation on ':' it calls strtok(NULL, ":.") three times, so ':' and '.'
-     are interchangeable for everything it reads. A memo that puts a colon
-     where the dot belongs,
-
-         SWAP:ETH:USDT:dest:limit
-
-     therefore produces exactly the same three tokens as SWAP:ETH.USDT:... and
-     is reviewed as "asset USDT on chain ETH", while THORChain/MAYAChain read
-     that same memo with USDT as the DESTINATION -- every field after the
-     operation shifts by one, including the address the funds go to. The screen
-     and the protocol disagree about a memo the signature covers.
+     The splitter below cuts fields on ':' and then cuts the second field once,
+     at its first '.', so a second dot there would be shown as part of the
+     asset name.
 
      Require the dot exactly once and only inside the second colon-delimited
      field. Anything else is not this grammar, so it goes to the raw-byte path
@@ -391,22 +400,24 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
     transaction:chain.ticker-id:destination:limit[:affiliate:fee_bps...]
                 ^^^^^^^^^^^^^^----------asset
 
-    So, swap USDT to dest address 0x41e55..., limit 420
-    SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:0x41e5560054824ea6b0732e656e3ad64e20e94e45:420
+    So, swap USDT to dest address 0x41e55..., limit 420, affiliate "kk"
+    skimming 75 basis points:
+    SWAP:ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7:0x41e5560054824ea6b0732e656e3ad64e20e94e45:420:kk:75
 
     Swap transactions can be indicated by "SWAP" or "s" or "="
 
     Fields past the ones labelled below (affiliate, affiliate fee, aggregator
     routing) are executed by MAYAChain, so each branch pages whatever is left
-    rather than signing it unseen. Mirrors thorchain.c -- Maya is a fork of
-    that path and kept the original code.
+    rather than signing it unseen. thorchain.c pages them too; the field
+    splitting below is Maya's own.
   */
 
-  char* parseTokPtrs[7] = {NULL, NULL, NULL, NULL,
-                           NULL, NULL, NULL};  // we can parse up to 7 tokens
-  char* tok;
-  char memoBuf[256];
-  uint16_t ctr;
+  char* fields[8] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+  /* +1 so a full 256-byte memo keeps its last byte and a NUL. */
+  enum { MEMO_MAX = 256 };
+  char memoBuf[MEMO_MAX + 1];
+  size_t nfields, i;
+  char *chain, *asset;
 
   // check if memo data is recognized
 
@@ -449,58 +460,57 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
      non-canonical encoding and the device should not clear-sign one. And it
      keeps this parser safe by construction if Maya ever gains a length-passing
      caller of its own, which is exactly how THORChain acquired the real bug. */
-  for (uint16_t i = 0; i < size; i++) {
+  for (i = 0; i < size; i++) {
     if (memoBuf[i] == '\0') return MAYACHAIN_MEMO_UNPARSED;
   }
 
-  tok = strtok(memoBuf, ":");
-
-  // get transaction and asset
-  for (ctr = 0; ctr < 3; ctr++) {
-    if (tok != NULL) {
-      parseTokPtrs[ctr] = tok;
-      tok = strtok(NULL, ":.");
-    } else {
-      break;
+  // Split on ':'. No field is empty: such memos were refused above.
+  nfields = 0;
+  fields[nfields++] = memoBuf;
+  for (i = 0; memoBuf[i] != '\0' && nfields < 8; i++) {
+    if (memoBuf[i] == ':') {
+      memoBuf[i] = '\0';
+      fields[nfields++] = &memoBuf[i + 1];
     }
   }
 
-  if (ctr != 3) {
-    // Must have three tokens at this point: transaction, chain, asset. If
-    // not, just confirm data
+  if (nfields < 2) {
+    // Must have at least transaction and chain.asset.
     return MAYACHAIN_MEMO_UNPARSED;
   }
 
-  // Check for swap
-  if (strcmp(parseTokPtrs[0], "SWAP") == 0 ||
-      strcmp(parseTokPtrs[0], "s") == 0 || strcmp(parseTokPtrs[0], "=") == 0) {
-    // This is a swap, set up destination and limit
-    // This is the dest, may be blank which means swap to self
-    parseTokPtrs[3] = "self";
-    parseTokPtrs[4] = "none";
-    if (tok != NULL) {
-      if ((uint32_t)(tok - (parseTokPtrs[2] + strlen(parseTokPtrs[2]))) == 1) {
-        // has dest address
-        parseTokPtrs[3] = tok;
-        tok = strtok(NULL, ":");
-      }
-      if (tok != NULL) {
-        // has limit
-        parseTokPtrs[4] = tok;
-      }
-    }
+  // Split chain.asset at the first '.'
+  chain = fields[1];
+  asset = strchr(chain, '.');
+  if (asset == NULL) {
+    // No chain.asset pair; not recognizable mayachain data, just confirm data
+    return MAYACHAIN_MEMO_UNPARSED;
+  }
+  *asset = '\0';
+  asset++;
 
+  // Check for swap
+  if (strcmp(fields[0], "SWAP") == 0 || strcmp(fields[0], "s") == 0 ||
+      strcmp(fields[0], "=") == 0) {
+    /* Describe omitted trailing fields separately from literal memo text.
+     * "self" can be a MAYAName, not the sender, and "none" is not a numeric
+     * limit. Giving either omission that literal spelling made distinct signed
+     * memos look identical. Empty positional fields still take raw review. */
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Mayachain swap", "Confirm swap asset %s\n on chain %s",
-                 parseTokPtrs[2], parseTokPtrs[1])) {
+                 "Mayachain swap", "Confirm swap asset %s\n on chain %s", asset,
+                 chain)) {
       return MAYACHAIN_MEMO_CANCELLED;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Mayachain swap", "Confirm to %s", parseTokPtrs[3])) {
+                 "Mayachain swap", "%s%s",
+                 nfields > 2 ? "Confirm to " : "Destination field omitted",
+                 nfields > 2 ? fields[2] : "")) {
       return MAYACHAIN_MEMO_CANCELLED;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                 "Mayachain swap", "Confirm limit %s", parseTokPtrs[4])) {
+                 "Mayachain swap", "%s%s",
+                 nfields > 3 ? "Confirm limit " : "Limit field omitted",
+                 nfields > 3 ? fields[3] : "")) {
       return MAYACHAIN_MEMO_CANCELLED;
     }
     /* Everything after the limit - affiliate, affiliate fee in basis points,
@@ -508,9 +518,10 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
        The whole memo is hashed by strlen() in signTxUpdateMsgDeposit(), so a
        suffix such as ":affiliate:75" was signed unseen. Page each remaining
        field rather than sign it unseen. */
-    while ((tok = strtok(NULL, ":")) != NULL) {
+    for (size_t field = 4; field < nfields; field++) {
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   "Mayachain swap", "Additional memo field\n%s", tok)) {
+                   "Mayachain swap", "Additional memo field\n%s",
+                   fields[field][0] ? fields[field] : "(empty)")) {
         return MAYACHAIN_MEMO_CANCELLED;
       }
     }
@@ -518,33 +529,27 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
   }
 
   // Check for add liquidity
-  else if (strcmp(parseTokPtrs[0], "ADD") == 0 ||
-           strcmp(parseTokPtrs[0], "a") == 0 ||
-           strcmp(parseTokPtrs[0], "+") == 0) {
-    if (tok != NULL) {
-      // add liquidity pool address
-      parseTokPtrs[3] = tok;
-    }
+  else if (strcmp(fields[0], "ADD") == 0 || strcmp(fields[0], "a") == 0 ||
+           strcmp(fields[0], "+") == 0) {
+    const char* pool = (nfields > 2 && fields[2][0] != '\0') ? fields[2] : NULL;
 
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Mayachain add liquidity",
-                 "Confirm add asset %s\n on chain %s pool", parseTokPtrs[2],
-                 parseTokPtrs[1])) {
+                 "Confirm add asset %s\n on chain %s pool", asset, chain)) {
       return MAYACHAIN_MEMO_CANCELLED;
     }
-    if (tok != NULL) {
+    if (pool != NULL) {
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
-                   "Mayachain add liquidity", "Confirm to %s",
-                   parseTokPtrs[3])) {
+                   "Mayachain add liquidity", "Confirm to %s", pool)) {
         return MAYACHAIN_MEMO_CANCELLED;
       }
     }
     /* ADD:POOL:PAIREDADDR:AFFILIATE:FEE - the affiliate and its fee are
        optional but router-executed, so neither may be hidden. */
-    while ((tok = strtok(NULL, ":")) != NULL) {
+    for (size_t field = 3; field < nfields; field++) {
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                    "Mayachain add liquidity", "Additional memo field\n%s",
-                   tok)) {
+                   fields[field][0] ? fields[field] : "(empty)")) {
         return MAYACHAIN_MEMO_CANCELLED;
       }
     }
@@ -552,34 +557,35 @@ MayachainMemoResult mayachain_parseConfirmMemo(const char* swapStr,
   }
 
   // Check for withdraw liquidity
-  else if (strcmp(parseTokPtrs[0], "WITHDRAW") == 0 ||
-           strcmp(parseTokPtrs[0], "wd") == 0 ||
-           strcmp(parseTokPtrs[0], "-") == 0) {
-    if (tok != NULL) {
-      // add liquidity pool address
-      parseTokPtrs[3] = tok;
-    } else {
+  else if (strcmp(fields[0], "WITHDRAW") == 0 || strcmp(fields[0], "wd") == 0 ||
+           strcmp(fields[0], "-") == 0) {
+    if (nfields < 3 || fields[2][0] == '\0') {
       return MAYACHAIN_MEMO_UNPARSED;  // malformed memo
+    }
+    /* WD:POOL:BPS[:ASSET] — more than four fields is not this grammar, so it
+     * goes to raw review. thorchain.c pages the extra fields instead. */
+    if (nfields > 4) {
+      return MAYACHAIN_MEMO_UNPARSED;
     }
 
     uint16_t bps = 0;
-    if (!mayachain_parse_bps(parseTokPtrs[3], &bps)) {
+    if (!mayachain_parse_bps(fields[2], &bps)) {
       return MAYACHAIN_MEMO_UNPARSED;
     }
     if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                  "Mayachain withdraw liquidity",
                  "Confirm withdraw %u.%02u%% of asset %s on chain %s",
-                 (unsigned)(bps / 100u), (unsigned)(bps % 100u),
-                 parseTokPtrs[2], parseTokPtrs[1])) {
+                 (unsigned)(bps / 100u), (unsigned)(bps % 100u), asset,
+                 chain)) {
       return MAYACHAIN_MEMO_CANCELLED;
     }
     /* WD:POOL:BPS:ASSET - the optional 4th field pays the whole withdrawal
        out single-sided in ASSET instead of the symmetric split. It directs
        money and the screens are otherwise identical, so it must be shown. */
-    while ((tok = strtok(NULL, ":")) != NULL) {
+    for (size_t field = 3; field < nfields; field++) {
       if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput,
                    "Mayachain withdraw liquidity", "Additional memo field\n%s",
-                   tok)) {
+                   fields[field][0] ? fields[field] : "(empty)")) {
         return MAYACHAIN_MEMO_CANCELLED;
       }
     }

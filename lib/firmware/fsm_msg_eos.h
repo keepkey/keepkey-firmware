@@ -101,6 +101,7 @@ void fsm_msgEosSignTx(const EosSignTx* msg) {
 
   memzero(root, sizeof(*root));
   RESP_INIT(EosTxActionRequest);
+  note_workflow_progress();
   msg_write(MessageType_MessageType_EosTxActionRequest, resp);
 }
 
@@ -194,6 +195,11 @@ void fsm_msgEosTxActionAck(const EosTxActionAck* msg) {
 
   if (!eos_signingIsFinished()) {
     RESP_INIT(EosTxActionRequest);
+    /* Empty chunks with bytes still outstanding do not advance the action. */
+    if (!msg->has_unknown || msg->unknown.data_chunk.size > 0 ||
+        msg->unknown.data_size == 0) {
+      note_workflow_progress();
+    }
     msg_write(MessageType_MessageType_EosTxActionRequest, resp);
     return;
   }

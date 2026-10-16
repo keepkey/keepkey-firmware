@@ -22,6 +22,7 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "trezor/crypto/bip32.h"
 
@@ -34,5 +35,7 @@ typedef struct _EthereumSignTx EthereumSignTx;
 bool zx_isZxLiquidTx(const EthereumSignTx* msg);
 bool zx_confirmZxLiquidTx(uint32_t data_total, const EthereumSignTx* msg,
                           const HDNode* node);
+bool zx_formatZxLiquidityPrimaryAmount(const EthereumSignTx* msg, char* out,
+                                       size_t out_len);
 
 #endif

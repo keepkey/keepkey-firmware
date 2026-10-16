@@ -32,6 +32,9 @@
 #define V16_ENCSEC_SIZE 512  // for reading old encrypted sec size
 #define V17_ENCSEC_SIZE 1024
 
+/* Persisted clear-sign identities are deliberately absent. Runtime signers
+ * are session-only, AdvancedMode-only, and never become flash trust anchors. */
+
 typedef struct _authBlockType {
   authType authData[AUTHDATA_SIZE];                          // 450
   uint8_t reserved[512 - sizeof(authType) * AUTHDATA_SIZE];  // 62
@@ -70,6 +73,8 @@ typedef struct _Storage {
     bool authdata_encrypted;
     uint8_t random_salt[32];
     uint8_t authdata_fingerprint[32];
+    /* V20 CTAP2 state, stored in the V17 reserved plaintext area. */
+    PasskeyStorage passkeys;
   } pub;
 
   bool has_sec;
@@ -188,6 +193,10 @@ typedef enum {
   /// Storage was written by bitcoin-only firmware and this build must not load
   /// it. The wallet stays INTACT in flash -- this is a refusal, never a wipe.
   SUS_BitcoinOnlyLocked,
+  /// A Bitcoin-only wallet was written by a newer format than this firmware.
+  SUS_BitcoinOnlyTooNew,
+  /// Storage was written by newer firmware. Refuse it without touching flash.
+  SUS_TooNew,
 } StorageUpdateStatus;
 
 /// \brief Copy configuration from storage partition in flash memory to shadow
@@ -208,6 +217,10 @@ void storage_readV11(ConfigFlash* dst, const char* flash, size_t len);
 void storage_readV16(ConfigFlash* dst, const char* flash, size_t len);
 void storage_writeV11(char* flash, size_t len, const ConfigFlash* src);
 void storage_writeV16(char* flash, size_t len, const ConfigFlash* src);
+void storage_readV20(ConfigFlash* dst, const char* flash, size_t len);
+void storage_writeV20(char* flash, size_t len, const ConfigFlash* src);
+void storage_readStorageV20(Storage* storage, const char* ptr, size_t len);
+void storage_writeStorageV20(char* ptr, size_t len, const Storage* storage);
 
 void storage_readMeta(Metadata* meta, const char* ptr, size_t len);
 void storage_readPolicyV1(PolicyType* policy, const char* ptr, size_t len);

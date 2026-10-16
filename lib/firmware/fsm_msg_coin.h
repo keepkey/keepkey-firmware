@@ -82,6 +82,7 @@ void fsm_msgGetPublicKey(GetPublicKey* msg) {
   layoutHome();
 }
 
+// cppcheck-suppress constParameterPointer -- protobuf dispatcher ABI is mutable
 void fsm_msgSignTx(SignTx* msg) {
   /* A new start supersedes any prior Bitcoin stream even when this request is
    * malformed.  Otherwise its Failure can be followed by an ACK that resumes
@@ -298,7 +299,7 @@ void fsm_msgSignMessage(SignMessage* msg) {
   CHECK_INITIALIZED
 
   /* A zero-length message is not a message. confirm_bytes() renders size 0 as
-     the literal "(empty)" and returns whatever the owner pressed, so without
+     the literal "(no data)" and returns whatever the owner pressed, so without
      this the device would sign a payload no screen ever showed -- the same
      hole already closed on the TON and Solana paths. (`message` is a required
      field here, so nanopb rejects an omitted one during decode; only the empty
@@ -361,6 +362,7 @@ void fsm_msgSignMessage(SignMessage* msg) {
   layoutHome();
 }
 
+// cppcheck-suppress constParameterPointer -- protobuf dispatcher ABI is mutable
 void fsm_msgVerifyMessage(VerifyMessage* msg) {
   CHECK_PARAM(msg->has_address, _("No address provided"));
   CHECK_PARAM(msg->has_message, _("No message provided"));

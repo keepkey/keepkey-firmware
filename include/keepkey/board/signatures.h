@@ -27,4 +27,12 @@
 ///  \returns SIG_FAIL for unrecognized signature
 int signatures_ok(void);
 
+#include <stdint.h>
+
+/// Verifies three secp256k1 signatures over digest.
+///
+///  \returns SIG_OK only if all three verify, else SIG_FAIL
+int signatures_verify3(const uint8_t* const keys[3],
+                       const uint8_t* const sigs[3], const uint8_t digest[32]);
+
 #endif

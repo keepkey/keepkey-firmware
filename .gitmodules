@@ -5,6 +5,7 @@ branch = master
 [submodule "deps/trezor-firmware"]
 path = deps/crypto/trezor-firmware
 url = https://github.com/keepkey/trezor-firmware.git
+branch = review/715-redpallas-nonce-ct
 [submodule "googletest"]
 path = deps/googletest
 url = https://github.com/google/googletest.git

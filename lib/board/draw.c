@@ -355,6 +355,53 @@ void draw_box_simple(Canvas* canvas, uint8_t color, uint16_t x, uint16_t y,
  * OUTPUT
  *     true/false whether image was drawn
  */
+/* draw_bitmap_mono_rle_valid() - see draw.h. Trust-boundary check for
+ * host-supplied icons: the stream must fill the image exactly. */
+bool draw_bitmap_mono_rle_valid(const uint8_t* data, uint32_t length,
+                                uint16_t w, uint16_t h) {
+  if (!data || w == 0 || h == 0) {
+    return false;
+  }
+
+  const uint32_t pixels = (uint32_t)w * (uint32_t)h;
+  uint32_t emitted = 0;
+  uint32_t i = 0;
+
+  while (emitted < pixels) {
+    if (i >= length) {
+      return false; /* ran out of input mid-image */
+    }
+    const uint8_t raw = data[i];
+    if (raw == 0x80u || raw == 0u) {
+      return false; /* undecodable (int8_t counter) / not a packet */
+    }
+    i++;
+
+    uint32_t run;
+    if (raw > 127u) {
+      run = (uint32_t)(256u - raw); /* LITERAL: 1..127 distinct values */
+      if (i + run > length) {
+        return false; /* literal body truncated */
+      }
+      i += run;
+    } else {
+      run = raw; /* RUN: 1..127 copies of one value */
+      if (i >= length) {
+        return false; /* missing the run's value byte */
+      }
+      i++;
+    }
+
+    if (emitted + run > pixels) {
+      return false; /* run straddles the end of the image */
+    }
+    emitted += run;
+  }
+
+  /* Exactly filled, and nothing left over. */
+  return emitted == pixels && i == length;
+}
+
 bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
                           bool erase) {
   if (!frame || !canvas) {
@@ -367,6 +414,12 @@ bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
   /* Check that image will fit in bounds */
   if (((img->w + frame->x) > canvas->width) ||
       ((img->h + frame->y) > canvas->height)) {
+    return false;
+  }
+
+  /* The loop below cannot detect a straddling run or trailing packets; true
+   * must mean well-formed AND drawn. */
+  if (!draw_bitmap_mono_rle_valid(img->data, img->length, img->w, img->h)) {
     return false;
   }
 
@@ -383,12 +436,21 @@ bool draw_bitmap_mono_rle(Canvas* canvas, const AnimationFrame* frame,
       // sequence > 0 implies the next x pixels are the same
       // sequence < 0 implies the next -x pixels are all different
       if ((sequence == 0) && (nonsequence == 0)) {
-        sequence = img->data[pixel_index];
+        /* 0x80 cannot be negated in int8_t and 0 is no packet: both break
+         * the counter invariant. Host icons reach here; fail closed. */
+        const uint8_t raw = img->data[pixel_index];
+        if (raw == 0x80u || raw == 0u) {
+          return false;
+        }
         pixel_index++;
 
-        if (sequence < 0) {
-          nonsequence = -sequence;
+        /* Explicit conversion: uint8_t > 127 to int8_t is impl-defined. */
+        if (raw > 127u) {
+          nonsequence = (int8_t)((int)raw - 256); /* -127..-1 */
+          nonsequence = (int8_t)(-nonsequence);   /* 1..127, fits int8_t */
           sequence = 0;
+        } else {
+          sequence = (int8_t)raw; /* 1..127 */
         }
       }
 

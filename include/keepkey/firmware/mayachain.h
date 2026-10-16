@@ -38,6 +38,7 @@ const MayachainSignTx* mayachain_getMayachainSignTx(void);
 /* Format a signed MAYAChain coin amount without inventing an exponent for a
  * host-controlled denomination. Only cacao is defined here as 10 decimals;
  * every other denomination is shown as its exact base-unit integer. */
+int mayachain_decimalsForDenom(const char* denom);
 bool mayachain_formatAmount(uint64_t amount, const char* denom, char* out,
                             size_t out_len);
 

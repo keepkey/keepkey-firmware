@@ -17,16 +17,21 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 
 #ifndef KEEPKEY_UDP_PORT
 #define KEEPKEY_UDP_PORT 11044
 #endif
+
+#ifndef KKEMU_DYLIB
+/* Sockets are only used by the standalone UDP binary. In dylib/DLL mode all
+ * I/O goes through ring buffers (below), so skip the BSD socket headers and
+ * helpers entirely — they don't exist on MinGW/Windows. */
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
 struct usb_socket {
   int fd;
@@ -95,6 +100,7 @@ static size_t socket_read(struct usb_socket* sock, void* buffer, size_t size) {
 
   return n;
 }
+#endif /* !KKEMU_DYLIB — socket helpers are standalone-UDP only */
 
 #ifdef KKEMU_DYLIB
 /*

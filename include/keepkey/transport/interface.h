@@ -27,7 +27,6 @@
 #undef delete
 
 #include "messages-ethereum.pb.h"
-#include "messages-binance.pb.h"
 #include "messages-cosmos.pb.h"
 #include "messages-osmosis.pb.h"
 #include "messages-eos.pb.h"
@@ -38,6 +37,8 @@
 #include "messages-tron.pb.h"
 #include "messages-ton.pb.h"
 #include "messages-solana.pb.h"
+#include "messages-zcash.pb.h"
+#include "messages-hive.pb.h"
 
 #include "types.pb.h"
 #include "trezor_transport.h"

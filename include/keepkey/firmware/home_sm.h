@@ -45,6 +45,7 @@ void drop_workflow_progress_if_idle(void);
 /* Lock now (abort workflows, clear the PIN) if the idle deadline has passed
  * and no progressing workflow defers it. True if this call locked. */
 bool auto_lock_if_due(void);
+void note_pin_accepted(void);
 HomeState home_get_state(void);
 
 #endif

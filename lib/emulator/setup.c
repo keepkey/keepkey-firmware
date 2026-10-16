@@ -22,31 +22,48 @@
 #include "keepkey/rand/rng.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN /* winsock.h declares shutdown() */
+#include <windows.h>
+#include <bcrypt.h>
+#else
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
 
 #define EMULATOR_FLASH_FILE "emulator.img"
 
-uint32_t __stack_chk_guard;
+/* __stack_chk_guard is defined only in lib/board/keepkey_board.c. */
 
 static int urandom = -1;
 
 static void setup_urandom(void);
+
+#ifndef _WIN32
 static void setup_flash(void);
 
 void setup(void) {
   setup_urandom();
   setup_flash();
 }
+#endif
 
 /* For libkkemu: init RNG only (flash buffer provided by host) */
 void setup_urandom_only(void) { setup_urandom(); }
 
 void emulatorRandom(void* buffer, size_t size) {
+#ifdef _WIN32
+  /* Windows has no /dev/urandom — use the system CSPRNG. */
+  if (BCryptGenRandom(NULL, (PUCHAR)buffer, (ULONG)size,
+                      BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
+    fprintf(stderr, "BCryptGenRandom failed\n");
+    exit(1);
+  }
+#else
   setup_urandom();
 
   uint8_t* out = (uint8_t*)buffer;
@@ -61,9 +78,11 @@ void emulatorRandom(void* buffer, size_t size) {
     out += (size_t)n;
     remaining -= (size_t)n;
   }
+#endif
 }
 
 static void setup_urandom(void) {
+#ifndef _WIN32
   if (urandom >= 0) return;
 
   urandom = open("/dev/urandom", O_RDONLY);
@@ -71,8 +90,10 @@ static void setup_urandom(void) {
     perror("Failed to open /dev/urandom");
     exit(1);
   }
+#endif
 }
 
+#ifndef _WIN32
 static void setup_flash(void) {
   int fd = open(EMULATOR_FLASH_FILE, O_RDWR | O_SYNC | O_CREAT, 0644);
   if (fd < 0) {
@@ -103,3 +124,4 @@ static void setup_flash(void) {
     memset(emulator_flash_base, 0xff, FLASH_TOTAL_SIZE);
   }
 }
+#endif /* !_WIN32 */

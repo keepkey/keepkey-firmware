@@ -114,6 +114,7 @@ void fsm_msgMayachainSignTx(const MayachainSignTx* msg) {
   }
 
   memzero(node, sizeof(*node));
+  note_workflow_progress();
   msg_write(MessageType_MessageType_MayachainMsgRequest, resp);
   layoutHome();
 }
@@ -122,8 +123,14 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
   // Confirm transaction basics
   // supports only 1 message ack
   CHECK_PARAM(mayachain_signingIsInited(), "Signing not in progress");
-  if (msg->has_send && msg->send.has_to_address && msg->send.has_amount &&
-      msg->send.has_denom) {
+  if (msg->has_send == msg->has_deposit) {
+    mayachain_signAbort();
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Expected exactly one MAYAChain message"));
+    layoutHome();
+    return;
+  }
+  if (msg->has_send && msg->send.has_to_address && msg->send.has_amount) {
     // pass
   } else if (msg->has_deposit && msg->deposit.has_asset &&
              msg->deposit.has_amount && msg->deposit.has_memo &&
@@ -144,7 +151,20 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
 
   const MayachainSignTx* sign_tx = mayachain_getMayachainSignTx();
 
+  // Validated before any display or signing JSON (default "cacao").
+  const char* coin_denom =
+      (msg->has_send && msg->send.has_denom && msg->send.denom[0])
+          ? msg->send.denom
+          : "cacao";
+
   if (msg->has_send) {
+    if (!tendermint_isValidDenom(coin_denom)) {
+      mayachain_signAbort();
+      fsm_sendFailure(FailureType_Failure_SyntaxError, "Invalid denom");
+      layoutHome();
+      return;
+    }
+
     switch (msg->send.address_type) {
       case OutputAddressType_TRANSFER:
       default: {
@@ -158,14 +178,14 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
          * Size for the protocol maximum instead of hoping: a uint64 rendered
          * at 10 decimals is at most 20 digits plus a point (21), the suffix is
          * ' ' + 68 visible chars of denom (69), plus NUL. Then CHECK the
-         * result and fail closed, as fsm_msg_binance.h does. See GH #437. */
+         * result and fail closed. See GH #437. */
         char amount_str[21 + MAYACHAIN_DENOM_SUFFIX_LEN + 1];
         /* MayachainMsgSend.denom max_size:69 (messages-mayachain.options) ->
          * 68 visible chars + NUL. ' ' + 68 + NUL = 70 bytes; 71 keeps a 1-byte
          * margin. The prior code used unbounded sprintf(); switch to a bounded
          * snprintf so a future max_size bump can't silently overflow. */
-        if (!mayachain_formatAmount(msg->send.amount, msg->send.denom,
-                                    amount_str, sizeof(amount_str))) {
+        if (!mayachain_formatAmount(msg->send.amount, coin_denom, amount_str,
+                                    sizeof(amount_str))) {
           mayachain_signAbort();
           fsm_sendFailure(FailureType_Failure_SyntaxError,
                           "Invalid MAYAChain send amount");
@@ -196,12 +216,22 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
           layoutHome();
           return;
         }
-
+        /* Show the asset on its own screen too, apart from the amount it
+         * trails, before signing its serialized value. The amount/recipient
+         * screen is paged, so it does not clip a long denomination. */
+        if (!confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmOutput,
+                           "Asset", (const uint8_t*)coin_denom,
+                           strlen(coin_denom))) {
+          mayachain_signAbort();
+          fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+          layoutHome();
+          return;
+        }
         break;
       }
     }
     if (!mayachain_signTxUpdateMsgSend(msg->send.amount, msg->send.to_address,
-                                       msg->send.denom)) {
+                                       coin_denom)) {
       mayachain_signAbort();
       fsm_sendFailure(FailureType_Failure_SyntaxError,
                       "Failed to include send message in transaction");
@@ -218,7 +248,7 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
        document the device's key cannot authorize -- and the confirmation below
        labels that address as though it were a destination, so the screen would
        not have given it away. */
-    if (!tendermint_validateSafeText(msg->deposit.asset) ||
+    if (!tendermint_isValidAsset(msg->deposit.asset) ||
         !tendermint_validateBech32Address(msg->deposit.signer, signer_prefix) ||
         !mayachain_addressIsSigner(msg->deposit.signer)) {
       mayachain_signAbort();
@@ -295,6 +325,7 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
 
   if (!mayachain_signingIsFinished()) {
     RESP_INIT(MayachainMsgRequest);
+    note_workflow_progress();
     msg_write(MessageType_MessageType_MayachainMsgRequest, resp);
     return;
   }
@@ -356,8 +387,8 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg) {
 
   if (!confirm(ButtonRequestType_ButtonRequest_SignTx, node_str,
                "Sign %s on %s? Fee: %s. Gas: %" PRIu32 ".",
-               msg->has_send ? msg->send.denom : "CACAO", sign_tx->chain_id,
-               fee_str, sign_tx->gas)) {
+               msg->has_send ? coin_denom : "CACAO", sign_tx->chain_id, fee_str,
+               sign_tx->gas)) {
     mayachain_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();

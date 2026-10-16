@@ -1,7 +1,18 @@
-# KeepKey dice vs ColdCard: what each one lets a user prove
+# Historical 7.14.3 dice comparison and 7.15 design motivation
+
+> Historical design note: the comparison below describes the 7.14.3
+> derivation, not the current 7.15 implementation. In 7.15, dice-only and mixed
+> modes exclude host entropy, display the full secret digest, and support
+> independent recomputation from private inputs. Mixed mode displays the device
+> draw before the rolls. See [DiceEntropy.md](DiceEntropy.md) for exact formulas,
+> PIN order and secrecy requirements. The proposed dice-only derivation, full
+> digest and bias rejection below are implemented in 7.15; this repository does
+> not ship a standalone end-user verifier. The historical vendor comparison
+> below has not been refreshed as part of this firmware audit.
+
 
 Comparison as of 2026-09-09, against ColdCard Mk4/Mk5 5.6.2 and Q 1.5.2Q
-(status page verified 2026-09-04) and KeepKey 7.14.3 / 7.15.
+(status page verified 2026-09-04) and KeepKey 7.14.3.
 
 The question this answers is narrow and it is the only one that matters for an
 advanced user: **can you prove to yourself that the device used your dice?**
@@ -12,14 +23,14 @@ gap is not the dice-entry UI, which is comparable. It is the derivation.
 
 ## Side by side
 
-| | KeepKey 7.14.3 / 7.15 | ColdCard Mk4/Q |
+| | KeepKey 7.14.3 | ColdCard Mk4/Q |
 | --- | --- | --- |
 | Dice entered on-device | yes, single button, 7-cell 1-6+UNDO selector | yes, numeric keypad |
 | Rolls ever cross a wire | no | no |
 | Rolls required for a new seed | no, opt-in via `dice_entropy` | no; dice, coin flips, or timed key presses are required alternatives since 5.6.1 / 1.5.1Q |
 | Roll count for 24 words | 99 | 99 |
 | Roll count for 12 words | 50 | 50 |
-| Bias rejection on rolls | none | rejects any face over 30% frequency |
+| Bias rejection on rolls | none | rejects one face on 25/50, 32/75 or 39/99 rolls (fair-die false alarm ≤ 1e-6) |
 | Digest shown while rolling | after entry, **first 8 bytes** | live, **full 32 bytes** |
 | Digest is `SHA256(rolls)` | yes | yes |
 | Host can contribute entropy | **yes — optional `EntropyAck.entropy`; omission contributes zero host bytes** | **no such command exists** |
@@ -117,8 +128,10 @@ ColdCard offers both and labels dice-only as advanced.
    string and word count and printing the mnemonic and fingerprint.
 3. **Show the full 32-byte digest.** 64 bits already resists grinding, so this
    is parity rather than a fix, but it costs one line and removes an argument.
-4. **Bias rejection on the roll distribution**, matching ColdCard's 30% rule.
-   Cheap, and the only guard against a user whose die is visibly loaded.
+4. **Bias rejection on the roll distribution**, at a threshold a fair die
+   reaches in at most 1 in 1,000,000 ceremonies (ColdCard's 30% rule aborted
+   3.4% of fair 50-roll ceremonies). Cheap, and the only guard against a user
+   whose die is visibly loaded.
 5. **Never make dice-only the default.** It stakes the entire wallet on the
    user's dice and their privacy. It is the advanced option, and the warning
    screen has to say so.

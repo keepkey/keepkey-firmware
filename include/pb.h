@@ -682,23 +682,23 @@ struct pb_extension_s {
  * union name also, that's why a separate set of macros is needed.
  */
 #define PB_ONEOF_STATIC(u, tag, st, m, fd, ltype, ptr, ptype) \
-  {tag,                                                       \
-   PB_ATYPE_STATIC | PB_HTYPE_ONEOF | ltype,                  \
-   fd,                                                        \
-   pb_delta(st, which_##u, u.m),                              \
-   pb_membersize(st, u.m),                                    \
-   PB_BYTES_CAP_SINGLE(ptype, st, u.m),                       \
-   0,                                                         \
+  {tag,                                                \
+   PB_ATYPE_STATIC | PB_HTYPE_ONEOF | ltype,           \
+   fd,                                                 \
+   pb_delta(st, which_##u, u.m),                       \
+   pb_membersize(st, u.m),                             \
+   PB_BYTES_CAP_SINGLE(ptype, st, u.m),                \
+   0,                                                  \
    ptr}
 
 #define PB_ONEOF_POINTER(u, tag, st, m, fd, ltype, ptr, ptype) \
-  {tag,                                                        \
-   PB_ATYPE_POINTER | PB_HTYPE_ONEOF | ltype,                  \
-   fd,                                                         \
-   pb_delta(st, which_##u, u.m),                               \
-   pb_membersize(st, u.m[0]),                                  \
-   0,                                                          \
-   0,                                                          \
+  {tag,                                                 \
+   PB_ATYPE_POINTER | PB_HTYPE_ONEOF | ltype,           \
+   fd,                                                  \
+   pb_delta(st, which_##u, u.m),                        \
+   pb_membersize(st, u.m[0]),                           \
+   0,                                                   \
+   0,                                                   \
    ptr}
 
 #define PB_ONEOF_FIELD(union_name, tag, type, rules, allocation, placement, \
@@ -709,23 +709,23 @@ struct pb_extension_s {
       PB_LTYPE_MAP_##type, ptr, type)
 
 #define PB_ANONYMOUS_ONEOF_STATIC(u, tag, st, m, fd, ltype, ptr, ptype) \
-  {tag,                                                                 \
-   PB_ATYPE_STATIC | PB_HTYPE_ONEOF | ltype,                            \
-   fd,                                                                  \
-   pb_delta(st, which_##u, m),                                          \
-   pb_membersize(st, m),                                                \
-   PB_BYTES_CAP_SINGLE(ptype, st, m),                                   \
-   0,                                                                   \
+  {tag,                                                          \
+   PB_ATYPE_STATIC | PB_HTYPE_ONEOF | ltype,                     \
+   fd,                                                           \
+   pb_delta(st, which_##u, m),                                   \
+   pb_membersize(st, m),                                         \
+   PB_BYTES_CAP_SINGLE(ptype, st, m),                            \
+   0,                                                            \
    ptr}
 
 #define PB_ANONYMOUS_ONEOF_POINTER(u, tag, st, m, fd, ltype, ptr, ptype) \
-  {tag,                                                                  \
-   PB_ATYPE_POINTER | PB_HTYPE_ONEOF | ltype,                            \
-   fd,                                                                   \
-   pb_delta(st, which_##u, m),                                           \
-   pb_membersize(st, m[0]),                                              \
-   0,                                                                    \
-   0,                                                                    \
+  {tag,                                                           \
+   PB_ATYPE_POINTER | PB_HTYPE_ONEOF | ltype,                     \
+   fd,                                                            \
+   pb_delta(st, which_##u, m),                                    \
+   pb_membersize(st, m[0]),                                       \
+   0,                                                             \
+   0,                                                             \
    ptr}
 
 #define PB_ANONYMOUS_ONEOF_FIELD(union_name, tag, type, rules, allocation,  \

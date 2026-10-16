@@ -2,6 +2,7 @@
 
 extern "C" {
 #include "trezor/crypto/segwit_addr.h"
+#include "trezor/crypto/base58.h"
 #include "trezor/crypto/ecdsa.h"
 #include "trezor/crypto/cash_addr.h"
 }
@@ -11,6 +12,19 @@ extern "C" {
 #include <cinttypes>
 #include <string>
 #include <vector>
+
+TEST(Vuln1845, Base58RejectsOversizedAndNegativeLengths) {
+  uint8_t data[257] = {0};
+  char encoded[512] = {0};
+  size_t encoded_len = sizeof(encoded);
+  size_t decoded_len = sizeof(data);
+
+  EXPECT_FALSE(b58enc(encoded, &encoded_len, data, sizeof(data)));
+  EXPECT_FALSE(b58tobin(data, &decoded_len, "1"));
+  EXPECT_EQ(0, base58_encode_check(data, -1, HASHER_SHA2D, encoded,
+                                   sizeof(encoded)));
+  EXPECT_EQ(0, base58_decode_check("1", HASHER_SHA2D, data, -1));
+}
 
 TEST(Vuln1845, Bech32Decode) {
   std::string input =

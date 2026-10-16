@@ -27,6 +27,7 @@
 #include "keepkey/firmware/pin_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/rand/rng.h"
+#include "keepkey/rand/rng_health.h"
 #include "trezor/crypto/memzero.h"
 
 #include <stdbool.h>
@@ -79,7 +80,10 @@ static void check_for_pin_ack(PINInfo* pin_info) {
 #endif
 
     case MSG_TINY_TYPE_ERROR:
+      break;
     default:
+      msg_reject_unexpected_tiny();
+      pin_info->pin_ack_msg = PIN_ACK_CANCEL;
       break;
   }
   memzero(msg_tiny_buf, sizeof(msg_tiny_buf));
@@ -162,7 +166,13 @@ static bool pin_request(const char* prompt, PINInfo* pin_info) {
 
   /* Init and randomize pin matrix */
   strlcpy(pin_matrix, "123456789", PIN_BUF);
-  random_permute_char(pin_matrix, 9);
+  if (!random_permute_char_checked(pin_matrix, 9)) {
+    /* Halt, as storage_drawKeyMaterial() does. Other checked draws send a
+     * Failure instead, but false here would yield two. The verdict is latched
+     * anyway. */
+    layout_warning_static("RNG self-test failed. Reboot device!");
+    shutdown();
+  }
 
   /* Show layout */
   layout_pin(prompt, pin_matrix);
@@ -268,10 +278,7 @@ bool pin_protect(const char* prompt) {
   }
 
   storage_resetPinFails();
-  /* A correct PIN, entered against this prompt's scrambled matrix, proves
-   * the user is at the device. Renew the auto-lock deadline here, or the
-   * next main-loop tick re-locks a session the user just unlocked. */
-  reset_idle_time();
+  note_pin_accepted();
   ret = true;
 
 done:

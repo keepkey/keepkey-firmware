@@ -1,7 +1,14 @@
 set(sources
     font.cpp
+    hw_entropy.cpp
+    hw_entropy_probe.c
     memcmp_s.cpp
+    signatures.cpp
     board.cpp)
+
+# Only this probe compiles the device entropy branch on the native host.
+set_source_files_properties(hw_entropy_probe.c PROPERTIES
+    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/hardware_stubs)
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include

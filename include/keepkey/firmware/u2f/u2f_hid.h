@@ -74,11 +74,14 @@ typedef struct __attribute__((packed)) {
 #define U2FHID_PING \
   (TYPE_INIT | 0x01)                   // Echo data through local processor only
 #define U2FHID_MSG (TYPE_INIT | 0x03)  // Send U2F message frame
-#define U2FHID_LOCK (TYPE_INIT | 0x04)   // Send lock channel command
-#define U2FHID_INIT (TYPE_INIT | 0x06)   // Channel initialization
-#define U2FHID_WINK (TYPE_INIT | 0x08)   // Send device identification wink
-#define U2FHID_SYNC (TYPE_INIT | 0x3c)   // Protocol resync command
-#define U2FHID_ERROR (TYPE_INIT | 0x3f)  // Error response
+#define U2FHID_LOCK (TYPE_INIT | 0x04)       // Send lock channel command
+#define U2FHID_INIT (TYPE_INIT | 0x06)       // Channel initialization
+#define U2FHID_WINK (TYPE_INIT | 0x08)       // Send device identification wink
+#define U2FHID_CBOR (TYPE_INIT | 0x10)       // Send CTAP2 CBOR command
+#define U2FHID_CANCEL (TYPE_INIT | 0x11)     // Cancel current CTAP2 command
+#define U2FHID_KEEPALIVE (TYPE_INIT | 0x3b)  // Processing/user-presence status
+#define U2FHID_SYNC (TYPE_INIT | 0x3c)       // Protocol resync command
+#define U2FHID_ERROR (TYPE_INIT | 0x3f)      // Error response
 
 #define U2FHID_VENDOR_FIRST (TYPE_INIT | 0x40)  // First vendor defined command
 #define U2FHID_VENDOR_LAST (TYPE_INIT | 0x7f)   // Last vendor defined command
@@ -88,6 +91,7 @@ typedef struct __attribute__((packed)) {
 #define INIT_NONCE_SIZE 8  // Size of channel initialization challenge
 #define CAPFLAG_WINK 0x01  // Device supports WINK command
 #define CAPFLAG_LOCK 0x02  // Device supports LOCK command
+#define CAPFLAG_CBOR 0x04  // Device supports CTAP2 CBOR commands
 
 typedef struct __attribute__((packed)) {
   uint8_t nonce[INIT_NONCE_SIZE];  // Client application nonce
