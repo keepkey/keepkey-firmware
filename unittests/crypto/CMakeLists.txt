@@ -17,8 +17,8 @@ target_link_libraries(crypto-unit
     kkvariant.keepkey
     kkvariant.salt
     kkboard
-    kkemulator
     qrcodegenerator
     kkrand
+    kkemulator
     trezorcrypto
     kktransport)

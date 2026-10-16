@@ -13,11 +13,22 @@ services:
       - "127.0.0.1:5000:5000"
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health')\" || exit 1"]
-      interval: 3s
+      # The emulator is listening well inside a second; a 3s interval meant
+      # the integration suite sat waiting on poll granularity, not on the
+      # service. retries is raised alongside so shortening the interval does
+      # not also shorten how long a slow start is tolerated -- a failing check
+      # can burn up to `timeout` before the next `interval`, so the ceiling is
+      # roughly start_period + retries * (timeout + interval), not
+      # retries * interval.
+      interval: 1s
       timeout: 3s
-      retries: 20
-      start_period: 10s
+      retries: 40
+      start_period: 3s
   python-keepkey:
+    # Named so CI can build it once (`docker compose build python-keepkey`)
+    # and then `up` without --build, which would otherwise also force a
+    # rebuild of kkemu — the expensive one.
+    image: kktech/kkemu-tests:latest
     build:
       context: '../../'
       dockerfile: 'scripts/emulator/python-keepkey.Dockerfile'
@@ -29,6 +40,9 @@ services:
       kkemu:
         condition: service_healthy
   firmware-unit:
+    # Local-dev convenience only — CI runs `make xunit` directly against the
+    # image it just built, rather than paying for a second compose build.
+    image: kktech/kkemu:latest
     build:
       context: '../../'
       dockerfile: 'scripts/emulator/Dockerfile'

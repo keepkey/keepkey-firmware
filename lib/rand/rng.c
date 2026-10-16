@@ -21,10 +21,31 @@
 
 #include "trezor/crypto/rand.h"
 
+#ifdef EMULATOR
+#include "keepkey/emulator/emulator.h"
+#endif
+
 #ifndef EMULATOR
 #include <libopencm3/cm3/common.h>
 #include <libopencm3/stm32/memorymap.h>
 #include <libopencm3/stm32/f2/rng.h>
+#endif
+
+/* EMULATOR is a definedness switch throughout this firmware.  Reject it on an
+ * ARM target regardless of its value, so -DEMULATOR=0 cannot silently select a
+ * hosted RNG in production firmware. */
+#if defined(EMULATOR) && defined(__arm__)
+#error \
+    "EMULATOR selects the host CSPRNG; ARM firmware must use the STM32 hardware RNG"
+#endif
+
+/* trezor-crypto's crypto/rand.c contains a zero-seeded test LCG under
+ * #ifndef RAND_PLATFORM_INDEPENDENT.  Production supplies random32() here, so
+ * make removal of that provider declaration a compile failure rather than
+ * relying on today's duplicate-symbol link failure. */
+#ifndef RAND_PLATFORM_INDEPENDENT
+#error \
+    "RAND_PLATFORM_INDEPENDENT must be defined; otherwise trezor-crypto compiles its insecure test LCG"
 #endif
 
 void reset_rng(void) {
@@ -78,24 +99,28 @@ uint32_t random32(void) {
   last = new;
   return new;
 #else
-  return random();
+  /* Emulator cryptography uses the existing host OS CSPRNG implementation,
+   * which reads /dev/urandom and aborts on failure. */
+  uint32_t value = 0;
+  emulatorRandom(&value, sizeof(value));
+  return value;
 #endif
 }
 
 // I miss C++ templates sooo bad.
-#define RANDOM_PERMUTE(BUFF, COUNT)           \
-  do {                                        \
-    for (size_t i = (COUNT)-1; i >= 1; i--) { \
-      size_t j = random_uniform(i + 1);       \
-      typeof(*(BUFF)) t = (BUFF)[j];          \
-      (BUFF)[j] = (BUFF)[i];                  \
-      (BUFF)[i] = t;                          \
-    }                                         \
+#define RANDOM_PERMUTE(BUFF, COUNT)             \
+  do {                                          \
+    for (size_t i = (COUNT) - 1; i >= 1; i--) { \
+      size_t j = random_uniform(i + 1);         \
+      typeof(*(BUFF)) t = (BUFF)[j];            \
+      (BUFF)[j] = (BUFF)[i];                    \
+      (BUFF)[i] = t;                            \
+    }                                           \
   } while (0)
 
-void random_permute_char(char *str, size_t len) { RANDOM_PERMUTE(str, len); }
+void random_permute_char(char* str, size_t len) { RANDOM_PERMUTE(str, len); }
 
-void random_permute_u16(uint16_t *buf, size_t count) {
+void random_permute_u16(uint16_t* buf, size_t count) {
   RANDOM_PERMUTE(buf, count);
 }
 

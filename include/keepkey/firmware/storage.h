@@ -77,7 +77,10 @@ bool storage_getU2FRoot(HDNode* node);
 /// \brief Increment and return the next value for the U2F counter.
 uint32_t storage_nextU2FCounter(void);
 
-/// \brief Assign a new value for the U2F Counter.
+/// \brief Stage a new value for the U2F counter without writing flash.
+void storage_stageU2FCounter(uint32_t u2f_counter);
+
+/// \brief Assign and immediately persist a new value for the U2F counter.
 void storage_setU2FCounter(uint32_t u2f_counter);
 
 /// \brief Set device label

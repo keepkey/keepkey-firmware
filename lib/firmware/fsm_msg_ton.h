@@ -99,6 +99,21 @@ void fsm_msgTonSignTx(TonSignTx* msg) {
     return;
   }
 
+  /* AdvancedMode gate: to_address, amount and memo are display-only fields
+   * that are NOT derived from or checked against raw_tx, so this handler can
+   * only ever blind-sign opaque bytes. Same fence as fsm_msgTonSignMessage
+   * below, until the displayed fields are parsed out of raw_tx and verified
+   * against the bytes that actually get signed. */
+  if (!storage_isPolicyEnabled("AdvancedMode")) {
+    (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                 "TON transaction signing is blind-only. "
+                 "Enable AdvancedMode in device settings.");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Transaction signing disabled by policy"));
+    layoutHome();
+    return;
+  }
+
   // Derive node using Ed25519 curve
   HDNode* node = fsm_getDerivedNode(ED25519_NAME, msg->address_n,
                                     msg->address_n_count, NULL);
@@ -112,24 +127,12 @@ void fsm_msgTonSignTx(TonSignTx* msg) {
     return;
   }
 
-  bool needs_confirm = true;
-
-  // Display transaction details if available
-  if (needs_confirm && msg->has_to_address && msg->has_amount) {
-    char amount_str[32];
-    ton_formatAmount(amount_str, sizeof(amount_str), msg->amount);
-
-    if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Send",
-                 "Send %s TON to %s?", amount_str, msg->to_address)) {
-      memzero(node, sizeof(*node));
-      fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
-      layoutHome();
-      return;
-    }
-  }
-
-  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "Transaction",
-               "Really sign this TON transaction?")) {
+  /* Never render to_address/amount here: they are unbound to the signed
+   * bytes, so a hostile host can show one recipient on the OLED and get a
+   * completely different transaction signed. Name only what the device can
+   * actually verify -- how many bytes it is about to sign. */
+  if (!confirm(ButtonRequestType_ButtonRequest_SignTx, "TON Blind Sign",
+               "Sign %u-byte TON transaction?", (unsigned)msg->raw_tx.size)) {
     memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled, "Signing cancelled");
     layoutHome();
@@ -146,5 +149,72 @@ void fsm_msgTonSignTx(TonSignTx* msg) {
 
   memzero(node, sizeof(*node));
   msg_write(MessageType_MessageType_TonSignedTx, resp);
+  layoutHome();
+}
+
+void fsm_msgTonSignMessage(const TonSignMessage* msg) {
+  RESP_INIT(TonMessageSignature);
+
+  CHECK_INITIALIZED
+  CHECK_PIN
+
+  if (!msg->has_message || msg->message.size == 0) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Missing message"));
+    layoutHome();
+    return;
+  }
+
+  // Validate path: m/44'/607'/...
+  if (msg->address_n_count < 2 || msg->address_n[0] != (0x80000000 | 44) ||
+      msg->address_n[1] != (0x80000000 | 607)) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Invalid TON path (expected m/44'/607'/...)"));
+    layoutHome();
+    return;
+  }
+
+  /* AdvancedMode gate: TON message signing is bare Ed25519 over arbitrary
+   * bytes — no domain separation. A signed message is indistinguishable
+   * over the wire from a signed transaction. Same fence as SolanaSignMessage
+   * (see fsm_msg_solana.h:461) until TON Connect's ton_proof envelope is
+   * added as a separate handler. */
+  if (!storage_isPolicyEnabled("AdvancedMode")) {
+    (void)review(ButtonRequestType_ButtonRequest_Other, "Blocked",
+                 "TON message signing is experimental. "
+                 "Enable AdvancedMode in device settings.");
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Message signing disabled by policy"));
+    layoutHome();
+    return;
+  }
+
+  HDNode* node = fsm_getDerivedNode(ED25519_NAME, msg->address_n,
+                                    msg->address_n_count, NULL);
+  if (!node) return;
+  hdnode_fill_public_key(node);
+
+  /* Bind consent to the raw signing scheme, then page every signed byte.
+   * A prefix-plus-length preview lets equal-length payloads with the same first
+   * 32 bytes produce identical approval screens and different signatures. */
+  if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, "TON Message",
+               "Format: raw Ed25519. Version: none. Domain: none.") ||
+      !confirm_bytes(ButtonRequestType_ButtonRequest_ProtectCall, "Raw Message",
+                     msg->message.bytes, msg->message.size)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_ActionCancelled,
+                    _("Signing cancelled"));
+    layoutHome();
+    return;
+  }
+
+  if (!ton_message_sign(node, msg, resp)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_Other, _("TON message signing failed"));
+    layoutHome();
+    return;
+  }
+
+  memzero(node, sizeof(*node));
+  msg_write(MessageType_MessageType_TonMessageSignature, resp);
   layoutHome();
 }

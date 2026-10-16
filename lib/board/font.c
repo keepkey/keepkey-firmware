@@ -2599,7 +2599,10 @@ uint32_t calc_str_width(const Font* font, const char* str) {
  *     line count
  */
 uint32_t calc_str_line(const Font* font, const char* str, uint16_t line_width) {
-  uint8_t line_count = 1;
+  /* Must not be uint8_t: confirm_body_fits() treats this count as a security
+   * boundary, and a body carrying 255 newlines would wrap an 8-bit counter
+   * back to 0 and be reported as fitting on screen. */
+  uint32_t line_count = 1;
   uint16_t x_offset = 0;
 
   while (*str) {

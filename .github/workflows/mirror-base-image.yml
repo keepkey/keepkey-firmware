@@ -1,0 +1,68 @@
+# Mirrors the firmware build base image from Docker Hub into this org's GHCR.
+#
+# Why: every CI job that compiles anything starts by pulling ~650 MB of base
+# image. Served from Docker Hub that measured ~34s per job; GHCR serves it to
+# GitHub-hosted runners over the same network and does not apply Docker Hub's
+# anonymous pull limits.
+#
+# CI treats the mirror as optional -- ci.yml falls back to Docker Hub with a
+# warning if the pull fails -- so this workflow never becomes a hard
+# dependency of the build. Run it once to populate the mirror, and again
+# whenever BASE_IMAGE in ci.yml is bumped.
+name: Mirror base image
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_image:
+        description: 'Docker Hub image to mirror (must match BASE_IMAGE in ci.yml)'
+        required: true
+        type: string
+        default: 'kktech/firmware:v15'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull, tag and push
+        env:
+          SOURCE: ${{ inputs.source_image }}
+        run: |
+          set -euo pipefail
+
+          # The source is constrained to the upstream base image, and the
+          # destination name is fixed rather than derived from the input.
+          #
+          # Both matter. ci.yml pulls BASE_IMAGE_MIRROR and builds firmware
+          # from it, so whatever lands at ghcr.io/<owner>/firmware:<tag> is
+          # trusted by every subsequent build. Deriving the destination from
+          # the input -- as this previously did, via ${SOURCE##*/} -- meant a
+          # dispatch of `anyone/firmware:v15` would resolve to that same
+          # destination and overwrite the image CI trusts. Dispatch needs
+          # write access, but "a writer can typo" and "a writer can silently
+          # replace the firmware build base" are different blast radii.
+          if [[ ! "${SOURCE}" =~ ^kktech/firmware:[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::refusing to mirror '${SOURCE}'. This workflow only mirrors kktech/firmware:<tag>, because ci.yml builds firmware from whatever it publishes."
+            exit 1
+          fi
+
+          TAG="${SOURCE##*:}"
+          DEST="ghcr.io/${{ github.repository_owner }}/firmware:${TAG}"
+          echo "mirroring ${SOURCE} -> ${DEST}"
+          docker pull "${SOURCE}"
+          docker tag  "${SOURCE}" "${DEST}"
+          docker push "${DEST}"
+          echo "::notice::Mirrored ${SOURCE} to ${DEST}"
+          echo "Set BASE_IMAGE_MIRROR in ci.yml to ${DEST} if it differs."

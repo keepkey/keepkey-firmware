@@ -29,29 +29,9 @@ static int process_ethereum_xfer(const CoinType* coin, EthereumSignTx* msg) {
                             /*show_addridx=*/false))
     return TXOUT_COMPILE_ERROR;
 
-  if (!coin->has_forkid) return TXOUT_COMPILE_ERROR;
-
-  const uint32_t chain_id = coin->forkid;
-
-  const uint8_t* value_bytes;
-  size_t value_size;
-  const TokenType* token;
-
-  if (ethereum_isStandardERC20Transfer(msg)) {
-    value_bytes = msg->data_initial_chunk.bytes + 4 + 32;
-    value_size = 32;
-    token = tokenByChainAddress(chain_id, msg->to.bytes);
-  } else {
-    value_bytes = msg->value.bytes;
-    value_size = msg->value.size;
-    token = NULL;
-  }
-
-  bignum256 value;
-  bn_from_bytes(value_bytes, value_size, &value);
-
   char amount_str[128 + sizeof(msg->token_shortcut) + 3];
-  ethereumFormatAmount(&value, token, chain_id, amount_str, sizeof(amount_str));
+  if (!ethereumFormatTransferAmount(msg, amount_str, sizeof(amount_str)))
+    return TXOUT_COMPILE_ERROR;
 
   if (!confirm_transfer_output(
           ButtonRequestType_ButtonRequest_ConfirmTransferToAccount, amount_str,
@@ -96,9 +76,23 @@ static int process_ethereum_msg(EthereumSignTx* msg, bool* needs_confirm) {
 }
 
 void fsm_msgEthereumSignTx(EthereumSignTx* msg) {
+  /* A new start supersedes any old Ethereum stream before validation. */
+  ethereum_signing_abort();
+
   CHECK_INITIALIZED
 
   CHECK_PIN
+
+  /* Validate the replay-protection domain before any transaction-specific
+   * review. process_ethereum_msg() can draw a transfer-to-account screen, so
+   * leaving this to ethereum_signing_init() meant OutputAddressType_TRANSFER
+   * emitted a ButtonRequest before an omitted chain_id was refused. */
+  if (!ethereum_chainIdIsValid(msg)) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    _("Chain Id out of bounds"));
+    layoutHome();
+    return;
+  }
 
   bool needs_confirm = true;
   int msg_result = process_ethereum_msg(msg, &needs_confirm);
@@ -131,9 +125,21 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
                                     msg->address_n_count, NULL);
   if (!node) return;
 
-  resp->address.size = 20;
+  /* Build the whole answer in LOCALS and commit it to `resp` only after the
+   * confirmation.
+   *
+   * `resp` aliases fsm.c's single msg_resp buffer, and confirm_* below runs a
+   * message loop: every DebugLink request the emulator harness makes while a
+   * screen is up is dispatched from inside it, and those handlers RESP_INIT
+   * the same buffer. Anything staged in `resp` before the screen is therefore
+   * live across an arbitrary number of foreign writes to it -- which is how
+   * EthereumAddress.address_str reached the host as undecodable bytes.
+   *
+   * fsm_msgNanoGetAddress() already builds into a local and assigns after its
+   * confirm; this handler was the one that staged first. */
+  uint8_t pubkeyhash[20] = {0};
 
-  if (!hdnode_get_ethereum_pubkeyhash(node, resp->address.bytes)) {
+  if (!hdnode_get_ethereum_pubkeyhash(node, pubkeyhash)) {
     memzero(node, sizeof(*node));
     return;
   }
@@ -159,11 +165,7 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
   }
 
   char address[43] = {'0', 'x'};
-  ethereum_address_checksum(resp->address.bytes, address + 2, rskip60,
-                            chain_id);
-
-  resp->has_address_str = true;
-  strlcpy(resp->address_str, address, sizeof(resp->address_str));
+  ethereum_address_checksum(pubkeyhash, address + 2, rskip60, chain_id);
 
   if (msg->has_show_display && msg->show_display) {
     char node_str[NODE_STRING_LENGTH];
@@ -187,48 +189,47 @@ void fsm_msgEthereumGetAddress(EthereumGetAddress* msg) {
   }
 
   memzero(node, sizeof(*node));
+
+  /* Only now, with no further message loop between here and the write. */
+  resp->address.size = sizeof(pubkeyhash);
+  memcpy(resp->address.bytes, pubkeyhash, sizeof(pubkeyhash));
+  resp->has_address_str = true;
+  strlcpy(resp->address_str, address, sizeof(resp->address_str));
+
   msg_write(MessageType_MessageType_EthereumAddress, resp);
   layoutHome();
 }
 
-#define MSG_MAX (38 * 3)  // 38 chars per line, three lines max
 void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
-  char msgBuf[MSG_MAX + 1] = {0};
-  const char* typeIndicator;
-  unsigned ctr;
-  unsigned msgLen = 0;
-  bool canPrint = true;
-
   RESP_INIT(EthereumMessageSignature);
 
   CHECK_INITIALIZED
 
   CHECK_PIN
 
-  // truncate to display size if too long
-  msgLen = msg->message.size * 2;
-  if (msgLen > MSG_MAX) {
-    msgLen = MSG_MAX;
-  }
-  for (ctr = 0; ctr < msg->message.size; ctr++) {
-    if (isprint(msg->message.bytes[ctr]) == false) {
-      canPrint = false;
-      break;
-    }
-  }
-  if (canPrint) {
-    typeIndicator = "Sign Message";
-    strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
-    msgBuf[MSG_MAX] = '\0';
-  } else {
-    typeIndicator = "Sign Bytes";
-    for (ctr = 0; ctr < msgLen / 2; ctr++) {
-      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
-    }
+  /* A zero-length message is not a message. confirm_bytes() renders size 0 as
+     the literal "(empty)" and returns whatever the owner pressed, so without
+     this the device would sign a payload no screen ever showed -- the same
+     hole already closed on the TON and Solana paths. (`message` is a required
+     field here, so nanopb rejects an omitted one during decode; only the empty
+     case reaches this far.) */
+  if (msg->message.size == 0) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Missing message"));
+    layoutHome();
+    return;
   }
 
-  if (!confirm(ButtonRequestType_ButtonRequest_ProtectCall, _(typeIndicator),
-               "%s", msgBuf)) {
+  /* Merge note (#432 vs this branch): release/7.14.2 gated Ethereum message
+   * signing behind AdvancedMode, which blocks every Sign-In-With-Ethereum flow
+   * on a default device until the user explicitly enables blind signing.
+   * AdvancedMode persists across power cycles until explicitly disabled.
+   * confirm_bytes() paginates and displays EVERY signed byte, which is what
+   * that gate was standing in for. Full disclosure is both the stronger
+   * security property and the one that does not break default-configuration
+   * signing, so the gate is dropped here in favour of it. */
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_ProtectCall,
+                     _("Sign Ethereum Message"), msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -244,12 +245,6 @@ void fsm_msgEthereumSignMessage(EthereumSignMessage* msg) {
 }
 
 void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
-  char msgBuf[MSG_MAX + 1] = {0};
-  const char* typeIndicator;
-  unsigned ctr;
-  unsigned msgLen = 0;
-  bool canPrint = true;
-
   CHECK_PARAM(msg->has_address, _("No address provided"));
   CHECK_PARAM(msg->has_message, _("No message provided"));
 
@@ -266,29 +261,9 @@ void fsm_msgEthereumVerifyMessage(const EthereumVerifyMessage* msg) {
     return;
   }
 
-  // truncate to display size if too long
-  msgLen = msg->message.size;
-  if (msgLen > MSG_MAX) {
-    msgLen = MSG_MAX;
-  }
-  for (ctr = 0; ctr < msgLen; ctr++) {
-    if (isprint(msg->message.bytes[ctr]) == false) {
-      canPrint = false;
-      break;
-    }
-  }
-  if (canPrint) {
-    typeIndicator = "Message Verified";
-    strncpy(msgBuf, (char*)msg->message.bytes, MSG_MAX + 1);
-    msgBuf[MSG_MAX] = '\0';
-  } else {
-    typeIndicator = "Bytes Verified";
-    for (ctr = 0; ctr < msgLen / 2; ctr++) {
-      snprintf(&msgBuf[2 * ctr], 3, "%02x", msg->message.bytes[ctr]);
-    }
-  }
-  if (!confirm(ButtonRequestType_ButtonRequest_Other, _(typeIndicator), "%s",
-               msgBuf)) {
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                     _("Ethereum Message Verified"), msg->message.bytes,
+                     msg->message.size)) {
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
     return;
@@ -305,6 +280,14 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
 
   CHECK_PIN
 
+  if (!ethereum_typed_hash_policy_allows(
+          storage_isPolicyEnabled("AdvancedMode"))) {
+    fsm_sendFailure(FailureType_Failure_Other,
+                    _("Enable AdvancedMode to blind-sign typed hashes"));
+    layoutHome();
+    return;
+  }
+
   if (msg->domain_separator_hash.size != 32 ||
       (msg->has_message_hash && msg->message_hash.size != 32)) {
     fsm_sendFailure(FailureType_Failure_Other,
@@ -312,12 +295,27 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
     return;
   }
 
-  const HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
-                                          msg->address_n_count, NULL);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "EIP-712 Blind Sign",
+               "Cannot verify these hashes. Trust the host?")) {
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
+
+  /* Not const: every exit past this point has to scrub the node.
+   *
+   * `node` is the shared fsm_derived_node scratch. A Cancel answered at any of
+   * the confirmations below is consumed by confirm_screen() and returned as a
+   * refusal -- it never reaches fsm_msgCancel(), so nothing else runs
+   * fsm_abort_workflows() on the way out. Each early return here was therefore
+   * leaving a derived private key resident, and so was the success path. */
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+                                    msg->address_n_count, NULL);
   if (!node) return;
 
   uint8_t pubkeyhash[20] = {0};
   if (!hdnode_get_ethereum_pubkeyhash(node, pubkeyhash)) {
+    memzero(node, sizeof(*node));
     layoutHome();
     return;
   }
@@ -331,27 +329,48 @@ void fsm_msgEthereumSignTypedHash(const EthereumSignTypedHash* msg) {
   char str[64 + 1];
   int ctr;
 
-  confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
-          "Confirm address: %s", resp->address);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Verify Address",
+               "Confirm address: %s", resp->address)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
 
   for (ctr = 0; ctr < 64 / 2; ctr++) {
     snprintf(&str[2 * ctr], 3, "%02x", msg->domain_separator_hash.bytes[ctr]);
   }
-  confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain",
-          "Confirm hash digest: %s", str);
+  if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data domain",
+               "Confirm hash digest: %s", str)) {
+    memzero(node, sizeof(*node));
+    fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+    layoutHome();
+    return;
+  }
 
   if (msg->has_message_hash) {
     for (ctr = 0; ctr < 64 / 2; ctr++) {
       snprintf(&str[2 * ctr], 3, "%02x", msg->message_hash.bytes[ctr]);
     }
-    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
-            "Confirm hash digest: %s", str);
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
+                 "Confirm hash digest: %s", str)) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
   } else {
-    confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
-            "Confirm: No message");
+    if (!confirm(ButtonRequestType_ButtonRequest_Other, "Typed Data message",
+                 "Confirm: No message")) {
+      memzero(node, sizeof(*node));
+      fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
+      layoutHome();
+      return;
+    }
   }
 
   ethereum_typed_hash_sign(msg, node, resp);
+  memzero(node, sizeof(*node));
   layoutHome();
 }
 
@@ -362,18 +381,31 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues* msg) {
 
   CHECK_PIN
 
+  if (!ethereum_structured_eip712_enabled()) {
+    fsm_sendFailure(
+        FailureType_Failure_Other,
+        _("Structured EIP-712 disabled pending canonical display hardening"));
+    layoutHome();
+    return;
+  }
+
   if (strlen(msg->eip712types) == 0) {
     fsm_sendFailure(FailureType_Failure_Other,
                     _("Invalid EIP-712 types property string"));
     return;
   }
 
-  const HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
-                                          msg->address_n_count, NULL);
+  /* Not const, for the same reason as fsm_msgEthereumSignTypedHash() above:
+   * this is the shared fsm_derived_node scratch and every exit has to scrub
+   * it. e712_types_values() runs its own confirmations, and a Cancel answered
+   * there never reaches fsm_msgCancel(). */
+  HDNode* node = fsm_getDerivedNode(SECP256K1_NAME, msg->address_n,
+                                    msg->address_n_count, NULL);
   if (!node) return;
 
   uint8_t pubkeyhash[20] = {0};
   if (!hdnode_get_ethereum_pubkeyhash(node, pubkeyhash)) {
+    memzero(node, sizeof(*node));
     layoutHome();
     return;
   }
@@ -383,6 +415,7 @@ void fsm_msgEthereum712TypesValues(Ethereum712TypesValues* msg) {
   ethereum_address_checksum(pubkeyhash, resp->address + 2, false, 0);
 
   e712_types_values(msg, resp, node);
+  memzero(node, sizeof(*node));
 
   layoutHome();
 }

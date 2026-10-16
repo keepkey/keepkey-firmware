@@ -29,6 +29,18 @@
 
 #define RIPPLE_DECIMALS 6
 
+/* Version byte of a classic XRP account address. ripple_getAddress() encodes
+   it and ripple_serializeAddress() discards it, so anything else would sign a
+   different account than the screen showed. */
+#define RIPPLE_ADDRESS_VERSION 0x00
+
+/* The largest drop amount ripple_serializeAmount() can encode. Above this the
+   value collides with the bits that flag "XRP" and "positive", so the
+   serializer would emit a different amount than the one supplied. It guarded
+   this with assert(), which compiles out of release builds -- so the bound has
+   to be enforced by the message handler instead. */
+#define RIPPLE_MAX_DROPS 100000000000ULL
+
 #define RIPPLE_FLAG_FULLY_CANONICAL 0x80000000
 
 typedef enum {
@@ -59,7 +71,13 @@ extern const RippleFieldMapping RFM_destinationTag;
 bool ripple_getAddress(const uint8_t public_key[33],
                        char address[MAX_ADDR_SIZE]);
 
-void ripple_formatAmount(char* buf, size_t len, uint64_t amount);
+/// Render `amount` drops as XRP.
+/// \returns false if it does not fit `buf`, in which case the transaction must
+/// be refused: an amount the device cannot render is not one it can show.
+bool ripple_formatAmount(char* buf, size_t len, uint64_t amount);
+
+/// True iff `address` decodes to the 21 raw bytes the serializer requires.
+bool ripple_validateAddress(const char* address);
 
 void ripple_serializeType(bool* ok, uint8_t** buf, const uint8_t* end,
                           const RippleFieldMapping* m);
@@ -90,6 +108,8 @@ bool ripple_serialize(uint8_t** buf, const uint8_t* end, const RippleSignTx* tx,
                       const char* source_address, const uint8_t* pubkey,
                       const uint8_t* sig, size_t sig_len);
 
-void ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp);
+/// \returns false if the transaction could not be serialized or signed, in
+/// which case `resp` is incomplete and must not be sent as a success.
+bool ripple_signTx(const HDNode* node, RippleSignTx* tx, RippleSignedTx* resp);
 
 #endif

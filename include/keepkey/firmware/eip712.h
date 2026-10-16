@@ -98,7 +98,17 @@ typedef enum { DOMAIN = 1, MESSAGE } dm;
 
 #define LAST_ERROR JSON_TYPE_WNOVAL
 
+/* A review screen was not confirmed. Deliberately above LAST_ERROR and outside
+   the failMsgReturn[] table in ethereum.c, which is sized LAST_ERROR - 2 and
+   indexed err - 3: a code at or below LAST_ERROR would shift every message in
+   that table. failMessage() handles this one before the table is reached, and
+   reports it as FailureType_Failure_ActionCancelled rather than a parse
+   error. */
+#define USER_CANCELLED 34
+
+int encAddress(const char* string, uint8_t* encoded);
 int encode(const json_t* jsonTypes, const json_t* jsonVals, const char* typeS,
            uint8_t* hashRet);
+bool eip712_parse_canonical_u32(const char* text, uint32_t* value);
 
 #endif

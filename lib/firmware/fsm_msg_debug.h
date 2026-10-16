@@ -1,3 +1,5 @@
+#include "keepkey/board/keepkey_display.h"
+
 #if DEBUG_LINK
 void fsm_msgDebugLinkGetState(DebugLinkGetState* msg) {
   (void)msg;
@@ -46,11 +48,15 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState* msg) {
   resp->storage_hash.size =
       memory_storage_hash(resp->storage_hash.bytes, storage_getLocation());
 
-  /* Render pending animations ONLY if the animation queue is active.
-   * Static layouts (warning screens, address displays) write directly
-   * to the canvas — calling animate() unconditionally overwrites them
-   * with stale animation frames. Only run animations when queued. */
-  if (is_animating()) {
+  /* PIN and recovery handlers block inside their input state machines, so a
+   * DebugLink request is serviced without the normal outer animation pump.
+   * Advance one deterministic 20 ms tick only for those active input UIs.
+   * Advancing unrelated queued animations would make idle DebugLink reads
+   * mutate the evidence frame. */
+  const char* matrix = get_pin_matrix();
+  const char* cipher = recovery_get_cipher();
+  if ((matrix && matrix[0] != 'X') ||
+      (setup_isArmedAs(SETUP_RECOVERY) && cipher && cipher[0] != '\0')) {
     force_animation_start();
     animate();
   }
@@ -67,7 +73,7 @@ void fsm_msgDebugLinkGetState(DebugLinkGetState* msg) {
       memset(resp->layout.bytes, 0, 2048);
       for (int x = 0; x < 256; x++) {
         for (int y = 0; y < 64; y++) {
-          if (c->buffer[y * 256 + x] > 0) {
+          if (display_mono_pixel_is_lit(c->buffer[y * 256 + x], x, y)) {
             resp->layout.bytes[x + (y / 8) * 256] |= (1 << (y % 8));
           }
         }

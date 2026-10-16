@@ -23,6 +23,7 @@
 #include "keepkey/board/timer.h"
 #include "keepkey/board/layout.h"
 #include "keepkey/board/util.h"
+#include "trezor/crypto/memzero.h"
 
 #include <nanopb.h>
 
@@ -122,20 +123,26 @@ static bool pb_parse(const MessagesMap_t* entry, const uint8_t* msg,
 static void dispatch(const MessagesMap_t* entry, const uint8_t* msg,
                      uint32_t msg_size) {
   static uint8_t decode_buffer[MAX_DECODE_SIZE] __attribute__((aligned(4)));
-  memset(decode_buffer, 0, sizeof(decode_buffer));
+  memzero(decode_buffer, sizeof(decode_buffer));
 
   if (!pb_parse(entry, msg, msg_size, decode_buffer)) {
     (*msg_failure)(FailureType_Failure_UnexpectedMessage,
                    "Could not parse protocol buffer message");
-    return;
+    goto cleanup;
   }
 
   if (!entry->process_func) {
     (*msg_failure)(FailureType_Failure_UnexpectedMessage, "Unexpected message");
-    return;
+    goto cleanup;
   }
 
   entry->process_func(decode_buffer);
+
+cleanup:
+  /* Parsed protobufs can contain PINs, passphrases, authenticator seeds, and
+   * other credentials.  Handlers must copy any state they retain; do not keep
+   * the source message resident until the next dispatch. */
+  memzero(decode_buffer, sizeof(decode_buffer));
 }
 
 /*

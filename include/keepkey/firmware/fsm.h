@@ -38,6 +38,10 @@
 
 void fsm_init(void);
 
+/* End every in-flight workflow and scrub its volatile authorization/key
+ * state. Call before any operation that clears or revokes a session. */
+void fsm_abort_workflows(void);
+
 void fsm_sendSuccess(const char* text);
 
 void fsm_sendFailure(FailureType code, const char* text);
@@ -120,11 +124,16 @@ void fsm_msgMayachainMsgAck(const MayachainMsgAck* msg);
 
 void fsm_msgTronGetAddress(const TronGetAddress* msg);
 void fsm_msgTronSignTx(TronSignTx* msg);
+void fsm_msgTronSignMessage(TronSignMessage* msg);
+void fsm_msgTronVerifyMessage(const TronVerifyMessage* msg);
+void fsm_msgTronSignTypedHash(const TronSignTypedHash* msg);
 void fsm_msgTonGetAddress(const TonGetAddress* msg);
 void fsm_msgTonSignTx(TonSignTx* msg);
+void fsm_msgTonSignMessage(const TonSignMessage* msg);
 void fsm_msgSolanaGetAddress(const SolanaGetAddress* msg);
 void fsm_msgSolanaSignTx(const SolanaSignTx* msg);
 void fsm_msgSolanaSignMessage(const SolanaSignMessage* msg);
+void fsm_msgSolanaSignOffchainMessage(const SolanaSignOffchainMessage* msg);
 
 #if DEBUG_LINK
 // void fsm_msgDebugLinkDecision(DebugLinkDecision *msg);

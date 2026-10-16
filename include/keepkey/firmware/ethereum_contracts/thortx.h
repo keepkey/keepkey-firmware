@@ -22,13 +22,11 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #define ETH_ADDRESS                                                          \
   "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
   "\x00\x00"
-#define ETH_NATIVE                                                           \
-  "\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee\xee" \
-  "\xee\xee"
 
 #define THOR_ROUTER "42a5ed456650a09dc10ebc6361a7480fdd61f27b"
 
@@ -43,6 +41,9 @@ typedef struct _EthereumSignTx EthereumSignTx;
 bool thor_has_deposit_selector(const EthereumSignTx* msg);
 bool thor_is_expiry_variant(const EthereumSignTx* msg);
 bool thor_isThorchainTx(const EthereumSignTx* msg);
+bool thor_assetIsNative(const uint8_t asset_address[20]);
 bool thor_confirmThorTx(uint32_t data_total, const EthereumSignTx* msg);
+bool thor_formatUnknownAssetAmount(const uint8_t word[32], char* out,
+                                   size_t out_len);
 
 #endif

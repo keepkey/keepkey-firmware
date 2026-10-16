@@ -344,7 +344,8 @@ void layout_constant_power_notification(const char* str1, const char* str2,
   DrawableParams sp;
   const Font* title_font = get_title_font();
   const Font* body_font = get_body_font();
-  const uint32_t body_line_count = calc_str_line(body_font, str2, BODY_WIDTH);
+  const uint32_t body_line_count =
+      calc_str_line(body_font, str2, CONSTANT_POWER_BODY_WIDTH);
 
   /* Determine vertical alignment and body width */
   sp.y = TOP_MARGIN;
@@ -370,7 +371,7 @@ void layout_constant_power_notification(const char* str1, const char* str2,
   sp.y += font_height(body_font) + BODY_TOP_MARGIN;
   sp.x = 128 + LEFT_MARGIN;
   sp.color = BODY_COLOR;
-  draw_string(canvas, body_font, str2, &sp, BODY_WIDTH,
+  draw_string(canvas, body_font, str2, &sp, CONSTANT_POWER_BODY_WIDTH,
               font_height(body_font) + BODY_FONT_LINE_PADDING);
 
   layout_notification_icon(type, &sp);
@@ -636,20 +637,6 @@ void layout_animate_images(void* data, uint32_t duration, uint32_t elapsed) {
   }
 }
 
-#if DEBUG_LINK
-void layout_debuglink_watermark(void) {
-  const Font* font = get_body_font();
-  const char* watermark = "DEBUG_LINK";
-  DrawableParams sp;
-  sp.x = KEEPKEY_DISPLAY_WIDTH - calc_str_width(font, watermark) -
-         BODY_FONT_LINE_PADDING;
-  sp.y = KEEPKEY_DISPLAY_HEIGHT - 1 * font_height(font);
-  sp.color = 0x22;
-  draw_string(canvas, font, watermark, &sp, KEEPKEY_DISPLAY_WIDTH,
-              font_height(font));
-}
-#endif
-
 /*
  * layout_clear() - Clear animation queue and clear display
  *
@@ -662,10 +649,6 @@ void layout_clear(void) {
   layout_clear_animations();
 
   layout_clear_static();
-
-#if DEBUG_LINK
-  layout_debuglink_watermark();
-#endif
 }
 
 /*

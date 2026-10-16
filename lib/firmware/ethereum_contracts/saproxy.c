@@ -33,11 +33,39 @@ static bool isWithFromSalary(const EthereumSignTx* msg) {
   return false;
 }
 
+/* withdrawFromSalary(uint256,uint256) has no dynamic arguments, so its
+ * calldata is exactly 4 + 2 * 32 = 68 bytes and both words sit at fixed head
+ * positions. Exactly 68, not at least 68: past .size the chunk buffer still
+ * holds bytes from an earlier message, and a longer calldata is hashed in full
+ * by the signer while only these two words are drawn.
+ *
+ * Shared by the predicate and the confirm so the two cannot disagree about
+ * what is displayable. */
+static bool sa_withdrawFromSalaryExtentOk(const EthereumSignTx* msg) {
+  return msg->data_initial_chunk.size == 4 + 2 * 32;
+}
+
+bool sa_formatUint256(const uint8_t word[32], const char* suffix, char* out,
+                      size_t out_len) {
+  if (!word || !suffix || !out || out_len == 0) return false;
+  bignum256 value;
+  bn_from_bytes(word, 32, &value);
+  return bn_format(&value, NULL, suffix, 0, 0, false, out, out_len) != 0;
+}
+
 bool sa_isWithdrawFromSalary(const EthereumSignTx* msg) {
+  /* SAPROXY_ADDRESS is an Ethereum-mainnet identity. See GH #431. */
+  if (!msg->has_chain_id || msg->chain_id != 1) return false;
   if (memcmp(msg->to.bytes, SAPROXY_ADDRESS, 20) ==
       0) {                        // correct proxy address?
     if (isWithFromSalary(msg)) {  // does kk handle call?
-      return true;
+      /* The extent has to be checked HERE, not only in the confirm.
+       * ethereum.c reads a false return from ethereum_contractConfirmed() as a
+       * user cancel and aborts; only a false PREDICATE falls through to the
+       * AdvancedMode raw-calldata path. Claiming the call and then refusing it
+       * turns "this device cannot show you the whole thing" into "you pressed
+       * cancel", which is both wrong and unrecoverable for the host. */
+      return sa_withdrawFromSalaryExtentOk(msg);
     }
   }
   return false;
@@ -46,25 +74,36 @@ bool sa_isWithdrawFromSalary(const EthereumSignTx* msg) {
 bool sa_confirmWithdrawFromSalary(uint32_t data_total,
                                   const EthereumSignTx* msg) {
   (void)data_total;
-  char confStr[41];
-  bignum256 salaryId, withdrawAmount;
 
-  bn_from_bytes(msg->data_initial_chunk.bytes + 4, 32, &salaryId);
-  bn_from_bytes(msg->data_initial_chunk.bytes + 4 + 1 * 32, 32,
-                &withdrawAmount);
+  /* Belt and braces: the predicate already required this, and the two must not
+   * be able to drift apart. See sa_withdrawFromSalaryExtentOk(). */
+  if (!sa_withdrawFromSalaryExtentOk(msg)) return false;
 
-  // confirm raw unformatted numbers
-  bn_format(&salaryId, NULL, "", 0, 0, false, confStr, sizeof(confStr));
+  /* Format BOTH values before either screen.
+   *
+   * bn_format() blanks its output and returns 0 when the value does not fit,
+   * so an unrenderable amount is a refusal. Doing the second format after the
+   * first confirmation meant a large but perfectly valid uint256 amount failed
+   * only once the salary ID had been approved -- and the Ethereum dispatcher
+   * reports that late failure as ActionCancelled, so the owner is told they
+   * cancelled something they had in fact approved. Non-interactive work
+   * belongs before the first screen. */
+  char idStr[41];
+  char amountStr[41];
+  if (!sa_formatUint256(msg->data_initial_chunk.bytes + 4, "", idStr,
+                        sizeof(idStr)))
+    return false;
+  if (!sa_formatUint256(msg->data_initial_chunk.bytes + 4 + 32, " Token Units",
+                        amountStr, sizeof(amountStr)))
+    return false;
+
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Sablier",
-               "Salary ID %s", confStr)) {
+               "Salary ID %s", idStr)) {
     return false;
   }
 
-  // confirm raw unformatted numbers
-  bn_format(&withdrawAmount, NULL, " Token Units", 0, 0, false, confStr,
-            sizeof(confStr));
   if (!confirm(ButtonRequestType_ButtonRequest_ConfirmOutput, "Sablier",
-               "Withdraw Amount %s", confStr)) {
+               "Withdraw Amount %s", amountStr)) {
     return false;
   }
   return true;

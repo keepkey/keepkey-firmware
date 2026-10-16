@@ -81,6 +81,11 @@ void fsm_msgGetPublicKey(GetPublicKey* msg) {
 }
 
 void fsm_msgSignTx(SignTx* msg) {
+  /* A new start supersedes any prior Bitcoin stream even when this request is
+   * malformed.  Otherwise its Failure can be followed by an ACK that resumes
+   * the old, already-approved transaction. */
+  signing_abort();
+
   CHECK_INITIALIZED
 
   CHECK_PARAM(msg->inputs_count > 0,
@@ -107,7 +112,12 @@ void fsm_msgSignTx(SignTx* msg) {
 }
 
 void fsm_msgTxAck(TxAck* msg) {
-  CHECK_PARAM(msg->has_tx, _("No transaction provided"));
+  if (!msg->has_tx) {
+    signing_abort();
+    fsm_sendFailure(FailureType_Failure_Other, _("No transaction provided"));
+    layoutHome();
+    return;
+  }
 
   signing_txack(&(msg->tx));
 }
@@ -270,21 +280,36 @@ void fsm_msgSignMessage(SignMessage* msg) {
 
   CHECK_INITIALIZED
 
-  if (!confirm(ButtonRequestType_ButtonRequest_SignMessage, "Sign Message",
-               "%s", (char*)msg->message.bytes)) {
+  /* A zero-length message is not a message. confirm_bytes() renders size 0 as
+     the literal "(empty)" and returns whatever the owner pressed, so without
+     this the device would sign a payload no screen ever showed -- the same
+     hole already closed on the TON and Solana paths. (`message` is a required
+     field here, so nanopb rejects an omitted one during decode; only the empty
+     case reaches this far.) */
+  if (msg->message.size == 0) {
+    fsm_sendFailure(FailureType_Failure_SyntaxError, _("Missing message"));
+    layoutHome();
+    return;
+  }
+
+  const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
+  if (!coin) return;
+
+  CHECK_PIN
+
+  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
+                                    msg->address_n_count, NULL);
+  if (!node) return;
+
+  if (!confirm_bytes(ButtonRequestType_ButtonRequest_SignMessage,
+                     _("Sign Message"), msg->message.bytes,
+                     msg->message.size)) {
+    memzero(node, sizeof(*node));
     fsm_sendFailure(FailureType_Failure_ActionCancelled,
                     "Sign message cancelled");
     layoutHome();
     return;
   }
-
-  CHECK_PIN
-
-  const CoinType* coin = fsm_getCoin(msg->has_coin_name, msg->coin_name);
-  if (!coin) return;
-  HDNode* node = fsm_getDerivedNode(coin->curve_name, msg->address_n,
-                                    msg->address_n_count, NULL);
-  if (!node) return;
 
   animating_progress_handler(_("Signing"), 0);
   if (cryptoMessageSign(coin, node, msg->script_type, msg->message.bytes,
@@ -325,8 +350,9 @@ void fsm_msgVerifyMessage(VerifyMessage* msg) {
       layoutHome();
       return;
     }
-    if (!review(ButtonRequestType_ButtonRequest_Other, "Message Verified", "%s",
-                (char*)msg->message.bytes)) {
+    if (!confirm_bytes(ButtonRequestType_ButtonRequest_Other,
+                       _("Message Verified"), msg->message.bytes,
+                       msg->message.size)) {
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Action cancelled by user"));
       layoutHome();

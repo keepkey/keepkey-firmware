@@ -95,30 +95,68 @@ static void binance_response(void);
 
 void fsm_msgBinanceTransferMsg(const BinanceTransferMsg* msg) {
   CHECK_PARAM(binance_signingIsInited(), "Signing not in progress?");
-  CHECK_PARAM(msg->inputs_count == 1, "Malformed BinanceTransferMsg")
-  CHECK_PARAM(msg->inputs[0].coins_count == 1, "Malformed BinanceTransferMsg")
-  CHECK_PARAM(msg->outputs_count == 1, "Malformed BinanceTransferMsg")
-  CHECK_PARAM(msg->outputs[0].coins_count == 1, "Malformed BinanceTransferMsg")
-  CHECK_PARAM(msg->inputs[0].coins[0].amount == msg->outputs[0].coins[0].amount,
-              "Malformed BinanceTransferMsg")
-  CHECK_PARAM(strcmp(msg->inputs[0].coins[0].denom,
-                     msg->outputs[0].coins[0].denom) == 0,
-              "Malformed BinanceTransferMsg")
+  if (!binance_validateTransfer(msg)) {
+    binance_signAbort();
+    fsm_sendFailure(FailureType_Failure_SyntaxError,
+                    "Malformed BinanceTransferMsg");
+    layoutHome();
+    return;
+  }
 
   const CoinType* coin = fsm_getCoin(true, "Binance");
   if (!coin) {
+    binance_signAbort();
+    layoutHome();
     return;
   }
 
   switch (msg->outputs[0].address_type) {
     case OutputAddressType_TRANSFER:
     default: {
-      char amount_str[42];
-      char denom_str[14];
-      snprintf(denom_str, strlen(msg->outputs[0].coins[0].denom) + 2, " %s",
-               msg->outputs[0].coins[0].denom);
-      bn_format_uint64(msg->outputs[0].coins[0].amount, NULL, denom_str, 8, 0,
-                       false, amount_str, sizeof(amount_str));
+      /* BinanceCoin.denom is max_size:32 (messages-binance.options), i.e. 31
+       * visible chars + NUL, so ' ' + 31 + NUL = 34. The pre-fix code passed
+       * strlen(denom)+2 as the snprintf SIZE against a 14-byte buffer, which
+       * for a 31-char denom is 33 and overflowed the stack by up to 19 bytes
+       * (GH #430). Both branches resized; this one additionally CHECKS the
+       * snprintf and bn_format_uint64 results and fails closed, so a truncated
+       * or unformattable amount can never reach the confirmation screen. */
+      char amount_str[64];
+      char denom_str[BINANCE_MAX_DENOM_LEN + 2];
+      const int denom_len = snprintf(denom_str, sizeof(denom_str), " %s",
+                                     msg->outputs[0].coins[0].denom);
+      if (denom_len <= 0 || (size_t)denom_len >= sizeof(denom_str) ||
+          !bn_format_uint64((uint64_t)msg->outputs[0].coins[0].amount, NULL,
+                            denom_str, 8, 0, false, amount_str,
+                            sizeof(amount_str))) {
+        binance_signAbort();
+        fsm_sendFailure(FailureType_Failure_SyntaxError,
+                        "Invalid Binance transfer amount");
+        layoutHome();
+        return;
+      }
+      /* Validate both addresses BEFORE the screen. binance_validateTransfer()
+         checks structure only, and the bech32/network check lives in
+         binance_serializeInputOutput(), which runs after this approval -- so a
+         malformed or wrong-network recipient was displayed and approved, then
+         rejected. */
+      {
+        const char* const pfix = binance_sessionAddressPrefix();
+        /* The input is the transfer's AUTHORITY, and no screen displays it,
+           so being well formed on the right network is not enough -- it has to
+           be the account this session's key signs as. The output is the
+           recipient and is shown, so it only needs to be a valid address on
+           the same network. */
+        if (!pfix ||
+            !tendermint_validateBech32Address(msg->inputs[0].address, pfix) ||
+            !binance_addressIsSigner(msg->inputs[0].address) ||
+            !tendermint_validateBech32Address(msg->outputs[0].address, pfix)) {
+          binance_signAbort();
+          fsm_sendFailure(FailureType_Failure_SyntaxError,
+                          "Invalid Binance transfer address");
+          layoutHome();
+          return;
+        }
+      }
       if (!confirm_transaction_output(
               ButtonRequestType_ButtonRequest_ConfirmOutput, amount_str,
               msg->outputs[0].address)) {
@@ -151,13 +189,16 @@ static void binance_response(void) {
 
   const CoinType* coin = fsm_getCoin(true, "Binance");
   if (!coin) {
+    binance_signAbort();
+    layoutHome();
     return;
   }
 
   const BinanceSignTx* sign_tx = binance_getBinanceSignTx();
 
-  if (sign_tx->has_memo && !confirm(ButtonRequestType_ButtonRequest_ConfirmMemo,
-                                    _("Memo"), "%s", sign_tx->memo)) {
+  if (sign_tx->has_memo &&
+      !confirm_bytes(ButtonRequestType_ButtonRequest_ConfirmMemo, _("Memo"),
+                     (const uint8_t*)sign_tx->memo, strlen(sign_tx->memo))) {
     binance_signAbort();
     fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
     layoutHome();
