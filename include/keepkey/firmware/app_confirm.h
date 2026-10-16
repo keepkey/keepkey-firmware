@@ -46,6 +46,7 @@ bool confirm_erc_token_transfer(ButtonRequestType button_request,
 bool confirm_transaction(const char* total_amount, const char* fee);
 bool confirm_load_device(bool is_node);
 bool confirm_address(const char* desc, const char* address);
+bool confirm_qr(const char* desc, const char* data);
 bool confirm_xpub(const char* node_str, const char* xpub);
 bool format_sign_identity_key_selection(const IdentityType* identity,
                                         const char* curve, char* out,
