@@ -88,6 +88,14 @@ bool tron_getAddress(const uint8_t public_key[33], char* address,
                      size_t address_len);
 
 /**
+ * Network label for the address screen ("TRON Account #a") for
+ * m/44'/195'/a'/0/0. Returns false for any other path shape, including a
+ * non-zero address index; the caller then shows the BIP-32 path instead.
+ */
+bool tron_pathLabel(char* out, size_t len, const uint32_t* address_n,
+                    size_t address_n_count);
+
+/**
  * Format TRON amount (SUN) for display
  * @param buf Output buffer
  * @param len Length of output buffer

@@ -24,8 +24,34 @@
 #include "trezor/crypto/memzero.h"
 #include "trezor/crypto/sha2.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+
+/* TON is not in coins.def, so bip32_node_to_string() cannot name it. Label
+ * the standard m/44'/607'/a'/0'/0'/0' path; any other shape, or a workchain
+ * other than the basechain, returns false so the caller shows the raw path.
+ * A testnet address says so, because the label is what tells the user which
+ * network the address belongs to. */
+bool ton_pathLabel(char* out, size_t len, const uint32_t* address_n,
+                   size_t address_n_count, bool testnet, int32_t workchain) {
+  if (!out || len == 0 || !address_n || address_n_count != 6) return false;
+  if (workchain != 0) return false;
+  if (address_n[0] != (0x80000000 | 44) || address_n[1] != (0x80000000 | 607))
+    return false;
+  if ((address_n[2] & 0x80000000) == 0) return false;
+  for (size_t i = 3; i < 6; i++) {
+    if (address_n[i] != 0x80000000) return false;
+  }
+
+  int n = snprintf(out, len, "TON %sAccount #%" PRIu32,
+                   testnet ? "Testnet " : "", address_n[2] & 0x7fffffff);
+  if (n < 0 || (size_t)n >= len) {
+    out[0] = '\0';
+    return false;
+  }
+  return true;
+}
 
 // Base64 URL-safe alphabet (RFC 4648)
 static const char base64_url_alphabet[] =

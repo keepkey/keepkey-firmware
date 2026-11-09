@@ -64,12 +64,14 @@ void fsm_msgTonGetAddress(const TonGetAddress* msg) {
   // Show address on display if requested
   if (msg->has_show_display && msg->show_display) {
     char node_str[NODE_STRING_LENGTH];
-    if (!bip32_path_to_string(node_str, sizeof(node_str), msg->address_n,
+    if (!ton_pathLabel(node_str, sizeof(node_str), msg->address_n,
+                       msg->address_n_count, testnet, workchain) &&
+        !bip32_path_to_string(node_str, sizeof(node_str), msg->address_n,
                               msg->address_n_count)) {
       memset(node_str, 0, sizeof(node_str));
     }
 
-    if (!confirm_ethereum_address(node_str, resp->address)) {
+    if (!confirm_labelled_address(node_str, resp->address)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Show address cancelled"));

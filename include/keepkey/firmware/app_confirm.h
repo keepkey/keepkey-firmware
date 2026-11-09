@@ -89,6 +89,7 @@ bool confirm_bytes(ButtonRequestType button_request, const char* title,
 bool confirm_cosmos_address(const char* desc, const char* address);
 bool confirm_osmosis_address(const char* desc, const char* address);
 bool confirm_ethereum_address(const char* desc, const char* address);
+bool confirm_labelled_address(const char* desc, const char* address);
 bool confirm_nano_address(const char* desc, const char* address);
 #if ZCASH_PRIVACY
 bool confirm_zcash_address(const char* desc, const char* address);

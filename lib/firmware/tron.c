@@ -27,10 +27,34 @@
 #include "trezor/crypto/secp256k1.h"
 #include "trezor/crypto/sha3.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
 #define TRON_ADDRESS_PREFIX 0x41  // Mainnet addresses start with 'T'
+
+/* TRON is not in coins.def, so bip32_node_to_string() cannot name it. Label
+ * the standard m/44'/195'/a'/0/0 path the way the coin table labels
+ * Ethereum accounts. Any other shape, including a non-zero address index,
+ * returns false so the caller shows the raw path: the address screen has a
+ * single title row, so an "Address #i" second line would overlap the
+ * address, and a non-standard derivation must keep showing its path. */
+bool tron_pathLabel(char* out, size_t len, const uint32_t* address_n,
+                    size_t address_n_count) {
+  if (!out || len == 0 || !address_n || address_n_count != 5) return false;
+  if (address_n[0] != (0x80000000 | 44) || address_n[1] != (0x80000000 | 195))
+    return false;
+  if ((address_n[2] & 0x80000000) == 0) return false;
+  if (address_n[3] != 0 || address_n[4] != 0) return false;
+
+  int n = snprintf(out, len, "TRON Account #%" PRIu32,
+                   address_n[2] & 0x7fffffff);
+  if (n < 0 || (size_t)n >= len) {
+    out[0] = '\0';
+    return false;
+  }
+  return true;
+}
 
 /**
  * Generate TRON address from secp256k1 public key
