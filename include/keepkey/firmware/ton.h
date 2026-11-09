@@ -58,6 +58,15 @@ bool ton_get_address(const ed25519_public_key public_key, bool bounceable,
 void ton_formatAmount(char* buf, size_t len, uint64_t amount);
 
 /**
+ * Network label for the address screen ("TON Account #a", or
+ * "TON Testnet Account #a") for m/44'/607'/a'/0'/0'/0' on workchain 0.
+ * Returns false for any other path shape or workchain; the caller then shows
+ * the BIP-32 path instead.
+ */
+bool ton_pathLabel(char* out, size_t len, const uint32_t* address_n,
+                   size_t address_n_count, bool testnet, int32_t workchain);
+
+/**
  * Sign a TON transaction
  * @param node HD node containing private key
  * @param msg TonSignTx request message

@@ -3,6 +3,7 @@ extern "C" {
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/app_confirm.h"
+#include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tron.h"
 #include "trezor/crypto/base58.h"
@@ -918,4 +919,37 @@ TEST(Tron, AddressFromBytes) {
   ASSERT_TRUE(tron_addressFromBytes(addr, out, sizeof(out)));
   EXPECT_EQ(out[0], 'T'); /* mainnet addresses render as T... */
   EXPECT_GE(strlen(out), 33u);
+}
+
+TEST(Tron, AddressScreenNamesTheNetworkForStandardPaths) {
+  const uint32_t H = 0x80000000;
+  char label[NODE_STRING_LENGTH];
+
+  const uint32_t first[5] = {H | 44, H | 195, H | 0, 0, 0};
+  ASSERT_TRUE(tron_pathLabel(label, sizeof(label), first, 5));
+  EXPECT_STREQ(label, "TRON Account #0");
+
+  const uint32_t indexed[5] = {H | 44, H | 195, H | 3, 0, 7};
+  ASSERT_TRUE(tron_pathLabel(label, sizeof(label), indexed, 5));
+  EXPECT_STREQ(label, "TRON Account #3\nAddress #7");
+
+  /* The widest label still fits the handler's buffer. */
+  const uint32_t widest[5] = {H | 44, H | 195, H | 0x7fffffff, 0, 0x7fffffff};
+  ASSERT_TRUE(tron_pathLabel(label, sizeof(label), widest, 5));
+
+  /* Non-standard shapes fall back to the BIP-32 path in the handler. */
+  const uint32_t three[3] = {H | 44, H | 195, H | 0};
+  EXPECT_FALSE(tron_pathLabel(label, sizeof(label), three, 3));
+  const uint32_t change[5] = {H | 44, H | 195, H | 0, 1, 0};
+  EXPECT_FALSE(tron_pathLabel(label, sizeof(label), change, 5));
+  const uint32_t unhardened[5] = {H | 44, H | 195, 0, 0, 0};
+  EXPECT_FALSE(tron_pathLabel(label, sizeof(label), unhardened, 5));
+  const uint32_t hardened_index[5] = {H | 44, H | 195, H | 0, 0, H | 0};
+  EXPECT_FALSE(tron_pathLabel(label, sizeof(label), hardened_index, 5));
+  const uint32_t eth[5] = {H | 44, H | 60, H | 0, 0, 0};
+  EXPECT_FALSE(tron_pathLabel(label, sizeof(label), eth, 5));
+
+  char tiny[8];
+  EXPECT_FALSE(tron_pathLabel(tiny, sizeof(tiny), first, 5));
+  EXPECT_STREQ(tiny, "");
 }

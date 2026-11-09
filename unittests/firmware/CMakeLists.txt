@@ -63,6 +63,7 @@ if(NOT ${KK_BITCOIN_ONLY})
       erc7730_workflow.cpp
       solana.cpp
       thorchain.cpp
+      ton.cpp
       tron.cpp)
 
   # Native and Python tests share the corpus in the pinned Python dependency.

@@ -54,7 +54,9 @@ void fsm_msgTronGetAddress(const TronGetAddress* msg) {
   // Show address on display if requested
   if (msg->has_show_display && msg->show_display) {
     char node_str[NODE_STRING_LENGTH];
-    if (!bip32_path_to_string(node_str, sizeof(node_str), msg->address_n,
+    if (!tron_pathLabel(node_str, sizeof(node_str), msg->address_n,
+                        msg->address_n_count) &&
+        !bip32_path_to_string(node_str, sizeof(node_str), msg->address_n,
                               msg->address_n_count)) {
       memset(node_str, 0, sizeof(node_str));
     }
