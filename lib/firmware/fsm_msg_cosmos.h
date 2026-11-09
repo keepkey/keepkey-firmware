@@ -217,7 +217,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     char amount_str[32];
     cosmos_formatAmount(msg->delegate.amount, amount_str, sizeof(amount_str));
 
-    if (!confirm_cosmos_address("Confirm delegator address",
+    if (!confirm_cosmos_address("Delegator address",
                                 msg->delegate.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -225,7 +225,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
       return;
     }
 
-    if (!confirm_cosmos_address("Confirm validator address",
+    if (!confirm_cosmos_address("Validator address",
                                 msg->delegate.validator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -266,7 +266,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
     char amount_str[32];
     cosmos_formatAmount(msg->undelegate.amount, amount_str, sizeof(amount_str));
 
-    if (!confirm_cosmos_address("Confirm delegator address",
+    if (!confirm_cosmos_address("Delegator address",
                                 msg->undelegate.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -274,7 +274,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
       return;
     }
 
-    if (!confirm_cosmos_address("Confirm validator address",
+    if (!confirm_cosmos_address("Validator address",
                                 msg->undelegate.validator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -394,7 +394,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
       }
     }
 
-    if (!confirm_cosmos_address("Confirm delegator address",
+    if (!confirm_cosmos_address("Delegator address",
                                 msg->rewards.delegator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -402,7 +402,7 @@ void fsm_msgCosmosMsgAck(const CosmosMsgAck* msg) {
       return;
     }
 
-    if (!confirm_cosmos_address("Confirm validator address",
+    if (!confirm_cosmos_address("Validator address",
                                 msg->rewards.validator_address)) {
       tendermint_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);

@@ -431,6 +431,76 @@ void layout_xpub_notification(const char* desc, const char* xpub,
   layout_notification_icon(type, &sp);
 }
 
+/* Geometry of the address layouts that put a QR code on the left
+ * (Cosmos, Osmosis, Ethereum, Nano): the title and the address share a
+ * column beside it. The title has exactly one row, in the band the confirm
+ * icon occupies; the address wraps below it within a fixed width. */
+#define ADDRESS_TEXT_X (LEFT_MARGIN + 65)
+#define ADDRESS_TITLE_ICON_GAP 4 /* kept between title and confirm icon */
+
+#define COSMOS_ADDRESS_WIDTH 140
+#define OSMOSIS_ADDRESS_BODY_Y \
+  (TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN + TOP_MARGIN)
+#define OSMOSIS_ADDRESS_WIDTH 160
+#define ETH_ADDRESS_TITLE_Y TOP_MARGIN_FOR_TWO_LINES
+#define ETH_ADDRESS_BODY_Y (TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN + TOP_MARGIN)
+#define ETH_ADDRESS_WIDTH 140
+#define NANO_ADDRESS_TITLE_Y TOP_MARGIN
+#define NANO_ADDRESS_BODY_Y (TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN)
+#define NANO_ADDRESS_WIDTH 140
+
+/* Three body rows end at the bottom of the display: a 52-character
+ * cosmosvaloper1... address needs all three. */
+static uint16_t cosmos_address_body_y(void) {
+  const uint16_t row = font_height(get_body_font()) + BODY_FONT_LINE_PADDING;
+  return KEEPKEY_DISPLAY_HEIGHT - 3 * row + BODY_FONT_LINE_PADDING;
+}
+
+/* True when address renders whole in a body that starts at y and wraps at
+ * width, replaying the layout's own draw_string() call. A row that would
+ * fall below the display is dropped with no marker, while the QR beside it
+ * still encodes the full address. */
+static bool address_body_fits(const char* address, uint16_t y, uint16_t width) {
+  if (!address) return false;
+  const Font* font = get_body_font();
+  DrawableParams sp = {0};
+  sp.x = ADDRESS_TEXT_X;
+  sp.y = y;
+  sp.color = BODY_COLOR;
+  return draw_string_fits(layout_get_canvas(), font, address, &sp, width,
+                          font_height(font) + BODY_FONT_LINE_PADDING);
+}
+
+/* True when desc renders on that one title row: no line break, and its full
+ * width ends before the confirm icon in the top-right corner, in both its
+ * static and its animated (confirming) form. A longer title would run under the
+ * icon, clip at the display edge, or wrap onto the address. */
+bool layout_address_title_fits(const char* desc) {
+  if (!desc || strchr(desc, '\n')) return false;
+  uint32_t icon_x = get_confirm_icon_frame()->x;
+  const VariantAnimation* confirming = get_confirming_animation();
+  for (int i = 0; i < confirming->count; i++) {
+    if (confirming->frames[i].x < icon_x) icon_x = confirming->frames[i].x;
+  }
+  if (icon_x < ADDRESS_TEXT_X + ADDRESS_TITLE_ICON_GAP) return false;
+  return calc_str_width(get_title_font(), desc) <=
+         icon_x - ADDRESS_TEXT_X - ADDRESS_TITLE_ICON_GAP;
+}
+
+bool layout_cosmos_address_body_fits(const char* address) {
+  return address_body_fits(address, cosmos_address_body_y(),
+                           COSMOS_ADDRESS_WIDTH);
+}
+
+bool layout_osmosis_address_body_fits(const char* address) {
+  return address_body_fits(address, OSMOSIS_ADDRESS_BODY_Y,
+                           OSMOSIS_ADDRESS_WIDTH);
+}
+
+bool layout_nano_address_body_fits(const char* address) {
+  return address_body_fits(address, NANO_ADDRESS_BODY_Y, NANO_ADDRESS_WIDTH);
+}
+
 /*
  * layout_cosmos_address_notification() - Display cosmos address
  * notification
@@ -455,7 +525,7 @@ void layout_cosmos_address_notification(const char* desc, const char* address,
   if (strcmp(desc, "") != 0) {
     const Font* title_font = get_title_font();
     sp.y = TOP_MARGIN_FOR_TWO_LINES;
-    sp.x = LEFT_MARGIN + 65;
+    sp.x = ADDRESS_TEXT_X;
     sp.color = BODY_COLOR;
     draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
                 font_height(title_font) + BODY_FONT_LINE_PADDING);
@@ -465,11 +535,11 @@ void layout_cosmos_address_notification(const char* desc, const char* address,
      cosmosvaloper1... needs three). Starting one pixel higher than before is
      what lets the third row fit; at y=27 draw_string() silently dropped it. */
   const uint16_t row = font_height(address_font) + BODY_FONT_LINE_PADDING;
-  sp.y = KEEPKEY_DISPLAY_HEIGHT - 3 * row + BODY_FONT_LINE_PADDING;
-  sp.x = LEFT_MARGIN + 65;
+  sp.y = cosmos_address_body_y();
+  sp.x = ADDRESS_TEXT_X;
   sp.color = BODY_COLOR;
 
-  draw_string(canvas, address_font, address, &sp, 140, row);
+  draw_string(canvas, address_font, address, &sp, COSMOS_ADDRESS_WIDTH, row);
 
   layout_address(address, QR_LARGE);
   layout_notification_icon(type, &sp);
@@ -499,65 +569,27 @@ void layout_osmosis_address_notification(const char* desc, const char* address,
   if (strcmp(desc, "") != 0) {
     const Font* title_font = get_title_font();
     sp.y = TOP_MARGIN_FOR_TWO_LINES;
-    sp.x = LEFT_MARGIN + 65;
+    sp.x = ADDRESS_TEXT_X;
     sp.color = BODY_COLOR;
     draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
                 font_height(title_font) + BODY_FONT_LINE_PADDING);
   }
 
   /* Body */
-  sp.y = TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN + TOP_MARGIN;
-  sp.x = LEFT_MARGIN + 65;
+  sp.y = OSMOSIS_ADDRESS_BODY_Y;
+  sp.x = ADDRESS_TEXT_X;
   sp.color = BODY_COLOR;
 
-  draw_string(canvas, address_font, address, &sp, 160,
+  draw_string(canvas, address_font, address, &sp, OSMOSIS_ADDRESS_WIDTH,
               font_height(address_font) + BODY_FONT_LINE_PADDING);
 
   layout_address(address, QR_LARGE);
   layout_notification_icon(type, &sp);
 }
 
-/* Geometry of layout_ethereum_address_notification(): the title and the
- * address share a column beside the QR code. The title has exactly one row;
- * the address wraps within ETH_ADDRESS_WIDTH below it. */
-#define ETH_ADDRESS_TEXT_X (LEFT_MARGIN + 65)
-#define ETH_ADDRESS_TITLE_Y TOP_MARGIN_FOR_TWO_LINES
-#define ETH_ADDRESS_BODY_Y (TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN + TOP_MARGIN)
-#define ETH_ADDRESS_WIDTH 140
-
-/* Space kept between the end of the title and the confirm icon. */
-#define ETH_ADDRESS_TITLE_ICON_GAP 4
-
-/* True when desc renders on that one row: no line break, and its full width
- * ends before the confirm icon in the top-right corner, in both its static
- * and its animated (confirming) form. A longer title would run under the
- * icon, clip at the display edge, or wrap onto the address. */
-bool layout_ethereum_address_title_fits(const char* desc) {
-  if (!desc || strchr(desc, '\n')) return false;
-  uint32_t icon_x = get_confirm_icon_frame()->x;
-  const VariantAnimation* confirming = get_confirming_animation();
-  for (int i = 0; i < confirming->count; i++) {
-    if (confirming->frames[i].x < icon_x) icon_x = confirming->frames[i].x;
-  }
-  if (icon_x < ETH_ADDRESS_TEXT_X + ETH_ADDRESS_TITLE_ICON_GAP) return false;
-  return calc_str_width(get_title_font(), desc) <=
-         icon_x - ETH_ADDRESS_TEXT_X - ETH_ADDRESS_TITLE_ICON_GAP;
-}
-
-/* True when the whole address renders below the title, replaying the exact
- * draw_string() call the layout makes. A 48-character TON address often
- * needs a third row, which falls below the display and is dropped with no
- * marker, while the QR beside it still encodes the full address. */
+/* A 48-character TON address often needs a third row here. */
 bool layout_ethereum_address_body_fits(const char* address) {
-  if (!address) return false;
-  const Font* font = get_body_font();
-  DrawableParams sp = {0};
-  sp.x = ETH_ADDRESS_TEXT_X;
-  sp.y = ETH_ADDRESS_BODY_Y;
-  sp.color = BODY_COLOR;
-  return draw_string_fits(layout_get_canvas(), font, address, &sp,
-                          ETH_ADDRESS_WIDTH,
-                          font_height(font) + BODY_FONT_LINE_PADDING);
+  return address_body_fits(address, ETH_ADDRESS_BODY_Y, ETH_ADDRESS_WIDTH);
 }
 
 /*
@@ -584,7 +616,7 @@ void layout_ethereum_address_notification(const char* desc, const char* address,
   if (strcmp(desc, "") != 0) {
     const Font* title_font = get_title_font();
     sp.y = ETH_ADDRESS_TITLE_Y;
-    sp.x = ETH_ADDRESS_TEXT_X;
+    sp.x = ADDRESS_TEXT_X;
     sp.color = BODY_COLOR;
     draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
                 font_height(title_font) + BODY_FONT_LINE_PADDING);
@@ -592,7 +624,7 @@ void layout_ethereum_address_notification(const char* desc, const char* address,
 
   /* Body */
   sp.y = ETH_ADDRESS_BODY_Y;
-  sp.x = ETH_ADDRESS_TEXT_X;
+  sp.x = ADDRESS_TEXT_X;
   sp.color = BODY_COLOR;
 
   draw_string(canvas, address_font, address, &sp, ETH_ADDRESS_WIDTH,
@@ -623,21 +655,24 @@ void layout_nano_address_notification(const char* desc, const char* address,
 
   /* Title */
   if (strcmp(desc, "") != 0) {
+    /* One row, like the other address layouts: confirm_nano_address()
+       pages a title that does not fit before the confirm icon, so a
+       wrap width here would only push a second row onto the address. */
     font = get_title_font();
-    sp.y = TOP_MARGIN;
-    sp.x = LEFT_MARGIN + 65;
+    sp.y = NANO_ADDRESS_TITLE_Y;
+    sp.x = ADDRESS_TEXT_X;
     sp.color = BODY_COLOR;
-    draw_string(canvas, font, desc, &sp, 140,
+    draw_string(canvas, font, desc, &sp, TRANSACTION_WIDTH - 2,
                 font_height(font) + BODY_FONT_LINE_PADDING);
   }
 
   /* Body */
   font = get_body_font();
-  sp.y = TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN;
-  sp.x = LEFT_MARGIN + 65;
+  sp.y = NANO_ADDRESS_BODY_Y;
+  sp.x = ADDRESS_TEXT_X;
   sp.color = BODY_COLOR;
 
-  draw_string(canvas, font, address, &sp, 140,
+  draw_string(canvas, font, address, &sp, NANO_ADDRESS_WIDTH,
               font_height(font) + BODY_FONT_LINE_PADDING);
 
   layout_address(address, QR_LARGE);

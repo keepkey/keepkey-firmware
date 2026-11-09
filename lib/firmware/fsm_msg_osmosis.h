@@ -268,7 +268,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
                           denom);
 
     /** Confirm transaction parameters on-screen */
-    if (!confirm_osmosis_address("Confirm Delegator Address",
+    if (!confirm_osmosis_address("Delegator Address",
                                  msg->delegate.delegator_address)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -276,7 +276,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    if (!confirm_osmosis_address("Confirm Validator Address",
+    if (!confirm_osmosis_address("Validator Address",
                                  msg->delegate.validator_address)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -325,7 +325,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
                           msg->undelegate.amount, denom);
 
     /** Confirm transaction parameters on-screen */
-    if (!confirm_osmosis_address("Confirm Delegator Address",
+    if (!confirm_osmosis_address("Delegator Address",
                                  msg->undelegate.delegator_address)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -333,7 +333,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    if (!confirm_osmosis_address("Confirm Validator Address",
+    if (!confirm_osmosis_address("Validator Address",
                                  msg->undelegate.validator_address)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -626,7 +626,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    if (!confirm_osmosis_address("Confirm Delegator Address",
+    if (!confirm_osmosis_address("Delegator Address",
                                  msg->rewards.delegator_address)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);
@@ -634,7 +634,7 @@ void fsm_msgOsmosisMsgAck(const OsmosisMsgAck* msg) {
       return;
     }
 
-    if (!confirm_osmosis_address("Confirm Validator Address",
+    if (!confirm_osmosis_address("Validator Address",
                                  msg->rewards.validator_address)) {
       osmosis_signAbort();
       fsm_sendFailure(FailureType_Failure_ActionCancelled, NULL);

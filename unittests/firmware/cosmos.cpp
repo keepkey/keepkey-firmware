@@ -18,8 +18,7 @@ extern "C" {
 namespace {
 /* The text half of the screen; the QR code is left of x = 60. */
 std::vector<uint8_t> cosmosAddressText(const std::string& address) {
-  layout_cosmos_address_notification("Confirm validator address",
-                                     address.c_str(),
+  layout_cosmos_address_notification("Validator address", address.c_str(),
                                      NOTIFICATION_REQUEST_NO_ANIMATION);
   const Canvas* canvas = layout_get_canvas();
   std::vector<uint8_t> text;

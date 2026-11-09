@@ -27,17 +27,17 @@ TEST(Ton, AddressScreenNamesTheNetworkForStandardPaths) {
   const uint32_t widest[6] = {H | 44, H | 607, H | 0x7fffffff, H, H, H};
   ASSERT_TRUE(ton_pathLabel(label, sizeof(label), widest, 6, false, 0));
   EXPECT_STREQ(label, "TON Account #2147483647");
-  EXPECT_TRUE(layout_ethereum_address_title_fits(label));
+  EXPECT_TRUE(layout_address_title_fits(label));
 
   /* Testnet labels for small account numbers fit; the widest is
    * buffer-safe but would run into the confirm icon, so
    * confirm_ethereum_address() pages it instead of clipping digits. */
   const uint32_t ordinary[6] = {H | 44, H | 607, H | 99, H, H, H};
   ASSERT_TRUE(ton_pathLabel(label, sizeof(label), ordinary, 6, true, 0));
-  EXPECT_TRUE(layout_ethereum_address_title_fits(label));
+  EXPECT_TRUE(layout_address_title_fits(label));
   ASSERT_TRUE(ton_pathLabel(label, sizeof(label), widest, 6, true, 0));
   EXPECT_STREQ(label, "TON Testnet Account #2147483647");
-  EXPECT_FALSE(layout_ethereum_address_title_fits(label));
+  EXPECT_FALSE(layout_address_title_fits(label));
 
   /* Everything else falls back to the BIP-32 path in the handler. */
   EXPECT_FALSE(ton_pathLabel(label, sizeof(label), first, 6, false, -1));
@@ -55,7 +55,7 @@ TEST(Ton, AddressScreenNamesTheNetworkForStandardPaths) {
   EXPECT_FALSE(ton_pathLabel(label, sizeof(label), solana, 6, false, 0));
 
   /* A line break never fits the single title row. */
-  EXPECT_FALSE(layout_ethereum_address_title_fits("TON Account #0\nX"));
+  EXPECT_FALSE(layout_address_title_fits("TON Account #0\nX"));
 
   char tiny[8];
   EXPECT_FALSE(ton_pathLabel(tiny, sizeof(tiny), first, 6, false, 0));

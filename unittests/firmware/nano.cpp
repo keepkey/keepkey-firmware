@@ -5,6 +5,7 @@ extern "C" {
 
 #include "gtest/gtest.h"
 #include <cstring>
+#include <string>
 
 bool kkconfirm_preload(int nYes, int nNo);
 
@@ -178,5 +179,19 @@ TEST(Nano, Bip32ToString) {
     ASSERT_EQ(v.expected_ok, ok) << "Unexpected success value";
     ASSERT_EQ(v.expected_string, std::string(out_string))
         << "Unexpected string result";
+  }
+}
+
+/* The account number was masked to 27 bits, so account 2^27 and above was
+ * labelled as a different account on the address screen. */
+TEST(Nano, AccountLabelShowsTheWholeAccountNumber) {
+  const CoinType* coin = coinByName("Nano");
+  ASSERT_NE(nullptr, coin);
+  for (uint32_t account : {0u, 134217727u, 134217728u, 2147483647u}) {
+    const uint32_t path[] = {0x80000000 | 44, 0x80000000 | 165,
+                             0x80000000 | account};
+    char label[64];
+    ASSERT_TRUE(nano_bip32_to_string(label, sizeof(label), coin, path, 3));
+    EXPECT_EQ("Nano Account #" + std::to_string(account), label);
   }
 }

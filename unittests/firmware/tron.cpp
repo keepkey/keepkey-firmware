@@ -938,11 +938,11 @@ TEST(Tron, AddressScreenNamesTheNetworkForStandardPaths) {
    * confirm_ethereum_address() pages it instead. */
   const uint32_t ordinary[5] = {H | 44, H | 195, H | 99999, 0, 0};
   ASSERT_TRUE(tron_pathLabel(label, sizeof(label), ordinary, 5));
-  EXPECT_TRUE(layout_ethereum_address_title_fits(label));
+  EXPECT_TRUE(layout_address_title_fits(label));
   const uint32_t widest[5] = {H | 44, H | 195, H | 0x7fffffff, 0, 0};
   ASSERT_TRUE(tron_pathLabel(label, sizeof(label), widest, 5));
   EXPECT_STREQ(label, "TRON Account #2147483647");
-  EXPECT_FALSE(layout_ethereum_address_title_fits(label));
+  EXPECT_FALSE(layout_address_title_fits(label));
 
   /* A second "Address #i" line would draw over the address, so a non-zero
    * address index shows the raw path instead. */
@@ -1001,7 +1001,7 @@ TEST(Tron, LongAddressLabelIsPagedNotClipped) {
    * then the address, then the QR: never the single-screen title row, and
    * never confirm_address()'s compact layout, which measures only against
    * the display edge. */
-  ASSERT_FALSE(layout_ethereum_address_title_fits(long_label));
+  ASSERT_FALSE(layout_address_title_fits(long_label));
   ASSERT_TRUE(kkconfirm_preload(3, 0));
   kkconfirm_capture_start();
   EXPECT_TRUE(confirm_ethereum_address(long_label, address));
@@ -1050,7 +1050,7 @@ TEST(Tron, AddressTooLongForTwoRowsIsPagedNotClipped) {
       "TY72iA3SBtrds3QLYsS7LwYfkzXwAXCRWT"));
 
   const char* label = "TON Account #0";
-  ASSERT_TRUE(layout_ethereum_address_title_fits(label));
+  ASSERT_TRUE(layout_address_title_fits(label));
   ASSERT_TRUE(kkconfirm_preload(3, 0));
   kkconfirm_capture_start();
   EXPECT_TRUE(confirm_ethereum_address(label, ton));

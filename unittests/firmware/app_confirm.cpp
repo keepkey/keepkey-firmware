@@ -71,11 +71,13 @@ struct Shown {
   std::vector<std::string> titles, bodies;
 };
 
-Shown showAddress(const char* desc, const char* address, int screens) {
+Shown showAddress(const char* desc, const char* address, int screens,
+                  bool (*confirmAddress)(const char*, const char*) =
+                      confirm_ethereum_address) {
   Shown shown;
   EXPECT_TRUE(kkconfirm_preload(screens, 0));
   kkconfirm_capture_start();
-  EXPECT_TRUE(confirm_ethereum_address(desc, address));
+  EXPECT_TRUE(confirmAddress(desc, address));
   shown.bodies = kkconfirm_capture_finish();
   shown.titles = kkconfirm_captured_titles();
   EXPECT_EQ(0, kkconfirm_drain());
@@ -102,7 +104,7 @@ TEST(AppConfirm, EthereumLayoutFitChecksMatchRealLabelsAndAddresses) {
         "Kava Account #0", "Secret Account #0", "Binance Account #0",
         "Ripple Account #0", "TRON Account #0", "TON Account #0",
         "TON Testnet Account #99", "Solana", "m/44'/60'/0'/0/0"}) {
-    EXPECT_TRUE(layout_ethereum_address_title_fits(label)) << label;
+    EXPECT_TRUE(layout_address_title_fits(label)) << label;
   }
   for (const char* network :
        {"Ethereum", "ETH Classic", "ETH Testnet", "Cosmos", "Osmosis",
@@ -111,14 +113,14 @@ TEST(AppConfirm, EthereumLayoutFitChecksMatchRealLabelsAndAddresses) {
     for (int account = 0; account < 100; account++) {
       const std::string label =
           std::string(network) + " Account #" + std::to_string(account);
-      EXPECT_TRUE(layout_ethereum_address_title_fits(label.c_str())) << label;
+      EXPECT_TRUE(layout_address_title_fits(label.c_str())) << label;
     }
   }
   for (const char* label :
        {"Ethereum Account #2147483647", "Cosmos Account #2147483647",
         "ETH Classic Account #9999", "ETH Testnet Account #999",
         "TON Testnet Account #999", "m/44'/60'/2147483647'/0/0"}) {
-    EXPECT_FALSE(layout_ethereum_address_title_fits(label)) << label;
+    EXPECT_FALSE(layout_address_title_fits(label)) << label;
   }
   for (const char* address :
        {"0x3f2329C9ADFbcCd9A84f52c906E936A42dA18CB8",
@@ -187,4 +189,113 @@ TEST(AppConfirm, EthereumAddressScreenNeverClipsLabelOrAddress) {
   ASSERT_TRUE(kkconfirm_preload(0, 1));
   EXPECT_FALSE(confirm_ethereum_address("Cosmos Account #0", cosmos));
   EXPECT_EQ(0, kkconfirm_drain());
+}
+
+/* Staking transactions confirm each address on the Cosmos or Osmosis
+ * layout: a role title beside the QR, the address in rows below it. */
+const char* const kCosmosValidator =
+    "cosmosvaloper1sjllsnramtg3ewxqwwrwjxfgc4n4ef9u2lcnj0";
+const char* const kOsmosisValidator =
+    "osmovaloper1sjllsnramtg3ewxqwwrwjxfgc4n4ef9ua8h4lf";
+
+TEST(AppConfirm, StakingAddressScreensFitTheirTitlesAndAddresses) {
+  AddressScreenGuard guard;
+  /* Every title the Cosmos and Osmosis staking handlers pass. */
+  for (const char* title :
+       {"Delegator address", "Validator address", "Validator source address",
+        "Validator dest. address", "Delegator Address", "Validator Address",
+        "Validator Source Address", "Validator Dest. Address"}) {
+    EXPECT_TRUE(layout_address_title_fits(title)) << title;
+  }
+  /* The old delegator titles ran into the confirm icon; the old validator
+   * ones cleared it by a few pixels. */
+  for (const char* title :
+       {"Confirm delegator address", "Confirm Delegator Address"}) {
+    EXPECT_FALSE(layout_address_title_fits(title)) << title;
+  }
+  for (const char* title :
+       {"Confirm validator address", "Confirm Validator Address"}) {
+    EXPECT_TRUE(layout_address_title_fits(title)) << title;
+  }
+
+  /* Any 52-character cosmosvaloper1 address fits the three Cosmos rows,
+   * down to the widest bech32 string. */
+  for (const std::string& address :
+       {std::string("cosmos15cenya0tr7nm3tz2wn3h3zwkht2rxrq7q7h3dj"),
+        std::string(kCosmosValidator), std::string(51, 'm') + "1"}) {
+    EXPECT_TRUE(layout_cosmos_address_body_fits(address.c_str())) << address;
+  }
+  /* Osmosis account and validator addresses fit its two 160 px rows. */
+  for (const char* address :
+       {"osmo15cenya0tr7nm3tz2wn3h3zwkht2rxrq7g9ypmq", kOsmosisValidator}) {
+    EXPECT_TRUE(layout_osmosis_address_body_fits(address)) << address;
+  }
+}
+
+TEST(AppConfirm, StakingAddressScreenNeverClipsTitleOrAddress) {
+  AddressScreenGuard guard;
+  Shown shown = showAddress("Validator address", kCosmosValidator, 1,
+                            confirm_cosmos_address);
+  ASSERT_EQ(1u, shown.titles.size());
+  EXPECT_EQ("Validator address", shown.titles[0]);
+
+  shown = showAddress("Validator Address", kOsmosisValidator, 1,
+                      confirm_osmosis_address);
+  ASSERT_EQ(1u, shown.titles.size());
+  EXPECT_EQ("Validator Address", shown.titles[0]);
+
+  /* A title that would reach the confirm icon titles a full-width address
+   * screen instead, then the QR. */
+  const char* wide = "Confirm delegator address";
+  const char* delegator = "cosmos15cenya0tr7nm3tz2wn3h3zwkht2rxrq7q7h3dj";
+  shown = showAddress(wide, delegator, 2, confirm_cosmos_address);
+  ASSERT_EQ(2u, shown.titles.size());
+  EXPECT_EQ(wide, shown.titles[0]);
+  EXPECT_EQ(delegator, shown.bodies[0]);
+  EXPECT_EQ(wide, shown.titles[1]);
+
+  /* So does an address too long for the rows: two 160 px rows cannot hold
+   * the widest 52-character string. */
+  const std::string long_osmo = std::string(51, 'm') + "1";
+  ASSERT_FALSE(layout_osmosis_address_body_fits(long_osmo.c_str()));
+  shown = showAddress("Validator Address", long_osmo.c_str(), 2,
+                      confirm_osmosis_address);
+  ASSERT_EQ(2u, shown.titles.size());
+  EXPECT_EQ("Validator Address", shown.titles[0]);
+  EXPECT_EQ(long_osmo, shown.bodies[0]);
+
+  ASSERT_TRUE(kkconfirm_preload(0, 1));
+  EXPECT_FALSE(confirm_cosmos_address(wide, delegator));
+  EXPECT_EQ(0, kkconfirm_drain());
+}
+
+TEST(AppConfirm, NanoAddressScreenNeverClipsLabelOrAddress) {
+  AddressScreenGuard guard;
+  const char* xrb =
+      "xrb_3h7jxm7r1i6kfxf98hft3okdr8w4gdfozk3kxxa35yixp6r87bs3tw89qkba";
+  /* Real addresses fit three rows. The widest possible one (all 'w', the
+   * widest glyph in the alphabet) needs a fourth, below the display. */
+  const std::string widest = "nano_" + std::string(60, 'w');
+  EXPECT_TRUE(layout_nano_address_body_fits(xrb));
+  EXPECT_FALSE(layout_nano_address_body_fits(widest.c_str()));
+
+  Shown shown = showAddress("Nano Account #0", xrb, 1, confirm_nano_address);
+  ASSERT_EQ(1u, shown.titles.size());
+  EXPECT_EQ("Nano Account #0", shown.titles[0]);
+
+  /* Wrapped at 140 px, this label used to run onto the address rows. */
+  const char* label = "Nano Account #2147483647";
+  shown = showAddress(label, xrb, 3, confirm_nano_address);
+  ASSERT_EQ(3u, shown.titles.size());
+  EXPECT_EQ("Account", shown.titles[0]);
+  EXPECT_EQ(label, shown.bodies[0]);
+  EXPECT_EQ("Address", shown.titles[1]);
+  EXPECT_EQ(xrb, shown.bodies[1]);
+  EXPECT_EQ("Address QR", shown.titles[2]);
+
+  shown = showAddress("Nano Account #0", widest.c_str(), 3,
+                      confirm_nano_address);
+  ASSERT_EQ(3u, shown.titles.size());
+  EXPECT_EQ("Account", shown.titles[0]);
+  EXPECT_EQ(widest, shown.bodies[1]);
 }
