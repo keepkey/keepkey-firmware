@@ -517,20 +517,13 @@ void layout_osmosis_address_notification(const char* desc, const char* address,
   layout_notification_icon(type, &sp);
 }
 
-/*
- * layout_ethereum_address_notification() - Display ethereum address
- * notification
- *
- * INPUT
- *     - desc: description of address being shown (normal or multisig)
- *     - address: ethereum address to display both as string and QR
- *     - type: notification type
- * OUTPUT
- *      none
- */
-/* The title of layout_ethereum_address_notification() starts here, beside
- * the QR code, and has exactly one row above the address. */
-#define ETH_ADDRESS_TITLE_X (LEFT_MARGIN + 65)
+/* Geometry of layout_ethereum_address_notification(): the title and the
+ * address share a column beside the QR code. The title has exactly one row;
+ * the address wraps within ETH_ADDRESS_WIDTH below it. */
+#define ETH_ADDRESS_TEXT_X (LEFT_MARGIN + 65)
+#define ETH_ADDRESS_TITLE_Y TOP_MARGIN_FOR_TWO_LINES
+#define ETH_ADDRESS_BODY_Y (TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN + TOP_MARGIN)
+#define ETH_ADDRESS_WIDTH 140
 
 /* Space kept between the end of the title and the confirm icon. */
 #define ETH_ADDRESS_TITLE_ICON_GAP 4
@@ -546,11 +539,38 @@ bool layout_ethereum_address_title_fits(const char* desc) {
   for (int i = 0; i < confirming->count; i++) {
     if (confirming->frames[i].x < icon_x) icon_x = confirming->frames[i].x;
   }
-  if (icon_x < ETH_ADDRESS_TITLE_X + ETH_ADDRESS_TITLE_ICON_GAP) return false;
+  if (icon_x < ETH_ADDRESS_TEXT_X + ETH_ADDRESS_TITLE_ICON_GAP) return false;
   return calc_str_width(get_title_font(), desc) <=
-         icon_x - ETH_ADDRESS_TITLE_X - ETH_ADDRESS_TITLE_ICON_GAP;
+         icon_x - ETH_ADDRESS_TEXT_X - ETH_ADDRESS_TITLE_ICON_GAP;
 }
 
+/* True when the whole address renders below the title, replaying the exact
+ * draw_string() call the layout makes. A 48-character TON address often
+ * needs a third row, which falls below the display and is dropped with no
+ * marker, while the QR beside it still encodes the full address. */
+bool layout_ethereum_address_body_fits(const char* address) {
+  if (!address) return false;
+  const Font* font = get_body_font();
+  DrawableParams sp = {0};
+  sp.x = ETH_ADDRESS_TEXT_X;
+  sp.y = ETH_ADDRESS_BODY_Y;
+  sp.color = BODY_COLOR;
+  return draw_string_fits(layout_get_canvas(), font, address, &sp,
+                          ETH_ADDRESS_WIDTH,
+                          font_height(font) + BODY_FONT_LINE_PADDING);
+}
+
+/*
+ * layout_ethereum_address_notification() - Display ethereum address
+ * notification
+ *
+ * INPUT
+ *     - desc: description of address being shown (normal or multisig)
+ *     - address: ethereum address to display both as string and QR
+ *     - type: notification type
+ * OUTPUT
+ *      none
+ */
 void layout_ethereum_address_notification(const char* desc, const char* address,
                                           NotificationType type) {
   DrawableParams sp;
@@ -563,19 +583,19 @@ void layout_ethereum_address_notification(const char* desc, const char* address,
 
   if (strcmp(desc, "") != 0) {
     const Font* title_font = get_title_font();
-    sp.y = TOP_MARGIN_FOR_TWO_LINES;
-    sp.x = ETH_ADDRESS_TITLE_X;
+    sp.y = ETH_ADDRESS_TITLE_Y;
+    sp.x = ETH_ADDRESS_TEXT_X;
     sp.color = BODY_COLOR;
     draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
                 font_height(title_font) + BODY_FONT_LINE_PADDING);
   }
 
   /* Body */
-  sp.y = TOP_MARGIN_FOR_TWO_LINES + TOP_MARGIN + TOP_MARGIN;
-  sp.x = LEFT_MARGIN + 65;
+  sp.y = ETH_ADDRESS_BODY_Y;
+  sp.x = ETH_ADDRESS_TEXT_X;
   sp.color = BODY_COLOR;
 
-  draw_string(canvas, address_font, address, &sp, 140,
+  draw_string(canvas, address_font, address, &sp, ETH_ADDRESS_WIDTH,
               font_height(address_font) + BODY_FONT_LINE_PADDING);
 
   layout_address(address, QR_LARGE);

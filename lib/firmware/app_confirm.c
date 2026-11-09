@@ -310,13 +310,15 @@ bool confirm_ethereum_address(const char* desc, const char* address) {
 /*
  * confirm_labelled_address() - Show an address under a network label
  *
- * Uses the single-screen ethereum address layout when desc fits its one
- * title row. Otherwise hands off to confirm_address(), which either uses a
- * compact layout it has measured, or pages: the complete desc on its own
- * screen, then the address, then the QR. A long label is never clipped.
+ * Uses the single-screen ethereum address layout only when desc fits its
+ * one title row and the whole address fits below it. Otherwise hands off to
+ * confirm_address(), which either uses a compact layout it has measured, or
+ * pages: the complete desc on its own screen, then the address, then the QR.
+ * Neither the label nor the address is ever clipped.
  */
 bool confirm_labelled_address(const char* desc, const char* address) {
-  if (layout_ethereum_address_title_fits(desc)) {
+  if (layout_ethereum_address_title_fits(desc) &&
+      layout_ethereum_address_body_fits(address)) {
     return confirm_ethereum_address(desc, address);
   }
   return confirm_address(desc, address);

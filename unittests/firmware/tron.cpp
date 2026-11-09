@@ -969,7 +969,18 @@ TEST(Tron, AddressScreenNamesTheNetworkForStandardPaths) {
  * one is never clipped: confirm_address() either uses its compact layout,
  * which it has measured to hold the whole label, or gives the label its own
  * screen before the address and QR. */
+/* Resets confirm and layout state even when a fatal ASSERT_* returns early,
+ * so a failure here cannot leak into later tests in this binary. */
+struct ConfirmStateGuard {
+  ~ConfirmStateGuard() {
+    kkconfirm_capture_finish();
+    kkconfirm_drain();
+    layoutHomeForced();
+  }
+};
+
 TEST(Tron, LongAddressLabelIsPagedNotClipped) {
+  ConfirmStateGuard guard;
   const char* address = "TY72iA3SBtrds3QLYsS7LwYfkzXwAXCRWT";
   const char* long_label = "TRON Account #2147483647";
 
@@ -1016,5 +1027,31 @@ TEST(Tron, LongAddressLabelIsPagedNotClipped) {
   ASSERT_TRUE(kkconfirm_preload(0, 1));
   EXPECT_FALSE(confirm_labelled_address(ton_label, ton));
   EXPECT_EQ(0, kkconfirm_drain());
-  layoutHomeForced();
+}
+
+/* The single-screen layout wraps the address in two 140px rows; a third row
+ * falls below the display and is dropped. Many 48-character TON addresses
+ * need that third row, so even a short label must not put them there. */
+TEST(Tron, AddressTooLongForTwoRowsIsPagedNotClipped) {
+  ConfirmStateGuard guard;
+  /* Seen on the emulator as "...Vmp63mXx" with the final "X3" missing. */
+  const char* ton = "EQAgeigx7ROXJVuP3QKq6WujSsSgDwxP_ZnxSjVmp63mXxX3";
+  EXPECT_FALSE(layout_ethereum_address_body_fits(ton));
+  EXPECT_TRUE(layout_ethereum_address_body_fits(
+      "EQAbOWh4jIEIbDB9DZP1M6Aj1d5tWBp6Fkgv9gXnXdufSDi0"));
+  EXPECT_TRUE(layout_ethereum_address_body_fits(
+      "TY72iA3SBtrds3QLYsS7LwYfkzXwAXCRWT"));
+
+  const char* label = "TON Account #0";
+  ASSERT_TRUE(layout_ethereum_address_title_fits(label));
+  ASSERT_TRUE(kkconfirm_preload(3, 0));
+  kkconfirm_capture_start();
+  EXPECT_TRUE(confirm_labelled_address(label, ton));
+  std::vector<std::string> bodies = kkconfirm_capture_finish();
+  std::vector<std::string> titles = kkconfirm_captured_titles();
+  EXPECT_EQ(0, kkconfirm_drain());
+  ASSERT_EQ(3u, bodies.size());
+  EXPECT_EQ(label, bodies[0]);
+  EXPECT_EQ("Address", titles[1]);
+  EXPECT_EQ(ton, bodies[1]);
 }
