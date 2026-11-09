@@ -294,6 +294,13 @@ bool confirm_osmosis_address(const char* desc, const char* address) {
 /*
  * confirm_ethereum_address() - Show ethereum address confirmation
  *
+ * The single-screen layout (QR, desc on one title row, address on two rows
+ * beside it) is used only when desc fits its row without reaching the
+ * confirm icon and the whole address fits its rows. Otherwise desc, the
+ * address and the QR each get their own screen, where nothing shares a row
+ * with the QR or the confirm icon. desc is titled "Derivation" when it is a
+ * raw BIP-32 path and "Account" when it names the network and account.
+ *
  * INPUT
  *      - desc: description to show with address
  *      - address: address to display both as string and in QR
@@ -302,26 +309,24 @@ bool confirm_osmosis_address(const char* desc, const char* address) {
  *
  */
 bool confirm_ethereum_address(const char* desc, const char* address) {
-  return confirm_address_with_custom_layout(
-      &layout_ethereum_address_notification,
-      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
-}
-
-/*
- * confirm_labelled_address() - Show an address under a network label
- *
- * Uses the single-screen ethereum address layout only when desc fits its
- * one title row and the whole address fits below it. Otherwise hands off to
- * confirm_address(), which either uses a compact layout it has measured, or
- * pages: the complete desc on its own screen, then the address, then the QR.
- * Neither the label nor the address is ever clipped.
- */
-bool confirm_labelled_address(const char* desc, const char* address) {
   if (layout_ethereum_address_title_fits(desc) &&
       layout_ethereum_address_body_fits(address)) {
-    return confirm_ethereum_address(desc, address);
+    return confirm_address_with_custom_layout(
+        &layout_ethereum_address_notification,
+        ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
   }
-  return confirm_address(desc, address);
+  /* Not confirm_address(): its compact layout measures against the display
+   * edge, not the confirm icon. With no desc, skip the label screen rather
+   * than ask the user to approve an empty one. */
+  if (desc && desc[0] != '\0' &&
+      !confirm(ButtonRequestType_ButtonRequest_Address,
+               strncmp(desc, "m/", 2) == 0 ? "Derivation" : "Account", "%s",
+               desc)) {
+    return false;
+  }
+  return confirm(ButtonRequestType_ButtonRequest_Address, "Address", "%s",
+                 address) &&
+         confirm_qr("Address QR", address);
 }
 
 /*

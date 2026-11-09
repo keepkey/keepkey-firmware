@@ -31,7 +31,7 @@ TEST(Ton, AddressScreenNamesTheNetworkForStandardPaths) {
 
   /* Testnet labels for small account numbers fit; the widest is
    * buffer-safe but would run into the confirm icon, so
-   * confirm_labelled_address() pages it instead of clipping digits. */
+   * confirm_ethereum_address() pages it instead of clipping digits. */
   const uint32_t ordinary[6] = {H | 44, H | 607, H | 99, H, H, H};
   ASSERT_TRUE(ton_pathLabel(label, sizeof(label), ordinary, 6, true, 0));
   EXPECT_TRUE(layout_ethereum_address_title_fits(label));

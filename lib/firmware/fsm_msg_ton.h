@@ -71,7 +71,7 @@ void fsm_msgTonGetAddress(const TonGetAddress* msg) {
       memset(node_str, 0, sizeof(node_str));
     }
 
-    if (!confirm_labelled_address(node_str, resp->address)) {
+    if (!confirm_ethereum_address(node_str, resp->address)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Show address cancelled"));
