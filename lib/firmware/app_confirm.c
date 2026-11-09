@@ -260,35 +260,80 @@ bool confirm_xpub(const char* node_str, const char* xpub) {
 }
 
 /*
+ * The QR-beside-text address layouts hold one title row ending before the
+ * confirm icon and a few address rows below it. When either would not fit,
+ * these show the same information on screens of its own instead, where
+ * nothing shares a row with the QR code or the confirm icon. Not
+ * confirm_address(): its compact layout measures against the display edge,
+ * not the confirm icon.
+ */
+
+/* desc names an account (or is a raw BIP-32 path): it gets its own screen,
+ * titled "Derivation" for a path and "Account" otherwise, then the address,
+ * then its QR. With no desc, skip the label screen rather than ask the user
+ * to approve an empty one. */
+static bool confirm_account_address_paged(const char* desc,
+                                          const char* address) {
+  if (desc && desc[0] != '\0' &&
+      !confirm(ButtonRequestType_ButtonRequest_Address,
+               strncmp(desc, "m/", 2) == 0 ? "Derivation" : "Account", "%s",
+               desc)) {
+    return false;
+  }
+  return confirm(ButtonRequestType_ButtonRequest_Address, "Address", "%s",
+                 address) &&
+         confirm_qr("Address QR", address);
+}
+
+/* desc names the address's role in a transaction ("Validator address"): it
+ * titles the full-width address screen. The QR screen draws its title beside
+ * the confirm icon, so it keeps desc only when desc fits there. */
+static bool confirm_role_address_paged(const char* desc, const char* address) {
+  const char* title = desc && desc[0] != '\0' ? desc : "Address";
+  return confirm(ButtonRequestType_ButtonRequest_Address, title, "%s",
+                 address) &&
+         confirm_qr(layout_address_title_fits(title) ? title : "Address QR",
+                    address);
+}
+
+/*
  * confirm_cosmos_address() - Show cosmos address confirmation
  *
  * INPUT
- *      - desc: description to show with address
+ *      - desc: role of the address, shown as its title
  *      - address: address to display both as string and in QR
  * OUTPUT
  *     true/false of confirmation
  *
  */
 bool confirm_cosmos_address(const char* desc, const char* address) {
-  return confirm_address_with_custom_layout(
-      &layout_cosmos_address_notification,
-      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+  if (layout_address_title_fits(desc) &&
+      layout_cosmos_address_body_fits(address)) {
+    return confirm_address_with_custom_layout(
+        &layout_cosmos_address_notification,
+        ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+  }
+  return confirm_role_address_paged(desc, address);
 }
 
 /*
  * confirm_osmosis_address() - Show osmosis address confirmation
  *
  * INPUT
- *      - desc: description to show with address
+ *      - desc: role of the address, shown as its title
  *      - address: address to display both as string and in QR
  * OUTPUT
  *     true/false of confirmation
  *
  */
 bool confirm_osmosis_address(const char* desc, const char* address) {
-  return confirm_address_with_custom_layout(
-      &layout_osmosis_address_notification,
-      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+  if (layout_address_title_fits(desc) &&
+      layout_osmosis_address_body_fits(address)) {
+    return confirm_address_with_custom_layout(
+        &layout_osmosis_address_notification,
+        ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+  }
+  return confirm_role_address_paged(desc, address);
 }
 
 /*
@@ -309,40 +354,34 @@ bool confirm_osmosis_address(const char* desc, const char* address) {
  *
  */
 bool confirm_ethereum_address(const char* desc, const char* address) {
-  if (layout_ethereum_address_title_fits(desc) &&
+  if (layout_address_title_fits(desc) &&
       layout_ethereum_address_body_fits(address)) {
     return confirm_address_with_custom_layout(
         &layout_ethereum_address_notification,
         ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
   }
-  /* Not confirm_address(): its compact layout measures against the display
-   * edge, not the confirm icon. With no desc, skip the label screen rather
-   * than ask the user to approve an empty one. */
-  if (desc && desc[0] != '\0' &&
-      !confirm(ButtonRequestType_ButtonRequest_Address,
-               strncmp(desc, "m/", 2) == 0 ? "Derivation" : "Account", "%s",
-               desc)) {
-    return false;
-  }
-  return confirm(ButtonRequestType_ButtonRequest_Address, "Address", "%s",
-                 address) &&
-         confirm_qr("Address QR", address);
+  return confirm_account_address_paged(desc, address);
 }
 
 /*
- * confirm_nano_address() - Show nano address confirmation
+ * confirm_nano_address() - Show nano address confirmation; pages like
+ * confirm_ethereum_address() when the label or address would not fit.
  *
  * INPUT
- *      - desc: description to show with address
+ *      - desc: account label or BIP-32 path to show with address
  *      - address: address to display both as string and in QR
  * OUTPUT
  *     true/false of confirmation
  *
  */
 bool confirm_nano_address(const char* desc, const char* address) {
-  return confirm_address_with_custom_layout(
-      &layout_nano_address_notification,
-      ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+  if (layout_address_title_fits(desc) &&
+      layout_nano_address_body_fits(address)) {
+    return confirm_address_with_custom_layout(
+        &layout_nano_address_notification,
+        ButtonRequestType_ButtonRequest_Address, desc, "%s", address);
+  }
+  return confirm_account_address_paged(desc, address);
 }
 
 /* confirm_qr() - Show desc and a QR code of data, without text. */

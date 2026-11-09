@@ -56,7 +56,7 @@ bool nano_bip32_to_string(char* node_str, size_t len, const CoinType* _coin,
   if (nano_path_mismatched(_coin, address_n, address_n_count)) return false;
 
   snprintf(node_str, len, "%s Account #%" PRIu32, _coin->coin_name,
-           address_n[2] & 0x7ffffff);
+           address_n[2] & 0x7fffffff);
   return true;
 }
 
