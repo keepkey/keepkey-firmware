@@ -13,6 +13,7 @@ extern "C" {
 }
 
 #include "gtest/gtest.h"
+#include "test_board.h"
 #include <cstring>
 #include <string>
 #include <vector>
@@ -969,9 +970,12 @@ TEST(Tron, AddressScreenNamesTheNetworkForStandardPaths) {
  * one is never clipped: confirm_address() either uses its compact layout,
  * which it has measured to hold the whole label, or gives the label its own
  * screen before the address and QR. */
-/* Resets confirm and layout state even when a fatal ASSERT_* returns early,
- * so a failure here cannot leak into later tests in this binary. */
+/* Initializes the board, so the layout canvas the fit checks measure
+ * against exists however these tests are ordered or filtered, and resets
+ * confirm and layout state even when a fatal ASSERT_* returns early, so a
+ * failure here cannot leak into later tests in this binary. */
 struct ConfirmStateGuard {
+  ConfirmStateGuard() { kk_test_board_init(); }
   ~ConfirmStateGuard() {
     kkconfirm_capture_finish();
     kkconfirm_drain();
