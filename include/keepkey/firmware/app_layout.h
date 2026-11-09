@@ -112,6 +112,7 @@ void layout_xpub_notification(const char* desc, const char* xpub,
                               NotificationType type);
 bool layout_address_fits_one_line(const char* address);
 bool layout_address_description_fits(const char* desc, const char* address);
+bool layout_ethereum_address_title_fits(const char* desc);
 void layout_qr_notification(const char* desc, const char* data,
                             NotificationType type);
 void layout_address_notification(const char* desc, const char* address,

@@ -3,6 +3,7 @@ extern "C" {
 #include "keepkey/board/memory.h"
 #include "keepkey/firmware/fsm.h"
 #include "keepkey/firmware/app_confirm.h"
+#include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tron.h"
@@ -929,13 +930,16 @@ TEST(Tron, AddressScreenNamesTheNetworkForStandardPaths) {
   ASSERT_TRUE(tron_pathLabel(label, sizeof(label), first, 5));
   EXPECT_STREQ(label, "TRON Account #0");
 
-  const uint32_t indexed[5] = {H | 44, H | 195, H | 3, 0, 7};
-  ASSERT_TRUE(tron_pathLabel(label, sizeof(label), indexed, 5));
-  EXPECT_STREQ(label, "TRON Account #3\nAddress #7");
-
-  /* The widest label still fits the handler's buffer. */
-  const uint32_t widest[5] = {H | 44, H | 195, H | 0x7fffffff, 0, 0x7fffffff};
+  /* The widest label renders on the address screen's single title row. */
+  const uint32_t widest[5] = {H | 44, H | 195, H | 0x7fffffff, 0, 0};
   ASSERT_TRUE(tron_pathLabel(label, sizeof(label), widest, 5));
+  EXPECT_STREQ(label, "TRON Account #2147483647");
+  EXPECT_TRUE(layout_ethereum_address_title_fits(label));
+
+  /* A second "Address #i" line would draw over the address, so a non-zero
+   * address index shows the raw path instead. */
+  const uint32_t indexed[5] = {H | 44, H | 195, H | 3, 0, 7};
+  EXPECT_FALSE(tron_pathLabel(label, sizeof(label), indexed, 5));
 
   /* Non-standard shapes fall back to the BIP-32 path in the handler. */
   const uint32_t three[3] = {H | 44, H | 195, H | 0};

@@ -527,6 +527,19 @@ void layout_osmosis_address_notification(const char* desc, const char* address,
  * OUTPUT
  *      none
  */
+/* The title of layout_ethereum_address_notification() starts here, beside
+ * the QR code, and has exactly one row above the address. */
+#define ETH_ADDRESS_TITLE_X (LEFT_MARGIN + 65)
+
+/* True when desc renders on that one row: no line break, and its full width
+ * fits between ETH_ADDRESS_TITLE_X and the right edge of the display. A
+ * longer title would clip at the edge or wrap onto the address. */
+bool layout_ethereum_address_title_fits(const char* desc) {
+  if (!desc || strchr(desc, '\n')) return false;
+  return calc_str_width(get_title_font(), desc) <=
+         (uint32_t)(KEEPKEY_DISPLAY_WIDTH - ETH_ADDRESS_TITLE_X);
+}
+
 void layout_ethereum_address_notification(const char* desc, const char* address,
                                           NotificationType type) {
   DrawableParams sp;
@@ -540,7 +553,7 @@ void layout_ethereum_address_notification(const char* desc, const char* address,
   if (strcmp(desc, "") != 0) {
     const Font* title_font = get_title_font();
     sp.y = TOP_MARGIN_FOR_TWO_LINES;
-    sp.x = LEFT_MARGIN + 65;
+    sp.x = ETH_ADDRESS_TITLE_X;
     sp.color = BODY_COLOR;
     draw_string(canvas, title_font, desc, &sp, TRANSACTION_WIDTH - 2,
                 font_height(title_font) + BODY_FONT_LINE_PADDING);

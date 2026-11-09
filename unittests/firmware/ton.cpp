@@ -1,4 +1,6 @@
 extern "C" {
+#include "keepkey/board/layout.h"
+#include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
 #include "keepkey/firmware/ton.h"
 }
@@ -21,10 +23,21 @@ TEST(Ton, AddressScreenNamesTheNetworkForStandardPaths) {
   ASSERT_TRUE(ton_pathLabel(label, sizeof(label), first, 6, true, 0));
   EXPECT_STREQ(label, "TON Testnet Account #0");
 
-  /* The widest label still fits the handler's buffer. */
+  /* Every mainnet label renders on the address screen's single title row. */
   const uint32_t widest[6] = {H | 44, H | 607, H | 0x7fffffff, H, H, H};
+  ASSERT_TRUE(ton_pathLabel(label, sizeof(label), widest, 6, false, 0));
+  EXPECT_STREQ(label, "TON Account #2147483647");
+  EXPECT_TRUE(layout_ethereum_address_title_fits(label));
+
+  /* Testnet labels for ordinary accounts fit; the widest is buffer-safe but
+   * too wide for the row, so the handler shows the raw path instead of
+   * clipping account digits. */
+  const uint32_t ordinary[6] = {H | 44, H | 607, H | 999, H, H, H};
+  ASSERT_TRUE(ton_pathLabel(label, sizeof(label), ordinary, 6, true, 0));
+  EXPECT_TRUE(layout_ethereum_address_title_fits(label));
   ASSERT_TRUE(ton_pathLabel(label, sizeof(label), widest, 6, true, 0));
   EXPECT_STREQ(label, "TON Testnet Account #2147483647");
+  EXPECT_FALSE(layout_ethereum_address_title_fits(label));
 
   /* Everything else falls back to the BIP-32 path in the handler. */
   EXPECT_FALSE(ton_pathLabel(label, sizeof(label), first, 6, false, -1));
@@ -40,6 +53,9 @@ TEST(Ton, AddressScreenNamesTheNetworkForStandardPaths) {
   EXPECT_FALSE(ton_pathLabel(label, sizeof(label), unhardened_account, 6, false, 0));
   const uint32_t solana[6] = {H | 44, H | 501, H | 0, H, H, H};
   EXPECT_FALSE(ton_pathLabel(label, sizeof(label), solana, 6, false, 0));
+
+  /* A line break never fits the single title row. */
+  EXPECT_FALSE(layout_ethereum_address_title_fits("TON Account #0\nX"));
 
   char tiny[8];
   EXPECT_FALSE(ton_pathLabel(tiny, sizeof(tiny), first, 6, false, 0));
