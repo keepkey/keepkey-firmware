@@ -64,17 +64,14 @@ void fsm_msgTonGetAddress(const TonGetAddress* msg) {
   // Show address on display if requested
   if (msg->has_show_display && msg->show_display) {
     char node_str[NODE_STRING_LENGTH];
-    /* A testnet label for a very large account number is wider than the
-     * title row; the raw path then names the derivation instead. */
-    if (!(ton_pathLabel(node_str, sizeof(node_str), msg->address_n,
-                        msg->address_n_count, testnet, workchain) &&
-          layout_ethereum_address_title_fits(node_str)) &&
+    if (!ton_pathLabel(node_str, sizeof(node_str), msg->address_n,
+                       msg->address_n_count, testnet, workchain) &&
         !bip32_path_to_string(node_str, sizeof(node_str), msg->address_n,
                               msg->address_n_count)) {
       memset(node_str, 0, sizeof(node_str));
     }
 
-    if (!confirm_ethereum_address(node_str, resp->address)) {
+    if (!confirm_labelled_address(node_str, resp->address)) {
       memzero(node, sizeof(*node));
       fsm_sendFailure(FailureType_Failure_ActionCancelled,
                       _("Show address cancelled"));

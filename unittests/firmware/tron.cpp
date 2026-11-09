@@ -5,6 +5,7 @@ extern "C" {
 #include "keepkey/firmware/app_confirm.h"
 #include "keepkey/firmware/app_layout.h"
 #include "keepkey/firmware/coins.h"
+#include "keepkey/firmware/home_sm.h"
 #include "keepkey/firmware/storage.h"
 #include "keepkey/firmware/tron.h"
 #include "trezor/crypto/base58.h"
@@ -22,6 +23,7 @@ bool kkconfirm_readResponse(uint16_t expected, const pb_field_t* fields,
                             void* result);
 void kkconfirm_capture_start(void);
 std::vector<std::string> kkconfirm_capture_finish(void);
+std::vector<std::string> kkconfirm_captured_titles(void);
 
 TEST(Tron, LongBinaryMemoRequiresApprovalOfEveryPage) {
   std::vector<uint8_t> memo(114, 'W');
@@ -930,11 +932,16 @@ TEST(Tron, AddressScreenNamesTheNetworkForStandardPaths) {
   ASSERT_TRUE(tron_pathLabel(label, sizeof(label), first, 5));
   EXPECT_STREQ(label, "TRON Account #0");
 
-  /* The widest label renders on the address screen's single title row. */
+  /* Ordinary accounts fit the address screen's single title row. The widest
+   * label is buffer-safe but would run into the confirm icon, so
+   * confirm_labelled_address() pages it instead. */
+  const uint32_t ordinary[5] = {H | 44, H | 195, H | 99999, 0, 0};
+  ASSERT_TRUE(tron_pathLabel(label, sizeof(label), ordinary, 5));
+  EXPECT_TRUE(layout_ethereum_address_title_fits(label));
   const uint32_t widest[5] = {H | 44, H | 195, H | 0x7fffffff, 0, 0};
   ASSERT_TRUE(tron_pathLabel(label, sizeof(label), widest, 5));
   EXPECT_STREQ(label, "TRON Account #2147483647");
-  EXPECT_TRUE(layout_ethereum_address_title_fits(label));
+  EXPECT_FALSE(layout_ethereum_address_title_fits(label));
 
   /* A second "Address #i" line would draw over the address, so a non-zero
    * address index shows the raw path instead. */
@@ -956,4 +963,58 @@ TEST(Tron, AddressScreenNamesTheNetworkForStandardPaths) {
   char tiny[8];
   EXPECT_FALSE(tron_pathLabel(tiny, sizeof(tiny), first, 5));
   EXPECT_STREQ(tiny, "");
+}
+
+/* A label that fits shares one screen with the address and QR. A longer
+ * one is never clipped: confirm_address() either uses its compact layout,
+ * which it has measured to hold the whole label, or gives the label its own
+ * screen before the address and QR. */
+TEST(Tron, LongAddressLabelIsPagedNotClipped) {
+  const char* address = "TY72iA3SBtrds3QLYsS7LwYfkzXwAXCRWT";
+  const char* long_label = "TRON Account #2147483647";
+
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  kkconfirm_capture_start();
+  EXPECT_TRUE(confirm_labelled_address("TRON Account #0", address));
+  std::vector<std::string> bodies = kkconfirm_capture_finish();
+  std::vector<std::string> titles = kkconfirm_captured_titles();
+  EXPECT_EQ(0, kkconfirm_drain());
+  ASSERT_EQ(1u, bodies.size());
+  EXPECT_EQ("TRON Account #0", titles[0]);
+
+  /* A 34-character TRON address fits one line, so the compact layout
+   * carries the whole long label. */
+  ASSERT_TRUE(layout_address_fits_one_line(address));
+  ASSERT_TRUE(layout_address_description_fits(long_label, address));
+  ASSERT_TRUE(kkconfirm_preload(1, 0));
+  kkconfirm_capture_start();
+  EXPECT_TRUE(confirm_labelled_address(long_label, address));
+  bodies = kkconfirm_capture_finish();
+  titles = kkconfirm_captured_titles();
+  EXPECT_EQ(0, kkconfirm_drain());
+  ASSERT_EQ(1u, bodies.size());
+  EXPECT_EQ(long_label, titles[0]);
+
+  /* A 48-character TON address does not, so the label gets its own page. */
+  const char* ton = "EQAbOWh4jIEIbDB9DZP1M6Aj1d5tWBp6Fkgv9gXnXdufSDi0";
+  const char* ton_label = "TON Testnet Account #2147483647";
+  ASSERT_FALSE(layout_address_fits_one_line(ton));
+  ASSERT_TRUE(kkconfirm_preload(3, 0));
+  kkconfirm_capture_start();
+  EXPECT_TRUE(confirm_labelled_address(ton_label, ton));
+  bodies = kkconfirm_capture_finish();
+  titles = kkconfirm_captured_titles();
+  EXPECT_EQ(0, kkconfirm_drain());
+  ASSERT_EQ(3u, bodies.size());
+  EXPECT_EQ("Derivation", titles[0]);
+  EXPECT_EQ(ton_label, bodies[0]);
+  EXPECT_EQ("Address", titles[1]);
+  EXPECT_EQ(ton, bodies[1]);
+  EXPECT_EQ("Address QR", titles[2]);
+
+  /* Rejecting the label page stops before the address is approved. */
+  ASSERT_TRUE(kkconfirm_preload(0, 1));
+  EXPECT_FALSE(confirm_labelled_address(ton_label, ton));
+  EXPECT_EQ(0, kkconfirm_drain());
+  layoutHomeForced();
 }

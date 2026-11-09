@@ -29,10 +29,10 @@ TEST(Ton, AddressScreenNamesTheNetworkForStandardPaths) {
   EXPECT_STREQ(label, "TON Account #2147483647");
   EXPECT_TRUE(layout_ethereum_address_title_fits(label));
 
-  /* Testnet labels for ordinary accounts fit; the widest is buffer-safe but
-   * too wide for the row, so the handler shows the raw path instead of
-   * clipping account digits. */
-  const uint32_t ordinary[6] = {H | 44, H | 607, H | 999, H, H, H};
+  /* Testnet labels for small account numbers fit; the widest is
+   * buffer-safe but would run into the confirm icon, so
+   * confirm_labelled_address() pages it instead of clipping digits. */
+  const uint32_t ordinary[6] = {H | 44, H | 607, H | 99, H, H, H};
   ASSERT_TRUE(ton_pathLabel(label, sizeof(label), ordinary, 6, true, 0));
   EXPECT_TRUE(layout_ethereum_address_title_fits(label));
   ASSERT_TRUE(ton_pathLabel(label, sizeof(label), widest, 6, true, 0));
