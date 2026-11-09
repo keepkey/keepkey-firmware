@@ -286,12 +286,14 @@ static bool confirm_account_address_paged(const char* desc,
 }
 
 /* desc names the address's role in a transaction ("Validator address"): it
- * titles the address screen, then the QR. */
+ * titles the full-width address screen. The QR screen draws its title beside
+ * the confirm icon, so it keeps desc only when desc fits there. */
 static bool confirm_role_address_paged(const char* desc, const char* address) {
   const char* title = desc && desc[0] != '\0' ? desc : "Address";
   return confirm(ButtonRequestType_ButtonRequest_Address, title, "%s",
                  address) &&
-         confirm_qr(title, address);
+         confirm_qr(layout_address_title_fits(title) ? title : "Address QR",
+                    address);
 }
 
 /*

@@ -245,14 +245,15 @@ TEST(AppConfirm, StakingAddressScreenNeverClipsTitleOrAddress) {
   EXPECT_EQ("Validator Address", shown.titles[0]);
 
   /* A title that would reach the confirm icon titles a full-width address
-   * screen instead, then the QR. */
+   * screen instead. The QR screen draws its title beside the icon, so it
+   * does not repeat it. */
   const char* wide = "Confirm delegator address";
   const char* delegator = "cosmos15cenya0tr7nm3tz2wn3h3zwkht2rxrq7q7h3dj";
   shown = showAddress(wide, delegator, 2, confirm_cosmos_address);
   ASSERT_EQ(2u, shown.titles.size());
   EXPECT_EQ(wide, shown.titles[0]);
   EXPECT_EQ(delegator, shown.bodies[0]);
-  EXPECT_EQ(wide, shown.titles[1]);
+  EXPECT_EQ("Address QR", shown.titles[1]);
 
   /* So does an address too long for the rows: two 160 px rows cannot hold
    * the widest 52-character string. */
@@ -263,6 +264,7 @@ TEST(AppConfirm, StakingAddressScreenNeverClipsTitleOrAddress) {
   ASSERT_EQ(2u, shown.titles.size());
   EXPECT_EQ("Validator Address", shown.titles[0]);
   EXPECT_EQ(long_osmo, shown.bodies[0]);
+  EXPECT_EQ("Validator Address", shown.titles[1]);
 
   ASSERT_TRUE(kkconfirm_preload(0, 1));
   EXPECT_FALSE(confirm_cosmos_address(wide, delegator));
