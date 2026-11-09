@@ -89,16 +89,35 @@ Shown showAddress(const char* desc, const char* address, int screens) {
  * display with no marker. */
 TEST(AppConfirm, EthereumLayoutFitChecksMatchRealLabelsAndAddresses) {
   AddressScreenGuard guard;
+  /* Every label these handlers produce fits at account #0, so no network's
+   * everyday address screen changes. Width depends on the digits, not just
+   * how many: every two-digit account fits for every network, and the
+   * narrowest margins are ETH Testnet and TON Testnet (some three-digit
+   * accounts page) and ETH Classic (some four-digit ones). */
   for (const char* label :
-       {"Ethereum Account #0", "Ethereum Account #999", "Cosmos Account #0",
-        "THORChain Account #0", "MAYAChain Account #0", "Osmosis Account #0",
-        "Ripple Account #0", "Solana", "m/44'/60'/0'/0/0"}) {
+       {"Ethereum Account #0", "Ethereum Account #99999", "ETH Classic Account #0",
+        "ETH Classic Account #999", "ETH Testnet Account #0",
+        "ETH Testnet Account #99", "Cosmos Account #0", "Osmosis Account #0",
+        "THORChain Account #0", "MAYAChain Account #0", "Terra Account #0",
+        "Kava Account #0", "Secret Account #0", "Binance Account #0",
+        "Ripple Account #0", "TRON Account #0", "TON Account #0",
+        "TON Testnet Account #99", "Solana", "m/44'/60'/0'/0/0"}) {
     EXPECT_TRUE(layout_ethereum_address_title_fits(label)) << label;
+  }
+  for (const char* network :
+       {"Ethereum", "ETH Classic", "ETH Testnet", "Cosmos", "Osmosis",
+        "THORChain", "MAYAChain", "Terra", "Kava", "Secret", "Binance",
+        "Ripple", "TRON", "TON", "TON Testnet"}) {
+    for (int account = 0; account < 100; account++) {
+      const std::string label =
+          std::string(network) + " Account #" + std::to_string(account);
+      EXPECT_TRUE(layout_ethereum_address_title_fits(label.c_str())) << label;
+    }
   }
   for (const char* label :
        {"Ethereum Account #2147483647", "Cosmos Account #2147483647",
-        "Ethereum Classic Account #0", "Avalanche C-Chain Account #0",
-        "m/44'/60'/2147483647'/0/0"}) {
+        "ETH Classic Account #9999", "ETH Testnet Account #999",
+        "TON Testnet Account #999", "m/44'/60'/2147483647'/0/0"}) {
     EXPECT_FALSE(layout_ethereum_address_title_fits(label)) << label;
   }
   for (const char* address :
@@ -139,7 +158,7 @@ TEST(AppConfirm, EthereumAddressScreenNeverClipsLabelOrAddress) {
    * fit both the single screen and confirm_address()'s compact layout: that
    * layout measures only against the display edge, so its title row could
    * still run under the confirm icon. */
-  const char* wide = "Ethereum Classic Account #2147483647";
+  const char* wide = "ETH Classic Account #2147483647";
   ASSERT_TRUE(layout_ethereum_address_body_fits(eth));
   ASSERT_TRUE(layout_address_fits_one_line(eth));
   shown = showAddress(wide, eth, 3);
